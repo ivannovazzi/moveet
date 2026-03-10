@@ -1,6 +1,6 @@
 {
   "name": "moveet",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Real-time vehicle fleet simulator on OpenStreetMap road networks",
   "author": "Ivan Novazzi",
   "license": "MIT",
