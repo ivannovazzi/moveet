@@ -1,6 +1,6 @@
 {
   "name": "@moveet/adapter",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Bridge service between Moveet simulator and external fleet management APIs",
   "main": "dist/index.js",
   "scripts": {
