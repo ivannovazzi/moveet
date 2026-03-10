@@ -13,27 +13,22 @@ RUN npm run build
 # Production stage
 FROM node:24-alpine
 
-# Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
 
 WORKDIR /app
 
-# Copy package file and install production dependencies only
 COPY package.json ./
 RUN npm install --omit=dev && \
     npm cache clean --force
 
-# Copy built application
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 
-# Default environment variables
 ENV NODE_ENV=production \
     PORT=5011 \
     SOURCE_TYPE=static \
     SINK_TYPES=console
 
-# Switch to non-root user
 USER nodejs
 
 EXPOSE 5011
