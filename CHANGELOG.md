@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.0.2](https://github.com/ivannovazzi/moveet/compare/moveet-v0.0.1...moveet-v0.0.2) (2026-03-10)
+
+
+### Bug Fixes
+
+* build multi-platform Docker images (amd64 + arm64) ([1011b76](https://github.com/ivannovazzi/moveet/commit/1011b769caef7ffa1f9453a83b9eb5c1723e3735))
+* inline tsconfig base into each app for standalone Docker builds ([4611d67](https://github.com/ivannovazzi/moveet/commit/4611d67b38c3e72178d5fad066a8e1eca509e79d))
+* use npm install in Dockerfiles for monorepo compatibility ([7582b7f](https://github.com/ivannovazzi/moveet/commit/7582b7f222ef3c5ceb093cc91d93ccb77edec2c6))
+
 ## 3.0.0 (2026-03-10)
 
 ### Breaking Changes
