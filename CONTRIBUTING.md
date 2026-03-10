@@ -102,6 +102,18 @@ If you are adding a new feature or fixing a bug, include tests that cover the ch
 
 6. A maintainer will review your PR. Address any feedback, and the PR will be merged once approved.
 
+## Commit Messages
+
+This project uses [Conventional Commits](https://www.conventionalcommits.org/) to automate versioning and changelogs. Format your commit messages as:
+
+- `feat: add postgres source plugin` — new feature (bumps minor version)
+- `fix: correct route calculation near intersections` — bug fix (bumps patch version)
+- `feat!: redesign plugin configuration API` — breaking change (bumps major version)
+- `chore: update dependencies` — maintenance (no release)
+- `docs: improve adapter setup guide` — documentation (no release)
+
+The first line should be lowercase, imperative, and under 72 characters.
+
 ## Reporting Bugs
 
 Please use **GitHub Issues** to report bugs. A good bug report includes:

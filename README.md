@@ -57,6 +57,22 @@ The adapter service uses a plugin architecture to connect the simulator to exter
 
 Multiple sinks can be active simultaneously -- e.g. stream to Kafka for your event pipeline while also pushing to a REST endpoint for a legacy system.
 
+## Run with Docker
+
+Pull and run the full stack — no clone or build needed:
+
+```bash
+curl -O https://raw.githubusercontent.com/ivannovazzi/moveet/main/docker-compose.ghcr.yml
+docker compose -f docker-compose.ghcr.yml up
+```
+
+Open [http://localhost:5012](http://localhost:5012) to view the dashboard.
+
+Images are published to GitHub Container Registry on every release:
+- `ghcr.io/ivannovazzi/moveet-simulator`
+- `ghcr.io/ivannovazzi/moveet-adapter`
+- `ghcr.io/ivannovazzi/moveet-ui`
+
 ## Architecture
 
 ```

@@ -1,0 +1,29 @@
+# Run the full Moveet stack from published images (no build required).
+# Usage: docker compose -f docker-compose.ghcr.yml up
+services:
+  simulator:
+    image: ghcr.io/ivannovazzi/moveet-simulator:latest
+    ports:
+      - "5010:3000"
+    environment:
+      - PORT=3000
+      - UPDATE_INTERVAL=300
+      - USE_ADAPTER=true
+      - ADAPTER_URL=http://adapter:5011
+
+  adapter:
+    image: ghcr.io/ivannovazzi/moveet-adapter:latest
+    ports:
+      - "5011:5011"
+    environment:
+      - PORT=5011
+      - SOURCE_TYPE=static
+      - SINK_TYPES=console
+
+  ui:
+    image: ghcr.io/ivannovazzi/moveet-ui:latest
+    ports:
+      - "5012:8080"
+    environment:
+      - API_URL=http://simulator:3000
+      - WS_URL=ws://simulator:3000
