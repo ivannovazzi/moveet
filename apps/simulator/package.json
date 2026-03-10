@@ -1,0 +1,57 @@
+{
+  "name": "@moveet/simulator",
+  "version": "2.0.0",
+  "description": "Vehicle location simulator for fleet management systems using real road networks from OpenStreetMap",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "NODE_ENV=production node ./dist/index.js",
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "lint": "tsc --noEmit && eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"src/**/*.{ts,js,json,md}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,js,json,md}\""
+  },
+  "author": "Ivan Novazzi",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ivannovazzi/moveet.git",
+    "directory": "apps/simulator"
+  },
+  "keywords": [
+    "fleet-management",
+    "vehicle-simulation",
+    "location-tracking",
+    "openstreetmap",
+    "geospatial",
+    "routing",
+    "pathfinding"
+  ],
+  "dependencies": {
+    "@turf/turf": "^7.3.4",
+    "cors": "^2.8.6",
+    "dotenv": "^16.5.0",
+    "express": "^4.21.2",
+    "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/geojson": "^7946.0.16",
+    "@types/node": "^22.15.0",
+    "@types/ws": "^8.18.1",
+    "@vitest/ui": "^4.0.18",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^16.5.0",
+    "prettier": "^3.8.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.57.0",
+    "vitest": "^4.0.18"
+  }
+}

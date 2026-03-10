@@ -1,0 +1,13 @@
+.zoom {
+  position: absolute;
+  right: var(--space-6);
+  bottom: var(--space-6);
+  gap: var(--space-2);
+  display: flex;
+}
+
+.zoom button {
+  border-radius: var(--radius-full);
+  height: var(--control-height-lg);
+  width: var(--control-height-lg);
+}

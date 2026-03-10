@@ -1,0 +1,49 @@
+{
+  "name": "@moveet/adapter",
+  "version": "1.0.0",
+  "description": "Bridge service between Moveet simulator and external fleet management APIs",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "NODE_ENV=production node ./dist/index.js",
+    "build": "tsc",
+    "lint": "tsc --noEmit && eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"src/**/*.{ts,js,json,md}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,js,json,md}\"",
+    "test": "vitest run"
+  },
+  "author": "Ivan Novazzi",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ivannovazzi/moveet.git",
+    "directory": "apps/adapter"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^16.5.0",
+    "express": "^4.21.2",
+    "graphql-request": "^7.4.0",
+    "ioredis": "^5.10.0",
+    "kafkajs": "^2.2.4",
+    "mysql2": "^3.19.0",
+    "pg": "^8.20.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/ioredis": "^4.28.10",
+    "@types/node": "^22.15.0",
+    "@types/pg": "^8.18.0",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^16.5.0",
+    "prettier": "^3.8.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.57.0",
+    "vitest": "^4.0.18"
+  }
+}

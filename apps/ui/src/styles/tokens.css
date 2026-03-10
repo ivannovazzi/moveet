@@ -1,0 +1,103 @@
+:root {
+  /* Neutrals */
+  --color-bg-app: #242424;
+  --color-bg-dark: #111;
+  --color-bg-dark-2: #222;
+  --color-bg-dark-3: #333;
+  --color-bg-dark-4: #444;
+  --color-gray: #666;
+  --color-gray-light: #999;
+  --color-gray-lighter: #ccc;
+  --color-gray-lightest: #eee;
+  --color-white: #fff;
+  --color-text: rgba(255, 255, 255, 0.87);
+
+  /* Overlays */
+  --color-overlay-1: rgba(255, 255, 255, 0.1);
+  --color-overlay-2: rgba(255, 255, 255, 0.2);
+  --color-overlay-subtle: rgba(255, 255, 255, 0.05);
+
+  /* Primary */
+  --color-primary: #0b6055;
+  --color-accent: #39f;
+  --color-accent-dark: #145ecf;
+
+  /* POI Categories */
+  --color-poi-shop: #993300;
+  --color-poi-leisure: #339900;
+  --color-poi-craft: #333399;
+  --color-poi-office: #cc6633;
+  --color-poi-bus: #bbf;
+  --color-poi-default: #666;
+
+  /* Map */
+  --color-map-road-highway: #222;
+  --color-map-road-default: #444;
+  --color-map-polyline: #4488ff;
+  --color-map-polyline-hovered: #f93;
+  --color-map-polyline-selected: #39f;
+  --color-map-road-highlight: #fff;
+  --color-map-traffic-zone: #f00;
+
+  /* Danger */
+  --color-danger-border: #f006;
+  --color-danger-bg: #f001;
+
+  /* Spacing */
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 12px;
+  --space-6: 16px;
+  --space-7: 24px;
+  --space-8: 32px;
+
+  /* Interactive element heights */
+  --control-height-sm: 28px;
+  --control-height: 32px;
+  --control-height-lg: 36px;
+
+  /* Border Radius */
+  --radius-xs: 3px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-full: 50%;
+
+  /* Font Sizes */
+  --text-xs: 9px;
+  --text-sm: 11px;
+  --text-base: 12px;
+  --text-md: 13px;
+  --text-lg: 14px;
+  --text-xl: 16px;
+  --text-2xl: 20px;
+
+  /* Surfaces — reusable bg/border for interactive elements */
+  --surface-bg: rgba(255, 255, 255, 0.05);
+  --surface-bg-hover: rgba(255, 255, 255, 0.08);
+  --surface-bg-active: rgba(255, 255, 255, 0.12);
+  --surface-border: 1px solid rgba(255, 255, 255, 0.08);
+  --surface-border-hover: 1px solid rgba(255, 255, 255, 0.14);
+
+  /* Shadows */
+  --shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  --shadow-inset: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+
+  /* Effects */
+  --blur: blur(10px);
+
+  /* Transitions */
+  --transition-fast: 200ms;
+  --transition-normal: 300ms;
+  --transition-slow: 500ms;
+
+  /* Vehicle rendering */
+  --color-vehicle-fill: #dcdcdc;
+  --color-vehicle-stroke: #333;
+  --color-vehicle-hover-stroke: rgb(251, 201, 1);
+  --color-vehicle-selected-stroke: #06c;
+  --color-vehicle-selected-bg: rgba(33, 255, 205, 0.3);
+}

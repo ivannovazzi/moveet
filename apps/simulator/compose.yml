@@ -1,0 +1,21 @@
+services:
+  simulator:
+    build: .
+    environment:
+      - UPDATE_INTERVAL=300
+      - ADAPTER_URL=http://adapter:5011
+      - MIN_SPEED=100
+      - MAX_SPEED=300
+    ports:
+      - "5010:3000"
+  adapter:
+    build: ../adapter
+    environment:
+      - SOURCE_TYPE=static
+      - SINK_TYPES=console
+    ports:
+      - "5011:5011"
+  ui:
+    build: ../ui
+    ports:
+      - "5012:8080"

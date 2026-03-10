@@ -1,0 +1,30 @@
+{
+  "name": "moveet",
+  "description": "Real-time vehicle fleet simulator on OpenStreetMap road networks",
+  "author": "Ivan Novazzi",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ivannovazzi/moveet.git"
+  },
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "lint:fix": "turbo lint:fix",
+    "format": "turbo format",
+    "format:check": "turbo format:check",
+    "test": "turbo test",
+    "dev:sim": "turbo dev --filter=@moveet/simulator",
+    "dev:ui": "turbo dev --filter=@moveet/ui",
+    "dev:adapter": "turbo dev --filter=@moveet/adapter"
+  },
+  "devDependencies": {
+    "turbo": "^2.8.14"
+  },
+  "packageManager": "npm@11.6.2"
+}

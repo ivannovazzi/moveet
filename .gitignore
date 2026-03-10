@@ -1,0 +1,27 @@
+node_modules/
+dist/
+.turbo/
+.env
+*.log
+
+# Test artifacts
+test-results/
+coverage/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Dolt database files
+.dolt/
+*.db
+
+# AI agent files
+.beads/
+CLAUDE.md

@@ -1,0 +1,69 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "road-1",
+        "name": "Main Street",
+        "highway": "primary",
+        "maxspeed": "50",
+        "surface": "asphalt",
+        "oneway": "yes"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-73.5673, 45.5017],
+          [-73.5670, 45.5020],
+          [-73.5667, 45.5023]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "road-2",
+        "name": "First Avenue",
+        "highway": "secondary",
+        "surface": "paved"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-73.5667, 45.5023],
+          [-73.5664, 45.5026],
+          [-73.5661, 45.5029]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "road-3",
+        "name": "Second Avenue",
+        "highway": "tertiary"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-73.5670, 45.5020],
+          [-73.5673, 45.5023],
+          [-73.5676, 45.5026]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "poi-1",
+        "name": "Coffee Shop",
+        "shop": "coffee"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-73.5670, 45.5020]
+      }
+    }
+  ]
+}

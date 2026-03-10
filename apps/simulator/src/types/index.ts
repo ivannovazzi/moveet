@@ -1,0 +1,127 @@
+export interface DataVehicle {
+  id: string;
+  name: string;
+  /** Advisory seed position [lat, lng]. Simulator uses this to find nearest graph edge for initial placement. */
+  position: [number, number];
+}
+export type HighwayType =
+  | "motorway"
+  | "trunk"
+  | "primary"
+  | "secondary"
+  | "tertiary"
+  | "residential";
+
+export interface Node {
+  id: string;
+  coordinates: [number, number];
+  connections: Edge[];
+}
+
+export interface Edge {
+  id: string;
+  streetId: string;
+  name?: string;
+  start: Node;
+  end: Node;
+  distance: number;
+  bearing: number;
+  highway: HighwayType;
+  maxSpeed: number;
+  surface: string;
+  oneway: boolean;
+}
+
+export interface Vehicle {
+  id: string;
+  name: string;
+  currentEdge: Edge;
+  position: [number, number];
+  speed: number;
+  bearing: number;
+  progress: number;
+  edgeIndex?: number; // Cached index of current edge in route for performance
+  dwellUntil?: number; // timestamp (ms) when vehicle should resume moving
+  targetSpeed?: number; // desired speed, changes every few seconds
+}
+
+export interface VehicleDTO {
+  id: string;
+  name: string;
+  position: [number, number];
+  speed: number;
+  heading: number;
+}
+
+export interface SimulationStatus {
+  interval: number;
+  running: boolean;
+  ready: boolean;
+}
+
+export interface PathNode {
+  id: string;
+  gScore: number;
+  fScore: number;
+}
+
+export interface POI {
+  id: string;
+  name: string | null;
+  coordinates: [number, number];
+  type: string;
+}
+
+export interface Route {
+  edges: Edge[];
+  distance: number;
+}
+
+export interface StartOptions {
+  minSpeed: number;
+  maxSpeed: number;
+  speedVariation: number;
+  acceleration: number;
+  deceleration: number;
+  turnThreshold: number;
+  heatZoneSpeedFactor: number;
+  updateInterval: number;
+}
+
+export interface DirectionRequest {
+  id: string;
+  lat: number;
+  lng: number;
+}
+
+export interface Direction {
+  vehicleId: string;
+  route: Route;
+}
+
+export interface HeatZoneProperties {
+  id: string;
+  intensity: number;
+  timestamp: string;
+  radius: number;
+}
+
+export interface HeatZone {
+  polygon: number[][];
+  intensity: number; // 0-1 scale
+  timestamp: string;
+}
+
+export interface HeatZoneFeature {
+  type: "Feature";
+  properties: {
+    id: string;
+    intensity: number;
+    timestamp: string;
+    radius: number;
+  };
+  geometry: {
+    type: "Polygon";
+    coordinates: [number, number][];
+  };
+}

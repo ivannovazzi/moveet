@@ -1,0 +1,28 @@
+.vehicle {
+  fill: var(--color-vehicle-fill);
+  transition:
+    opacity var(--transition-normal),
+    fill var(--transition-normal),
+    stroke var(--transition-normal);
+  stroke: var(--color-vehicle-stroke);
+  stroke-width: 0.5px;
+  cursor: pointer;
+}
+
+.hovered {
+  stroke: var(--color-vehicle-hover-stroke);
+  stroke-width: 0.8px;
+  filter: drop-shadow(0 0 3px var(--color-vehicle-hover-stroke));
+}
+
+.selected {
+  stroke: var(--color-vehicle-selected-stroke);
+  stroke-width: 0.8px;
+  filter: drop-shadow(0 0 4px var(--color-vehicle-selected-stroke));
+}
+
+.selectionRing {
+  fill: var(--color-vehicle-selected-bg);
+  stroke: var(--color-vehicle-selected-stroke);
+  stroke-width: 0.4px;
+}

@@ -1,0 +1,107 @@
+.searchBar {
+  background: rgba(17, 17, 17, 0.88);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(640px, calc(100% - 56px));
+  height: 48px;
+  position: absolute;
+  top: var(--space-4);
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  transition: border-color var(--transition-fast);
+}
+
+.searchBar:focus-within {
+  border-color: rgba(57, 153, 255, 0.35);
+}
+
+.searchBar label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+}
+
+/* Override Inputs.module.css .input when used inside the search bar */
+.typeahead,
+.typeahead:hover,
+.typeahead:focus {
+  height: 100%;
+  width: 100%;
+  padding: 0 18px;
+  font-size: calc(var(--text-base) + 1px);
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  margin-right: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  color: var(--color-gray-lightest);
+  font-family: inherit;
+  outline: none;
+}
+
+.typeahead::placeholder {
+  color: var(--color-gray);
+}
+
+/* Override Inputs.module.css .squaredButton when used as the destination button */
+.destinationButton,
+.destinationButton:hover,
+.destinationButton:focus {
+  height: 100%;
+  width: 56px;
+  flex: 0 0 56px;
+  align-self: stretch;
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  background: rgba(255, 255, 255, 0.02);
+  border: none;
+  border-left: 1px solid var(--color-overlay-1);
+  box-shadow: none;
+  backdrop-filter: none;
+  cursor: pointer;
+  outline: none;
+  transition: background var(--transition-fast);
+}
+
+.destinationButton:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.destinationButton:active {
+  background: rgba(57, 153, 255, 0.1);
+}
+
+.destinationButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.destinationButton:disabled:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.destinationButton svg {
+  width: 20px;
+  height: 20px;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.option svg {
+  fill: var(--color-gray-light);
+  height: 14px;
+  width: 14px;
+  flex-shrink: 0;
+}

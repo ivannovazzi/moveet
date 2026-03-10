@@ -1,0 +1,73 @@
+.poi {
+  animation: fadeIn var(--transition-slow) ease-in-out forwards;
+  opacity: 0;
+  height: 22px;
+  width: 22px;
+  margin-top: -11px;
+  margin-left: -11px;
+  cursor: pointer;
+  border-radius: var(--radius-full);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: transform var(--transition-normal) ease-out;
+  border: 1px solid #ffffff66;
+}
+.poi:hover {
+  transform: scale(2, 2);
+}
+
+.bus {
+  height: 14px;
+  width: 14px;
+  margin-top: -7px;
+  margin-left: -7px;
+  border-radius: 5px;
+  animation: fadeIn var(--transition-slow) ease-in-out forwards;
+  opacity: 0;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: transform var(--transition-normal) ease-out;
+  border: 1px solid #333d;
+}
+.bus:hover {
+  transform: scale(1.5, 1.5);
+}
+
+.bus .icon {
+  fill: #333d;
+  height: var(--space-5);
+  width: var(--space-5);
+}
+
+.poi .icon {
+  fill: #fffd;
+  height: var(--text-md);
+  width: var(--text-md);
+}
+
+.label {
+  position: absolute;
+  margin-left: -50%;
+  min-width: 120px;
+  left: -60px;
+  text-align: center;
+  bottom: var(--space-6);
+  padding: 6px;
+  font-size: var(--text-md);
+  border-radius: var(--radius-md);
+  backdrop-filter: var(--blur);
+  background: #1119;
+  border: 1px solid #3333;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
