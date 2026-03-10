@@ -3,9 +3,9 @@ FROM node:24-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files and install all dependencies (including devDependencies for build)
-COPY package*.json ./
-RUN npm ci
+# Copy package file and install all dependencies (including devDependencies for build)
+COPY package.json ./
+RUN npm install
 
 # Copy source code and build
 COPY tsconfig.json ./
@@ -21,9 +21,9 @@ RUN addgroup -g 1001 -S nodejs && \
 
 WORKDIR /app
 
-# Copy package files and install production dependencies only
-COPY package*.json ./
-RUN npm ci --omit=dev && \
+# Copy package file and install production dependencies only
+COPY package.json ./
+RUN npm install --omit=dev && \
     npm cache clean --force
 
 # Copy built application and geojson data

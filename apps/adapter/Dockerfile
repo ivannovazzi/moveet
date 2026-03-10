@@ -3,8 +3,8 @@ FROM node:24-alpine AS builder
 
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm ci
+COPY package.json ./
+RUN npm install
 
 COPY tsconfig.json ./
 COPY src ./src
@@ -19,9 +19,9 @@ RUN addgroup -g 1001 -S nodejs && \
 
 WORKDIR /app
 
-# Copy package files and install production dependencies only
-COPY package*.json ./
-RUN npm ci --omit=dev && \
+# Copy package file and install production dependencies only
+COPY package.json ./
+RUN npm install --omit=dev && \
     npm cache clean --force
 
 # Copy built application

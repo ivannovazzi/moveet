@@ -3,11 +3,11 @@ FROM node:24-alpine AS builder
 
 WORKDIR /app
 
-COPY package.json yarn.lock ./
-RUN yarn --frozen-lockfile
+COPY package.json ./
+RUN npm install
 
 COPY . .
-RUN yarn build
+RUN npm run build
 
 # Production stage
 FROM caddy/caddy:alpine
