@@ -21,8 +21,10 @@ describe("Route caching in RoadNetwork", () => {
       expect(route1).not.toBeNull();
       expect(route2).not.toBeNull();
 
-      // Same reference — the cache returns the same object
-      expect(route2).toBe(route1);
+      // Shallow copy — cache returns a new object with same edges content
+      expect(route2).not.toBe(route1);
+      expect(route2!.distance).toBe(route1!.distance);
+      expect(route2!.edges.length).toBe(route1!.edges.length);
     });
 
     it("should record a miss on first call and a hit on second call", () => {
@@ -216,8 +218,8 @@ describe("Route caching in RoadNetwork", () => {
       const route1 = network.findRoute(start, end);
       const route2 = network.findRoute(start, end);
 
-      // Both references point to the same object
-      expect(route1).toBe(route2);
+      // Shallow copies — different object references but same content
+      expect(route1).not.toBe(route2);
 
       // Verify the route is still structurally valid
       expect(route1!.edges.length).toBe(route2!.edges.length);

@@ -149,6 +149,8 @@ export class VehicleManager extends EventEmitter {
     // Clean up game loop and active vehicles
     this.stopGameLoop();
     this.activeVehicles.clear();
+    this.lastUpdateTimes.clear();
+    this.lastPathfindAttempt.clear();
     if (this.locationInterval) {
       clearInterval(this.locationInterval);
       this.locationInterval = null;

@@ -423,7 +423,7 @@ export class RoadNetwork extends EventEmitter {
     // Check cache first
     const cacheKey = `${start.id}|${end.id}`;
     const cached = this.routeCache.get(cacheKey);
-    if (cached) return cached;
+    if (cached) return { edges: [...cached.edges], distance: cached.distance };
 
     const closedSet = new Set<string>();
     const cameFrom = new Map<string, { prevId: string; edge: Edge }>();

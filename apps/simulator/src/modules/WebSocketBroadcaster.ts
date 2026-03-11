@@ -57,6 +57,7 @@ export class WebSocketBroadcaster {
    * Sends a non-vehicle message immediately to all connected clients.
    */
   broadcast<T>(type: string, data: T): void {
+    if (this.wss.clients.size === 0) return;
     const message = JSON.stringify({ type, data });
     for (const client of this.wss.clients) {
       if (client.readyState === WebSocketReadyState.OPEN) {
