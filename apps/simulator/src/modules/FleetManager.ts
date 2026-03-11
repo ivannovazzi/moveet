@@ -1,117 +1,82 @@
 import { EventEmitter } from "events";
-import type { FleetDTO } from "../types";
-import { FLEET_COLORS } from "../constants";
-import logger from "../utils/logger";
+import { randomUUID } from "crypto";
+import type { Fleet } from "../types";
 
-interface FleetState {
-  id: string;
-  name: string;
-  color: string;
-  vehicleIds: Set<string>;
-}
+const PALETTE = [
+  "#e6194b", "#3cb44b", "#4363d8", "#f58231", "#911eb4",
+  "#42d4f4", "#f032e6", "#bfef45", "#fabed4", "#dcbeff",
+];
 
 export class FleetManager extends EventEmitter {
-  private fleets: Map<string, FleetState> = new Map();
-  private vehicleFleetMap: Map<string, string> = new Map();
+  private fleets = new Map<string, Fleet>();
+  private vehicleFleetMap = new Map<string, string>();
   private colorIndex = 0;
-  private idCounter = 0;
 
-  private nextColor(): string {
-    const color = FLEET_COLORS[this.colorIndex % FLEET_COLORS.length];
-    this.colorIndex++;
-    return color;
-  }
-
-  private generateId(): string {
-    return `fleet-${++this.idCounter}`;
-  }
-
-  private serializeFleet(fleet: FleetState): FleetDTO {
-    return {
-      id: fleet.id,
-      name: fleet.name,
-      color: fleet.color,
-      vehicleIds: Array.from(fleet.vehicleIds),
-    };
-  }
-
-  public create(name: string): FleetDTO {
-    const id = this.generateId();
-    const fleet: FleetState = {
-      id,
+  createFleet(name: string, source: "local" | "external" = "local"): Fleet {
+    const fleet: Fleet = {
+      id: randomUUID(),
       name,
-      color: this.nextColor(),
-      vehicleIds: new Set(),
+      color: PALETTE[this.colorIndex % PALETTE.length],
+      source,
+      vehicleIds: [],
     };
-    this.fleets.set(id, fleet);
-    const dto = this.serializeFleet(fleet);
-    this.emit("fleet:created", dto);
-    logger.info(`Fleet created: ${id} (${name})`);
-    return dto;
+    this.colorIndex++;
+    this.fleets.set(fleet.id, fleet);
+    this.emit("fleet:created", fleet);
+    return fleet;
   }
 
-  public delete(fleetId: string): boolean {
-    const fleet = this.fleets.get(fleetId);
-    if (!fleet) return false;
-
-    // Unassign all vehicles from this fleet
-    for (const vehicleId of fleet.vehicleIds) {
-      this.vehicleFleetMap.delete(vehicleId);
+  deleteFleet(id: string): void {
+    const fleet = this.fleets.get(id);
+    if (!fleet) throw new Error(`Fleet ${id} not found`);
+    if (fleet.source === "external") throw new Error("Cannot delete external fleet");
+    for (const vid of fleet.vehicleIds) {
+      this.vehicleFleetMap.delete(vid);
     }
-
-    this.fleets.delete(fleetId);
-    this.emit("fleet:deleted", { id: fleetId });
-    logger.info(`Fleet deleted: ${fleetId}`);
-    return true;
+    this.fleets.delete(id);
+    this.emit("fleet:deleted", { id });
   }
 
-  public assign(fleetId: string, vehicleId: string): boolean {
+  assignVehicles(fleetId: string, vehicleIds: string[]): void {
     const fleet = this.fleets.get(fleetId);
-    if (!fleet) return false;
-
-    // Remove from previous fleet if assigned
-    const previousFleetId = this.vehicleFleetMap.get(vehicleId);
-    if (previousFleetId) {
-      const prevFleet = this.fleets.get(previousFleetId);
-      prevFleet?.vehicleIds.delete(vehicleId);
+    if (!fleet) throw new Error(`Fleet ${fleetId} not found`);
+    for (const vid of vehicleIds) {
+      const prevFleetId = this.vehicleFleetMap.get(vid);
+      if (prevFleetId && prevFleetId !== fleetId) {
+        const prevFleet = this.fleets.get(prevFleetId);
+        if (prevFleet) {
+          prevFleet.vehicleIds = prevFleet.vehicleIds.filter((v) => v !== vid);
+        }
+      }
+      this.vehicleFleetMap.set(vid, fleetId);
+      if (!fleet.vehicleIds.includes(vid)) {
+        fleet.vehicleIds.push(vid);
+      }
     }
-
-    fleet.vehicleIds.add(vehicleId);
-    this.vehicleFleetMap.set(vehicleId, fleetId);
-    this.emit("fleet:assigned", { fleetId, vehicleId });
-    logger.info(`Vehicle ${vehicleId} assigned to fleet ${fleetId}`);
-    return true;
+    this.emit("fleet:assigned", { fleetId, vehicleIds });
   }
 
-  public unassign(vehicleId: string): boolean {
-    const fleetId = this.vehicleFleetMap.get(vehicleId);
-    if (!fleetId) return false;
-
+  unassignVehicles(fleetId: string, vehicleIds: string[]): void {
     const fleet = this.fleets.get(fleetId);
-    fleet?.vehicleIds.delete(vehicleId);
-    this.vehicleFleetMap.delete(vehicleId);
-    this.emit("fleet:assigned", { fleetId: null, vehicleId });
-    logger.info(`Vehicle ${vehicleId} unassigned from fleet ${fleetId}`);
-    return true;
+    if (!fleet) throw new Error(`Fleet ${fleetId} not found`);
+    for (const vid of vehicleIds) {
+      fleet.vehicleIds = fleet.vehicleIds.filter((v) => v !== vid);
+      this.vehicleFleetMap.delete(vid);
+    }
+    this.emit("fleet:assigned", { fleetId: null, vehicleIds });
   }
 
-  public getAll(): FleetDTO[] {
-    return Array.from(this.fleets.values()).map((f) => this.serializeFleet(f));
+  getFleets(): Fleet[] {
+    return Array.from(this.fleets.values());
   }
 
-  public get(fleetId: string): FleetDTO | undefined {
-    const fleet = this.fleets.get(fleetId);
-    return fleet ? this.serializeFleet(fleet) : undefined;
-  }
-
-  public getFleetIdForVehicle(vehicleId: string): string | undefined {
+  getVehicleFleetId(vehicleId: string): string | undefined {
     return this.vehicleFleetMap.get(vehicleId);
   }
 
-  public reset(): void {
+  reset(): void {
     this.fleets.clear();
     this.vehicleFleetMap.clear();
     this.colorIndex = 0;
-    this.idCounter = 0;
   }
 }

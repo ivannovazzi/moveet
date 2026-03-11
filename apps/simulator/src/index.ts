@@ -4,6 +4,7 @@ import cors from "cors";
 import { WebSocketServer } from "ws";
 import { RoadNetwork } from "./modules/RoadNetwork";
 import { VehicleManager } from "./modules/VehicleManager";
+import { FleetManager } from "./modules/FleetManager";
 import { SimulationController } from "./modules/SimulationController";
 import { config, verifyConfig } from "./utils/config";
 import { HEAT_ZONE_DEFAULTS } from "./constants";
@@ -34,7 +35,8 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 });
 
 const network = new RoadNetwork(config.geojsonPath);
-const vehicleManager = new VehicleManager(network);
+const fleetManager = new FleetManager();
+const vehicleManager = new VehicleManager(network, fleetManager);
 const simulationController = new SimulationController(vehicleManager);
 
 // Vehicles loaded in main() below, after await
@@ -227,90 +229,66 @@ app.post("/heatzones", (_req, res) => {
   }
 });
 
-// ─── Fleet endpoints ──────────────────────────────────────────────
-
-app.get("/fleets", (_req, res) => {
-  try {
-    res.json(vehicleManager.fleets.getAll());
-  } catch (error) {
-    logger.error(`Error in GET /fleets: ${error}`);
-    res.status(500).json({ error: "Failed to get fleets" });
-  }
-});
-
-app.post("/fleets", (req, res) => {
-  try {
-    const { name } = req.body;
-    if (!name || typeof name !== "string") {
-      res.status(400).json({ error: "Missing or invalid 'name' field" });
-      return;
-    }
-    const fleet = vehicleManager.fleets.create(name);
-    res.status(201).json(fleet);
-  } catch (error) {
-    logger.error(`Error in POST /fleets: ${error}`);
-    res.status(500).json({ error: "Failed to create fleet" });
-  }
-});
-
-app.delete("/fleets/:id", (req, res) => {
-  try {
-    const deleted = vehicleManager.fleets.delete(req.params.id);
-    if (!deleted) {
-      res.status(404).json({ error: "Fleet not found" });
-      return;
-    }
-    res.json({ status: "deleted" });
-  } catch (error) {
-    logger.error(`Error in DELETE /fleets/:id: ${error}`);
-    res.status(500).json({ error: "Failed to delete fleet" });
-  }
-});
-
-app.post("/fleets/assign", (req, res) => {
-  try {
-    const { fleetId, vehicleId } = req.body;
-    if (!fleetId || !vehicleId) {
-      res.status(400).json({ error: "Missing 'fleetId' or 'vehicleId'" });
-      return;
-    }
-    const assigned = vehicleManager.assignVehicleToFleet(vehicleId, fleetId);
-    if (!assigned) {
-      res.status(404).json({ error: "Fleet or vehicle not found" });
-      return;
-    }
-    res.json({ status: "assigned" });
-  } catch (error) {
-    logger.error(`Error in POST /fleets/assign: ${error}`);
-    res.status(500).json({ error: "Failed to assign vehicle" });
-  }
-});
-
-app.post("/fleets/unassign", (req, res) => {
-  try {
-    const { vehicleId } = req.body;
-    if (!vehicleId) {
-      res.status(400).json({ error: "Missing 'vehicleId'" });
-      return;
-    }
-    const unassigned = vehicleManager.unassignVehicleFromFleet(vehicleId);
-    if (!unassigned) {
-      res.status(404).json({ error: "Vehicle not in any fleet" });
-      return;
-    }
-    res.json({ status: "unassigned" });
-  } catch (error) {
-    logger.error(`Error in POST /fleets/unassign: ${error}`);
-    res.status(500).json({ error: "Failed to unassign vehicle" });
-  }
-});
-
 app.get("/heatzones", (_req, res) => {
   try {
     res.json(network.exportHeatZones());
   } catch (error) {
     logger.error(`Error in /heatzones GET: ${error}`);
     res.status(500).json({ error: "Failed to get heat zones" });
+  }
+});
+
+app.get("/fleets", (_req, res) => {
+  res.json(fleetManager.getFleets());
+});
+
+app.post("/fleets", (req, res) => {
+  const { name, source } = req.body;
+  if (!name || typeof name !== "string") {
+    res.status(400).json({ error: "name is required" });
+    return;
+  }
+  const fleet = fleetManager.createFleet(name, source);
+  res.status(201).json(fleet);
+});
+
+app.delete("/fleets/:id", (req, res) => {
+  try {
+    fleetManager.deleteFleet(req.params.id);
+    res.json({ status: "deleted" });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(400).json({ error: message });
+  }
+});
+
+app.post("/fleets/:id/assign", (req, res) => {
+  const { vehicleIds } = req.body;
+  if (!Array.isArray(vehicleIds)) {
+    res.status(400).json({ error: "vehicleIds array is required" });
+    return;
+  }
+  try {
+    fleetManager.assignVehicles(req.params.id, vehicleIds);
+    res.json({ status: "assigned" });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(400).json({ error: message });
+  }
+});
+
+app.post("/fleets/:id/unassign", (req, res) => {
+  const { vehicleIds } = req.body;
+  if (!Array.isArray(vehicleIds)) {
+    res.status(400).json({ error: "vehicleIds array is required" });
+    return;
+  }
+  try {
+    fleetManager.unassignVehicles(req.params.id, vehicleIds);
+    res.json({ status: "unassigned" });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(400).json({ error: message });
   }
 });
 
@@ -350,11 +328,6 @@ async function main() {
     const statusUpdateHandler = createWebSocketHandler(ws, "status");
     const resetHandler = createWebSocketHandler(ws, "reset");
 
-    // Fleet event handlers
-    const fleetCreatedHandler = createWebSocketHandler(ws, "fleet:created");
-    const fleetDeletedHandler = createWebSocketHandler(ws, "fleet:deleted");
-    const fleetAssignedHandler = createWebSocketHandler(ws, "fleet:assigned");
-
     // Register event listeners
     network.on("heatzones", heatzonesHandler);
     vehicleManager.on("update", vehicleUpdateHandler);
@@ -362,9 +335,14 @@ async function main() {
     vehicleManager.on("options", optionsUpdateHandler);
     simulationController.on("updateStatus", statusUpdateHandler);
     simulationController.on("reset", resetHandler);
-    vehicleManager.fleets.on("fleet:created", fleetCreatedHandler);
-    vehicleManager.fleets.on("fleet:deleted", fleetDeletedHandler);
-    vehicleManager.fleets.on("fleet:assigned", fleetAssignedHandler);
+
+    const fleetCreatedHandler = createWebSocketHandler(ws, "fleet:created");
+    const fleetDeletedHandler = createWebSocketHandler(ws, "fleet:deleted");
+    const fleetAssignedHandler = createWebSocketHandler(ws, "fleet:assigned");
+
+    fleetManager.on("fleet:created", fleetCreatedHandler);
+    fleetManager.on("fleet:deleted", fleetDeletedHandler);
+    fleetManager.on("fleet:assigned", fleetAssignedHandler);
 
     // Cleanup on disconnect
     ws.on("close", () => {
@@ -374,9 +352,9 @@ async function main() {
       vehicleManager.removeListener("options", optionsUpdateHandler);
       simulationController.removeListener("updateStatus", statusUpdateHandler);
       simulationController.removeListener("reset", resetHandler);
-      vehicleManager.fleets.removeListener("fleet:created", fleetCreatedHandler);
-      vehicleManager.fleets.removeListener("fleet:deleted", fleetDeletedHandler);
-      vehicleManager.fleets.removeListener("fleet:assigned", fleetAssignedHandler);
+      fleetManager.removeListener("fleet:created", fleetCreatedHandler);
+      fleetManager.removeListener("fleet:deleted", fleetDeletedHandler);
+      fleetManager.removeListener("fleet:assigned", fleetAssignedHandler);
       logger.info("Client disconnected");
     });
   });

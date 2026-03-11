@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { VehicleManager } from "../modules/VehicleManager";
+import { FleetManager } from "../modules/FleetManager";
 import { RoadNetwork } from "../modules/RoadNetwork";
 import { config } from "../utils/config";
 import type { Vehicle } from "../types";
@@ -31,7 +32,7 @@ describe("VehicleManager", () => {
       // no-op: skip pathfinding during init
     };
 
-    manager = new VehicleManager(network);
+    manager = new VehicleManager(network, new FleetManager());
 
     // Restore so tests that need it can call it explicitly
     origProto.setRandomDestination = origSetRandom;

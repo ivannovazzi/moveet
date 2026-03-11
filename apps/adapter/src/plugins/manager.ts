@@ -1,4 +1,4 @@
-import type { ExportVehicle, VehicleUpdate } from "../types";
+import type { ExportVehicle, VehicleUpdate, Fleet } from "../types";
 import type {
   DataSource,
   DataSink,
@@ -85,6 +85,11 @@ export class PluginManager {
   async getVehicles(): Promise<ExportVehicle[]> {
     if (!this.activeSource) return [];
     return this.activeSource.getVehicles();
+  }
+
+  async getFleets(): Promise<Fleet[]> {
+    if (!this.activeSource || !this.activeSource.getFleets) return [];
+    return this.activeSource.getFleets();
   }
 
   async publishUpdates(updates: VehicleUpdate[]): Promise<PublishResult> {

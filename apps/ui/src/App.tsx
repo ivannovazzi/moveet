@@ -1,16 +1,19 @@
 import classNames from "classnames";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import client from "@/utils/client";
 import ControlPanel from "./Controls/Controls";
 import Vehicles from "./Controls/Vehicles";
+import Fleets from "./Controls/Fleets";
 import AdapterDrawer from "./Controls/Adapter/AdapterDrawer";
 import { useAdapterConfig } from "./Controls/Adapter/useAdapterConfig";
 import Map from "./Map/Map";
+import FleetLegend from "./Map/FleetLegend";
 import SearchBar from "./SearchBar";
 import Zoom from "./Zoom/";
-import type { Modifiers, POI, Position, Road, SimulationStatus } from "./types";
+import type { Fleet, Modifiers, POI, Position, Road, SimulationStatus } from "./types";
 import styles from "./App.module.css";
 import { useVehicles } from "./hooks/useVehicles";
+import { useFleets } from "./hooks/useFleets";
 import useContextMenu from "./hooks/useContextMenu";
 import ContextMenu from "./components/ContextMenu";
 import { Button } from "./components/Inputs";
@@ -42,6 +45,18 @@ export default function App() {
     setModifiers,
     onFilterChange,
   } = useVehicles();
+
+  const { fleets, createFleet, deleteFleet, assignVehicle, unassignVehicle, hiddenFleetIds, toggleFleetVisibility } = useFleets();
+
+  const vehicleFleetMap = useMemo(() => {
+    const map = new Map<string, Fleet>();
+    for (const fleet of fleets) {
+      for (const vid of fleet.vehicleIds) {
+        map.set(vid, fleet);
+      }
+    }
+    return map;
+  }, [fleets]);
 
   const onChangeModifiers = useCallback(
     <T extends keyof Modifiers>(name: T) =>
@@ -183,6 +198,7 @@ export default function App() {
           aria-hidden={!isVehiclePanelOpen}
         >
           <div className={styles.panelInner}>
+            <Fleets fleets={fleets} onCreateFleet={createFleet} onDeleteFleet={deleteFleet} />
             <Vehicles
               filter={filters.filter}
               onFilterChange={onFilterChange}
@@ -191,6 +207,9 @@ export default function App() {
               onHoverVehicle={onHoverVehicle}
               onUnhoverVehicle={onUnhoverVehicle}
               maxSpeed={maxSpeedRef.current}
+              fleets={fleets}
+              onAssignVehicle={assignVehicle}
+              onUnassignVehicle={unassignVehicle}
             />
           </div>
         </aside>
@@ -210,6 +229,8 @@ export default function App() {
             onMapClick={onMapClick}
             onMapContextClick={onMapContextClick}
             onPOIClick={(poi) => setSelectedItem(poi)}
+            vehicleFleetMap={vehicleFleetMap}
+            hiddenFleetIds={hiddenFleetIds}
           />
           <SearchBar
             selectedItem={selectedItem}
@@ -218,6 +239,7 @@ export default function App() {
             onItemUnselect={() => setSelectedItem(null)}
           />
           <Zoom />
+          <FleetLegend fleets={fleets} hiddenFleetIds={hiddenFleetIds} onToggle={toggleFleetVisibility} />
         </div>
         <aside
           className={classNames(styles.panelRail, styles.rightPanel, {

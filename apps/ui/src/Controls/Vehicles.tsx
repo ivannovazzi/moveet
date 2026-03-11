@@ -1,5 +1,5 @@
 import classNames from "classnames";
-import type { Vehicle } from "@/types";
+import type { Fleet, Vehicle } from "@/types";
 import useData from "@/data/useData";
 import styles from "./Vehicles.module.css";
 import { Search } from "@/components/Icons";
@@ -18,6 +18,9 @@ interface VehicleListProps {
   onSelectVehicle: (id: string) => void;
   onHoverVehicle: (id: string) => void;
   onUnhoverVehicle: () => void;
+  fleets: Fleet[];
+  onAssignVehicle: (fleetId: string, vehicleId: string) => Promise<void>;
+  onUnassignVehicle: (fleetId: string, vehicleId: string) => Promise<void>;
 }
 
 function formatRouteDistance(distance?: number) {
@@ -32,6 +35,9 @@ export default function VehicleList({
   onSelectVehicle,
   onHoverVehicle,
   onUnhoverVehicle,
+  fleets,
+  onAssignVehicle,
+  onUnassignVehicle,
 }: VehicleListProps) {
   const { directions } = useData();
   const visibleVehicles = vehicles.filter((v) => v.visible);
@@ -80,6 +86,7 @@ export default function VehicleList({
         ) : (
           visibleVehicles.map((vehicle) => {
             const routeDistance = directions.get(vehicle.id)?.distance;
+            const vehicleFleet = fleets.find((f) => f.vehicleIds.includes(vehicle.id));
 
             return (
               <button
@@ -94,12 +101,33 @@ export default function VehicleList({
                 aria-pressed={vehicle.selected}
                 title={`${vehicle.name} · ${Math.round(vehicle.speed)} km/h · ${formatRouteDistance(routeDistance)}`}
               >
-                <span className={styles.name}>{vehicle.name}</span>
+                <span className={styles.nameGroup}>
+                  <span className={styles.fleetDot} style={{ backgroundColor: vehicleFleet?.color ?? "transparent" }} />
+                  <span className={styles.name}>{vehicle.name}</span>
+                </span>
                 <span className={styles.speed}>
                   {Math.round(vehicle.speed)}
                   <span className={styles.speedUnit}>km/h</span>
                 </span>
-                <span className={styles.routeDistance}>{formatRouteDistance(routeDistance)}</span>
+                <span className={styles.routeRow}>
+                  <span className={styles.routeDistance}>{formatRouteDistance(routeDistance)}</span>
+                  <select
+                    className={styles.fleetSelect}
+                    value={vehicleFleet?.id ?? ""}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      const val = e.target.value;
+                      if (!val && vehicleFleet) onUnassignVehicle(vehicleFleet.id, vehicle.id);
+                      else if (val) onAssignVehicle(val, vehicle.id);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <option value="">No fleet</option>
+                    {fleets.map((f) => (
+                      <option key={f.id} value={f.id}>{f.name}</option>
+                    ))}
+                  </select>
+                </span>
                 <SpeedBar speed={vehicle.speed} maxSpeed={maxSpeed} />
               </button>
             );

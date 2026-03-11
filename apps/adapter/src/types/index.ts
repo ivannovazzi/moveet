@@ -36,3 +36,11 @@ export interface VehicleUpdate {
   longitude: number;
   id: string;
 }
+
+export interface Fleet {
+  id: string;
+  name: string;
+  color: string;
+  source: 'local' | 'external';
+  vehicleIds: string[];
+}

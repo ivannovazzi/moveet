@@ -14,10 +14,13 @@ describe("VehicleList", () => {
       createVehicle({ id: "v2", name: "Van Beta", visible: true }),
     ],
     maxSpeed: 100,
+    fleets: [],
     onFilterChange: vi.fn(),
     onSelectVehicle: vi.fn(),
     onHoverVehicle: vi.fn(),
     onUnhoverVehicle: vi.fn(),
+    onAssignVehicle: vi.fn(),
+    onUnassignVehicle: vi.fn(),
   };
 
   it("renders vehicle names", () => {

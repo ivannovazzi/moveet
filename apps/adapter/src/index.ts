@@ -62,6 +62,16 @@ async function startup(): Promise<void> {
     }
   });
 
+  app.get("/fleets", async (_req, res) => {
+    try {
+      const fleets = await pluginManager.getFleets();
+      res.json(fleets);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ error: message });
+    }
+  });
+
   app.post("/sync", async (req, res) => {
     let vehicles: VehicleUpdate[];
     if (Array.isArray(req.body)) {

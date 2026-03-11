@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import type { Modifiers, POI, Position, Road, Vehicle } from "@/types";
+import type { Fleet, Modifiers, POI, Position, Road, Vehicle } from "@/types";
 import type { Filters } from "@/hooks/useVehicles";
 
 import { useNetwork } from "@/hooks/useNetwork";
@@ -24,6 +24,8 @@ interface MapProps {
   onMapClick?: (event: React.MouseEvent, position: Position) => void;
   onMapContextClick: (evt: React.MouseEvent, position: Position) => void;
   onPOIClick: (poi: POI) => void;
+  vehicleFleetMap: Map<string, Fleet>;
+  hiddenFleetIds: Set<string>;
 }
 
 export default function Map({
@@ -36,6 +38,8 @@ export default function Map({
   onMapClick,
   onMapContextClick,
   onPOIClick,
+  vehicleFleetMap,
+  hiddenFleetIds,
 }: MapProps) {
   const network = useNetwork();
 
@@ -67,15 +71,21 @@ export default function Map({
       )}
 
       {modifiers.showVehicles &&
-        vehicles?.map((vehicle) => (
-          <VehicleM
-            key={vehicle.id}
-            animFreq={animFreq}
-            scale={1.5}
-            {...vehicle}
-            onClick={() => onClick(vehicle.id)}
-          />
-        ))}
+        vehicles
+          ?.filter((vehicle) => {
+            const fleet = vehicleFleetMap.get(vehicle.id);
+            return !fleet || !hiddenFleetIds.has(fleet.id);
+          })
+          .map((vehicle) => (
+            <VehicleM
+              key={vehicle.id}
+              animFreq={animFreq}
+              scale={1.5}
+              {...vehicle}
+              fleetColor={vehicleFleetMap.get(vehicle.id)?.color}
+              onClick={() => onClick(vehicle.id)}
+            />
+          ))}
       {modifiers.showHeatmap && (
         <Suspense fallback={null}>
           <Heatmap vehicles={vehicles} />

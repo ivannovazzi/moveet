@@ -43,7 +43,7 @@ export class VehicleManager extends EventEmitter {
     heatZoneSpeedFactor: config.heatZoneSpeedFactor,
   };
 
-  constructor(private network: RoadNetwork) {
+  constructor(private network: RoadNetwork, private fleetManager: FleetManager) {
     super();
     this.init();
   }
@@ -124,6 +124,7 @@ export class VehicleManager extends EventEmitter {
 
     // Phase 2: Synchronous swap — no await below this point, so no
     // event-loop yield. The map swap is atomic w.r.t. concurrent readers.
+    this.fleetManager.reset();
     this.vehicles = new Map();
     this.visitedEdges = new Map();
     this.routes = new Map();
@@ -340,7 +341,7 @@ export class VehicleManager extends EventEmitter {
 
     this.updateVehicle(vehicle, deltaMs);
 
-    this.emit("update", serializeVehicle(vehicle));
+    this.emit("update", serializeVehicle(vehicle, this.fleetManager.getVehicleFleetId(vehicleId)));
   }
 
   private updateVehicle(vehicle: Vehicle, deltaMs: number): void {
@@ -646,7 +647,9 @@ export class VehicleManager extends EventEmitter {
   }
 
   public getVehicles(): VehicleDTO[] {
-    return Array.from(this.vehicles.values()).map(serializeVehicle);
+    return Array.from(this.vehicles.values()).map(v =>
+      serializeVehicle(v, this.fleetManager.getVehicleFleetId(v.id))
+    );
   }
 
   /**

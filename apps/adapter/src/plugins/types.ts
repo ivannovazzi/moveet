@@ -1,4 +1,4 @@
-import type { ExportVehicle, VehicleUpdate } from "../types";
+import type { ExportVehicle, VehicleUpdate, Fleet } from "../types";
 
 export interface PluginConfig {
   [key: string]: unknown;
@@ -37,6 +37,7 @@ export interface DataSource {
   connect(config: PluginConfig): Promise<void>;
   disconnect(): Promise<void>;
   getVehicles(): Promise<ExportVehicle[]>;
+  getFleets?(): Promise<Fleet[]>;
   healthCheck(): Promise<HealthCheckResult>;
 }
 

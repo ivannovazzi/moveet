@@ -18,12 +18,21 @@ export interface Modifiers {
   showPOIs: boolean;
 }
 
+export interface Fleet {
+  id: string;
+  name: string;
+  color: string;
+  source: 'local' | 'external';
+  vehicleIds: string[];
+}
+
 export interface VehicleDTO {
   id: string;
   name: string;
   position: Position;
   speed: number;
   heading: number;
+  fleetId?: string;
 }
 
 interface VehicleUIFlags {

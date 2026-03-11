@@ -11,6 +11,7 @@ import type {
   Heatzone,
   RoadNetwork,
   POI,
+  Fleet,
 } from "@/types";
 import type { ResetPayload } from "./wsTypes";
 
@@ -43,6 +44,14 @@ class SimulationService {
     this.onDirection = this.onDirection.bind(this);
     this.onReset = this.onReset.bind(this);
     this.direction = this.direction.bind(this);
+    this.getFleets = this.getFleets.bind(this);
+    this.createFleet = this.createFleet.bind(this);
+    this.deleteFleet = this.deleteFleet.bind(this);
+    this.assignVehicles = this.assignVehicles.bind(this);
+    this.unassignVehicles = this.unassignVehicles.bind(this);
+    this.onFleetCreated = this.onFleetCreated.bind(this);
+    this.onFleetDeleted = this.onFleetDeleted.bind(this);
+    this.onFleetAssigned = this.onFleetAssigned.bind(this);
   }
 
   connectWebSocket(): void {
@@ -152,6 +161,38 @@ class SimulationService {
 
   async search(query: string): Promise<ApiResponse<unknown>> {
     return this.http.post<{ query: string }>(`/search`, { query });
+  }
+
+  async getFleets(): Promise<ApiResponse<Fleet[]>> {
+    return this.http.get<Fleet[]>("/fleets");
+  }
+
+  async createFleet(name: string): Promise<ApiResponse<Fleet>> {
+    return this.http.post<{ name: string }, Fleet>("/fleets", { name });
+  }
+
+  async deleteFleet(id: string): Promise<ApiResponse<void>> {
+    return this.http.delete(`/fleets/${id}`);
+  }
+
+  async assignVehicles(fleetId: string, vehicleIds: string[]): Promise<ApiResponse<void>> {
+    return this.http.post<{ vehicleIds: string[] }>(`/fleets/${fleetId}/assign`, { vehicleIds });
+  }
+
+  async unassignVehicles(fleetId: string, vehicleIds: string[]): Promise<ApiResponse<void>> {
+    return this.http.post<{ vehicleIds: string[] }>(`/fleets/${fleetId}/unassign`, { vehicleIds });
+  }
+
+  onFleetCreated(handler: (fleet: Fleet) => void): void {
+    this.ws.on("fleet:created", handler);
+  }
+
+  onFleetDeleted(handler: (data: { id: string }) => void): void {
+    this.ws.on("fleet:deleted", handler);
+  }
+
+  onFleetAssigned(handler: (data: { fleetId: string | null; vehicleIds: string[] }) => void): void {
+    this.ws.on("fleet:assigned", handler);
   }
 }
 

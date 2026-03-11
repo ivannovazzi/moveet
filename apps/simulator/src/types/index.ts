@@ -1,3 +1,11 @@
+export interface Fleet {
+  id: string;
+  name: string;
+  color: string;
+  source: 'local' | 'external';
+  vehicleIds: string[];
+}
+
 export interface DataVehicle {
   id: string;
   name: string;
@@ -53,20 +61,6 @@ export interface VehicleDTO {
   speed: number;
   heading: number;
   fleetId?: string;
-}
-
-export interface Fleet {
-  id: string;
-  name: string;
-  color: string;
-  vehicleIds: string[];
-}
-
-export interface FleetDTO {
-  id: string;
-  name: string;
-  color: string;
-  vehicleIds: string[];
 }
 
 export interface SimulationStatus {

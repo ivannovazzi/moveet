@@ -1,54 +1,102 @@
-# Fleet Grouping Design
+# Fleet Grouping with Color-Coded Map Display
 
-**Goal:** Allow vehicles to be grouped into named fleets with distinct colors for visual differentiation on the UI map.
+Date: 2026-03-11
+
+## Summary
+
+Group vehicles into fleets with auto-assigned colors. Fleets are managed via the UI (create, delete, assign vehicles) and can also come from external sources through the adapter. Fleet colors appear on map markers.
 
 ## Data Model
 
-### Types (`types/index.ts`)
+```typescript
+interface Fleet {
+  id: string;           // uuid
+  name: string;
+  color: string;        // hex, auto-assigned from palette
+  source: 'local' | 'external';
+  vehicleIds: string[];
+}
+```
 
-- `Vehicle.fleetId?: string` — optional fleet assignment on internal model
-- `VehicleDTO.fleetId?: string` — included in serialized output when assigned
-- `Fleet` — `{ id, name, color, vehicleIds }` interface
-- `FleetDTO` — serialization format (vehicleIds as `string[]`)
+VehicleDTO gains `fleetId?: string` (null = unassigned, renders gray).
 
-### FleetManager Module
+Color palette (10 maximally-separated hues, assigned round-robin):
+```
+#e6194b #3cb44b #4363d8 #f58231 #911eb4
+#42d4f4 #f032e6 #bfef45 #fabed4 #dcbeff
+```
 
-Standalone `EventEmitter` module (`modules/FleetManager.ts`) with:
+## API (Simulator)
 
-- **Storage:** `Map<string, FleetState>` for fleets, `Map<string, string>` for vehicle-to-fleet reverse lookup
-- **Color palette:** 10-color palette (`constants.ts: FLEET_COLORS`), auto-assigned on create, wraps cyclically
-- **ID generation:** Sequential `fleet-1`, `fleet-2`, etc. Resets on simulation reset.
-- **CRUD:** `create(name)`, `delete(fleetId)`, `assign(fleetId, vehicleId)`, `unassign(vehicleId)`, `getAll()`, `get(fleetId)`
-- **Events:** `fleet:created`, `fleet:deleted`, `fleet:assigned`
+```
+GET    /fleets              → Fleet[]
+POST   /fleets              → Fleet        { name: string }
+DELETE /fleets/:id          → void
+POST   /fleets/:id/assign   → void        { vehicleIds: string[] }
+POST   /fleets/:id/unassign → void        { vehicleIds: string[] }
+```
 
-### Integration
+Color auto-assigned on creation. Assigning a vehicle to a fleet removes it from any previous fleet. External fleets (`source: 'external'`) are read-only.
 
-- `VehicleManager.fleets` — public FleetManager instance
-- `VehicleManager.assignVehicleToFleet(vehicleId, fleetId)` — assigns and emits vehicle update
-- `VehicleManager.unassignVehicleFromFleet(vehicleId)` — unassigns and emits vehicle update
-- `VehicleManager.reset()` — also resets fleets
-- `serializeVehicle()` — includes `fleetId` when present
+## WebSocket Events (Simulator → UI)
 
-## REST API
+```
+{ type: "fleet:created",  data: Fleet }
+{ type: "fleet:deleted",  data: { id: string } }
+{ type: "fleet:assigned", data: { fleetId: string, vehicleIds: string[] } }
+```
 
-| Method | Path | Body | Response |
-|--------|------|------|----------|
-| GET | `/fleets` | — | `FleetDTO[]` |
-| POST | `/fleets` | `{ name }` | `FleetDTO` (201) |
-| DELETE | `/fleets/:id` | — | `{ status: "deleted" }` |
-| POST | `/fleets/assign` | `{ fleetId, vehicleId }` | `{ status: "assigned" }` |
-| POST | `/fleets/unassign` | `{ vehicleId }` | `{ status: "unassigned" }` |
+Vehicle updates continue as-is; the UI resolves fleet color from the vehicle's `fleetId`.
 
-## WebSocket Events
+## Adapter
 
-| Event Type | Payload | Trigger |
-|------------|---------|---------|
-| `fleet:created` | `FleetDTO` | Fleet created |
-| `fleet:deleted` | `{ id }` | Fleet deleted |
-| `fleet:assigned` | `{ fleetId, vehicleId }` | Vehicle assigned/unassigned |
-| `vehicle` | `VehicleDTO` (with `fleetId`) | Vehicle update includes fleet |
+- Source plugin interface gains optional `getFleets(): Fleet[]`
+- On sync, external fleets pushed to simulator via `POST /fleets` with `source: 'external'`
+- External fleet vehicle assignments come through the same sync
+- Static source plugin gets fleet support as reference implementation
 
-## Color Palette
+## Merge Behavior
 
-10 colors allocated round-robin:
-`#ef4444` (red), `#f97316` (orange), `#eab308` (yellow), `#22c55e` (green), `#14b8a6` (teal), `#3b82f6` (blue), `#6366f1` (indigo), `#a855f7` (purple), `#ec4899` (pink), `#78716c` (stone)
+External fleets are read-only in the UI. Users can create local fleets alongside them. External definitions win on ID conflicts.
+
+## UI Components
+
+### Fleets Panel (Controls sidebar, above Vehicles list)
+- Fleet rows: color dot, name, vehicle count. Lock icon for external fleets.
+- Click to expand and see member vehicles.
+- "New Fleet" button: inline text input, enter to create. Hidden when all 10 palette slots used.
+- Delete (trash icon) per local fleet. Unassigns all vehicles. Not shown for external fleets.
+
+### Vehicle Fleet Assignment
+- Each vehicle row gets a colored dot (fleet color) or gray if unassigned.
+- Click vehicle → dropdown of available fleets + "Unassigned". Disabled for external-source vehicles.
+
+### Map Markers
+- Polygon fill changes to fleet color (inline style). Gray if unassigned.
+- Stroke, hover, and selection states unchanged (layer on top).
+
+### Fleet Legend (map bottom-right overlay)
+- Color dot + name per active fleet.
+- Click to toggle fleet visibility on the map.
+
+### New Hook: useFleets()
+- Fetches fleet list via GET /fleets on mount.
+- Subscribes to WebSocket fleet events.
+- Exposes CRUD actions: createFleet, deleteFleet, assignVehicles, unassignVehicles.
+
+## Data Flow
+
+```
+External Source → Adapter → POST /fleets (source: external)
+                            ↓
+User UI action  →  ───────→ Simulator (fleet CRUD + assignment)
+                            ↓ WebSocket
+                            UI (markers colored by fleet)
+```
+
+## Out of Scope
+
+- Persistent fleet storage (ephemeral in simulator memory)
+- Fleet-level dispatch actions
+- Fleet analytics or statistics
+- Color picker / custom colors

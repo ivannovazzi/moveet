@@ -4,6 +4,7 @@ import type {
   StartOptions,
   Heatzone,
   VehicleDirection,
+  Fleet,
 } from "@/types";
 
 export interface ResetPayload {
@@ -20,7 +21,10 @@ export type WebSocketMessage =
   | { type: "options"; data: StartOptions }
   | { type: "heatzones"; data: Heatzone[] }
   | { type: "direction"; data: VehicleDirection }
-  | { type: "reset"; data: ResetPayload };
+  | { type: "reset"; data: ResetPayload }
+  | { type: "fleet:created"; data: Fleet }
+  | { type: "fleet:deleted"; data: { id: string } }
+  | { type: "fleet:assigned"; data: { fleetId: string | null; vehicleIds: string[] } };
 
 /**
  * Type guard to validate WebSocket message structure
@@ -43,6 +47,10 @@ export function isValidMessage(msg: unknown): msg is WebSocketMessage {
     case "heatzones":
     case "direction":
     case "reset":
+      return "data" in message;
+    case "fleet:created":
+    case "fleet:deleted":
+    case "fleet:assigned":
       return "data" in message;
     default:
       return false;

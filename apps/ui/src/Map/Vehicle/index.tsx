@@ -10,6 +10,7 @@ interface VehicleProps extends Vehicle {
   position: Position;
   animFreq: number;
   scale: number;
+  fleetColor?: string;
   onClick: () => void;
 }
 
@@ -21,6 +22,7 @@ function VehicleMarker({
   visible,
   animFreq,
   scale,
+  fleetColor,
   onClick,
 }: VehicleProps) {
   const { transform } = useMapContext();
@@ -49,7 +51,11 @@ function VehicleMarker({
   return (
     <Marker position={position} animation={animFreq} onClick={onClick}>
       <g style={bearingStyle}>
-        <polygon points="0,-4 2.5,3 0,1.5 -2.5,3" className={className} />
+        <polygon
+          points="0,-4 2.5,3 0,1.5 -2.5,3"
+          className={className}
+          style={fleetColor ? { fill: fleetColor } : undefined}
+        />
         {selected && <circle r="6" className={styles.selectionRing} />}
       </g>
     </Marker>
