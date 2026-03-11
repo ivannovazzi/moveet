@@ -1,6 +1,6 @@
 import styles from "./Vehicle.module.css";
 import classNames from "classnames";
-import React, { memo, useEffect } from "react";
+import React, { memo, useEffect, useMemo } from "react";
 import type { Position, Vehicle } from "@/types";
 import { calculateRotation } from "@/utils/coordinates";
 import { Marker } from "../../components/Map/components/Marker";
@@ -41,10 +41,14 @@ function VehicleMarker({
 
   const zoomCompensation = Math.pow(k, 0.75);
   const inverseScale = scale / zoomCompensation;
-  const bearingStyle = {
-    transform: `rotate(${prevHeading + rotation}deg) scale(${inverseScale})`,
-    transition: `transform ${animFreq}ms linear`,
-  };
+
+  const bearingStyle = useMemo(
+    () => ({
+      transform: `rotate(${prevHeading + rotation}deg) scale(${inverseScale})`,
+      transition: `transform ${animFreq}ms linear`,
+    }),
+    [prevHeading, rotation, inverseScale, animFreq],
+  );
 
   if (!visible) return null;
 
@@ -62,4 +66,22 @@ function VehicleMarker({
   );
 }
 
-export default memo(VehicleMarker);
+/** Custom comparator for memo: only re-render when rendering-relevant props change. */
+function vehicleMarkerEqual(prev: VehicleProps, next: VehicleProps): boolean {
+  return (
+    prev.id === next.id &&
+    prev.position[0] === next.position[0] &&
+    prev.position[1] === next.position[1] &&
+    prev.heading === next.heading &&
+    prev.speed === next.speed &&
+    prev.visible === next.visible &&
+    prev.selected === next.selected &&
+    prev.hovered === next.hovered &&
+    prev.fleetColor === next.fleetColor &&
+    prev.animFreq === next.animFreq &&
+    prev.scale === next.scale &&
+    prev.onClick === next.onClick
+  );
+}
+
+export default memo(VehicleMarker, vehicleMarkerEqual);

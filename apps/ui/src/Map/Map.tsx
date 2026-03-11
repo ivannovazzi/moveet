@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useCallback, useRef, useMemo } from "react";
 import type { Fleet, Modifiers, POI, Position, Road, Vehicle } from "@/types";
 import type { Filters } from "@/hooks/useVehicles";
 
@@ -43,6 +43,31 @@ export default function Map({
 }: MapProps) {
   const network = useNetwork();
 
+  // Stable per-vehicle click handlers: a cache of (id -> callback) that
+  // returns the same function reference as long as `onClick` is stable.
+  const onClickRef = useRef(onClick);
+  onClickRef.current = onClick;
+  const clickCacheRef = useRef<Record<string, () => void>>({});
+
+  const getClickHandler = useCallback((id: string) => {
+    let handler = clickCacheRef.current[id];
+    if (!handler) {
+      handler = () => onClickRef.current(id);
+      clickCacheRef.current[id] = handler;
+    }
+    return handler;
+  }, []);
+
+  const filteredVehicles = useMemo(
+    () =>
+      vehicles.filter((vehicle) => {
+        if (vehicle.position[0] === 0 && vehicle.position[1] === 0) return false;
+        const fleet = vehicleFleetMap.get(vehicle.id);
+        return !fleet || !hiddenFleetIds.has(fleet.id);
+      }),
+    [vehicles, vehicleFleetMap, hiddenFleetIds],
+  );
+
   return (
     <RoadNetworkMap
       data={network}
@@ -71,22 +96,16 @@ export default function Map({
       )}
 
       {modifiers.showVehicles &&
-        vehicles
-          ?.filter((vehicle) => {
-            if (vehicle.position[0] === 0 && vehicle.position[1] === 0) return false;
-            const fleet = vehicleFleetMap.get(vehicle.id);
-            return !fleet || !hiddenFleetIds.has(fleet.id);
-          })
-          .map((vehicle) => (
-            <VehicleM
-              key={vehicle.id}
-              animFreq={animFreq}
-              scale={1.5}
-              {...vehicle}
-              fleetColor={vehicleFleetMap.get(vehicle.id)?.color}
-              onClick={() => onClick(vehicle.id)}
-            />
-          ))}
+        filteredVehicles.map((vehicle) => (
+          <VehicleM
+            key={vehicle.id}
+            animFreq={animFreq}
+            scale={1.5}
+            {...vehicle}
+            fleetColor={vehicleFleetMap.get(vehicle.id)?.color}
+            onClick={getClickHandler(vehicle.id)}
+          />
+        ))}
       {modifiers.showHeatmap && (
         <Suspense fallback={null}>
           <Heatmap vehicles={vehicles} />
