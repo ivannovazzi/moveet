@@ -628,23 +628,29 @@ export class VehicleManager extends EventEmitter {
   public assignVehicleToFleet(vehicleId: string, fleetId: string): boolean {
     const vehicle = this.vehicles.get(vehicleId);
     if (!vehicle) return false;
-    const result = this.fleets.assign(fleetId, vehicleId);
-    if (result) {
+    try {
+      this.fleets.assignVehicles(fleetId, [vehicleId]);
       vehicle.fleetId = fleetId;
       this.emit("update", serializeVehicle(vehicle));
+      return true;
+    } catch {
+      return false;
     }
-    return result;
   }
 
   public unassignVehicleFromFleet(vehicleId: string): boolean {
     const vehicle = this.vehicles.get(vehicleId);
     if (!vehicle) return false;
-    const result = this.fleets.unassign(vehicleId);
-    if (result) {
+    const fleetId = this.fleets.getVehicleFleetId(vehicleId);
+    if (!fleetId) return false;
+    try {
+      this.fleets.unassignVehicles(fleetId, [vehicleId]);
       vehicle.fleetId = undefined;
       this.emit("update", serializeVehicle(vehicle));
+      return true;
+    } catch {
+      return false;
     }
-    return result;
   }
 
   public getVehicles(): VehicleDTO[] {
