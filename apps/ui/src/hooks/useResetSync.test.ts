@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import React, { useState } from "react";
 import { useVehicles } from "./useVehicles";
@@ -10,6 +10,7 @@ import { DEFAULT_START_OPTIONS } from "@/data/constants";
 import type { VehicleDTO, VehicleDirection, Route } from "@/types";
 import type { ResetPayload } from "@/utils/wsTypes";
 import client from "@/utils/client";
+import { vehicleStore } from "./vehicleStore";
 
 // --- Mocks ---
 
@@ -37,26 +38,6 @@ vi.mock("@/utils/client", () => ({
     getDirections: vi.fn().mockResolvedValue({ data: [] }),
   },
 }));
-
-// --- rAF stubbing (needed by useVehicleChanges) ---
-
-let pendingRafCallbacks: FrameRequestCallback[] = [];
-let rafCounter = 0;
-
-vi.stubGlobal(
-  "requestAnimationFrame",
-  vi.fn((cb: FrameRequestCallback) => {
-    pendingRafCallbacks.push(cb);
-    return ++rafCounter;
-  })
-);
-vi.stubGlobal("cancelAnimationFrame", vi.fn());
-
-function flushRaf() {
-  const cbs = pendingRafCallbacks;
-  pendingRafCallbacks = [];
-  cbs.forEach((cb) => cb(0));
-}
 
 // --- Context wrapper for useDirections ---
 
@@ -112,13 +93,22 @@ function simulateAppConnectHandler(setVehicles: (vehicles: VehicleDTO[]) => void
   });
 }
 
+/** Advance past the 1s throttle so vehicleStore syncs to React state. */
+function flushStore() {
+  vi.advanceTimersByTime(1100);
+}
+
 beforeEach(() => {
+  vi.useFakeTimers();
   vi.clearAllMocks();
-  pendingRafCallbacks = [];
-  rafCounter = 0;
+  vehicleStore.replace([]);
   connectHandlers = [];
   resetHandlers = [];
   directionHandlers = [];
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 // --- Tests ---
@@ -143,7 +133,7 @@ describe("reset WS event: full vehicle replacement", () => {
     const v3 = createVehicleDTO({ id: "v3", name: "Gamma" });
     act(() => {
       vehicleHandler(v3);
-      flushRaf();
+      flushStore();
     });
     expect(result.current.vehicles).toHaveLength(3);
 

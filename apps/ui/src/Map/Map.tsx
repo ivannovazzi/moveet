@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo } from "react";
+import { lazy, Suspense } from "react";
 import type { Fleet, Modifiers, POI, Position, Road, Vehicle } from "@/types";
 import type { Filters } from "@/hooks/useVehicles";
 
@@ -41,24 +41,6 @@ export default function Map({
 }: MapProps) {
   const network = useNetwork();
 
-  const filteredVehicles = useMemo(
-    () =>
-      vehicles.filter((vehicle) => {
-        if (vehicle.position[0] === 0 && vehicle.position[1] === 0) return false;
-        const fleet = vehicleFleetMap.get(vehicle.id);
-        return !fleet || !hiddenFleetIds.has(fleet.id);
-      }),
-    [vehicles, vehicleFleetMap, hiddenFleetIds],
-  );
-
-  const vehicleFleetColors = useMemo(() => {
-    const colorMap: globalThis.Map<string, string | undefined> = new globalThis.Map();
-    for (const v of filteredVehicles) {
-      colorMap.set(v.id, vehicleFleetMap.get(v.id)?.color);
-    }
-    return colorMap;
-  }, [filteredVehicles, vehicleFleetMap]);
-
   return (
     <RoadNetworkMap
       data={network}
@@ -88,9 +70,9 @@ export default function Map({
 
       {modifiers.showVehicles && (
         <VehiclesLayer
-          vehicles={filteredVehicles}
           scale={1.5}
-          vehicleFleetColors={vehicleFleetColors}
+          vehicleFleetMap={vehicleFleetMap}
+          hiddenFleetIds={hiddenFleetIds}
           selectedId={filters.selected}
           hoveredId={filters.hovered}
           onClick={onClick}
