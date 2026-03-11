@@ -50,12 +50,16 @@ export class RoadNetwork extends EventEmitter {
   // Network bounding box for uniform spatial sampling
   private bbox = { minLat: Infinity, maxLat: -Infinity, minLon: Infinity, maxLon: -Infinity };
 
+  // Coarse geographic sectors for uniform spawn distribution
+  private sectorEdges: Edge[][] = [];
+
   constructor(geojsonPath: string) {
     super();
     this.data = JSON.parse(fs.readFileSync(geojsonPath, "utf8")) as FeatureCollection;
     this.buildNetwork(this.data);
     this.computeBbox();
     this.buildSpatialIndex();
+    this.buildSectorIndex();
   }
 
   private computeBbox(): void {
@@ -84,6 +88,33 @@ export class RoadNetwork extends EventEmitter {
     const gx = Math.floor(lat / this.gridCellSize);
     const gy = Math.floor(lon / this.gridCellSize);
     return `${gx},${gy}`;
+  }
+
+  private buildSectorIndex(): void {
+    // Divide the bbox into a SECTORS_N × SECTORS_N coarse grid.
+    // Assign edges to sectors by their start node position.
+    // Sectors with any edges get one entry — so each geographic region
+    // has equal weight regardless of road density.
+    const SECTORS_N = 10;
+    const { minLat, maxLat, minLon, maxLon } = this.bbox;
+    const latStep = (maxLat - minLat) / SECTORS_N;
+    const lonStep = (maxLon - minLon) / SECTORS_N;
+
+    const sectorMap = new Map<number, Edge[]>();
+    for (const edge of this.edges.values()) {
+      if (edge.start.connections.length === 0) continue;
+      const [lat, lon] = edge.start.coordinates;
+      const row = Math.min(Math.floor((lat - minLat) / latStep), SECTORS_N - 1);
+      const col = Math.min(Math.floor((lon - minLon) / lonStep), SECTORS_N - 1);
+      const key = row * SECTORS_N + col;
+      let bucket = sectorMap.get(key);
+      if (!bucket) {
+        bucket = [];
+        sectorMap.set(key, bucket);
+      }
+      bucket.push(edge);
+    }
+    this.sectorEdges = Array.from(sectorMap.values());
   }
 
   public getAllRoads(): Road[] {
@@ -238,16 +269,16 @@ export class RoadNetwork extends EventEmitter {
   }
 
   public getRandomEdge(): Edge {
-    const node = this.getRandomNode();
-    if (node.connections.length > 0) {
-      return node.connections[Math.floor(Math.random() * node.connections.length)];
-    }
-    // Fallback: uniform random edge
-    const edges = Array.from(this.edges.values());
-    return edges[Math.floor(Math.random() * edges.length)];
+    // Geographic sector normalization: pick a random occupied sector
+    // (10×10 coarse grid over the bbox), then pick a random edge within it.
+    // Each geographic region of the map gets equal probability regardless
+    // of how many roads are in it.
+    const bucket = this.sectorEdges[Math.floor(Math.random() * this.sectorEdges.length)];
+    return bucket[Math.floor(Math.random() * bucket.length)];
   }
 
   public getRandomNode(): Node {
+    // For destination picking: pick uniformly over all nodes.
     const nodes = Array.from(this.nodes.values());
     return nodes[Math.floor(Math.random() * nodes.length)];
   }
