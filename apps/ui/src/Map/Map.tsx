@@ -17,7 +17,6 @@ const TrafficZones = lazy(() => import("./TrafficZones"));
 interface MapProps {
   filters: Filters;
   vehicles: Vehicle[];
-  animFreq: number;
   modifiers: Modifiers;
   selectedItem: Road | POI | null;
   onClick: (id: string) => void;
@@ -30,7 +29,6 @@ interface MapProps {
 
 export default function Map({
   vehicles,
-  animFreq,
   modifiers,
   filters,
   selectedItem,
@@ -91,7 +89,6 @@ export default function Map({
       {modifiers.showVehicles && (
         <VehiclesLayer
           vehicles={filteredVehicles}
-          animFreq={animFreq}
           scale={1.5}
           vehicleFleetColors={vehicleFleetColors}
           selectedId={filters.selected}

@@ -220,7 +220,6 @@ export default function App() {
             </div>
           )}
           <MapView
-            animFreq={status.interval}
             vehicles={vehicles}
             filters={filters}
             modifiers={modifiers}
