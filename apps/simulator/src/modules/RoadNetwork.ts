@@ -248,11 +248,8 @@ export class RoadNetwork extends EventEmitter {
   }
 
   public getRandomNode(): Node {
-    // Sample a random point in the bounding box and find the nearest node.
-    // This gives uniform spatial distribution regardless of road density.
-    const lat = this.bbox.minLat + Math.random() * (this.bbox.maxLat - this.bbox.minLat);
-    const lon = this.bbox.minLon + Math.random() * (this.bbox.maxLon - this.bbox.minLon);
-    return this.findNearestNode([lat, lon]);
+    const nodes = Array.from(this.nodes.values());
+    return nodes[Math.floor(Math.random() * nodes.length)];
   }
 
   /**
