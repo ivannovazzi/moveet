@@ -50,12 +50,17 @@ export class RoadNetwork extends EventEmitter {
   // Network bounding box for uniform spatial sampling
   private bbox = { minLat: Infinity, maxLat: -Infinity, minLon: Infinity, maxLon: -Infinity };
 
+  // Coarse geographic sectors for uniform spawn/destination distribution
+  private sectorEdges: Edge[][] = [];
+  private sectorNodes: Node[][] = [];
+
   constructor(geojsonPath: string) {
     super();
     this.data = JSON.parse(fs.readFileSync(geojsonPath, "utf8")) as FeatureCollection;
     this.buildNetwork(this.data);
     this.computeBbox();
     this.buildSpatialIndex();
+    this.buildSectorIndex();
   }
 
   private computeBbox(): void {
@@ -84,6 +89,44 @@ export class RoadNetwork extends EventEmitter {
     const gx = Math.floor(lat / this.gridCellSize);
     const gy = Math.floor(lon / this.gridCellSize);
     return `${gx},${gy}`;
+  }
+
+  private buildSectorIndex(): void {
+    // Divide the bbox into a SECTORS_N × SECTORS_N coarse grid.
+    // Assign edges AND nodes to sectors by position.
+    // Each occupied sector gets equal weight regardless of road density,
+    // so both spawning and destination selection are geographically uniform.
+    const SECTORS_N = 10;
+    const { minLat, maxLat, minLon, maxLon } = this.bbox;
+    const latStep = (maxLat - minLat) / SECTORS_N;
+    const lonStep = (maxLon - minLon) / SECTORS_N;
+
+    const edgeSectorMap = new Map<number, Edge[]>();
+    const nodeSectorMap = new Map<number, Node[]>();
+
+    for (const edge of this.edges.values()) {
+      if (edge.start.connections.length === 0) continue;
+      const [lat, lon] = edge.start.coordinates;
+      const row = Math.min(Math.floor((lat - minLat) / latStep), SECTORS_N - 1);
+      const col = Math.min(Math.floor((lon - minLon) / lonStep), SECTORS_N - 1);
+      const key = row * SECTORS_N + col;
+      let bucket = edgeSectorMap.get(key);
+      if (!bucket) { bucket = []; edgeSectorMap.set(key, bucket); }
+      bucket.push(edge);
+    }
+
+    for (const node of this.nodes.values()) {
+      const [lat, lon] = node.coordinates;
+      const row = Math.min(Math.floor((lat - minLat) / latStep), SECTORS_N - 1);
+      const col = Math.min(Math.floor((lon - minLon) / lonStep), SECTORS_N - 1);
+      const key = row * SECTORS_N + col;
+      let bucket = nodeSectorMap.get(key);
+      if (!bucket) { bucket = []; nodeSectorMap.set(key, bucket); }
+      bucket.push(node);
+    }
+
+    this.sectorEdges = Array.from(edgeSectorMap.values());
+    this.sectorNodes = Array.from(nodeSectorMap.values());
   }
 
   public getAllRoads(): Road[] {
@@ -238,21 +281,45 @@ export class RoadNetwork extends EventEmitter {
   }
 
   public getRandomEdge(): Edge {
-    const node = this.getRandomNode();
-    if (node.connections.length > 0) {
-      return node.connections[Math.floor(Math.random() * node.connections.length)];
-    }
-    // Fallback: uniform random edge
-    const edges = Array.from(this.edges.values());
-    return edges[Math.floor(Math.random() * edges.length)];
+    // Geographic sector normalization: pick a random occupied sector
+    // (10×10 coarse grid over the bbox), then pick a random edge within it.
+    // Each geographic region of the map gets equal probability regardless
+    // of how many roads are in it.
+    const bucket = this.sectorEdges[Math.floor(Math.random() * this.sectorEdges.length)];
+    return bucket[Math.floor(Math.random() * bucket.length)];
   }
 
   public getRandomNode(): Node {
-    // Sample a random point in the bounding box and find the nearest node.
-    // This gives uniform spatial distribution regardless of road density.
-    const lat = this.bbox.minLat + Math.random() * (this.bbox.maxLat - this.bbox.minLat);
-    const lon = this.bbox.minLon + Math.random() * (this.bbox.maxLon - this.bbox.minLon);
-    return this.findNearestNode([lat, lon]);
+    // Sector-based: pick a random occupied sector, then a random node within it.
+    // Gives geographic coverage proportional to area, not road density.
+    const bucket = this.sectorNodes[Math.floor(Math.random() * this.sectorNodes.length)];
+    return bucket[Math.floor(Math.random() * bucket.length)];
+  }
+
+  public getRandomPOINode(): Node | null {
+    // Sector-based POI selection: pick a random sector that has POI nodes,
+    // then pick a random POI node from it — not biased by POI density.
+    const poiNodes = this.getPOINodes();
+    if (poiNodes.length === 0) return null;
+
+    // Bucket POI nodes by sector
+    const { minLat, maxLat, minLon, maxLon } = this.bbox;
+    const SECTORS_N = 10;
+    const latStep = (maxLat - minLat) / SECTORS_N;
+    const lonStep = (maxLon - minLon) / SECTORS_N;
+    const poiSectors = new Map<number, Node[]>();
+    for (const node of poiNodes) {
+      const [lat, lon] = node.coordinates;
+      const row = Math.min(Math.floor((lat - minLat) / latStep), SECTORS_N - 1);
+      const col = Math.min(Math.floor((lon - minLon) / lonStep), SECTORS_N - 1);
+      const key = row * SECTORS_N + col;
+      let bucket = poiSectors.get(key);
+      if (!bucket) { bucket = []; poiSectors.set(key, bucket); }
+      bucket.push(node);
+    }
+    const buckets = Array.from(poiSectors.values());
+    const bucket = buckets[Math.floor(Math.random() * buckets.length)];
+    return bucket[Math.floor(Math.random() * bucket.length)];
   }
 
   /**

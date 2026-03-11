@@ -73,6 +73,7 @@ export default function Map({
       {modifiers.showVehicles &&
         vehicles
           ?.filter((vehicle) => {
+            if (vehicle.position[0] === 0 && vehicle.position[1] === 0) return false;
             const fleet = vehicleFleetMap.get(vehicle.id);
             return !fleet || !hiddenFleetIds.has(fleet.id);
           })

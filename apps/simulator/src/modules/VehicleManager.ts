@@ -182,10 +182,11 @@ export class VehicleManager extends EventEmitter {
   }
 
   private pickDestination(): Node {
-    const poiNodes = this.network.getPOINodes();
-    // 80% chance to pick a POI, 20% chance for random node
-    if (poiNodes.length > 0 && Math.random() < 0.8) {
-      return poiNodes[Math.floor(Math.random() * poiNodes.length)];
+    // 60% chance to pick a sector-normalized POI, 40% chance for a sector-normalized random node.
+    // Both use sector-based selection so destinations are spread across the whole map.
+    if (Math.random() < 0.6) {
+      const poiNode = this.network.getRandomPOINode();
+      if (poiNode) return poiNode;
     }
     return this.network.getRandomNode();
   }
@@ -627,23 +628,29 @@ export class VehicleManager extends EventEmitter {
   public assignVehicleToFleet(vehicleId: string, fleetId: string): boolean {
     const vehicle = this.vehicles.get(vehicleId);
     if (!vehicle) return false;
-    const result = this.fleets.assign(fleetId, vehicleId);
-    if (result) {
+    try {
+      this.fleets.assignVehicles(fleetId, [vehicleId]);
       vehicle.fleetId = fleetId;
       this.emit("update", serializeVehicle(vehicle));
+      return true;
+    } catch {
+      return false;
     }
-    return result;
   }
 
   public unassignVehicleFromFleet(vehicleId: string): boolean {
     const vehicle = this.vehicles.get(vehicleId);
     if (!vehicle) return false;
-    const result = this.fleets.unassign(vehicleId);
-    if (result) {
+    const fleetId = this.fleets.getVehicleFleetId(vehicleId);
+    if (!fleetId) return false;
+    try {
+      this.fleets.unassignVehicles(fleetId, [vehicleId]);
       vehicle.fleetId = undefined;
       this.emit("update", serializeVehicle(vehicle));
+      return true;
+    } catch {
+      return false;
     }
-    return result;
   }
 
   public getVehicles(): VehicleDTO[] {

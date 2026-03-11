@@ -401,6 +401,108 @@ describe("VehicleManager", () => {
     });
   });
 
+  // ─── Fleet assignment ────────────────────────────────────────────
+
+  describe("fleet assignment", () => {
+    it("should assign a vehicle to a fleet", () => {
+      const fleetManager = (manager as any).fleets as import("../modules/FleetManager").FleetManager;
+      const fleet = fleetManager.createFleet("TestFleet");
+      const vehicle = firstVehicle();
+
+      const result = manager.assignVehicleToFleet(vehicle.id, fleet.id);
+
+      expect(result).toBe(true);
+      expect(vehicle.fleetId).toBe(fleet.id);
+      expect(fleetManager.getVehicleFleetId(vehicle.id)).toBe(fleet.id);
+    });
+
+    it("should emit update event when assigning to fleet", () => {
+      const fleetManager = (manager as any).fleets as import("../modules/FleetManager").FleetManager;
+      const fleet = fleetManager.createFleet("TestFleet");
+      const vehicle = firstVehicle();
+      const listener = vi.fn();
+      manager.on("update", listener);
+
+      manager.assignVehicleToFleet(vehicle.id, fleet.id);
+
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect(listener).toHaveBeenCalledWith(expect.objectContaining({ id: vehicle.id }));
+    });
+
+    it("should return false when assigning non-existent vehicle", () => {
+      const fleetManager = (manager as any).fleets as import("../modules/FleetManager").FleetManager;
+      const fleet = fleetManager.createFleet("TestFleet");
+
+      const result = manager.assignVehicleToFleet("non-existent-id", fleet.id);
+
+      expect(result).toBe(false);
+    });
+
+    it("should return false when assigning to non-existent fleet", () => {
+      const vehicle = firstVehicle();
+
+      const result = manager.assignVehicleToFleet(vehicle.id, "non-existent-fleet");
+
+      expect(result).toBe(false);
+    });
+
+    it("should unassign a vehicle from its fleet", () => {
+      const fleetManager = (manager as any).fleets as import("../modules/FleetManager").FleetManager;
+      const fleet = fleetManager.createFleet("TestFleet");
+      const vehicle = firstVehicle();
+      manager.assignVehicleToFleet(vehicle.id, fleet.id);
+
+      const result = manager.unassignVehicleFromFleet(vehicle.id);
+
+      expect(result).toBe(true);
+      expect(vehicle.fleetId).toBeUndefined();
+      expect(fleetManager.getVehicleFleetId(vehicle.id)).toBeUndefined();
+    });
+
+    it("should emit update event when unassigning from fleet", () => {
+      const fleetManager = (manager as any).fleets as import("../modules/FleetManager").FleetManager;
+      const fleet = fleetManager.createFleet("TestFleet");
+      const vehicle = firstVehicle();
+      manager.assignVehicleToFleet(vehicle.id, fleet.id);
+
+      const listener = vi.fn();
+      manager.on("update", listener);
+
+      manager.unassignVehicleFromFleet(vehicle.id);
+
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect(listener).toHaveBeenCalledWith(expect.objectContaining({ id: vehicle.id }));
+    });
+
+    it("should return false when unassigning non-existent vehicle", () => {
+      const result = manager.unassignVehicleFromFleet("non-existent-id");
+
+      expect(result).toBe(false);
+    });
+
+    it("should return false when unassigning vehicle not in any fleet", () => {
+      const vehicle = firstVehicle();
+
+      const result = manager.unassignVehicleFromFleet(vehicle.id);
+
+      expect(result).toBe(false);
+    });
+
+    it("should move vehicle between fleets", () => {
+      const fleetManager = (manager as any).fleets as import("../modules/FleetManager").FleetManager;
+      const fleetA = fleetManager.createFleet("FleetA");
+      const fleetB = fleetManager.createFleet("FleetB");
+      const vehicle = firstVehicle();
+
+      manager.assignVehicleToFleet(vehicle.id, fleetA.id);
+      expect(vehicle.fleetId).toBe(fleetA.id);
+
+      manager.assignVehicleToFleet(vehicle.id, fleetB.id);
+      expect(vehicle.fleetId).toBe(fleetB.id);
+      expect(fleetManager.getVehicleFleetId(vehicle.id)).toBe(fleetB.id);
+    });
+  });
+
   // ─── getNetwork ───────────────────────────────────────────────────
 
   describe("getNetwork", () => {

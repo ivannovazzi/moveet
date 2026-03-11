@@ -6,7 +6,7 @@ import Vehicles from "./Controls/Vehicles";
 import Fleets from "./Controls/Fleets";
 import AdapterDrawer from "./Controls/Adapter/AdapterDrawer";
 import { useAdapterConfig } from "./Controls/Adapter/useAdapterConfig";
-import Map from "./Map/Map";
+import MapView from "./Map/Map";
 import FleetLegend from "./Map/FleetLegend";
 import SearchBar from "./SearchBar";
 import Zoom from "./Zoom/";
@@ -219,7 +219,7 @@ export default function App() {
               Disconnected — attempting to reconnect...
             </div>
           )}
-          <Map
+          <MapView
             animFreq={status.interval}
             vehicles={vehicles}
             filters={filters}
