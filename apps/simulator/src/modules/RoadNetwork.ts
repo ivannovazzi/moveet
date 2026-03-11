@@ -3,6 +3,7 @@ import crypto from "crypto";
 import type { Feature, FeatureCollection, LineString } from "geojson";
 import type { Node, Edge, Route, PathNode, HeatZoneFeature, POI, HighwayType } from "../types";
 import * as utils from "../utils/helpers";
+import { LRUCache, type CacheStats } from "../utils/LRUCache";
 import { HeatZoneManager } from "./HeatZoneManager";
 import EventEmitter from "events";
 
@@ -54,8 +55,15 @@ export class RoadNetwork extends EventEmitter {
   private sectorEdges: Edge[][] = [];
   private sectorNodes: Node[][] = [];
 
-  constructor(geojsonPath: string) {
+  // A* route cache — avoids recomputing identical start→end routes
+  private routeCache: LRUCache<Route>;
+
+  constructor(geojsonPath: string, cacheOptions?: { maxSize?: number; ttlMs?: number }) {
     super();
+    this.routeCache = new LRUCache<Route>({
+      maxSize: cacheOptions?.maxSize ?? 500,
+      ttlMs: cacheOptions?.ttlMs ?? 60_000,
+    });
     this.data = JSON.parse(fs.readFileSync(geojsonPath, "utf8")) as FeatureCollection;
     this.buildNetwork(this.data);
     this.computeBbox();
@@ -412,6 +420,11 @@ export class RoadNetwork extends EventEmitter {
    * }
    */
   public findRoute(start: Node, end: Node): Route | null {
+    // Check cache first
+    const cacheKey = `${start.id}|${end.id}`;
+    const cached = this.routeCache.get(cacheKey);
+    if (cached) return cached;
+
     const closedSet = new Set<string>();
     const cameFrom = new Map<string, { prevId: string; edge: Edge }>();
     const gScore = new Map<string, number>();
@@ -463,7 +476,9 @@ export class RoadNetwork extends EventEmitter {
       if (closedSet.has(current.id)) continue;
 
       if (current.id === end.id) {
-        return this.reconstructPath(start.id, end.id, cameFrom);
+        const route = this.reconstructPath(start.id, end.id, cameFrom);
+        this.routeCache.set(cacheKey, route);
+        return route;
       }
 
       closedSet.add(current.id);
@@ -489,6 +504,16 @@ export class RoadNetwork extends EventEmitter {
       }
     }
     return null;
+  }
+
+  /** Clear all cached routes. Useful for testing or when the network topology changes. */
+  public clearRouteCache(): void {
+    this.routeCache.clear();
+  }
+
+  /** Return hit/miss statistics for the route cache. */
+  public routeCacheStats(): CacheStats {
+    return this.routeCache.stats();
   }
 
   private reconstructPath(
