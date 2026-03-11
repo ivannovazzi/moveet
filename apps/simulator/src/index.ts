@@ -6,6 +6,7 @@ import { RoadNetwork } from "./modules/RoadNetwork";
 import { VehicleManager } from "./modules/VehicleManager";
 import { FleetManager } from "./modules/FleetManager";
 import { SimulationController } from "./modules/SimulationController";
+import { WebSocketBroadcaster } from "./modules/WebSocketBroadcaster";
 import { config, verifyConfig } from "./utils/config";
 import { HEAT_ZONE_DEFAULTS } from "./constants";
 import { generalRateLimiter, expensiveRateLimiter } from "./middleware/rateLimiter";
@@ -307,61 +308,38 @@ async function main() {
   });
 
   const wss = new WebSocketServer({ server });
+  const broadcaster = new WebSocketBroadcaster(wss, { flushIntervalMs: 100 });
+  broadcaster.start();
 
-  // WebSocket message handler factory
-  function createWebSocketHandler<T>(ws: any, messageType: string) {
-    return (data: T): void => {
-      if (ws.readyState === ws.OPEN) {
-        ws.send(JSON.stringify({ type: messageType, data }));
-      }
-    };
-  }
+  // Vehicle updates are batched by the broadcaster
+  vehicleManager.on("update", (data) => {
+    broadcaster.queueVehicleUpdate(data);
+  });
+
+  // Non-vehicle events are broadcast immediately
+  network.on("heatzones", (data) => broadcaster.broadcast("heatzones", data));
+  vehicleManager.on("direction", (data) => broadcaster.broadcast("direction", data));
+  vehicleManager.on("options", (data) => broadcaster.broadcast("options", data));
+  simulationController.on("updateStatus", (data) => broadcaster.broadcast("status", data));
+  simulationController.on("reset", (data) => broadcaster.broadcast("reset", data));
+  fleetManager.on("fleet:created", (data) => broadcaster.broadcast("fleet:created", data));
+  fleetManager.on("fleet:deleted", (data) => broadcaster.broadcast("fleet:deleted", data));
+  fleetManager.on("fleet:assigned", (data) => broadcaster.broadcast("fleet:assigned", data));
 
   wss.on("connection", (ws) => {
-    logger.info("Client connected");
+    logger.info(`Client connected (total: ${broadcaster.clientCount})`);
 
-    // Create handlers using factory
-    const heatzonesHandler = createWebSocketHandler(ws, "heatzones");
-    const directionHandler = createWebSocketHandler(ws, "direction");
-    const optionsUpdateHandler = createWebSocketHandler(ws, "options");
-    const vehicleUpdateHandler = createWebSocketHandler(ws, "vehicle");
-    const statusUpdateHandler = createWebSocketHandler(ws, "status");
-    const resetHandler = createWebSocketHandler(ws, "reset");
-
-    // Register event listeners
-    network.on("heatzones", heatzonesHandler);
-    vehicleManager.on("update", vehicleUpdateHandler);
-    vehicleManager.on("direction", directionHandler);
-    vehicleManager.on("options", optionsUpdateHandler);
-    simulationController.on("updateStatus", statusUpdateHandler);
-    simulationController.on("reset", resetHandler);
-
-    const fleetCreatedHandler = createWebSocketHandler(ws, "fleet:created");
-    const fleetDeletedHandler = createWebSocketHandler(ws, "fleet:deleted");
-    const fleetAssignedHandler = createWebSocketHandler(ws, "fleet:assigned");
-
-    fleetManager.on("fleet:created", fleetCreatedHandler);
-    fleetManager.on("fleet:deleted", fleetDeletedHandler);
-    fleetManager.on("fleet:assigned", fleetAssignedHandler);
-
-    // Cleanup on disconnect
     ws.on("close", () => {
-      network.removeListener("heatzones", heatzonesHandler);
-      vehicleManager.removeListener("direction", directionHandler);
-      vehicleManager.removeListener("update", vehicleUpdateHandler);
-      vehicleManager.removeListener("options", optionsUpdateHandler);
-      simulationController.removeListener("updateStatus", statusUpdateHandler);
-      simulationController.removeListener("reset", resetHandler);
-      fleetManager.removeListener("fleet:created", fleetCreatedHandler);
-      fleetManager.removeListener("fleet:deleted", fleetDeletedHandler);
-      fleetManager.removeListener("fleet:assigned", fleetAssignedHandler);
-      logger.info("Client disconnected");
+      logger.info(`Client disconnected (total: ${broadcaster.clientCount})`);
     });
   });
 
   // Graceful shutdown handling
   function gracefulShutdown(signal: string): void {
     logger.info(`${signal} received. Starting graceful shutdown...`);
+
+    broadcaster.stop();
+    logger.info("WebSocket broadcaster stopped");
 
     server.close(() => {
       logger.info("HTTP server closed");
