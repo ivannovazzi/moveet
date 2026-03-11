@@ -15,6 +15,7 @@ import { EventEmitter } from "events";
 import * as utils from "../utils/helpers";
 import { serializeVehicle } from "../utils/serializer";
 import { TrafficManager } from "./TrafficManager";
+import { FleetManager } from "./FleetManager";
 import Adapter from "./Adapter";
 import logger from "../utils/logger";
 
@@ -29,6 +30,7 @@ export class VehicleManager extends EventEmitter {
   private static readonly PATHFIND_COOLDOWN = 3000;
   private adapter = new Adapter();
   private traffic = new TrafficManager();
+  public readonly fleets = new FleetManager();
 
   private options: StartOptions = {
     updateInterval: config.updateInterval,
@@ -125,6 +127,7 @@ export class VehicleManager extends EventEmitter {
     this.vehicles = new Map();
     this.visitedEdges = new Map();
     this.routes = new Map();
+    this.fleets.reset();
 
     if (adapterVehicles) {
       adapterVehicles.forEach((v) => {
@@ -620,6 +623,28 @@ export class VehicleManager extends EventEmitter {
    * const vehicles = vehicleManager.getVehicles();
    * vehicles.forEach(v => console.log(`${v.name}: ${v.speed}km/h at [${v.position}]`));
    */
+  public assignVehicleToFleet(vehicleId: string, fleetId: string): boolean {
+    const vehicle = this.vehicles.get(vehicleId);
+    if (!vehicle) return false;
+    const result = this.fleets.assign(fleetId, vehicleId);
+    if (result) {
+      vehicle.fleetId = fleetId;
+      this.emit("update", serializeVehicle(vehicle));
+    }
+    return result;
+  }
+
+  public unassignVehicleFromFleet(vehicleId: string): boolean {
+    const vehicle = this.vehicles.get(vehicleId);
+    if (!vehicle) return false;
+    const result = this.fleets.unassign(vehicleId);
+    if (result) {
+      vehicle.fleetId = undefined;
+      this.emit("update", serializeVehicle(vehicle));
+    }
+    return result;
+  }
+
   public getVehicles(): VehicleDTO[] {
     return Array.from(this.vehicles.values()).map(serializeVehicle);
   }

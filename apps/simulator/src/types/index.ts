@@ -43,6 +43,7 @@ export interface Vehicle {
   edgeIndex?: number; // Cached index of current edge in route for performance
   dwellUntil?: number; // timestamp (ms) when vehicle should resume moving
   targetSpeed?: number; // desired speed, changes every few seconds
+  fleetId?: string;
 }
 
 export interface VehicleDTO {
@@ -51,6 +52,21 @@ export interface VehicleDTO {
   position: [number, number];
   speed: number;
   heading: number;
+  fleetId?: string;
+}
+
+export interface Fleet {
+  id: string;
+  name: string;
+  color: string;
+  vehicleIds: string[];
+}
+
+export interface FleetDTO {
+  id: string;
+  name: string;
+  color: string;
+  vehicleIds: string[];
 }
 
 export interface SimulationStatus {

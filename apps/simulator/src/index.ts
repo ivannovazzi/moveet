@@ -227,6 +227,84 @@ app.post("/heatzones", (_req, res) => {
   }
 });
 
+// ─── Fleet endpoints ──────────────────────────────────────────────
+
+app.get("/fleets", (_req, res) => {
+  try {
+    res.json(vehicleManager.fleets.getAll());
+  } catch (error) {
+    logger.error(`Error in GET /fleets: ${error}`);
+    res.status(500).json({ error: "Failed to get fleets" });
+  }
+});
+
+app.post("/fleets", (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || typeof name !== "string") {
+      res.status(400).json({ error: "Missing or invalid 'name' field" });
+      return;
+    }
+    const fleet = vehicleManager.fleets.create(name);
+    res.status(201).json(fleet);
+  } catch (error) {
+    logger.error(`Error in POST /fleets: ${error}`);
+    res.status(500).json({ error: "Failed to create fleet" });
+  }
+});
+
+app.delete("/fleets/:id", (req, res) => {
+  try {
+    const deleted = vehicleManager.fleets.delete(req.params.id);
+    if (!deleted) {
+      res.status(404).json({ error: "Fleet not found" });
+      return;
+    }
+    res.json({ status: "deleted" });
+  } catch (error) {
+    logger.error(`Error in DELETE /fleets/:id: ${error}`);
+    res.status(500).json({ error: "Failed to delete fleet" });
+  }
+});
+
+app.post("/fleets/assign", (req, res) => {
+  try {
+    const { fleetId, vehicleId } = req.body;
+    if (!fleetId || !vehicleId) {
+      res.status(400).json({ error: "Missing 'fleetId' or 'vehicleId'" });
+      return;
+    }
+    const assigned = vehicleManager.assignVehicleToFleet(vehicleId, fleetId);
+    if (!assigned) {
+      res.status(404).json({ error: "Fleet or vehicle not found" });
+      return;
+    }
+    res.json({ status: "assigned" });
+  } catch (error) {
+    logger.error(`Error in POST /fleets/assign: ${error}`);
+    res.status(500).json({ error: "Failed to assign vehicle" });
+  }
+});
+
+app.post("/fleets/unassign", (req, res) => {
+  try {
+    const { vehicleId } = req.body;
+    if (!vehicleId) {
+      res.status(400).json({ error: "Missing 'vehicleId'" });
+      return;
+    }
+    const unassigned = vehicleManager.unassignVehicleFromFleet(vehicleId);
+    if (!unassigned) {
+      res.status(404).json({ error: "Vehicle not in any fleet" });
+      return;
+    }
+    res.json({ status: "unassigned" });
+  } catch (error) {
+    logger.error(`Error in POST /fleets/unassign: ${error}`);
+    res.status(500).json({ error: "Failed to unassign vehicle" });
+  }
+});
+
 app.get("/heatzones", (_req, res) => {
   try {
     res.json(network.exportHeatZones());
@@ -272,6 +350,11 @@ async function main() {
     const statusUpdateHandler = createWebSocketHandler(ws, "status");
     const resetHandler = createWebSocketHandler(ws, "reset");
 
+    // Fleet event handlers
+    const fleetCreatedHandler = createWebSocketHandler(ws, "fleet:created");
+    const fleetDeletedHandler = createWebSocketHandler(ws, "fleet:deleted");
+    const fleetAssignedHandler = createWebSocketHandler(ws, "fleet:assigned");
+
     // Register event listeners
     network.on("heatzones", heatzonesHandler);
     vehicleManager.on("update", vehicleUpdateHandler);
@@ -279,6 +362,9 @@ async function main() {
     vehicleManager.on("options", optionsUpdateHandler);
     simulationController.on("updateStatus", statusUpdateHandler);
     simulationController.on("reset", resetHandler);
+    vehicleManager.fleets.on("fleet:created", fleetCreatedHandler);
+    vehicleManager.fleets.on("fleet:deleted", fleetDeletedHandler);
+    vehicleManager.fleets.on("fleet:assigned", fleetAssignedHandler);
 
     // Cleanup on disconnect
     ws.on("close", () => {
@@ -288,6 +374,9 @@ async function main() {
       vehicleManager.removeListener("options", optionsUpdateHandler);
       simulationController.removeListener("updateStatus", statusUpdateHandler);
       simulationController.removeListener("reset", resetHandler);
+      vehicleManager.fleets.removeListener("fleet:created", fleetCreatedHandler);
+      vehicleManager.fleets.removeListener("fleet:deleted", fleetDeletedHandler);
+      vehicleManager.fleets.removeListener("fleet:assigned", fleetAssignedHandler);
       logger.info("Client disconnected");
     });
   });
