@@ -182,10 +182,11 @@ export class VehicleManager extends EventEmitter {
   }
 
   private pickDestination(): Node {
-    const poiNodes = this.network.getPOINodes();
-    // 80% chance to pick a POI, 20% chance for random node
-    if (poiNodes.length > 0 && Math.random() < 0.8) {
-      return poiNodes[Math.floor(Math.random() * poiNodes.length)];
+    // 60% chance to pick a sector-normalized POI, 40% chance for a sector-normalized random node.
+    // Both use sector-based selection so destinations are spread across the whole map.
+    if (Math.random() < 0.6) {
+      const poiNode = this.network.getRandomPOINode();
+      if (poiNode) return poiNode;
     }
     return this.network.getRandomNode();
   }
