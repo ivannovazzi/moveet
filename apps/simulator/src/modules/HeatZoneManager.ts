@@ -5,6 +5,12 @@ import type { Edge, Node, HeatZone, HeatZoneFeature } from "../types";
 export class HeatZoneManager {
   private zones: HeatZone[] = [];
 
+  // Spatial grid index: maps "row,col" cell keys to zones whose bounding box overlaps that cell.
+  // Cuts isPositionInHeatZone from O(zones) ray-casts to O(candidates) where candidates is
+  // typically 0-1 for most positions on the map.
+  private spatialGrid: Map<string, HeatZone[]> = new Map();
+  private static readonly GRID_CELL_SIZE = 0.005; // ~500m in degrees, matches RoadNetwork grid
+
   constructor() {}
 
   /**
@@ -62,6 +68,7 @@ export class HeatZoneManager {
 
     if (nodes.length === 0) {
       this.zones = [];
+      this.buildSpatialGrid();
       return;
     }
 
@@ -107,6 +114,8 @@ export class HeatZoneManager {
       intensity: zone.properties.intensity,
       timestamp: zone.properties.timestamp,
     }));
+
+    this.buildSpatialGrid();
   }
 
   /**
@@ -159,7 +168,77 @@ export class HeatZoneManager {
   public isPositionInHeatZone(position: [number, number]): boolean {
     const px = position[1]; // longitude
     const py = position[0]; // latitude
-    return this.zones.some((zone) => this.raycastPIP(px, py, zone.polygon));
+    const candidates = this.getCandidateZones(position);
+    return candidates.some((zone) => this.raycastPIP(px, py, zone.polygon));
+  }
+
+  /**
+   * Builds the spatial grid index from the current zones.
+   * For each zone, computes its bounding box and inserts the zone into every
+   * grid cell that the bounding box overlaps.
+   */
+  private buildSpatialGrid(): void {
+    this.spatialGrid.clear();
+
+    for (const zone of this.zones) {
+      const polygon = zone.polygon;
+      if (polygon.length === 0) continue;
+
+      // Compute bounding box of polygon.
+      // Polygon coords are [longitude, latitude] (GeoJSON convention).
+      let minLon = Infinity,
+        maxLon = -Infinity,
+        minLat = Infinity,
+        maxLat = -Infinity;
+      for (const coord of polygon) {
+        const lon = coord[0];
+        const lat = coord[1];
+        if (lon < minLon) minLon = lon;
+        if (lon > maxLon) maxLon = lon;
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+      }
+
+      // Map bounding box to grid cell range
+      const cellSize = HeatZoneManager.GRID_CELL_SIZE;
+      const minRow = Math.floor(minLat / cellSize);
+      const maxRow = Math.floor(maxLat / cellSize);
+      const minCol = Math.floor(minLon / cellSize);
+      const maxCol = Math.floor(maxLon / cellSize);
+
+      for (let row = minRow; row <= maxRow; row++) {
+        for (let col = minCol; col <= maxCol; col++) {
+          const key = `${row},${col}`;
+          let cell = this.spatialGrid.get(key);
+          if (!cell) {
+            cell = [];
+            this.spatialGrid.set(key, cell);
+          }
+          cell.push(zone);
+        }
+      }
+    }
+  }
+
+  /**
+   * Computes the grid cell key for a given lat/lon position.
+   * Uses latitude for rows and longitude for columns.
+   */
+  private getGridKey(lat: number, lon: number): string {
+    const cellSize = HeatZoneManager.GRID_CELL_SIZE;
+    const row = Math.floor(lat / cellSize);
+    const col = Math.floor(lon / cellSize);
+    return `${row},${col}`;
+  }
+
+  /**
+   * Returns only the heat zones whose bounding box overlaps the grid cell
+   * containing the given position. Most positions will return an empty array,
+   * avoiding all ray-casting work.
+   */
+  private getCandidateZones(position: [number, number]): HeatZone[] {
+    const key = this.getGridKey(position[0], position[1]);
+    return this.spatialGrid.get(key) || [];
   }
 
   private raycastPIP(px: number, py: number, polygon: number[][]): boolean {
