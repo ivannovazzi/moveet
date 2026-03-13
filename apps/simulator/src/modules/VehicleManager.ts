@@ -11,6 +11,7 @@ import type {
 import { VEHICLE_CONSTANTS } from "../constants";
 import type { RoadNetwork } from "./RoadNetwork";
 import { config } from "../utils/config";
+import { CircularBuffer } from "../utils/CircularBuffer";
 import { EventEmitter } from "events";
 import * as utils from "../utils/helpers";
 import { serializeVehicle } from "../utils/serializer";
@@ -21,9 +22,8 @@ import logger from "../utils/logger";
 
 export class VehicleManager extends EventEmitter {
   private vehicles: Map<string, Vehicle> = new Map();
-  private visitedEdges: Map<string, Set<string>> = new Map();
+  private visitedEdges: Map<string, CircularBuffer<string>> = new Map();
   private routes: Map<string, Route> = new Map();
-  private vehicleIntervals: Map<string, NodeJS.Timeout> = new Map();
   private locationInterval: NodeJS.Timeout | null = null;
   private lastUpdateTimes: Map<string, number> = new Map();
   private lastPathfindAttempt: Map<string, number> = new Map();
@@ -31,6 +31,14 @@ export class VehicleManager extends EventEmitter {
   private adapter = new Adapter();
   private traffic = new TrafficManager();
   public readonly fleets = new FleetManager();
+
+  // Task 1: Single game loop instead of per-vehicle setInterval
+  private activeVehicles: Set<string> = new Set();
+  private gameLoopInterval: NodeJS.Timeout | null = null;
+  private gameLoopIntervalMs: number = config.updateInterval;
+
+  // Task 2: Edge → vehicle spatial index for O(1) lookups
+  private vehiclesByEdge: Map<string, Set<string>> = new Map();
 
   private options: StartOptions = {
     updateInterval: config.updateInterval,
@@ -43,7 +51,10 @@ export class VehicleManager extends EventEmitter {
     heatZoneSpeedFactor: config.heatZoneSpeedFactor,
   };
 
-  constructor(private network: RoadNetwork, private fleetManager: FleetManager) {
+  constructor(
+    private network: RoadNetwork,
+    private fleetManager: FleetManager
+  ) {
     super();
     this.init();
   }
@@ -128,6 +139,7 @@ export class VehicleManager extends EventEmitter {
     this.vehicles = new Map();
     this.visitedEdges = new Map();
     this.routes = new Map();
+    this.vehiclesByEdge = new Map();
     this.fleets.reset();
 
     if (adapterVehicles) {
@@ -138,9 +150,11 @@ export class VehicleManager extends EventEmitter {
       this.loadFromData();
     }
 
-    // Clean up old intervals
-    this.vehicleIntervals.forEach((interval) => clearInterval(interval));
-    this.vehicleIntervals.clear();
+    // Clean up game loop and active vehicles
+    this.stopGameLoop();
+    this.activeVehicles.clear();
+    this.lastUpdateTimes.clear();
+    this.lastPathfindAttempt.clear();
     if (this.locationInterval) {
       clearInterval(this.locationInterval);
       this.locationInterval = null;
@@ -177,8 +191,46 @@ export class VehicleManager extends EventEmitter {
     });
 
     this.traffic.enter(startEdge.id);
-    this.visitedEdges.set(id, new Set([startEdge.id]));
+    this.addToEdgeIndex(id, startEdge.id);
+    const buffer = new CircularBuffer<string>(VEHICLE_CONSTANTS.MAX_VISITED_EDGES);
+    buffer.add(startEdge.id);
+    this.visitedEdges.set(id, buffer);
     this.setRandomDestination(id);
+  }
+
+  // ─── Edge spatial index management ─────────────────────────────────
+
+  /**
+   * Adds a vehicle to the edge spatial index.
+   */
+  private addToEdgeIndex(vehicleId: string, edgeId: string): void {
+    let vehiclesOnEdge = this.vehiclesByEdge.get(edgeId);
+    if (!vehiclesOnEdge) {
+      vehiclesOnEdge = new Set();
+      this.vehiclesByEdge.set(edgeId, vehiclesOnEdge);
+    }
+    vehiclesOnEdge.add(vehicleId);
+  }
+
+  /**
+   * Removes a vehicle from the edge spatial index.
+   */
+  private removeFromEdgeIndex(vehicleId: string, edgeId: string): void {
+    const vehiclesOnEdge = this.vehiclesByEdge.get(edgeId);
+    if (vehiclesOnEdge) {
+      vehiclesOnEdge.delete(vehicleId);
+      if (vehiclesOnEdge.size === 0) {
+        this.vehiclesByEdge.delete(edgeId);
+      }
+    }
+  }
+
+  /**
+   * Moves a vehicle from one edge to another in the spatial index.
+   */
+  private moveInEdgeIndex(vehicleId: string, fromEdgeId: string, toEdgeId: string): void {
+    this.removeFromEdgeIndex(vehicleId, fromEdgeId);
+    this.addToEdgeIndex(vehicleId, toEdgeId);
   }
 
   private pickDestination(): Node {
@@ -196,29 +248,92 @@ export class VehicleManager extends EventEmitter {
     if (!vehicle) return;
 
     const destination = this.pickDestination();
+    const startNode = vehicle.currentEdge.end;
 
-    // Route from the end of the current edge (where the vehicle is heading)
-    // instead of findNearestNode(position) to avoid mid-edge teleportation.
-    // Vehicle finishes its current edge naturally, then follows the new route.
-    const route = this.network.findRoute(vehicle.currentEdge.end, destination);
+    // Fire-and-forget async pathfinding via worker pool.
+    // The vehicle continues random movement until the route resolves.
+    this.network
+      .findRouteAsync(startNode, destination)
+      .then((route) => {
+        // Vehicle may have been removed while we were pathfinding
+        if (!this.vehicles.has(vehicleId)) return;
 
-    if (route) {
-      this.routes.set(vehicleId, route);
-      // edgeIndex = -1: vehicle's currentEdge is not in the route.
-      // When the current edge completes, getNextEdgeForVehicle returns route.edges[0].
-      // route.edges[0].start === currentEdge.end, so the transition is seamless.
-      vehicle.edgeIndex = -1;
-      this.emit("direction", {
-        vehicleId,
-        route: utils.nonCircularRouteEdges(route),
-        eta: utils.estimateRouteDuration(route, vehicle.speed),
+        if (route) {
+          this.routes.set(vehicleId, route);
+          // edgeIndex = -1: vehicle's currentEdge is not in the route.
+          // When the current edge completes, getNextEdgeForVehicle returns route.edges[0].
+          // route.edges[0].start === currentEdge.end, so the transition is seamless.
+          vehicle.edgeIndex = -1;
+          this.emit("direction", {
+            vehicleId,
+            route: utils.nonCircularRouteEdges(route),
+            eta: utils.estimateRouteDuration(route, vehicle.speed),
+          });
+        }
+      })
+      .catch(() => {
+        // Worker error — vehicle continues random movement, will retry later
       });
+  }
+
+  // ─── Game loop ─────────────────────────────────────────────────────
+
+  /**
+   * Starts the single game loop if not already running.
+   * The loop iterates all active vehicles per tick.
+   */
+  private startGameLoop(intervalMs: number): void {
+    this.gameLoopIntervalMs = intervalMs;
+    if (this.gameLoopInterval) return; // already running
+
+    this.gameLoopInterval = setInterval(() => this.gameLoopTick(), intervalMs);
+  }
+
+  /**
+   * Stops the game loop.
+   */
+  private stopGameLoop(): void {
+    if (this.gameLoopInterval) {
+      clearInterval(this.gameLoopInterval);
+      this.gameLoopInterval = null;
+    }
+  }
+
+  /**
+   * Restarts the game loop with a new interval, preserving active vehicles.
+   */
+  private restartGameLoop(intervalMs: number): void {
+    this.stopGameLoop();
+    if (this.activeVehicles.size > 0) {
+      this.startGameLoop(intervalMs);
+    }
+  }
+
+  /**
+   * Single game loop tick: updates all active vehicles.
+   */
+  private gameLoopTick(): void {
+    const now = Date.now();
+    for (const vehicleId of this.activeVehicles) {
+      const vehicle = this.vehicles.get(vehicleId);
+      if (!vehicle) continue;
+
+      const lastUpdate = this.lastUpdateTimes.get(vehicleId) ?? now;
+      const deltaMs = now - lastUpdate;
+      this.lastUpdateTimes.set(vehicleId, now);
+
+      this.updateVehicle(vehicle, deltaMs);
+
+      this.emit(
+        "update",
+        serializeVehicle(vehicle, this.fleetManager.getVehicleFleetId(vehicleId))
+      );
     }
   }
 
   /**
    * Starts periodic movement updates for a specific vehicle.
-   * Creates an interval that updates the vehicle's position at the specified frequency.
+   * Registers the vehicle as active in the game loop.
    *
    * @param vehicleId - ID of the vehicle to start moving
    * @param intervalMs - Update interval in milliseconds
@@ -227,20 +342,20 @@ export class VehicleManager extends EventEmitter {
    * vehicleManager.startVehicleMovement('vehicle-1', 500);
    */
   public startVehicleMovement(vehicleId: string, intervalMs: number): void {
-    if (this.vehicleIntervals.has(vehicleId)) {
-      clearInterval(this.vehicleIntervals.get(vehicleId)!);
-    }
     this.lastUpdateTimes.set(vehicleId, Date.now());
+    this.activeVehicles.add(vehicleId);
 
-    this.vehicleIntervals.set(
-      vehicleId,
-      setInterval(() => this.updateSingle(vehicleId), intervalMs)
-    );
+    // Start or restart the game loop if needed
+    if (!this.gameLoopInterval) {
+      this.startGameLoop(intervalMs);
+    } else if (intervalMs !== this.gameLoopIntervalMs) {
+      this.restartGameLoop(intervalMs);
+    }
   }
 
   /**
    * Stops movement updates for a specific vehicle.
-   * Clears the vehicle's update interval.
+   * Removes from the active set. Stops the game loop if no vehicles remain.
    *
    * @param vehicleId - ID of the vehicle to stop
    *
@@ -248,9 +363,11 @@ export class VehicleManager extends EventEmitter {
    * vehicleManager.stopVehicleMovement('vehicle-1');
    */
   public stopVehicleMovement(vehicleId: string): void {
-    if (this.vehicleIntervals.has(vehicleId)) {
-      clearInterval(this.vehicleIntervals.get(vehicleId)!);
-      this.vehicleIntervals.delete(vehicleId);
+    this.activeVehicles.delete(vehicleId);
+
+    // Stop the game loop when no vehicles are active
+    if (this.activeVehicles.size === 0) {
+      this.stopGameLoop();
     }
   }
 
@@ -308,15 +425,13 @@ export class VehicleManager extends EventEmitter {
     const prevInterval = this.options.updateInterval;
     this.options = { ...this.options, ...options };
 
-    // Restart vehicle intervals if updateInterval changed and vehicles are running
+    // Restart game loop if updateInterval changed and vehicles are running
     if (
       options.updateInterval &&
       options.updateInterval !== prevInterval &&
-      this.vehicleIntervals.size > 0
+      this.activeVehicles.size > 0
     ) {
-      for (const [vehicleId] of this.vehicleIntervals) {
-        this.startVehicleMovement(vehicleId, options.updateInterval);
-      }
+      this.restartGameLoop(options.updateInterval);
     }
 
     this.emit("options", this.options);
@@ -329,20 +444,6 @@ export class VehicleManager extends EventEmitter {
    */
   public getOptions(): StartOptions {
     return this.options;
-  }
-
-  private updateSingle(vehicleId: string): void {
-    const vehicle = this.vehicles.get(vehicleId);
-    if (!vehicle) return;
-
-    const now = Date.now();
-    const lastUpdate = this.lastUpdateTimes.get(vehicleId) ?? now;
-    const deltaMs = now - lastUpdate;
-    this.lastUpdateTimes.set(vehicleId, now);
-
-    this.updateVehicle(vehicle, deltaMs);
-
-    this.emit("update", serializeVehicle(vehicle, this.fleetManager.getVehicleFleetId(vehicleId)));
   }
 
   private updateVehicle(vehicle: Vehicle, deltaMs: number): void {
@@ -401,11 +502,8 @@ export class VehicleManager extends EventEmitter {
       }
     }
 
-    // Following distance: slow down if vehicle ahead is too close
-    const vehiclesOnEdge = this.getVehiclesOnEdge(vehicle.currentEdge.id);
-    const ahead = vehiclesOnEdge
-      .filter((v) => v.id !== vehicle.id && v.progress > vehicle.progress)
-      .sort((a, b) => a.progress - b.progress)[0];
+    // Task 3: Following distance using single-pass findVehicleAhead
+    const ahead = this.findVehicleAhead(vehicle);
 
     if (ahead) {
       const gap = (ahead.progress - vehicle.progress) * vehicle.currentEdge.distance;
@@ -423,6 +521,33 @@ export class VehicleManager extends EventEmitter {
     const maxChange = accelRate * deltaSec;
     vehicle.speed = vehicle.speed + Math.sign(diff) * Math.min(Math.abs(diff), maxChange);
     vehicle.speed = Math.min(effectiveMax, Math.max(this.options.minSpeed, vehicle.speed));
+  }
+
+  /**
+   * Task 3: Single-pass search for the nearest vehicle ahead on the same edge.
+   * Uses the edge spatial index (Task 2) and avoids creating intermediate arrays.
+   *
+   * @returns The vehicle with the smallest progress > current vehicle's progress, or undefined
+   */
+  private findVehicleAhead(vehicle: Vehicle): Vehicle | undefined {
+    const edgeId = vehicle.currentEdge.id;
+    const vehicleIdsOnEdge = this.vehiclesByEdge.get(edgeId);
+    if (!vehicleIdsOnEdge) return undefined;
+
+    let closestAhead: Vehicle | undefined;
+    let closestProgress = Infinity;
+
+    for (const id of vehicleIdsOnEdge) {
+      if (id === vehicle.id) continue;
+      const other = this.vehicles.get(id);
+      if (!other) continue;
+      if (other.progress > vehicle.progress && other.progress < closestProgress) {
+        closestProgress = other.progress;
+        closestAhead = other;
+      }
+    }
+
+    return closestAhead;
   }
 
   /**
@@ -460,12 +585,6 @@ export class VehicleManager extends EventEmitter {
     const unvisitedEdges = possibleEdges.filter((e) => !vehicleVisitedEdges?.has(e.id));
     if (unvisitedEdges.length > 0) {
       const nextEdge = unvisitedEdges[Math.floor(Math.random() * unvisitedEdges.length)];
-
-      // Clear visited edges if it exceeds the maximum to prevent memory leaks
-      if (vehicleVisitedEdges && vehicleVisitedEdges.size >= VEHICLE_CONSTANTS.MAX_VISITED_EDGES) {
-        vehicleVisitedEdges.clear();
-      }
-
       vehicleVisitedEdges?.add(nextEdge.id);
       return nextEdge;
     }
@@ -496,9 +615,11 @@ export class VehicleManager extends EventEmitter {
           return;
         }
 
-        this.traffic.leave(vehicle.currentEdge.id);
+        const previousEdgeId = vehicle.currentEdge.id;
+        this.traffic.leave(previousEdgeId);
         vehicle.currentEdge = nextEdgeResult.edge;
         this.traffic.enter(nextEdgeResult.edge.id);
+        this.moveInEdgeIndex(vehicle.id, previousEdgeId, nextEdgeResult.edge.id);
         vehicle.progress = 0;
         if (nextEdgeResult.edgeIndex !== undefined) {
           vehicle.edgeIndex = nextEdgeResult.edgeIndex;
@@ -596,7 +717,7 @@ export class VehicleManager extends EventEmitter {
       return;
     }
 
-    const route = this.network.findRoute(startNode, endNode);
+    const route = await this.network.findRouteAsync(startNode, endNode);
     if (!route) {
       logger.error("No route found to destination");
       return;
@@ -608,9 +729,11 @@ export class VehicleManager extends EventEmitter {
       eta: utils.estimateRouteDuration(route, vehicle.speed),
     });
     this.routes.set(vehicleId, route);
-    this.traffic.leave(vehicle.currentEdge.id);
+    const previousEdgeId = vehicle.currentEdge.id;
+    this.traffic.leave(previousEdgeId);
     vehicle.currentEdge = route.edges[0];
     this.traffic.enter(vehicle.currentEdge.id);
+    this.moveInEdgeIndex(vehicleId, previousEdgeId, vehicle.currentEdge.id);
     vehicle.progress = 0;
     vehicle.edgeIndex = 0; // Initialize cached edge index
   }
@@ -654,7 +777,7 @@ export class VehicleManager extends EventEmitter {
   }
 
   public getVehicles(): VehicleDTO[] {
-    return Array.from(this.vehicles.values()).map(v =>
+    return Array.from(this.vehicles.values()).map((v) =>
       serializeVehicle(v, this.fleetManager.getVehicleFleetId(v.id))
     );
   }
@@ -679,10 +802,10 @@ export class VehicleManager extends EventEmitter {
   /**
    * Checks if any vehicles are currently running.
    *
-   * @returns True if at least one vehicle has an active update interval, false otherwise
+   * @returns True if at least one vehicle has an active movement update, false otherwise
    */
   public isRunning(): boolean {
-    return this.vehicleIntervals.size > 0;
+    return this.activeVehicles.size > 0;
   }
 
   /**
@@ -692,9 +815,5 @@ export class VehicleManager extends EventEmitter {
    */
   public getNetwork(): RoadNetwork {
     return this.network;
-  }
-
-  private getVehiclesOnEdge(edgeId: string): Vehicle[] {
-    return Array.from(this.vehicles.values()).filter((v) => v.currentEdge.id === edgeId);
   }
 }

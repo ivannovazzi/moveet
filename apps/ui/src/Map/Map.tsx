@@ -4,7 +4,7 @@ import type { Filters } from "@/hooks/useVehicles";
 
 import { useNetwork } from "@/hooks/useNetwork";
 import { RoadNetworkMap } from "@/components/Map/components/RoadNetworkMap";
-import VehicleM from "./Vehicle";
+import VehiclesLayer from "./Vehicle/VehiclesLayer";
 import Direction from "./Direction";
 import RoadRenderer from "./Road";
 import { isPOI, isRoad } from "@/utils/typeGuards";
@@ -17,7 +17,6 @@ const TrafficZones = lazy(() => import("./TrafficZones"));
 interface MapProps {
   filters: Filters;
   vehicles: Vehicle[];
-  animFreq: number;
   modifiers: Modifiers;
   selectedItem: Road | POI | null;
   onClick: (id: string) => void;
@@ -30,7 +29,6 @@ interface MapProps {
 
 export default function Map({
   vehicles,
-  animFreq,
   modifiers,
   filters,
   selectedItem,
@@ -70,23 +68,16 @@ export default function Map({
         </Suspense>
       )}
 
-      {modifiers.showVehicles &&
-        vehicles
-          ?.filter((vehicle) => {
-            if (vehicle.position[0] === 0 && vehicle.position[1] === 0) return false;
-            const fleet = vehicleFleetMap.get(vehicle.id);
-            return !fleet || !hiddenFleetIds.has(fleet.id);
-          })
-          .map((vehicle) => (
-            <VehicleM
-              key={vehicle.id}
-              animFreq={animFreq}
-              scale={1.5}
-              {...vehicle}
-              fleetColor={vehicleFleetMap.get(vehicle.id)?.color}
-              onClick={() => onClick(vehicle.id)}
-            />
-          ))}
+      {modifiers.showVehicles && (
+        <VehiclesLayer
+          scale={1.5}
+          vehicleFleetMap={vehicleFleetMap}
+          hiddenFleetIds={hiddenFleetIds}
+          selectedId={filters.selected}
+          hoveredId={filters.hovered}
+          onClick={onClick}
+        />
+      )}
       {modifiers.showHeatmap && (
         <Suspense fallback={null}>
           <Heatmap vehicles={vehicles} />

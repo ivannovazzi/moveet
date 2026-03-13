@@ -17,6 +17,7 @@ export type WebSocketMessage =
   | { type: "connect" }
   | { type: "disconnect" }
   | { type: "vehicle"; data: VehicleDTO }
+  | { type: "vehicles"; data: VehicleDTO[] }
   | { type: "status"; data: SimulationStatus }
   | { type: "options"; data: StartOptions }
   | { type: "heatzones"; data: Heatzone[] }
@@ -42,6 +43,7 @@ export function isValidMessage(msg: unknown): msg is WebSocketMessage {
     case "disconnect":
       return true;
     case "vehicle":
+    case "vehicles":
     case "status":
     case "options":
     case "heatzones":

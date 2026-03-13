@@ -3,7 +3,9 @@ import crypto from "crypto";
 import type { Feature, FeatureCollection, LineString } from "geojson";
 import type { Node, Edge, Route, PathNode, HeatZoneFeature, POI, HighwayType } from "../types";
 import * as utils from "../utils/helpers";
+import { LRUCache, type CacheStats } from "../utils/LRUCache";
 import { HeatZoneManager } from "./HeatZoneManager";
+import { PathfindingPool } from "./PathfindingPool";
 import EventEmitter from "events";
 
 type Street = [number, number][];
@@ -54,8 +56,20 @@ export class RoadNetwork extends EventEmitter {
   private sectorEdges: Edge[][] = [];
   private sectorNodes: Node[][] = [];
 
-  constructor(geojsonPath: string) {
+  // A* route cache — avoids recomputing identical start→end routes
+  private routeCache: LRUCache<Route>;
+
+  // Worker-thread pathfinding pool (lazy-initialized)
+  private pathfindingPool: PathfindingPool | null = null;
+  private geojsonPath: string;
+
+  constructor(geojsonPath: string, cacheOptions?: { maxSize?: number; ttlMs?: number }) {
     super();
+    this.routeCache = new LRUCache<Route>({
+      maxSize: cacheOptions?.maxSize ?? 500,
+      ttlMs: cacheOptions?.ttlMs ?? 60_000,
+    });
+    this.geojsonPath = geojsonPath;
     this.data = JSON.parse(fs.readFileSync(geojsonPath, "utf8")) as FeatureCollection;
     this.buildNetwork(this.data);
     this.computeBbox();
@@ -111,7 +125,10 @@ export class RoadNetwork extends EventEmitter {
       const col = Math.min(Math.floor((lon - minLon) / lonStep), SECTORS_N - 1);
       const key = row * SECTORS_N + col;
       let bucket = edgeSectorMap.get(key);
-      if (!bucket) { bucket = []; edgeSectorMap.set(key, bucket); }
+      if (!bucket) {
+        bucket = [];
+        edgeSectorMap.set(key, bucket);
+      }
       bucket.push(edge);
     }
 
@@ -121,7 +138,10 @@ export class RoadNetwork extends EventEmitter {
       const col = Math.min(Math.floor((lon - minLon) / lonStep), SECTORS_N - 1);
       const key = row * SECTORS_N + col;
       let bucket = nodeSectorMap.get(key);
-      if (!bucket) { bucket = []; nodeSectorMap.set(key, bucket); }
+      if (!bucket) {
+        bucket = [];
+        nodeSectorMap.set(key, bucket);
+      }
       bucket.push(node);
     }
 
@@ -314,7 +334,10 @@ export class RoadNetwork extends EventEmitter {
       const col = Math.min(Math.floor((lon - minLon) / lonStep), SECTORS_N - 1);
       const key = row * SECTORS_N + col;
       let bucket = poiSectors.get(key);
-      if (!bucket) { bucket = []; poiSectors.set(key, bucket); }
+      if (!bucket) {
+        bucket = [];
+        poiSectors.set(key, bucket);
+      }
       bucket.push(node);
     }
     const buckets = Array.from(poiSectors.values());
@@ -412,6 +435,11 @@ export class RoadNetwork extends EventEmitter {
    * }
    */
   public findRoute(start: Node, end: Node): Route | null {
+    // Check cache first
+    const cacheKey = `${start.id}|${end.id}`;
+    const cached = this.routeCache.get(cacheKey);
+    if (cached) return { edges: [...cached.edges], distance: cached.distance };
+
     const closedSet = new Set<string>();
     const cameFrom = new Map<string, { prevId: string; edge: Edge }>();
     const gScore = new Map<string, number>();
@@ -463,7 +491,9 @@ export class RoadNetwork extends EventEmitter {
       if (closedSet.has(current.id)) continue;
 
       if (current.id === end.id) {
-        return this.reconstructPath(start.id, end.id, cameFrom);
+        const route = this.reconstructPath(start.id, end.id, cameFrom);
+        this.routeCache.set(cacheKey, route);
+        return route;
       }
 
       closedSet.add(current.id);
@@ -489,6 +519,61 @@ export class RoadNetwork extends EventEmitter {
       }
     }
     return null;
+  }
+
+  /** Clear all cached routes. Useful for testing or when the network topology changes. */
+  public clearRouteCache(): void {
+    this.routeCache.clear();
+  }
+
+  /** Return hit/miss statistics for the route cache. */
+  public routeCacheStats(): CacheStats {
+    return this.routeCache.stats();
+  }
+
+  /**
+   * Looks up an edge by its ID.
+   */
+  public getEdge(id: string): Edge | undefined {
+    return this.edges.get(id);
+  }
+
+  /**
+   * Async pathfinding that delegates A* to a worker-thread pool.
+   * The cache check and route reconstruction happen on the main thread;
+   * only the graph traversal runs off-thread.
+   *
+   * Falls back to synchronous findRoute if the worker pool is unavailable.
+   */
+  public async findRouteAsync(start: Node, end: Node): Promise<Route | null> {
+    // Lazy-init the pool on first async call
+    if (!this.pathfindingPool) {
+      this.pathfindingPool = new PathfindingPool(this.geojsonPath);
+    }
+
+    const result = await this.pathfindingPool.findRoute(start.id, end.id);
+    if (!result) return null;
+
+    // Reconstruct Route using main thread's Edge objects
+    const edges: Edge[] = [];
+    for (const edgeId of result.edgeIds) {
+      const edge = this.edges.get(edgeId);
+      if (!edge) return null; // safety: edge map mismatch
+      edges.push(edge);
+    }
+
+    return { edges, distance: result.distance };
+  }
+
+  /**
+   * Shuts down the worker-thread pool, if running.
+   * Call during graceful shutdown to avoid dangling threads.
+   */
+  public async shutdownWorkers(): Promise<void> {
+    if (this.pathfindingPool) {
+      await this.pathfindingPool.shutdown();
+      this.pathfindingPool = null;
+    }
   }
 
   private reconstructPath(

@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useVehicles } from "./useVehicles";
 import { createVehicleDTO } from "@/test/mocks/types";
 import client from "@/utils/client";
+import { vehicleStore } from "./vehicleStore";
 
 vi.mock("@/utils/client", () => ({
   default: {
@@ -10,29 +11,21 @@ vi.mock("@/utils/client", () => ({
   },
 }));
 
-let pendingRafCallbacks: FrameRequestCallback[] = [];
-let rafCounter = 0;
-
-vi.stubGlobal(
-  "requestAnimationFrame",
-  vi.fn((cb: FrameRequestCallback) => {
-    pendingRafCallbacks.push(cb);
-    return ++rafCounter;
-  })
-);
-vi.stubGlobal("cancelAnimationFrame", vi.fn());
-
-function flushRaf() {
-  const cbs = pendingRafCallbacks;
-  pendingRafCallbacks = [];
-  cbs.forEach((cb) => cb(0));
-}
-
 beforeEach(() => {
+  vi.useFakeTimers();
   vi.clearAllMocks();
-  pendingRafCallbacks = [];
-  rafCounter = 0;
+  // Reset the store between tests
+  vehicleStore.replace([]);
 });
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+/** Advance the throttle interval so React state syncs from the store. */
+function flushStore() {
+  vi.advanceTimersByTime(1100);
+}
 
 describe("useVehicles", () => {
   it("initializes with empty vehicles and default modifiers", () => {
@@ -69,20 +62,17 @@ describe("useVehicles", () => {
       result.current.setVehicles([v1, v2]);
     });
 
-    // All visible by default (no visible filter, no text filter)
     expect(result.current.vehicles[0].visible).toBe(true);
     expect(result.current.vehicles[1].visible).toBe(true);
     expect(result.current.vehicles[0].selected).toBe(false);
     expect(result.current.vehicles[0].hovered).toBe(false);
 
-    // Select v1
     act(() => {
       result.current.onSelectVehicle("v1");
     });
     expect(result.current.vehicles[0].selected).toBe(true);
     expect(result.current.vehicles[1].selected).toBe(false);
 
-    // Hover v2
     act(() => {
       result.current.onHoverVehicle("v2");
     });
@@ -106,7 +96,6 @@ describe("useVehicles", () => {
     expect(result.current.vehicles[0].visible).toBe(true);
     expect(result.current.vehicles[1].visible).toBe(false);
 
-    // Lowercase also works
     act(() => {
       result.current.onFilterChange("beta");
     });
@@ -133,7 +122,7 @@ describe("useVehicles", () => {
 });
 
 describe("useVehicleChanges (via client.onVehicle)", () => {
-  it("receives vehicles from WebSocket via client.onVehicle callback", () => {
+  it("receives vehicles from WebSocket via vehicleStore after throttle", () => {
     const { result } = renderHook(() => useVehicles());
 
     const onVehicleMock = vi.mocked(client.onVehicle);
@@ -144,7 +133,7 @@ describe("useVehicleChanges (via client.onVehicle)", () => {
 
     act(() => {
       handler(dto);
-      flushRaf();
+      flushStore();
     });
 
     expect(result.current.vehicles).toHaveLength(1);
@@ -152,28 +141,19 @@ describe("useVehicleChanges (via client.onVehicle)", () => {
     expect(result.current.vehicles[0].position).toEqual([36.8219, -1.2921]);
   });
 
-  it("batches multiple onVehicle calls into a single rAF flush", () => {
+  it("batches WS updates — React only sees the final state after throttle", () => {
     const { result } = renderHook(() => useVehicles());
 
     const handler = vi.mocked(client.onVehicle).mock.calls[0][0];
     const v1 = createVehicleDTO({ id: "v1", name: "First" });
     const v2 = createVehicleDTO({ id: "v2", name: "Second" });
 
-    // Both handler calls happen before rAF fires
     act(() => {
       handler(v1);
       handler(v2);
+      flushStore();
     });
 
-    // rAF was only requested once (batching)
-    expect(requestAnimationFrame).toHaveBeenCalledTimes(1);
-
-    // Flush the pending rAF to trigger the state update
-    act(() => {
-      flushRaf();
-    });
-
-    // Both vehicles should be present after a single rAF flush
     expect(result.current.vehicles).toHaveLength(2);
   });
 
@@ -187,10 +167,7 @@ describe("useVehicleChanges (via client.onVehicle)", () => {
     act(() => {
       handler(v1a);
       handler(v1b);
-    });
-
-    act(() => {
-      flushRaf();
+      flushStore();
     });
 
     expect(result.current.vehicles).toHaveLength(1);

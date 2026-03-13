@@ -2,7 +2,7 @@ export interface Fleet {
   id: string;
   name: string;
   color: string;
-  source: 'local' | 'external';
+  source: "local" | "external";
   vehicleIds: string[];
 }
 

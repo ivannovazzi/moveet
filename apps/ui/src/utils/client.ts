@@ -72,6 +72,9 @@ class SimulationService {
 
   onVehicle(handler: (vehicle: VehicleDTO) => void): void {
     this.ws.on("vehicle", handler);
+    this.ws.on<VehicleDTO[]>("vehicles", (vehicles) => {
+      for (const v of vehicles) handler(v);
+    });
   }
 
   onStatus(handler: (status: SimulationStatus) => void): void {

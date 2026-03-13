@@ -1,4 +1,5 @@
 import express from "express";
+import compression from "compression";
 import cors from "cors";
 import type { VehicleUpdate } from "./types";
 import { PluginManager } from "./plugins/manager";
@@ -48,6 +49,7 @@ async function startup(): Promise<void> {
 
   const app = express();
   app.use(cors());
+  app.use(compression());
   app.use(express.json());
 
   // === Data Endpoints ===

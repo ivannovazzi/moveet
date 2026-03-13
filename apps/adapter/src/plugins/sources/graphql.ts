@@ -1,6 +1,6 @@
 import { gql, GraphQLClient } from "graphql-request";
 import type { ConfigField, DataSource, HealthCheckResult, PluginConfig } from "../types";
-import type { ExportVehicle, Vehicle} from "../../types";
+import type { ExportVehicle, Vehicle } from "../../types";
 import { MedicalType } from "../../types";
 
 function isMedical(vehicle: Vehicle): boolean {

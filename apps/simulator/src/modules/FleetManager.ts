@@ -3,8 +3,16 @@ import { randomUUID } from "crypto";
 import type { Fleet } from "../types";
 
 const PALETTE = [
-  "#e6194b", "#3cb44b", "#4363d8", "#f58231", "#911eb4",
-  "#42d4f4", "#f032e6", "#bfef45", "#fabed4", "#dcbeff",
+  "#e6194b",
+  "#3cb44b",
+  "#4363d8",
+  "#f58231",
+  "#911eb4",
+  "#42d4f4",
+  "#f032e6",
+  "#bfef45",
+  "#fabed4",
+  "#dcbeff",
 ];
 
 export class FleetManager extends EventEmitter {
