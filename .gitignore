@@ -31,3 +31,4 @@ CLAUDE.md
 .claude/
 .logs/
 __pycache__/
+.worktrees/
