@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { RoadNetwork } from "../modules/RoadNetwork";
+import type { Edge } from "../types";
 import * as utils from "../utils/helpers";
 import path from "path";
 
@@ -732,7 +733,7 @@ describe("RoadNetwork", () => {
   // Uses findNearestNode for all known GeoJSON coordinates to ensure full coverage
   // even when one-way streets create directed graph components.
   function getAllEdges() {
-    const edges: import("../types").Edge[] = [];
+    const edges: Edge[] = [];
     const seen = new Set<string>();
 
     // All coordinate positions from the test fixture

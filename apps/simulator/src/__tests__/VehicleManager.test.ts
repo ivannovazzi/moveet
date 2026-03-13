@@ -406,7 +406,7 @@ describe("VehicleManager", () => {
   describe("fleet assignment", () => {
     it("should assign a vehicle to a fleet", () => {
       const fleetManager = (manager as any)
-        .fleets as import("../modules/FleetManager").FleetManager;
+        .fleets as FleetManager;
       const fleet = fleetManager.createFleet("TestFleet");
       const vehicle = firstVehicle();
 
@@ -419,7 +419,7 @@ describe("VehicleManager", () => {
 
     it("should emit update event when assigning to fleet", () => {
       const fleetManager = (manager as any)
-        .fleets as import("../modules/FleetManager").FleetManager;
+        .fleets as FleetManager;
       const fleet = fleetManager.createFleet("TestFleet");
       const vehicle = firstVehicle();
       const listener = vi.fn();
@@ -433,7 +433,7 @@ describe("VehicleManager", () => {
 
     it("should return false when assigning non-existent vehicle", () => {
       const fleetManager = (manager as any)
-        .fleets as import("../modules/FleetManager").FleetManager;
+        .fleets as FleetManager;
       const fleet = fleetManager.createFleet("TestFleet");
 
       const result = manager.assignVehicleToFleet("non-existent-id", fleet.id);
@@ -451,7 +451,7 @@ describe("VehicleManager", () => {
 
     it("should unassign a vehicle from its fleet", () => {
       const fleetManager = (manager as any)
-        .fleets as import("../modules/FleetManager").FleetManager;
+        .fleets as FleetManager;
       const fleet = fleetManager.createFleet("TestFleet");
       const vehicle = firstVehicle();
       manager.assignVehicleToFleet(vehicle.id, fleet.id);
@@ -465,7 +465,7 @@ describe("VehicleManager", () => {
 
     it("should emit update event when unassigning from fleet", () => {
       const fleetManager = (manager as any)
-        .fleets as import("../modules/FleetManager").FleetManager;
+        .fleets as FleetManager;
       const fleet = fleetManager.createFleet("TestFleet");
       const vehicle = firstVehicle();
       manager.assignVehicleToFleet(vehicle.id, fleet.id);
@@ -495,7 +495,7 @@ describe("VehicleManager", () => {
 
     it("should move vehicle between fleets", () => {
       const fleetManager = (manager as any)
-        .fleets as import("../modules/FleetManager").FleetManager;
+        .fleets as FleetManager;
       const fleetA = fleetManager.createFleet("FleetA");
       const fleetB = fleetManager.createFleet("FleetB");
       const vehicle = firstVehicle();

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import type { WebSocket, WebSocketServer } from "ws";
 import {
   WebSocketBroadcaster,
   BACKPRESSURE_THRESHOLD,
@@ -29,12 +30,12 @@ interface MockWebSocket {
 
 function createMockWSS(clients: MockWebSocket[] = []): MockWSS {
   return {
-    clients: new Set(clients) as unknown as Set<import("ws").WebSocket>,
+    clients: new Set(clients) as unknown as Set<WebSocket>,
   };
 }
 
 interface MockWSS {
-  clients: Set<import("ws").WebSocket>;
+  clients: Set<WebSocket>;
 }
 
 function makeVehicle(id: string, overrides: Partial<VehicleDTO> = {}): VehicleDTO {
@@ -63,7 +64,7 @@ describe("WebSocketBroadcaster", () => {
     it("should batch multiple vehicle updates into a single message per flush", () => {
       const client = createMockClient();
       const wss = createMockWSS([client]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer, {
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
         flushIntervalMs: 100,
       });
       broadcaster.start();
@@ -91,7 +92,7 @@ describe("WebSocketBroadcaster", () => {
     it("should deduplicate vehicle updates — only the latest state is sent", () => {
       const client = createMockClient();
       const wss = createMockWSS([client]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer, {
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
         flushIntervalMs: 100,
       });
       broadcaster.start();
@@ -113,7 +114,7 @@ describe("WebSocketBroadcaster", () => {
     it("should not send anything when buffer is empty", () => {
       const client = createMockClient();
       const wss = createMockWSS([client]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer, {
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
         flushIntervalMs: 50,
       });
       broadcaster.start();
@@ -131,7 +132,7 @@ describe("WebSocketBroadcaster", () => {
       const client1 = createMockClient();
       const client2 = createMockClient();
       const wss = createMockWSS([client1, client2]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer);
 
       const heatZoneData = { zones: [{ id: "hz1", intensity: 0.5 }] };
       broadcaster.broadcast("heatzones", heatZoneData);
@@ -151,7 +152,7 @@ describe("WebSocketBroadcaster", () => {
     it("should send direction messages immediately", () => {
       const client = createMockClient();
       const wss = createMockWSS([client]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer);
 
       broadcaster.broadcast("direction", { vehicleId: "v1", route: [] });
 
@@ -163,7 +164,7 @@ describe("WebSocketBroadcaster", () => {
     it("should send status messages immediately", () => {
       const client = createMockClient();
       const wss = createMockWSS([client]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer);
 
       broadcaster.broadcast("status", { running: true, interval: 500, ready: true });
 
@@ -179,7 +180,7 @@ describe("WebSocketBroadcaster", () => {
       const closingClient = createMockClient(2); // CLOSING
       const closedClient = createMockClient(3); // CLOSED
       const wss = createMockWSS([openClient, closingClient, closedClient]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer, {
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
         flushIntervalMs: 50,
       });
       broadcaster.start();
@@ -198,7 +199,7 @@ describe("WebSocketBroadcaster", () => {
       const openClient = createMockClient(1);
       const closedClient = createMockClient(3);
       const wss = createMockWSS([openClient, closedClient]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer);
 
       broadcaster.broadcast("status", { running: true });
 
@@ -212,7 +213,7 @@ describe("WebSocketBroadcaster", () => {
       const client1 = createMockClient();
       const client2 = createMockClient();
       const wss = createMockWSS([client1, client2]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer, {
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
         flushIntervalMs: 100,
       });
       broadcaster.start();
@@ -235,7 +236,7 @@ describe("WebSocketBroadcaster", () => {
       const client1 = createMockClient();
       const client2 = createMockClient();
       const wss = createMockWSS([client1, client2]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer);
 
       expect(broadcaster.clientCount).toBe(2);
 
@@ -248,7 +249,7 @@ describe("WebSocketBroadcaster", () => {
     it("should flush at the configured interval", () => {
       const client = createMockClient();
       const wss = createMockWSS([client]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer, {
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
         flushIntervalMs: 200,
       });
       broadcaster.start();
@@ -269,7 +270,7 @@ describe("WebSocketBroadcaster", () => {
     it("should use default 100ms interval when not specified", () => {
       const client = createMockClient();
       const wss = createMockWSS([client]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer);
       broadcaster.start();
 
       broadcaster.queueVehicleUpdate(makeVehicle("v1"));
@@ -286,7 +287,7 @@ describe("WebSocketBroadcaster", () => {
     it("should flush on each interval tick independently", () => {
       const client = createMockClient();
       const wss = createMockWSS([client]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer, {
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
         flushIntervalMs: 100,
       });
       broadcaster.start();
@@ -314,7 +315,7 @@ describe("WebSocketBroadcaster", () => {
     it("should not flush after stop is called", () => {
       const client = createMockClient();
       const wss = createMockWSS([client]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer, {
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
         flushIntervalMs: 100,
       });
       broadcaster.start();
@@ -329,7 +330,7 @@ describe("WebSocketBroadcaster", () => {
 
     it("should clear the buffer on stop", () => {
       const wss = createMockWSS();
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer);
       broadcaster.start();
 
       broadcaster.queueVehicleUpdate(makeVehicle("v1"));
@@ -342,7 +343,7 @@ describe("WebSocketBroadcaster", () => {
     it("should be safe to call start multiple times", () => {
       const client = createMockClient();
       const wss = createMockWSS([client]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer, {
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
         flushIntervalMs: 100,
       });
 
@@ -360,7 +361,7 @@ describe("WebSocketBroadcaster", () => {
 
     it("should be safe to call stop without start", () => {
       const wss = createMockWSS();
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer);
 
       // Should not throw
       expect(() => broadcaster.stop()).not.toThrow();
@@ -371,9 +372,9 @@ describe("WebSocketBroadcaster", () => {
     it("should send a message to a specific client", () => {
       const client = createMockClient();
       const wss = createMockWSS([client]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer);
 
-      broadcaster.sendTo(client as unknown as import("ws").WebSocket, "options", {
+      broadcaster.sendTo(client as unknown as WebSocket, "options", {
         updateInterval: 500,
       });
 
@@ -386,9 +387,9 @@ describe("WebSocketBroadcaster", () => {
     it("should not send to a closed client", () => {
       const client = createMockClient(3); // CLOSED
       const wss = createMockWSS([client]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer);
 
-      broadcaster.sendTo(client as unknown as import("ws").WebSocket, "options", {
+      broadcaster.sendTo(client as unknown as WebSocket, "options", {
         updateInterval: 500,
       });
 
@@ -402,7 +403,7 @@ describe("WebSocketBroadcaster", () => {
       const client2 = createMockClient();
       const client3 = createMockClient();
       const wss = createMockWSS([client1, client2, client3]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer, {
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
         flushIntervalMs: 100,
       });
       broadcaster.start();
@@ -429,7 +430,7 @@ describe("WebSocketBroadcaster", () => {
       const slowClient = createMockClient(1, BACKPRESSURE_THRESHOLD + 1);
       const fastClient = createMockClient(1, 0);
       const wss = createMockWSS([slowClient, fastClient]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer, {
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
         flushIntervalMs: 100,
       });
       broadcaster.start();
@@ -447,7 +448,7 @@ describe("WebSocketBroadcaster", () => {
       // bufferedAmount must be strictly greater than threshold to skip
       const client = createMockClient(1, BACKPRESSURE_THRESHOLD);
       const wss = createMockWSS([client]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer, {
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
         flushIntervalMs: 100,
       });
       broadcaster.start();
@@ -464,7 +465,7 @@ describe("WebSocketBroadcaster", () => {
     it("should resume sending to a client once backpressure clears", () => {
       const client = createMockClient(1, BACKPRESSURE_THRESHOLD + 1);
       const wss = createMockWSS([client]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer, {
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
         flushIntervalMs: 100,
       });
       broadcaster.start();
@@ -490,7 +491,7 @@ describe("WebSocketBroadcaster", () => {
     it("should close a client that exceeds MAX_DROPPED_FLUSHES consecutive skips", () => {
       const slowClient = createMockClient(1, BACKPRESSURE_THRESHOLD + 1);
       const wss = createMockWSS([slowClient]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer, {
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
         flushIntervalMs: 100,
       });
       broadcaster.start();
@@ -512,7 +513,7 @@ describe("WebSocketBroadcaster", () => {
     it("should not close a client that recovers before hitting MAX_DROPPED_FLUSHES", () => {
       const client = createMockClient(1, BACKPRESSURE_THRESHOLD + 1);
       const wss = createMockWSS([client]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer, {
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
         flushIntervalMs: 100,
       });
       broadcaster.start();
@@ -557,7 +558,7 @@ describe("WebSocketBroadcaster", () => {
     it("should not send a vehicle whose position has not changed since last send", () => {
       const client = createMockClient();
       const wss = createMockWSS([client]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer, {
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
         flushIntervalMs: 100,
       });
       broadcaster.start();
@@ -582,7 +583,7 @@ describe("WebSocketBroadcaster", () => {
     it("should send a vehicle whose position changed below the threshold", () => {
       const client = createMockClient();
       const wss = createMockWSS([client]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer, {
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
         flushIntervalMs: 100,
       });
       broadcaster.start();
@@ -608,7 +609,7 @@ describe("WebSocketBroadcaster", () => {
     it("should send a vehicle whose position changed above the threshold", () => {
       const client = createMockClient();
       const wss = createMockWSS([client]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer, {
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
         flushIntervalMs: 100,
       });
       broadcaster.start();
@@ -632,7 +633,7 @@ describe("WebSocketBroadcaster", () => {
     it("should always send a vehicle that has never been sent to a client", () => {
       const client = createMockClient();
       const wss = createMockWSS([client]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer, {
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
         flushIntervalMs: 100,
       });
       broadcaster.start();
@@ -653,7 +654,7 @@ describe("WebSocketBroadcaster", () => {
       const client1 = createMockClient();
       const client2 = createMockClient();
       const wss = createMockWSS([client1, client2]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer, {
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
         flushIntervalMs: 100,
       });
       broadcaster.start();
@@ -680,7 +681,7 @@ describe("WebSocketBroadcaster", () => {
     it("should send mixed batch — some vehicles changed, some not", () => {
       const client = createMockClient();
       const wss = createMockWSS([client]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer, {
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
         flushIntervalMs: 100,
       });
       broadcaster.start();
@@ -715,7 +716,7 @@ describe("WebSocketBroadcaster", () => {
       const slowClient = createMockClient(1, BACKPRESSURE_THRESHOLD + 1);
       const fastClient = createMockClient(1, 0);
       const wss = createMockWSS([slowClient, fastClient]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer, {
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
         flushIntervalMs: 100,
       });
       broadcaster.start();
@@ -738,14 +739,14 @@ describe("WebSocketBroadcaster", () => {
     it("should not affect broadcast/sendTo for slow clients", () => {
       const slowClient = createMockClient(1, BACKPRESSURE_THRESHOLD + 1);
       const wss = createMockWSS([slowClient]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer);
 
       // Non-vehicle broadcast should NOT check backpressure
       broadcaster.broadcast("status", { running: true });
       expect(slowClient.send).toHaveBeenCalledTimes(1);
 
       // sendTo should NOT check backpressure
-      broadcaster.sendTo(slowClient as unknown as import("ws").WebSocket, "options", {
+      broadcaster.sendTo(slowClient as unknown as WebSocket, "options", {
         updateInterval: 500,
       });
       expect(slowClient.send).toHaveBeenCalledTimes(2);
@@ -756,7 +757,7 @@ describe("WebSocketBroadcaster", () => {
       const client2 = createMockClient(1, BACKPRESSURE_THRESHOLD - 1); // OK (under)
       const client3 = createMockClient(1, BACKPRESSURE_THRESHOLD + 10000); // Over
       const wss = createMockWSS([client1, client2, client3]);
-      const broadcaster = new WebSocketBroadcaster(wss as unknown as import("ws").WebSocketServer, {
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
         flushIntervalMs: 100,
       });
       broadcaster.start();
