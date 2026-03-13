@@ -17,7 +17,10 @@ interface SyncData {
 export default class Adapter {
   private async request<T>(path: string, options: RequestInit): Promise<T> {
     try {
-      const response = await fetch(`${config.adapterURL}${path}`, options);
+      const response = await fetch(`${config.adapterURL}${path}`, {
+        ...options,
+        keepalive: true,
+      });
 
       if (!response.ok) {
         throw new Error(`Adapter request failed: ${response.status} ${response.statusText}`);

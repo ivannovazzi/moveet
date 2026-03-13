@@ -5,6 +5,7 @@ import type { Node, Edge, Route, PathNode, HeatZoneFeature, POI, HighwayType } f
 import * as utils from "../utils/helpers";
 import { LRUCache, type CacheStats } from "../utils/LRUCache";
 import { HeatZoneManager } from "./HeatZoneManager";
+import { PathfindingPool } from "./PathfindingPool";
 import EventEmitter from "events";
 
 type Street = [number, number][];
@@ -58,12 +59,17 @@ export class RoadNetwork extends EventEmitter {
   // A* route cache — avoids recomputing identical start→end routes
   private routeCache: LRUCache<Route>;
 
+  // Worker-thread pathfinding pool (lazy-initialized)
+  private pathfindingPool: PathfindingPool | null = null;
+  private geojsonPath: string;
+
   constructor(geojsonPath: string, cacheOptions?: { maxSize?: number; ttlMs?: number }) {
     super();
     this.routeCache = new LRUCache<Route>({
       maxSize: cacheOptions?.maxSize ?? 500,
       ttlMs: cacheOptions?.ttlMs ?? 60_000,
     });
+    this.geojsonPath = geojsonPath;
     this.data = JSON.parse(fs.readFileSync(geojsonPath, "utf8")) as FeatureCollection;
     this.buildNetwork(this.data);
     this.computeBbox();
@@ -514,6 +520,51 @@ export class RoadNetwork extends EventEmitter {
   /** Return hit/miss statistics for the route cache. */
   public routeCacheStats(): CacheStats {
     return this.routeCache.stats();
+  }
+
+  /**
+   * Looks up an edge by its ID.
+   */
+  public getEdge(id: string): Edge | undefined {
+    return this.edges.get(id);
+  }
+
+  /**
+   * Async pathfinding that delegates A* to a worker-thread pool.
+   * The cache check and route reconstruction happen on the main thread;
+   * only the graph traversal runs off-thread.
+   *
+   * Falls back to synchronous findRoute if the worker pool is unavailable.
+   */
+  public async findRouteAsync(start: Node, end: Node): Promise<Route | null> {
+    // Lazy-init the pool on first async call
+    if (!this.pathfindingPool) {
+      this.pathfindingPool = new PathfindingPool(this.geojsonPath);
+    }
+
+    const result = await this.pathfindingPool.findRoute(start.id, end.id);
+    if (!result) return null;
+
+    // Reconstruct Route using main thread's Edge objects
+    const edges: Edge[] = [];
+    for (const edgeId of result.edgeIds) {
+      const edge = this.edges.get(edgeId);
+      if (!edge) return null; // safety: edge map mismatch
+      edges.push(edge);
+    }
+
+    return { edges, distance: result.distance };
+  }
+
+  /**
+   * Shuts down the worker-thread pool, if running.
+   * Call during graceful shutdown to avoid dangling threads.
+   */
+  public async shutdownWorkers(): Promise<void> {
+    if (this.pathfindingPool) {
+      await this.pathfindingPool.shutdown();
+      this.pathfindingPool = null;
+    }
   }
 
   private reconstructPath(

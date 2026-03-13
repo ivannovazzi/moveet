@@ -11,6 +11,7 @@ import type {
 import { VEHICLE_CONSTANTS } from "../constants";
 import type { RoadNetwork } from "./RoadNetwork";
 import { config } from "../utils/config";
+import { CircularBuffer } from "../utils/CircularBuffer";
 import { EventEmitter } from "events";
 import * as utils from "../utils/helpers";
 import { serializeVehicle } from "../utils/serializer";
@@ -21,7 +22,7 @@ import logger from "../utils/logger";
 
 export class VehicleManager extends EventEmitter {
   private vehicles: Map<string, Vehicle> = new Map();
-  private visitedEdges: Map<string, Set<string>> = new Map();
+  private visitedEdges: Map<string, CircularBuffer<string>> = new Map();
   private routes: Map<string, Route> = new Map();
   private locationInterval: NodeJS.Timeout | null = null;
   private lastUpdateTimes: Map<string, number> = new Map();
@@ -188,7 +189,9 @@ export class VehicleManager extends EventEmitter {
 
     this.traffic.enter(startEdge.id);
     this.addToEdgeIndex(id, startEdge.id);
-    this.visitedEdges.set(id, new Set([startEdge.id]));
+    const buffer = new CircularBuffer<string>(VEHICLE_CONSTANTS.MAX_VISITED_EDGES);
+    buffer.add(startEdge.id);
+    this.visitedEdges.set(id, buffer);
     this.setRandomDestination(id);
   }
 
@@ -242,24 +245,32 @@ export class VehicleManager extends EventEmitter {
     if (!vehicle) return;
 
     const destination = this.pickDestination();
+    const startNode = vehicle.currentEdge.end;
 
-    // Route from the end of the current edge (where the vehicle is heading)
-    // instead of findNearestNode(position) to avoid mid-edge teleportation.
-    // Vehicle finishes its current edge naturally, then follows the new route.
-    const route = this.network.findRoute(vehicle.currentEdge.end, destination);
+    // Fire-and-forget async pathfinding via worker pool.
+    // The vehicle continues random movement until the route resolves.
+    this.network
+      .findRouteAsync(startNode, destination)
+      .then((route) => {
+        // Vehicle may have been removed while we were pathfinding
+        if (!this.vehicles.has(vehicleId)) return;
 
-    if (route) {
-      this.routes.set(vehicleId, route);
-      // edgeIndex = -1: vehicle's currentEdge is not in the route.
-      // When the current edge completes, getNextEdgeForVehicle returns route.edges[0].
-      // route.edges[0].start === currentEdge.end, so the transition is seamless.
-      vehicle.edgeIndex = -1;
-      this.emit("direction", {
-        vehicleId,
-        route: utils.nonCircularRouteEdges(route),
-        eta: utils.estimateRouteDuration(route, vehicle.speed),
+        if (route) {
+          this.routes.set(vehicleId, route);
+          // edgeIndex = -1: vehicle's currentEdge is not in the route.
+          // When the current edge completes, getNextEdgeForVehicle returns route.edges[0].
+          // route.edges[0].start === currentEdge.end, so the transition is seamless.
+          vehicle.edgeIndex = -1;
+          this.emit("direction", {
+            vehicleId,
+            route: utils.nonCircularRouteEdges(route),
+            eta: utils.estimateRouteDuration(route, vehicle.speed),
+          });
+        }
+      })
+      .catch(() => {
+        // Worker error — vehicle continues random movement, will retry later
       });
-    }
   }
 
   // ─── Game loop ─────────────────────────────────────────────────────
@@ -568,12 +579,6 @@ export class VehicleManager extends EventEmitter {
     const unvisitedEdges = possibleEdges.filter((e) => !vehicleVisitedEdges?.has(e.id));
     if (unvisitedEdges.length > 0) {
       const nextEdge = unvisitedEdges[Math.floor(Math.random() * unvisitedEdges.length)];
-
-      // Clear visited edges if it exceeds the maximum to prevent memory leaks
-      if (vehicleVisitedEdges && vehicleVisitedEdges.size >= VEHICLE_CONSTANTS.MAX_VISITED_EDGES) {
-        vehicleVisitedEdges.clear();
-      }
-
       vehicleVisitedEdges?.add(nextEdge.id);
       return nextEdge;
     }
@@ -706,7 +711,7 @@ export class VehicleManager extends EventEmitter {
       return;
     }
 
-    const route = this.network.findRoute(startNode, endNode);
+    const route = await this.network.findRouteAsync(startNode, endNode);
     if (!route) {
       logger.error("No route found to destination");
       return;

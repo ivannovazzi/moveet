@@ -1,5 +1,4 @@
 import { useEffect, useRef, useCallback } from "react";
-import { select } from "d3";
 import type { Fleet, Position } from "@/types";
 import { useMapContext } from "../../components/Map/hooks";
 import { vehicleStore } from "../../hooks/vehicleStore";
@@ -7,6 +6,13 @@ import { vehicleStore } from "../../hooks/vehicleStore";
 // Arrow shape vertices (same as original VehicleMarker polygon)
 const AX = [0, 2.5, 0, -2.5];
 const AY = [-4, 3, 1.5, 3];
+
+/** Default fallback colors matching CSS variables in tokens.css */
+const DEFAULT_FILL = "#dcdcdc";
+const DEFAULT_STROKE = "rgba(0,0,0,0.5)";
+const SELECTED_STROKE = "#06c";
+const SELECTED_BG = "rgba(33, 255, 205, 0.3)";
+const HOVER_STROKE = "rgb(251, 201, 1)";
 
 interface VehiclesLayerProps {
   scale: number;
@@ -25,11 +31,95 @@ interface ProjectedVehicle {
 }
 
 /**
- * Batched SVG path renderer that bypasses React for position updates.
+ * Resolve a CSS variable reference like "var(--color-vehicle-fill)" to its
+ * computed value, or return the input unchanged if it's already a plain color.
+ */
+function resolveCSSColor(color: string): string {
+  if (!color.startsWith("var(")) return color;
+  const match = color.match(/^var\(([^)]+)\)$/);
+  if (!match) return DEFAULT_FILL;
+  const value = getComputedStyle(document.documentElement).getPropertyValue(match[1]).trim();
+  return value || DEFAULT_FILL;
+}
+
+/**
+ * Draw an arrow (vehicle marker) on a 2D canvas context.
+ */
+function drawArrow(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  heading: number,
+  s: number,
+  fillColor: string,
+  strokeColor: string,
+  strokeWidth: number,
+) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(heading);
+  ctx.beginPath();
+  ctx.moveTo(AX[0] * s, AY[0] * s);
+  ctx.lineTo(AX[1] * s, AY[1] * s);
+  ctx.lineTo(AX[2] * s, AY[2] * s);
+  ctx.lineTo(AX[3] * s, AY[3] * s);
+  ctx.closePath();
+  ctx.fillStyle = fillColor;
+  ctx.fill();
+  ctx.strokeStyle = strokeColor;
+  ctx.lineWidth = strokeWidth;
+  ctx.stroke();
+  ctx.restore();
+}
+
+/**
+ * Draw a glow effect behind an arrow for selected/hovered vehicles.
+ */
+function drawGlowArrow(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  heading: number,
+  s: number,
+  fillColor: string,
+  glowColor: string,
+  glowRadius: number,
+) {
+  ctx.save();
+  ctx.shadowColor = glowColor;
+  ctx.shadowBlur = glowRadius;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+  drawArrow(ctx, x, y, heading, s, fillColor, glowColor, 0.8);
+  ctx.restore();
+}
+
+/**
+ * Draw a selection ring (circle) around a vehicle.
+ */
+function drawSelectionRing(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  s: number,
+) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, 6 * s, 0, Math.PI * 2);
+  ctx.fillStyle = SELECTED_BG;
+  ctx.fill();
+  ctx.strokeStyle = SELECTED_STROKE;
+  ctx.lineWidth = 0.4 * s;
+  ctx.stroke();
+  ctx.restore();
+}
+
+/**
+ * Canvas-based vehicle renderer that bypasses React for position updates.
  *
  * Reads directly from vehicleStore on each animation frame.
  * React never re-renders for vehicle position changes.
- * ~10 DOM elements total regardless of vehicle count.
+ * Uses a single HTML5 Canvas element for all vehicles instead of SVG DOM.
  */
 export default function VehiclesLayer({
   scale,
@@ -39,11 +129,12 @@ export default function VehiclesLayer({
   hoveredId,
   onClick,
 }: VehiclesLayerProps) {
-  const groupRef = useRef<SVGGElement>(null);
-  const { projection, transform } = useMapContext();
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const { projection, transform, map } = useMapContext();
   const projectedRef = useRef<ProjectedVehicle[]>([]);
   const onClickRef = useRef(onClick);
   onClickRef.current = onClick;
+  const containerRef = useRef<HTMLElement | null>(null);
 
   // Refs for values that change but shouldn't restart the RAF loop
   const transformRef = useRef(transform);
@@ -67,6 +158,44 @@ export default function VehiclesLayer({
     [projection],
   );
 
+  // Create and mount the canvas element into the map's container div
+  useEffect(() => {
+    if (!map) return;
+
+    // The map container is the parent div with position: relative
+    const container = map.parentElement;
+    if (!container) return;
+    containerRef.current = container;
+
+    const canvas = document.createElement("canvas");
+    canvas.style.position = "absolute";
+    canvas.style.top = "0";
+    canvas.style.left = "0";
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
+    canvas.style.pointerEvents = "none";
+    container.appendChild(canvas);
+    canvasRef.current = canvas;
+
+    // Size the canvas backing buffer to match the container
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+      }
+    });
+    resizeObserver.observe(container);
+
+    return () => {
+      resizeObserver.disconnect();
+      canvas.remove();
+      canvasRef.current = null;
+      containerRef.current = null;
+    };
+  }, [map]);
+
   // Core render loop: reads from vehicleStore directly, no React state
   useEffect(() => {
     if (!projection) return;
@@ -74,24 +203,30 @@ export default function VehiclesLayer({
     let rafId: number;
     let lastVersion = -1;
     let lastTransformK = -1;
+    let lastTransformX = NaN;
+    let lastTransformY = NaN;
     let lastSelectedId: string | undefined;
     let lastHoveredId: string | undefined;
 
     const render = () => {
       rafId = requestAnimationFrame(render);
 
-      const g = groupRef.current;
-      if (!g) return;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
 
       const currentVersion = vehicleStore.getVersion();
       const t = transformRef.current;
       const k = t?.k ?? 1;
+      const tx = t?.x ?? 0;
+      const ty = t?.y ?? 0;
       const currentSelectedId = selectedRef.current;
       const currentHoveredId = hoveredRef.current;
 
       // Skip if nothing changed
       const positionsChanged = currentVersion !== lastVersion;
-      const zoomChanged = k !== lastTransformK;
+      const zoomChanged = k !== lastTransformK || tx !== lastTransformX || ty !== lastTransformY;
       const selectionChanged =
         currentSelectedId !== lastSelectedId || currentHoveredId !== lastHoveredId;
 
@@ -99,19 +234,42 @@ export default function VehiclesLayer({
 
       lastVersion = currentVersion;
       lastTransformK = k;
+      lastTransformX = tx;
+      lastTransformY = ty;
       lastSelectedId = currentSelectedId;
       lastHoveredId = currentHoveredId;
+
+      const dpr = window.devicePixelRatio || 1;
+      const canvasW = canvas.width;
+      const canvasH = canvas.height;
+
+      // Clear the canvas
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvasW, canvasH);
 
       const s = scale / Math.pow(k, 0.75);
       const store = vehicleStore.getAll();
       const fleetMap = fleetMapRef.current;
       const hiddenFleets = hiddenFleetsRef.current;
 
-      // Group vehicles by fill color, build path strings
-      const colorGroups = new (globalThis.Map)<string, string>();
+      // Apply DPR scaling and D3 zoom transform
+      // The zoom transform maps projected coords -> screen coords:
+      //   screenX = tx + k * projectedX
+      //   screenY = ty + k * projectedY
+      ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * tx, dpr * ty);
+
+      // Collect vehicles for rendering
       const projected: ProjectedVehicle[] = [];
-      let selectedPath = "";
-      let hoveredPath = "";
+
+      // Track selected and hovered vehicles for drawing last (on top)
+      let selectedVehicle: { x: number; y: number; heading: number; color: string } | null = null;
+      let hoveredVehicle: { x: number; y: number; heading: number; color: string } | null = null;
+
+      // Batch regular vehicles by color to minimize fillStyle changes
+      const colorBatches = new Map<
+        string,
+        Array<{ x: number; y: number; heading: number }>
+      >();
 
       for (const [, v] of store) {
         // Skip vehicles at origin or in hidden fleets
@@ -126,101 +284,81 @@ export default function VehiclesLayer({
         const [x, y] = pos;
         projected.push({ id: v.id, x, y });
 
-        // Build arrow path
         const heading = ((v.heading ?? 0) * Math.PI) / 180;
-        const cos = Math.cos(heading);
-        const sin = Math.sin(heading);
-
-        let d = "";
-        for (let i = 0; i < 4; i++) {
-          const rx = (AX[i] * cos - AY[i] * sin) * s + x;
-          const ry = (AX[i] * sin + AY[i] * cos) * s + y;
-          d += i === 0 ? `M${rx},${ry}` : `L${rx},${ry}`;
-        }
-        d += "Z";
 
         if (v.id === currentSelectedId) {
-          selectedPath += d;
+          const color = fleet?.color ?? DEFAULT_FILL;
+          selectedVehicle = { x, y, heading, color };
         } else if (v.id === currentHoveredId) {
-          hoveredPath += d;
+          const color = fleet?.color ?? DEFAULT_FILL;
+          hoveredVehicle = { x, y, heading, color };
         } else {
-          const color = fleet?.color ?? "var(--color-vehicle-fill)";
-          const existing = colorGroups.get(color);
-          colorGroups.set(color, existing ? existing + d : d);
+          const rawColor = fleet?.color ?? DEFAULT_FILL;
+          const color = resolveCSSColor(rawColor);
+          let batch = colorBatches.get(color);
+          if (!batch) {
+            batch = [];
+            colorBatches.set(color, batch);
+          }
+          batch.push({ x, y, heading });
         }
       }
 
       projectedRef.current = projected;
 
-      // Render: one <path> per color group
-      const container = select(g);
-      const entries = Array.from(colorGroups.entries());
-      const paths = container
-        .selectAll<SVGPathElement, [string, string]>("path.fleet")
-        .data(entries, (d) => d[0]);
+      // Draw regular vehicles grouped by color
+      for (const [color, vehicles] of colorBatches) {
+        ctx.fillStyle = color;
+        ctx.strokeStyle = DEFAULT_STROKE;
+        ctx.lineWidth = 0.5;
 
-      paths.exit().remove();
-      paths
-        .enter()
-        .append("path")
-        .attr("class", "fleet")
-        .attr("stroke", "var(--color-vehicle-stroke)")
-        .attr("stroke-width", 0.5)
-        .merge(paths)
-        .attr("d", (d) => d[1])
-        .attr("fill", (d) => d[0]);
-
-      // Selected vehicle
-      let selPath = container.select<SVGPathElement>("path.selected");
-      if (selectedPath) {
-        if (selPath.empty()) {
-          selPath = container
-            .append("path")
-            .attr("class", "selected")
-            .attr("stroke", "var(--color-vehicle-selected-stroke)")
-            .attr("stroke-width", 0.8)
-            .attr("filter", "drop-shadow(0 0 4px var(--color-vehicle-selected-stroke))");
+        for (const v of vehicles) {
+          ctx.save();
+          ctx.translate(v.x, v.y);
+          ctx.rotate(v.heading);
+          ctx.beginPath();
+          ctx.moveTo(AX[0] * s, AY[0] * s);
+          ctx.lineTo(AX[1] * s, AY[1] * s);
+          ctx.lineTo(AX[2] * s, AY[2] * s);
+          ctx.lineTo(AX[3] * s, AY[3] * s);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
         }
-        const selFleet = fleetMap.get(currentSelectedId!);
-        selPath.attr("d", selectedPath).attr("fill", selFleet?.color ?? "var(--color-vehicle-fill)");
-      } else {
-        selPath.remove();
       }
 
-      // Selection ring
-      let ring = container.select<SVGCircleElement>("circle.ring");
-      if (currentSelectedId) {
-        const selV = projected.find((p) => p.id === currentSelectedId);
-        if (selV) {
-          if (ring.empty()) {
-            ring = container
-              .append("circle")
-              .attr("class", "ring")
-              .attr("fill", "var(--color-vehicle-selected-bg)")
-              .attr("stroke", "var(--color-vehicle-selected-stroke)")
-              .attr("stroke-width", 0.4 * s);
-          }
-          ring.attr("cx", selV.x).attr("cy", selV.y).attr("r", 6 * s);
-        }
-      } else {
-        ring.remove();
+      // Draw selection ring behind selected vehicle
+      if (selectedVehicle && currentSelectedId) {
+        drawSelectionRing(ctx, selectedVehicle.x, selectedVehicle.y, s);
       }
 
-      // Hovered vehicle
-      let hovPath = container.select<SVGPathElement>("path.hovered");
-      if (hoveredPath) {
-        if (hovPath.empty()) {
-          hovPath = container
-            .append("path")
-            .attr("class", "hovered")
-            .attr("stroke", "var(--color-vehicle-hover-stroke)")
-            .attr("stroke-width", 0.8)
-            .attr("filter", "drop-shadow(0 0 3px var(--color-vehicle-hover-stroke))");
-        }
-        const hovFleet = fleetMap.get(currentHoveredId!);
-        hovPath.attr("d", hoveredPath).attr("fill", hovFleet?.color ?? "var(--color-vehicle-fill)");
-      } else {
-        hovPath.remove();
+      // Draw hovered vehicle with glow
+      if (hoveredVehicle) {
+        drawGlowArrow(
+          ctx,
+          hoveredVehicle.x,
+          hoveredVehicle.y,
+          hoveredVehicle.heading,
+          s,
+          resolveCSSColor(hoveredVehicle.color),
+          HOVER_STROKE,
+          3,
+        );
+      }
+
+      // Draw selected vehicle with glow (on top of everything)
+      if (selectedVehicle) {
+        drawGlowArrow(
+          ctx,
+          selectedVehicle.x,
+          selectedVehicle.y,
+          selectedVehicle.heading,
+          s,
+          resolveCSSColor(selectedVehicle.color),
+          SELECTED_STROKE,
+          4,
+        );
       }
     };
 
@@ -228,23 +366,28 @@ export default function VehiclesLayer({
     return () => cancelAnimationFrame(rafId);
   }, [projection, scale, projectPosition]);
 
-  // Hit testing for clicks
-  const handleClick = useCallback(
-    (event: React.MouseEvent<SVGGElement>) => {
-      if (!projection || !transformRef.current) return;
-      const g = groupRef.current;
-      if (!g) return;
+  // Hit testing for clicks — listen on the SVG in capture phase
+  useEffect(() => {
+    if (!map || !projection) return;
 
-      const svg = g.ownerSVGElement;
-      if (!svg) return;
-      const pt = svg.createSVGPoint();
-      pt.x = event.clientX;
-      pt.y = event.clientY;
-      const ctm = g.getScreenCTM();
-      if (!ctm) return;
-      const svgPt = pt.matrixTransform(ctm.inverse());
+    const handleClick = (event: MouseEvent) => {
+      const t = transformRef.current;
+      if (!t) return;
 
-      const k = transformRef.current.k ?? 1;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      // Get click position relative to the SVG/canvas container
+      const rect = canvas.getBoundingClientRect();
+      const clientX = event.clientX - rect.left;
+      const clientY = event.clientY - rect.top;
+
+      // Convert screen coords to projected coords by inverting the zoom transform
+      // screen = transform * projected  =>  projected = inverse(transform) * screen
+      const k = t.k;
+      const projX = (clientX - t.x) / k;
+      const projY = (clientY - t.y) / k;
+
       const hitRadius = (8 * scale) / Math.pow(k, 0.75);
       const hitRadiusSq = hitRadius * hitRadius;
 
@@ -252,8 +395,8 @@ export default function VehiclesLayer({
       let closestDistSq = hitRadiusSq;
 
       for (const p of projectedRef.current) {
-        const dx = p.x - svgPt.x;
-        const dy = p.y - svgPt.y;
+        const dx = p.x - projX;
+        const dy = p.y - projY;
         const distSq = dx * dx + dy * dy;
         if (distSq < closestDistSq) {
           closestDistSq = distSq;
@@ -263,11 +406,18 @@ export default function VehiclesLayer({
 
       if (closestId) {
         event.stopPropagation();
+        event.preventDefault();
         onClickRef.current(closestId);
       }
-    },
-    [projection, scale],
-  );
+    };
 
-  return <g ref={groupRef} onClick={handleClick} />;
+    // Use capture phase so we can intercept before the SVG's own onClick
+    map.addEventListener("click", handleClick, true);
+    return () => {
+      map.removeEventListener("click", handleClick, true);
+    };
+  }, [map, projection, scale]);
+
+  // Render nothing into the SVG — canvas is a sibling managed via DOM
+  return null;
 }

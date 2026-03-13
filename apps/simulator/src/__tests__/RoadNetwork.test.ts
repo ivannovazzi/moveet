@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { RoadNetwork } from "../modules/RoadNetwork";
 import * as utils from "../utils/helpers";
 import path from "path";
@@ -149,6 +149,69 @@ describe("RoadNetwork", () => {
       // Verify by summing edge distances
       const summedDistance = route!.edges.reduce((sum, edge) => sum + edge.distance, 0);
       expect(route!.distance).toBeCloseTo(summedDistance, 6);
+    });
+  });
+
+  describe("findRouteAsync", () => {
+    afterEach(async () => {
+      await network.shutdownWorkers();
+    });
+
+    it("should find the same route as synchronous findRoute", async () => {
+      const start = network.findNearestNode([45.5017, -73.5673]);
+      const end = network.findNearestNode([45.5029, -73.5661]);
+
+      const syncRoute = network.findRoute(start, end);
+      const asyncRoute = await network.findRouteAsync(start, end);
+
+      expect(syncRoute).not.toBeNull();
+      expect(asyncRoute).not.toBeNull();
+      expect(asyncRoute!.distance).toBeCloseTo(syncRoute!.distance, 6);
+      expect(asyncRoute!.edges.length).toBe(syncRoute!.edges.length);
+
+      // Same edge IDs in the same order
+      for (let i = 0; i < syncRoute!.edges.length; i++) {
+        expect(asyncRoute!.edges[i].id).toBe(syncRoute!.edges[i].id);
+      }
+    });
+
+    it("should return null when no route exists", async () => {
+      const start = network.findNearestNode([45.5017, -73.5673]);
+      // Isolated node not in the graph
+      const isolated = { id: "isolated", coordinates: [90, 180] as [number, number], connections: [] };
+
+      const route = await network.findRouteAsync(start, isolated);
+      expect(route).toBeNull();
+    });
+
+    it("should return Route with proper Edge objects from main thread", async () => {
+      const start = network.findNearestNode([45.5017, -73.5673]);
+      const end = network.findNearestNode([45.5029, -73.5661]);
+
+      const route = await network.findRouteAsync(start, end);
+      expect(route).not.toBeNull();
+
+      // Verify the edges are full Edge objects (have start.connections, etc.)
+      for (const edge of route!.edges) {
+        expect(edge.start).toBeDefined();
+        expect(edge.end).toBeDefined();
+        expect(edge.start.connections).toBeDefined();
+        expect(Array.isArray(edge.start.connections)).toBe(true);
+        expect(edge.distance).toBeGreaterThan(0);
+      }
+    });
+  });
+
+  describe("getEdge", () => {
+    it("should return an edge by its ID", () => {
+      const edge = network.getRandomEdge();
+      const found = network.getEdge(edge.id);
+      expect(found).toBe(edge);
+    });
+
+    it("should return undefined for non-existent edge ID", () => {
+      const found = network.getEdge("nonexistent-edge-id");
+      expect(found).toBeUndefined();
     });
   });
 

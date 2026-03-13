@@ -54,6 +54,7 @@ describe("Adapter", () => {
       expect(vehicles).toEqual(mockVehicles);
       expect(global.fetch).toHaveBeenCalledWith("http://localhost:3001/vehicles", {
         method: "GET",
+        keepalive: true,
       });
     });
 
@@ -126,6 +127,7 @@ describe("Adapter", () => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify(syncData),
+          keepalive: true,
         })
       );
     });
@@ -218,6 +220,32 @@ describe("Adapter", () => {
         expect(error.message).toContain("/vehicles");
         expect(error.message).toContain("Test error");
       }
+    });
+  });
+
+  describe("connection pooling", () => {
+    it("should pass keepalive: true in fetch options for GET requests", async () => {
+      (global.fetch as any).mockResolvedValueOnce({
+        ok: true,
+        json: async () => [],
+      });
+
+      await adapter.get();
+
+      const callArgs = (global.fetch as any).mock.calls[0];
+      expect(callArgs[1].keepalive).toBe(true);
+    });
+
+    it("should pass keepalive: true in fetch options for POST requests", async () => {
+      (global.fetch as any).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({}),
+      });
+
+      await adapter.sync({ vehicles: [] });
+
+      const callArgs = (global.fetch as any).mock.calls[0];
+      expect(callArgs[1].keepalive).toBe(true);
     });
   });
 

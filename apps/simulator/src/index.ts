@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import express from "express";
+import compression from "compression";
 import cors from "cors";
 import { WebSocketServer } from "ws";
 import { RoadNetwork } from "./modules/RoadNetwork";
@@ -16,6 +17,7 @@ verifyConfig();
 
 const app = express();
 app.use(cors({ origin: true }));
+app.use(compression());
 app.use(express.json());
 
 // Apply general rate limiting to all routes
@@ -354,6 +356,9 @@ async function main() {
 
     simulationController.stop();
     logger.info("Simulation stopped");
+
+    network.shutdownWorkers();
+    logger.info("Pathfinding workers stopped");
 
     generalRateLimiter.cleanup();
     expensiveRateLimiter.cleanup();

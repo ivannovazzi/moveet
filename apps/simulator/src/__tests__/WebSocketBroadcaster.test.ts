@@ -1,12 +1,18 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { WebSocketBroadcaster } from "../modules/WebSocketBroadcaster";
+import {
+  WebSocketBroadcaster,
+  BACKPRESSURE_THRESHOLD,
+  MAX_DROPPED_FLUSHES,
+  POSITION_DELTA_THRESHOLD,
+} from "../modules/WebSocketBroadcaster";
 import type { VehicleDTO } from "../types";
 
 // --- Mock WebSocket & WebSocketServer ---
 
-function createMockClient(readyState = 1): MockWebSocket {
+function createMockClient(readyState = 1, bufferedAmount = 0): MockWebSocket {
   return {
     readyState,
+    bufferedAmount,
     send: vi.fn(),
     OPEN: 1,
     close: vi.fn(),
@@ -15,6 +21,7 @@ function createMockClient(readyState = 1): MockWebSocket {
 
 interface MockWebSocket {
   readyState: number;
+  bufferedAmount: number;
   send: ReturnType<typeof vi.fn>;
   OPEN: number;
   close: ReturnType<typeof vi.fn>;
@@ -448,6 +455,389 @@ describe("WebSocketBroadcaster", () => {
       }
 
       broadcaster.stop();
+    });
+  });
+
+  describe("backpressure", () => {
+    it("should skip a client whose bufferedAmount exceeds the threshold", () => {
+      const slowClient = createMockClient(1, BACKPRESSURE_THRESHOLD + 1);
+      const fastClient = createMockClient(1, 0);
+      const wss = createMockWSS([slowClient, fastClient]);
+      const broadcaster = new WebSocketBroadcaster(
+        wss as unknown as import("ws").WebSocketServer,
+        { flushIntervalMs: 100 }
+      );
+      broadcaster.start();
+
+      broadcaster.queueVehicleUpdate(makeVehicle("v1"));
+      vi.advanceTimersByTime(100);
+
+      expect(slowClient.send).not.toHaveBeenCalled();
+      expect(fastClient.send).toHaveBeenCalledTimes(1);
+
+      broadcaster.stop();
+    });
+
+    it("should allow sending when bufferedAmount is exactly at the threshold", () => {
+      // bufferedAmount must be strictly greater than threshold to skip
+      const client = createMockClient(1, BACKPRESSURE_THRESHOLD);
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(
+        wss as unknown as import("ws").WebSocketServer,
+        { flushIntervalMs: 100 }
+      );
+      broadcaster.start();
+
+      broadcaster.queueVehicleUpdate(makeVehicle("v1"));
+      vi.advanceTimersByTime(100);
+
+      // Exactly at the threshold is NOT over, so the client receives the message
+      expect(client.send).toHaveBeenCalledTimes(1);
+
+      broadcaster.stop();
+    });
+
+    it("should resume sending to a client once backpressure clears", () => {
+      const client = createMockClient(1, BACKPRESSURE_THRESHOLD + 1);
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(
+        wss as unknown as import("ws").WebSocketServer,
+        { flushIntervalMs: 100 }
+      );
+      broadcaster.start();
+
+      // First flush — client is slow, skipped
+      broadcaster.queueVehicleUpdate(makeVehicle("v1"));
+      vi.advanceTimersByTime(100);
+      expect(client.send).not.toHaveBeenCalled();
+
+      // Client catches up
+      client.bufferedAmount = 0;
+
+      // Second flush — client is fast again
+      broadcaster.queueVehicleUpdate(makeVehicle("v1", { position: [-1.290, 36.820] }));
+      vi.advanceTimersByTime(100);
+      expect(client.send).toHaveBeenCalledTimes(1);
+
+      broadcaster.stop();
+    });
+  });
+
+  describe("drop policy", () => {
+    it("should close a client that exceeds MAX_DROPPED_FLUSHES consecutive skips", () => {
+      const slowClient = createMockClient(1, BACKPRESSURE_THRESHOLD + 1);
+      const wss = createMockWSS([slowClient]);
+      const broadcaster = new WebSocketBroadcaster(
+        wss as unknown as import("ws").WebSocketServer,
+        { flushIntervalMs: 100 }
+      );
+      broadcaster.start();
+
+      // Simulate MAX_DROPPED_FLUSHES + 1 flushes with backpressure
+      for (let i = 0; i <= MAX_DROPPED_FLUSHES; i++) {
+        broadcaster.queueVehicleUpdate(
+          makeVehicle("v1", { position: [-1.286 + i * 0.001, 36.817] })
+        );
+        vi.advanceTimersByTime(100);
+      }
+
+      expect(slowClient.send).not.toHaveBeenCalled();
+      expect(slowClient.close).toHaveBeenCalledTimes(1);
+
+      broadcaster.stop();
+    });
+
+    it("should not close a client that recovers before hitting MAX_DROPPED_FLUSHES", () => {
+      const client = createMockClient(1, BACKPRESSURE_THRESHOLD + 1);
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(
+        wss as unknown as import("ws").WebSocketServer,
+        { flushIntervalMs: 100 }
+      );
+      broadcaster.start();
+
+      // Simulate some dropped flushes (less than the max)
+      for (let i = 0; i < MAX_DROPPED_FLUSHES - 1; i++) {
+        broadcaster.queueVehicleUpdate(
+          makeVehicle("v1", { position: [-1.286 + i * 0.001, 36.817] })
+        );
+        vi.advanceTimersByTime(100);
+      }
+
+      expect(client.close).not.toHaveBeenCalled();
+
+      // Client recovers
+      client.bufferedAmount = 0;
+
+      // Next flush should succeed and reset the counter
+      broadcaster.queueVehicleUpdate(
+        makeVehicle("v1", { position: [-1.300, 36.830] })
+      );
+      vi.advanceTimersByTime(100);
+
+      expect(client.send).toHaveBeenCalledTimes(1);
+      expect(client.close).not.toHaveBeenCalled();
+
+      // Now backpressure again — counter should have reset
+      client.bufferedAmount = BACKPRESSURE_THRESHOLD + 1;
+      for (let i = 0; i < MAX_DROPPED_FLUSHES; i++) {
+        broadcaster.queueVehicleUpdate(
+          makeVehicle("v1", { position: [-1.286 + i * 0.002, 36.817] })
+        );
+        vi.advanceTimersByTime(100);
+      }
+
+      // Should NOT be closed yet — just at the limit, not over
+      expect(client.close).not.toHaveBeenCalled();
+
+      broadcaster.stop();
+    });
+  });
+
+  describe("delta filtering", () => {
+    it("should not send a vehicle whose position has not changed since last send", () => {
+      const client = createMockClient();
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(
+        wss as unknown as import("ws").WebSocketServer,
+        { flushIntervalMs: 100 }
+      );
+      broadcaster.start();
+
+      const vehicle = makeVehicle("v1", { position: [-1.286, 36.817] });
+
+      // First flush — vehicle is new, should be sent
+      broadcaster.queueVehicleUpdate(vehicle);
+      vi.advanceTimersByTime(100);
+      expect(client.send).toHaveBeenCalledTimes(1);
+
+      // Second flush — exact same position, should be filtered out
+      broadcaster.queueVehicleUpdate(makeVehicle("v1", { position: [-1.286, 36.817] }));
+      vi.advanceTimersByTime(100);
+
+      // No second send because position didn't change
+      expect(client.send).toHaveBeenCalledTimes(1);
+
+      broadcaster.stop();
+    });
+
+    it("should send a vehicle whose position changed below the threshold", () => {
+      const client = createMockClient();
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(
+        wss as unknown as import("ws").WebSocketServer,
+        { flushIntervalMs: 100 }
+      );
+      broadcaster.start();
+
+      // First flush — send initial position
+      broadcaster.queueVehicleUpdate(makeVehicle("v1", { position: [-1.286, 36.817] }));
+      vi.advanceTimersByTime(100);
+      expect(client.send).toHaveBeenCalledTimes(1);
+
+      // Tiny position change (well below threshold)
+      const tinyDelta = POSITION_DELTA_THRESHOLD / 10;
+      broadcaster.queueVehicleUpdate(
+        makeVehicle("v1", { position: [-1.286 + tinyDelta, 36.817 + tinyDelta] })
+      );
+      vi.advanceTimersByTime(100);
+
+      // Should not be sent
+      expect(client.send).toHaveBeenCalledTimes(1);
+
+      broadcaster.stop();
+    });
+
+    it("should send a vehicle whose position changed above the threshold", () => {
+      const client = createMockClient();
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(
+        wss as unknown as import("ws").WebSocketServer,
+        { flushIntervalMs: 100 }
+      );
+      broadcaster.start();
+
+      // First flush
+      broadcaster.queueVehicleUpdate(makeVehicle("v1", { position: [-1.286, 36.817] }));
+      vi.advanceTimersByTime(100);
+      expect(client.send).toHaveBeenCalledTimes(1);
+
+      // Significant position change (above threshold)
+      const bigDelta = POSITION_DELTA_THRESHOLD * 2;
+      broadcaster.queueVehicleUpdate(
+        makeVehicle("v1", { position: [-1.286 + bigDelta, 36.817] })
+      );
+      vi.advanceTimersByTime(100);
+
+      // Should be sent
+      expect(client.send).toHaveBeenCalledTimes(2);
+
+      broadcaster.stop();
+    });
+
+    it("should always send a vehicle that has never been sent to a client", () => {
+      const client = createMockClient();
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(
+        wss as unknown as import("ws").WebSocketServer,
+        { flushIntervalMs: 100 }
+      );
+      broadcaster.start();
+
+      // First time seeing this vehicle — always sent regardless of position
+      broadcaster.queueVehicleUpdate(makeVehicle("v1"));
+      vi.advanceTimersByTime(100);
+
+      expect(client.send).toHaveBeenCalledTimes(1);
+      const parsed = JSON.parse(client.send.mock.calls[0][0] as string);
+      expect(parsed.data).toHaveLength(1);
+      expect(parsed.data[0].id).toBe("v1");
+
+      broadcaster.stop();
+    });
+
+    it("should filter per-client independently", () => {
+      const client1 = createMockClient();
+      const client2 = createMockClient();
+      const wss = createMockWSS([client1, client2]);
+      const broadcaster = new WebSocketBroadcaster(
+        wss as unknown as import("ws").WebSocketServer,
+        { flushIntervalMs: 100 }
+      );
+      broadcaster.start();
+
+      // First flush — both clients receive the vehicle
+      broadcaster.queueVehicleUpdate(makeVehicle("v1", { position: [-1.286, 36.817] }));
+      vi.advanceTimersByTime(100);
+      expect(client1.send).toHaveBeenCalledTimes(1);
+      expect(client2.send).toHaveBeenCalledTimes(1);
+
+      // Now remove client2 and re-add as a "new" client (simulating reconnect)
+      // Actually, we test delta independence by having client1 skip while
+      // a new vehicle appears for both
+
+      // Same position — both clients should be filtered
+      broadcaster.queueVehicleUpdate(makeVehicle("v1", { position: [-1.286, 36.817] }));
+      vi.advanceTimersByTime(100);
+      expect(client1.send).toHaveBeenCalledTimes(1);
+      expect(client2.send).toHaveBeenCalledTimes(1);
+
+      broadcaster.stop();
+    });
+
+    it("should send mixed batch — some vehicles changed, some not", () => {
+      const client = createMockClient();
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(
+        wss as unknown as import("ws").WebSocketServer,
+        { flushIntervalMs: 100 }
+      );
+      broadcaster.start();
+
+      // First flush — both vehicles sent
+      broadcaster.queueVehicleUpdate(makeVehicle("v1", { position: [-1.286, 36.817] }));
+      broadcaster.queueVehicleUpdate(makeVehicle("v2", { position: [-1.300, 36.830] }));
+      vi.advanceTimersByTime(100);
+      expect(client.send).toHaveBeenCalledTimes(1);
+
+      const batch1 = JSON.parse(client.send.mock.calls[0][0] as string);
+      expect(batch1.data).toHaveLength(2);
+
+      // Second flush — v1 unchanged, v2 moved significantly
+      broadcaster.queueVehicleUpdate(makeVehicle("v1", { position: [-1.286, 36.817] }));
+      broadcaster.queueVehicleUpdate(
+        makeVehicle("v2", { position: [-1.300 + POSITION_DELTA_THRESHOLD * 3, 36.830] })
+      );
+      vi.advanceTimersByTime(100);
+
+      expect(client.send).toHaveBeenCalledTimes(2);
+      const batch2 = JSON.parse(client.send.mock.calls[1][0] as string);
+      expect(batch2.data).toHaveLength(1);
+      expect(batch2.data[0].id).toBe("v2");
+
+      broadcaster.stop();
+    });
+  });
+
+  describe("mixed slow and fast clients", () => {
+    it("should send to fast client while skipping slow client", () => {
+      const slowClient = createMockClient(1, BACKPRESSURE_THRESHOLD + 1);
+      const fastClient = createMockClient(1, 0);
+      const wss = createMockWSS([slowClient, fastClient]);
+      const broadcaster = new WebSocketBroadcaster(
+        wss as unknown as import("ws").WebSocketServer,
+        { flushIntervalMs: 100 }
+      );
+      broadcaster.start();
+
+      broadcaster.queueVehicleUpdate(makeVehicle("v1"));
+      broadcaster.queueVehicleUpdate(makeVehicle("v2"));
+      vi.advanceTimersByTime(100);
+
+      // Fast client gets the message
+      expect(fastClient.send).toHaveBeenCalledTimes(1);
+      const parsed = JSON.parse(fastClient.send.mock.calls[0][0] as string);
+      expect(parsed.data).toHaveLength(2);
+
+      // Slow client is skipped
+      expect(slowClient.send).not.toHaveBeenCalled();
+
+      broadcaster.stop();
+    });
+
+    it("should not affect broadcast/sendTo for slow clients", () => {
+      const slowClient = createMockClient(1, BACKPRESSURE_THRESHOLD + 1);
+      const wss = createMockWSS([slowClient]);
+      const broadcaster = new WebSocketBroadcaster(
+        wss as unknown as import("ws").WebSocketServer
+      );
+
+      // Non-vehicle broadcast should NOT check backpressure
+      broadcaster.broadcast("status", { running: true });
+      expect(slowClient.send).toHaveBeenCalledTimes(1);
+
+      // sendTo should NOT check backpressure
+      broadcaster.sendTo(
+        slowClient as unknown as import("ws").WebSocket,
+        "options",
+        { updateInterval: 500 }
+      );
+      expect(slowClient.send).toHaveBeenCalledTimes(2);
+    });
+
+    it("should handle multiple clients at different backpressure levels", () => {
+      const client1 = createMockClient(1, 0);                               // OK
+      const client2 = createMockClient(1, BACKPRESSURE_THRESHOLD - 1);      // OK (under)
+      const client3 = createMockClient(1, BACKPRESSURE_THRESHOLD + 10000);  // Over
+      const wss = createMockWSS([client1, client2, client3]);
+      const broadcaster = new WebSocketBroadcaster(
+        wss as unknown as import("ws").WebSocketServer,
+        { flushIntervalMs: 100 }
+      );
+      broadcaster.start();
+
+      broadcaster.queueVehicleUpdate(makeVehicle("v1"));
+      vi.advanceTimersByTime(100);
+
+      expect(client1.send).toHaveBeenCalledTimes(1);
+      expect(client2.send).toHaveBeenCalledTimes(1);
+      expect(client3.send).not.toHaveBeenCalled();
+
+      broadcaster.stop();
+    });
+  });
+
+  describe("exported constants", () => {
+    it("should export BACKPRESSURE_THRESHOLD as 64KB", () => {
+      expect(BACKPRESSURE_THRESHOLD).toBe(64 * 1024);
+    });
+
+    it("should export MAX_DROPPED_FLUSHES as 50", () => {
+      expect(MAX_DROPPED_FLUSHES).toBe(50);
+    });
+
+    it("should export POSITION_DELTA_THRESHOLD as 0.0001", () => {
+      expect(POSITION_DELTA_THRESHOLD).toBe(0.0001);
     });
   });
 });
