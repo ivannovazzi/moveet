@@ -30,6 +30,34 @@ interface ProjectedVehicle {
   y: number;
 }
 
+/** Per-vehicle interpolation state for smooth animation between WS updates. */
+interface VehicleInterp {
+  prevLat: number;
+  prevLng: number;
+  prevHeading: number;
+  nextLat: number;
+  nextLng: number;
+  nextHeading: number;
+  updateTime: number;
+}
+
+/** Duration (ms) over which positions interpolate — slightly above WS flush interval. */
+const LERP_DURATION_MS = 150;
+
+/** Lerp a single value from a to b by t ∈ [0, 1]. */
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+/** Shortest-arc lerp for angles in radians. */
+function lerpAngle(a: number, b: number, t: number): number {
+  let diff = b - a;
+  // Normalize to [-PI, PI]
+  while (diff > Math.PI) diff -= 2 * Math.PI;
+  while (diff < -Math.PI) diff += 2 * Math.PI;
+  return a + diff * t;
+}
+
 /**
  * Resolve a CSS variable reference like "var(--color-vehicle-fill)" to its
  * computed value, or return the input unchanged if it's already a plain color.
@@ -135,6 +163,7 @@ export default function VehiclesLayer({
   const onClickRef = useRef(onClick);
   onClickRef.current = onClick;
   const containerRef = useRef<HTMLElement | null>(null);
+  const interpRef = useRef(new Map<string, VehicleInterp>());
 
   // Refs for values that change but shouldn't restart the RAF loop
   const transformRef = useRef(transform);
@@ -196,7 +225,8 @@ export default function VehiclesLayer({
     };
   }, [map]);
 
-  // Core render loop: reads from vehicleStore directly, no React state
+  // Core render loop: reads from vehicleStore directly, no React state.
+  // Interpolates vehicle positions between WS updates for smooth animation.
   useEffect(() => {
     if (!projection) return;
 
@@ -207,6 +237,7 @@ export default function VehiclesLayer({
     let lastTransformY = NaN;
     let lastSelectedId: string | undefined;
     let lastHoveredId: string | undefined;
+    let animating = false;
 
     const render = () => {
       rafId = requestAnimationFrame(render);
@@ -223,16 +254,69 @@ export default function VehiclesLayer({
       const ty = t?.y ?? 0;
       const currentSelectedId = selectedRef.current;
       const currentHoveredId = hoveredRef.current;
+      const now = performance.now();
 
-      // Skip if nothing changed
       const positionsChanged = currentVersion !== lastVersion;
+
+      // Update interpolation targets when new data arrives
+      if (positionsChanged) {
+        lastVersion = currentVersion;
+        const store = vehicleStore.getAll();
+        const interps = interpRef.current;
+
+        for (const [id, v] of store) {
+          const existing = interps.get(id);
+          const lat = v.position[0];
+          const lng = v.position[1];
+          const heading = ((v.heading ?? 0) * Math.PI) / 180;
+
+          if (existing) {
+            // Snap prev to wherever we currently are in the lerp (avoid jump-back)
+            const elapsed = now - existing.updateTime;
+            const t01 = Math.min(elapsed / LERP_DURATION_MS, 1);
+            existing.prevLat = lerp(existing.prevLat, existing.nextLat, t01);
+            existing.prevLng = lerp(existing.prevLng, existing.nextLng, t01);
+            existing.prevHeading = lerpAngle(existing.prevHeading, existing.nextHeading, t01);
+            existing.nextLat = lat;
+            existing.nextLng = lng;
+            existing.nextHeading = heading;
+            existing.updateTime = now;
+          } else {
+            interps.set(id, {
+              prevLat: lat,
+              prevLng: lng,
+              prevHeading: heading,
+              nextLat: lat,
+              nextLng: lng,
+              nextHeading: heading,
+              updateTime: now,
+            });
+          }
+        }
+
+        // Remove stale vehicles
+        for (const id of interps.keys()) {
+          if (!store.has(id)) interps.delete(id);
+        }
+      }
+
+      // Determine if any vehicle is still mid-interpolation
+      animating = false;
+      const interps = interpRef.current;
+      for (const state of interps.values()) {
+        if (now - state.updateTime < LERP_DURATION_MS) {
+          animating = true;
+          break;
+        }
+      }
+
       const zoomChanged = k !== lastTransformK || tx !== lastTransformX || ty !== lastTransformY;
       const selectionChanged =
         currentSelectedId !== lastSelectedId || currentHoveredId !== lastHoveredId;
 
-      if (!positionsChanged && !zoomChanged && !selectionChanged) return;
+      // Skip redraw only if nothing changed AND no animation in progress
+      if (!positionsChanged && !animating && !zoomChanged && !selectionChanged) return;
 
-      lastVersion = currentVersion;
       lastTransformK = k;
       lastTransformX = tx;
       lastTransformY = ty;
@@ -253,48 +337,53 @@ export default function VehiclesLayer({
       const hiddenFleets = hiddenFleetsRef.current;
 
       // Apply DPR scaling and D3 zoom transform
-      // The zoom transform maps projected coords -> screen coords:
-      //   screenX = tx + k * projectedX
-      //   screenY = ty + k * projectedY
       ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * tx, dpr * ty);
 
       // Collect vehicles for rendering
       const projected: ProjectedVehicle[] = [];
 
-      // Track selected and hovered vehicles for drawing last (on top)
       let selectedVehicle: { x: number; y: number; heading: number; color: string } | null = null;
       let hoveredVehicle: { x: number; y: number; heading: number; color: string } | null = null;
 
-      // Batch regular vehicles by color to minimize fillStyle changes
       const colorBatches = new Map<
         string,
         Array<{ x: number; y: number; heading: number }>
       >();
 
       for (const [, v] of store) {
-        // Skip vehicles at origin or in hidden fleets
         if (v.position[0] === 0 && v.position[1] === 0) continue;
         const fleet = fleetMap.get(v.id);
         if (fleet && hiddenFleets.has(fleet.id)) continue;
 
-        // Position is [lat, lng] from DTO, projection expects [lng, lat]
-        const pos = projectPosition([v.position[1], v.position[0]]);
+        // Interpolate position from stored state
+        const state = interps.get(v.id);
+        let lat: number, lng: number, heading: number;
+
+        if (state) {
+          const elapsed = now - state.updateTime;
+          const t01 = Math.min(elapsed / LERP_DURATION_MS, 1);
+          lat = lerp(state.prevLat, state.nextLat, t01);
+          lng = lerp(state.prevLng, state.nextLng, t01);
+          heading = lerpAngle(state.prevHeading, state.nextHeading, t01);
+        } else {
+          lat = v.position[0];
+          lng = v.position[1];
+          heading = ((v.heading ?? 0) * Math.PI) / 180;
+        }
+
+        // Projection expects [lng, lat]
+        const pos = projectPosition([lng, lat]);
         if (!pos) continue;
 
         const [x, y] = pos;
         projected.push({ id: v.id, x, y });
 
-        const heading = ((v.heading ?? 0) * Math.PI) / 180;
-
         if (v.id === currentSelectedId) {
-          const color = fleet?.color ?? DEFAULT_FILL;
-          selectedVehicle = { x, y, heading, color };
+          selectedVehicle = { x, y, heading, color: fleet?.color ?? DEFAULT_FILL };
         } else if (v.id === currentHoveredId) {
-          const color = fleet?.color ?? DEFAULT_FILL;
-          hoveredVehicle = { x, y, heading, color };
+          hoveredVehicle = { x, y, heading, color: fleet?.color ?? DEFAULT_FILL };
         } else {
-          const rawColor = fleet?.color ?? DEFAULT_FILL;
-          const color = resolveCSSColor(rawColor);
+          const color = resolveCSSColor(fleet?.color ?? DEFAULT_FILL);
           let batch = colorBatches.get(color);
           if (!batch) {
             batch = [];
@@ -328,12 +417,10 @@ export default function VehiclesLayer({
         }
       }
 
-      // Draw selection ring behind selected vehicle
       if (selectedVehicle && currentSelectedId) {
         drawSelectionRing(ctx, selectedVehicle.x, selectedVehicle.y, s);
       }
 
-      // Draw hovered vehicle with glow
       if (hoveredVehicle) {
         drawGlowArrow(
           ctx,
@@ -347,7 +434,6 @@ export default function VehiclesLayer({
         );
       }
 
-      // Draw selected vehicle with glow (on top of everything)
       if (selectedVehicle) {
         drawGlowArrow(
           ctx,
