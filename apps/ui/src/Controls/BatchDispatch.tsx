@@ -6,13 +6,16 @@ import styles from "./BatchDispatch.module.css";
 
 interface BatchDispatchProps {
   assignments: DispatchAssignment[];
-  onAddAssignment?: (assignment: DispatchAssignment) => void;
   onRemoveAssignment: (vehicleId: string) => void;
   onClearAll: () => void;
   onClose: () => void;
   vehicles: Vehicle[];
   isDispatchMode: boolean;
   onToggleDispatchMode: () => void;
+  selectedForDispatch: string[];
+  onToggleVehicleForDispatch: (id: string) => void;
+  onSelectAllForDispatch: () => void;
+  onClearSelection: () => void;
 }
 
 export default function BatchDispatch({
@@ -23,6 +26,10 @@ export default function BatchDispatch({
   vehicles,
   isDispatchMode,
   onToggleDispatchMode,
+  selectedForDispatch,
+  onToggleVehicleForDispatch,
+  onSelectAllForDispatch,
+  onClearSelection,
 }: BatchDispatchProps) {
   const [results, setResults] = useState<DirectionResult[]>([]);
   const [dispatching, setDispatching] = useState(false);
@@ -80,12 +87,57 @@ export default function BatchDispatch({
         </span>
       </button>
 
-      {availableVehicles.length > 0 && (
-        <select className={styles.vehicleSelect} disabled title="Select vehicles, then click the map">
-          <option>
-            {availableVehicles.length} vehicle{availableVehicles.length !== 1 ? "s" : ""} available
-          </option>
-        </select>
+      {isDispatchMode && availableVehicles.length > 0 && (
+        <div className={styles.vehiclePicker}>
+          <div className={styles.vehiclePickerHeader}>
+            <span className={styles.vehiclePickerLabel}>
+              {selectedForDispatch.length > 0
+                ? `${selectedForDispatch.length} selected — click map to assign`
+                : "Select vehicles to dispatch"}
+            </span>
+            <div className={styles.vehiclePickerActions}>
+              {selectedForDispatch.length < availableVehicles.length ? (
+                <button
+                  type="button"
+                  className={styles.vehiclePickerAction}
+                  onClick={onSelectAllForDispatch}
+                >
+                  All
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className={styles.vehiclePickerAction}
+                  onClick={onClearSelection}
+                >
+                  None
+                </button>
+              )}
+            </div>
+          </div>
+          <div className={styles.vehiclePickerList}>
+            {availableVehicles.map((v) => {
+              const isSelected = selectedForDispatch.includes(v.id);
+              return (
+                <button
+                  key={v.id}
+                  type="button"
+                  className={classNames(styles.vehiclePickerItem, {
+                    [styles.vehiclePickerItemSelected]: isSelected,
+                  })}
+                  onClick={() => onToggleVehicleForDispatch(v.id)}
+                >
+                  <span
+                    className={classNames(styles.vehiclePickerCheck, {
+                      [styles.vehiclePickerCheckActive]: isSelected,
+                    })}
+                  />
+                  <span className={styles.vehiclePickerName}>{v.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       <div className={styles.assignmentList}>

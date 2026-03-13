@@ -135,17 +135,24 @@ export default function App() {
     });
   }, []);
 
-  const onSelectVehicleForDispatch = useCallback(
+  const onToggleVehicleForDispatch = useCallback(
     (id: string) => {
-      if (dispatchMode) {
-        setSelectedForDispatch((prev) =>
-          prev.includes(id) ? prev.filter((vid) => vid !== id) : [...prev, id]
-        );
-      }
-      onSelectVehicle(id);
+      setSelectedForDispatch((prev) =>
+        prev.includes(id) ? prev.filter((vid) => vid !== id) : [...prev, id]
+      );
     },
-    [dispatchMode, onSelectVehicle]
+    []
   );
+
+  const onSelectAllForDispatch = useCallback(() => {
+    const assignedIds = new Set(assignments.map((a) => a.vehicleId));
+    const available = vehicles.filter((v) => v.visible && !assignedIds.has(v.id));
+    setSelectedForDispatch(available.map((v) => v.id));
+  }, [vehicles, assignments]);
+
+  const onClearDispatchSelection = useCallback(() => {
+    setSelectedForDispatch([]);
+  }, []);
 
   const setFinalDestination = useCallback(async (position: Position, vehicleIds: string[]) => {
     const coordinates = await client.findNode(position);
@@ -294,7 +301,7 @@ export default function App() {
             filters={filters}
             modifiers={modifiers}
             selectedItem={selectedItem}
-            onClick={onSelectVehicleForDispatch}
+            onClick={onSelectVehicle}
             onMapClick={onMapClick}
             onMapContextClick={onMapContextClick}
             onPOIClick={(poi) => setSelectedItem(poi)}
@@ -330,6 +337,10 @@ export default function App() {
                   vehicles={vehicles}
                   isDispatchMode={dispatchMode}
                   onToggleDispatchMode={onToggleDispatchMode}
+                  selectedForDispatch={selectedForDispatch}
+                  onToggleVehicleForDispatch={onToggleVehicleForDispatch}
+                  onSelectAllForDispatch={onSelectAllForDispatch}
+                  onClearSelection={onClearDispatchSelection}
                 />
               </div>
             </aside>

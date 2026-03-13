@@ -38,6 +38,10 @@ describe("BatchDispatch", () => {
     vehicles: defaultVehicles,
     isDispatchMode: false,
     onToggleDispatchMode: vi.fn(),
+    selectedForDispatch: [] as string[],
+    onToggleVehicleForDispatch: vi.fn(),
+    onSelectAllForDispatch: vi.fn(),
+    onClearSelection: vi.fn(),
   };
 
   beforeEach(() => {
@@ -376,21 +380,22 @@ describe("BatchDispatch", () => {
     });
   });
 
-  it("filters out vehicles with visible=false from available vehicles", () => {
+  it("filters out vehicles with visible=false from vehicle picker", () => {
     const vehicles: Vehicle[] = [
       createVehicle({ id: "v1", name: "Truck Alpha", visible: true }),
       createVehicle({ id: "v2", name: "Van Beta", visible: false }),
       createVehicle({ id: "v3", name: "Car Gamma", visible: true }),
     ];
 
-    render(<BatchDispatch {...defaultProps} vehicles={vehicles} />);
+    render(<BatchDispatch {...defaultProps} vehicles={vehicles} isDispatchMode={true} />);
 
-    // The vehicle select should show "2 vehicles available" (v1 and v3 only)
-    expect(screen.getByText("2 vehicles available")).toBeInTheDocument();
-    expect(screen.queryByText("3 vehicles available")).not.toBeInTheDocument();
+    // Only visible vehicles (v1, v3) should appear in the picker
+    expect(screen.getByText("Truck Alpha")).toBeInTheDocument();
+    expect(screen.getByText("Car Gamma")).toBeInTheDocument();
+    expect(screen.queryByText("Van Beta")).not.toBeInTheDocument();
   });
 
-  it("filters out vehicles already in assignments from available vehicles", () => {
+  it("filters out vehicles already in assignments from vehicle picker", () => {
     const vehicles: Vehicle[] = [
       createVehicle({ id: "v1", name: "Truck Alpha", visible: true }),
       createVehicle({ id: "v2", name: "Van Beta", visible: true }),
@@ -401,11 +406,16 @@ describe("BatchDispatch", () => {
     ];
 
     render(
-      <BatchDispatch {...defaultProps} vehicles={vehicles} assignments={assignments} />
+      <BatchDispatch {...defaultProps} vehicles={vehicles} assignments={assignments} isDispatchMode={true} />
     );
 
-    // v1 is assigned, so only v2 and v3 are available
-    expect(screen.getByText("2 vehicles available")).toBeInTheDocument();
+    // v1 is assigned, so only v2 and v3 appear in the picker
+    expect(screen.getByText("Van Beta")).toBeInTheDocument();
+    expect(screen.getByText("Car Gamma")).toBeInTheDocument();
+    // v1 appears in the assignment list, not the picker — check it's not a picker button
+    const truckButtons = screen.getAllByText("Truck Alpha");
+    // Should only appear in the assignment list, not in picker
+    expect(truckButtons).toHaveLength(1);
   });
 
   it("updates results on second dispatch", async () => {
