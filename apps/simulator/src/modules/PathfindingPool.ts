@@ -37,9 +37,13 @@ export class PathfindingPool {
     const jsPath = path.join(__dirname, "..", "workers", "pathfinding-worker.js");
     const workerPath = fs.existsSync(tsPath) ? tsPath : jsPath;
 
+    // TypeScript workers need tsx loader on Node versions without native TS support
+    const needsLoader = workerPath.endsWith(".ts");
+
     for (let i = 0; i < size; i++) {
       const worker = new Worker(workerPath, {
         workerData: { geojsonPath },
+        ...(needsLoader ? { execArgv: ["--import", "tsx"] } : {}),
       });
 
       worker.on("message", (msg: { type: string; id: number; route: PathfindingResult | null }) => {

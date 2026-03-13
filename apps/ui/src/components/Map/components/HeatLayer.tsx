@@ -21,7 +21,7 @@ export default function HeatLayer({
 }: HeatLayerProps) {
   const { projection } = useMapContext();
   const heatmapRef = useRef<SVGGElement>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Memoize density generator
   const density = useMemo(
