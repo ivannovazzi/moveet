@@ -62,13 +62,9 @@ describe("PendingDispatch", () => {
     const group = container.querySelector(".pending-dispatch");
     expect(group).not.toBeNull();
 
-    // Should render lines (dashed line + 2 crosshair lines = 3 total)
-    const lines = group!.querySelectorAll("line");
-    expect(lines.length).toBe(3);
-
-    // Should render a destination circle
+    // Should render target circles (outer ring + center dot = 2)
     const circles = group!.querySelectorAll("circle");
-    expect(circles.length).toBe(1);
+    expect(circles.length).toBe(2);
 
     // Should render a text label with the vehicle name
     const texts = group!.querySelectorAll("text");
@@ -91,17 +87,13 @@ describe("PendingDispatch", () => {
     const group = container.querySelector(".pending-dispatch");
     expect(group).not.toBeNull();
 
-    // Each assignment produces a <g> child with lines, circle, and text
+    // Each assignment produces a <g> child with circles and text
     const childGroups = group!.querySelectorAll(":scope > g");
     expect(childGroups.length).toBe(2);
 
-    // 3 lines per assignment (1 dashed + 2 crosshair) = 6 total
-    const lines = group!.querySelectorAll("line");
-    expect(lines.length).toBe(6);
-
-    // 1 circle per assignment = 2 total
+    // 2 circles per assignment (outer ring + center dot) = 4 total
     const circles = group!.querySelectorAll("circle");
-    expect(circles.length).toBe(2);
+    expect(circles.length).toBe(4);
 
     // 1 text label per assignment = 2 total
     const texts = group!.querySelectorAll("text");
