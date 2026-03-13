@@ -102,7 +102,10 @@ export default function VehicleList({
                 title={`${vehicle.name} · ${Math.round(vehicle.speed)} km/h · ${formatRouteDistance(routeDistance)}`}
               >
                 <span className={styles.nameGroup}>
-                  <span className={styles.fleetDot} style={{ backgroundColor: vehicleFleet?.color ?? "transparent" }} />
+                  <span
+                    className={styles.fleetDot}
+                    style={{ backgroundColor: vehicleFleet?.color ?? "transparent" }}
+                  />
                   <span className={styles.name}>{vehicle.name}</span>
                 </span>
                 <span className={styles.speed}>
@@ -124,7 +127,9 @@ export default function VehicleList({
                   >
                     <option value="">No fleet</option>
                     {fleets.map((f) => (
-                      <option key={f.id} value={f.id}>{f.name}</option>
+                      <option key={f.id} value={f.id}>
+                        {f.name}
+                      </option>
                     ))}
                   </select>
                 </span>

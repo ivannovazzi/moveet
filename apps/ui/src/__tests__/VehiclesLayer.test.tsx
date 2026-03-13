@@ -14,7 +14,18 @@ function createMockContext(): CanvasRenderingContext2D {
       if (prop === "__calls") return calls;
       if (prop === "canvas") return { width: 800, height: 600 };
       // Return a function spy for any method access
-      if (typeof prop === "string" && !["fillStyle", "strokeStyle", "lineWidth", "shadowColor", "shadowBlur", "shadowOffsetX", "shadowOffsetY"].includes(prop)) {
+      if (
+        typeof prop === "string" &&
+        ![
+          "fillStyle",
+          "strokeStyle",
+          "lineWidth",
+          "shadowColor",
+          "shadowBlur",
+          "shadowOffsetX",
+          "shadowOffsetY",
+        ].includes(prop)
+      ) {
         return (...args: unknown[]) => {
           calls.push({ method: prop, args });
         };
@@ -137,7 +148,7 @@ beforeEach(() => {
       observe() {}
       unobserve() {}
       disconnect() {}
-    },
+    }
   );
 });
 
@@ -200,7 +211,7 @@ describe("VehiclesLayer (Canvas)", () => {
   it("calls canvas drawing methods for each vehicle", () => {
     vehicleStore.replace([
       { id: "v1", name: "V1", position: [36.82, -1.29], speed: 30, heading: 90 },
-      { id: "v2", name: "V2", position: [36.83, -1.30], speed: 40, heading: 180 },
+      { id: "v2", name: "V2", position: [36.83, -1.3], speed: 40, heading: 180 },
     ]);
 
     renderAndTick();
@@ -226,7 +237,7 @@ describe("VehiclesLayer (Canvas)", () => {
 
     vehicleStore.replace([
       { id: "v1", name: "V1", position: [36.82, -1.29], speed: 30, heading: 0 },
-      { id: "v2", name: "V2", position: [36.83, -1.30], speed: 40, heading: 0 },
+      { id: "v2", name: "V2", position: [36.83, -1.3], speed: 40, heading: 0 },
     ]);
 
     renderAndTick({ vehicleFleetMap: fleetMap });
@@ -251,9 +262,7 @@ describe("VehiclesLayer (Canvas)", () => {
   });
 
   it("skips vehicles at origin (0, 0)", () => {
-    vehicleStore.replace([
-      { id: "v1", name: "V1", position: [0, 0], speed: 30, heading: 90 },
-    ]);
+    vehicleStore.replace([{ id: "v1", name: "V1", position: [0, 0], speed: 30, heading: 90 }]);
 
     renderAndTick();
 

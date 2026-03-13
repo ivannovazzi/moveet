@@ -47,7 +47,7 @@ function VehicleMarker({
       transform: `rotate(${prevHeading + rotation}deg) scale(${inverseScale})`,
       transition: `transform ${animFreq}ms linear`,
     }),
-    [prevHeading, rotation, inverseScale, animFreq],
+    [prevHeading, rotation, inverseScale, animFreq]
   );
 
   if (!visible) return null;

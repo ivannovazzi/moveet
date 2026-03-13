@@ -68,9 +68,7 @@ export class RedpandaSink implements DataSink {
         chunks.push(messages.slice(i, i + this.batchSize));
       }
       await Promise.all(
-        chunks.map((chunk) =>
-          this.producer!.send({ topic: this.topic, messages: chunk, acks: 1 })
-        )
+        chunks.map((chunk) => this.producer!.send({ topic: this.topic, messages: chunk, acks: 1 }))
       );
     }
   }

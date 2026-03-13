@@ -46,7 +46,15 @@ export default function App() {
     onFilterChange,
   } = useVehicles();
 
-  const { fleets, createFleet, deleteFleet, assignVehicle, unassignVehicle, hiddenFleetIds, toggleFleetVisibility } = useFleets();
+  const {
+    fleets,
+    createFleet,
+    deleteFleet,
+    assignVehicle,
+    unassignVehicle,
+    hiddenFleetIds,
+    toggleFleetVisibility,
+  } = useFleets();
 
   const vehicleFleetMap = useMemo(() => {
     const map = new Map<string, Fleet>();
@@ -238,7 +246,11 @@ export default function App() {
             onItemUnselect={() => setSelectedItem(null)}
           />
           <Zoom />
-          <FleetLegend fleets={fleets} hiddenFleetIds={hiddenFleetIds} onToggle={toggleFleetVisibility} />
+          <FleetLegend
+            fleets={fleets}
+            hiddenFleetIds={hiddenFleetIds}
+            onToggle={toggleFleetVisibility}
+          />
         </div>
         <aside
           className={classNames(styles.panelRail, styles.rightPanel, {

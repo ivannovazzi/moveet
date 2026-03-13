@@ -83,7 +83,7 @@ function drawArrow(
   s: number,
   fillColor: string,
   strokeColor: string,
-  strokeWidth: number,
+  strokeWidth: number
 ) {
   ctx.save();
   ctx.translate(x, y);
@@ -113,7 +113,7 @@ function drawGlowArrow(
   s: number,
   fillColor: string,
   glowColor: string,
-  glowRadius: number,
+  glowRadius: number
 ) {
   ctx.save();
   ctx.shadowColor = glowColor;
@@ -127,12 +127,7 @@ function drawGlowArrow(
 /**
  * Draw a selection ring (circle) around a vehicle.
  */
-function drawSelectionRing(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  s: number,
-) {
+function drawSelectionRing(ctx: CanvasRenderingContext2D, x: number, y: number, s: number) {
   ctx.save();
   ctx.beginPath();
   ctx.arc(x, y, 6 * s, 0, Math.PI * 2);
@@ -189,7 +184,7 @@ export default function VehiclesLayer({
       if (!result || !isFinite(result[0]) || !isFinite(result[1])) return null;
       return result as [number, number];
     },
-    [projection],
+    [projection]
   );
 
   // Create and mount the canvas element into the map's container div
@@ -366,10 +361,7 @@ export default function VehiclesLayer({
       let selectedVehicle: { x: number; y: number; heading: number; color: string } | null = null;
       let hoveredVehicle: { x: number; y: number; heading: number; color: string } | null = null;
 
-      const colorBatches = new Map<
-        string,
-        Array<{ x: number; y: number; heading: number }>
-      >();
+      const colorBatches = new Map<string, Array<{ x: number; y: number; heading: number }>>();
 
       for (const [, v] of store) {
         if (v.position[0] === 0 && v.position[1] === 0) continue;
@@ -451,7 +443,7 @@ export default function VehiclesLayer({
           s,
           resolveCSSColor(hoveredVehicle.color),
           HOVER_STROKE,
-          3,
+          3
         );
       }
 
@@ -464,7 +456,7 @@ export default function VehiclesLayer({
           s,
           resolveCSSColor(selectedVehicle.color),
           SELECTED_STROKE,
-          4,
+          4
         );
       }
     };

@@ -72,5 +72,13 @@ export function useFleets(): UseFleets {
     });
   }, []);
 
-  return { fleets, createFleet, deleteFleet, assignVehicle, unassignVehicle, hiddenFleetIds, toggleFleetVisibility };
+  return {
+    fleets,
+    createFleet,
+    deleteFleet,
+    assignVehicle,
+    unassignVehicle,
+    hiddenFleetIds,
+    toggleFleetVisibility,
+  };
 }

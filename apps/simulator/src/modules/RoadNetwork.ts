@@ -125,7 +125,10 @@ export class RoadNetwork extends EventEmitter {
       const col = Math.min(Math.floor((lon - minLon) / lonStep), SECTORS_N - 1);
       const key = row * SECTORS_N + col;
       let bucket = edgeSectorMap.get(key);
-      if (!bucket) { bucket = []; edgeSectorMap.set(key, bucket); }
+      if (!bucket) {
+        bucket = [];
+        edgeSectorMap.set(key, bucket);
+      }
       bucket.push(edge);
     }
 
@@ -135,7 +138,10 @@ export class RoadNetwork extends EventEmitter {
       const col = Math.min(Math.floor((lon - minLon) / lonStep), SECTORS_N - 1);
       const key = row * SECTORS_N + col;
       let bucket = nodeSectorMap.get(key);
-      if (!bucket) { bucket = []; nodeSectorMap.set(key, bucket); }
+      if (!bucket) {
+        bucket = [];
+        nodeSectorMap.set(key, bucket);
+      }
       bucket.push(node);
     }
 
@@ -328,7 +334,10 @@ export class RoadNetwork extends EventEmitter {
       const col = Math.min(Math.floor((lon - minLon) / lonStep), SECTORS_N - 1);
       const key = row * SECTORS_N + col;
       let bucket = poiSectors.get(key);
-      if (!bucket) { bucket = []; poiSectors.set(key, bucket); }
+      if (!bucket) {
+        bucket = [];
+        poiSectors.set(key, bucket);
+      }
       bucket.push(node);
     }
     const buckets = Array.from(poiSectors.values());

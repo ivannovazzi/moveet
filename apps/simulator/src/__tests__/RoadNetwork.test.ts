@@ -178,7 +178,11 @@ describe("RoadNetwork", () => {
     it("should return null when no route exists", async () => {
       const start = network.findNearestNode([45.5017, -73.5673]);
       // Isolated node not in the graph
-      const isolated = { id: "isolated", coordinates: [90, 180] as [number, number], connections: [] };
+      const isolated = {
+        id: "isolated",
+        coordinates: [90, 180] as [number, number],
+        connections: [],
+      };
 
       const route = await network.findRouteAsync(start, isolated);
       expect(route).toBeNull();

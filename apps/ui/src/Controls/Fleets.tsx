@@ -51,9 +51,16 @@ export default function Fleets({ fleets, onCreateFleet, onDeleteFleet }: FleetsP
             <span className={styles.fleetName}>{fleet.name}</span>
             <span className={styles.fleetCount}>{fleet.vehicleIds.length}</span>
             {fleet.source === "external" ? (
-              <span className={styles.lockIcon} title="External fleet (read-only)">ext</span>
+              <span className={styles.lockIcon} title="External fleet (read-only)">
+                ext
+              </span>
             ) : (
-              <button className={styles.deleteButton} onClick={() => onDeleteFleet(fleet.id)} title="Delete fleet" type="button">
+              <button
+                className={styles.deleteButton}
+                onClick={() => onDeleteFleet(fleet.id)}
+                title="Delete fleet"
+                type="button"
+              >
                 x
               </button>
             )}
@@ -67,7 +74,9 @@ export default function Fleets({ fleets, onCreateFleet, onDeleteFleet }: FleetsP
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           onKeyDown={handleKeyDown}
-          onBlur={() => { if (!newName.trim()) setIsAdding(false); }}
+          onBlur={() => {
+            if (!newName.trim()) setIsAdding(false);
+          }}
           placeholder="Fleet name..."
           autoFocus
         />

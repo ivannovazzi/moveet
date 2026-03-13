@@ -79,19 +79,19 @@ describe("HeatLayer debounce", () => {
     const { rerender } = render(
       <svg>
         <HeatLayer data={data1} />
-      </svg>,
+      </svg>
     );
 
     // Rapid updates before debounce fires
     rerender(
       <svg>
         <HeatLayer data={data2} />
-      </svg>,
+      </svg>
     );
     rerender(
       <svg>
         <HeatLayer data={data3} />
-      </svg>,
+      </svg>
     );
 
     // Before debounce period — no calculation yet
@@ -110,7 +110,7 @@ describe("HeatLayer debounce", () => {
     render(
       <svg>
         <HeatLayer data={data} debounceMs={300} />
-      </svg>,
+      </svg>
     );
 
     expect(densityFn).not.toHaveBeenCalled();
@@ -130,7 +130,7 @@ describe("HeatLayer debounce", () => {
     const { unmount } = render(
       <svg>
         <HeatLayer data={data} />
-      </svg>,
+      </svg>
     );
 
     // Unmount before debounce fires
@@ -147,7 +147,7 @@ describe("HeatLayer debounce", () => {
     render(
       <svg>
         <HeatLayer data={[]} />
-      </svg>,
+      </svg>
     );
 
     vi.advanceTimersByTime(1000);

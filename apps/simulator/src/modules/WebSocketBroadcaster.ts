@@ -124,8 +124,7 @@ export class WebSocketBroadcaster {
     if (!prev) return true; // Never sent — always include
     const dlat = vehicle.position[0] - prev[0];
     const dlng = vehicle.position[1] - prev[1];
-    return Math.abs(dlat) >= POSITION_DELTA_THRESHOLD ||
-           Math.abs(dlng) >= POSITION_DELTA_THRESHOLD;
+    return Math.abs(dlat) >= POSITION_DELTA_THRESHOLD || Math.abs(dlng) >= POSITION_DELTA_THRESHOLD;
   }
 
   /**
@@ -144,7 +143,9 @@ export class WebSocketBroadcaster {
       const state = this.getClientState(client);
 
       // Backpressure check
-      if ((client as unknown as { bufferedAmount: number }).bufferedAmount > BACKPRESSURE_THRESHOLD) {
+      if (
+        (client as unknown as { bufferedAmount: number }).bufferedAmount > BACKPRESSURE_THRESHOLD
+      ) {
         state.droppedFlushes++;
         if (state.droppedFlushes > MAX_DROPPED_FLUSHES) {
           client.close();
@@ -153,7 +154,7 @@ export class WebSocketBroadcaster {
       }
 
       // Delta filtering: only send vehicles whose position changed above threshold
-      const changed = vehicles.filter(v => this.hasPositionChanged(v, state.lastSent));
+      const changed = vehicles.filter((v) => this.hasPositionChanged(v, state.lastSent));
 
       if (changed.length === 0) continue;
 

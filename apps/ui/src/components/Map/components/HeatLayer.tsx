@@ -54,9 +54,7 @@ export default function HeatLayer({
       colorScale.domain([0, max(contours, (d) => d.value) ?? 1]);
 
       const heatGroup = select(heatmapRef.current);
-      const paths = heatGroup
-        .selectAll<SVGPathElement, ContourMultiPolygon>("path")
-        .data(contours);
+      const paths = heatGroup.selectAll<SVGPathElement, ContourMultiPolygon>("path").data(contours);
 
       paths.exit().remove();
 

@@ -51,7 +51,10 @@ export class VehicleManager extends EventEmitter {
     heatZoneSpeedFactor: config.heatZoneSpeedFactor,
   };
 
-  constructor(private network: RoadNetwork, private fleetManager: FleetManager) {
+  constructor(
+    private network: RoadNetwork,
+    private fleetManager: FleetManager
+  ) {
     super();
     this.init();
   }
@@ -321,7 +324,10 @@ export class VehicleManager extends EventEmitter {
 
       this.updateVehicle(vehicle, deltaMs);
 
-      this.emit("update", serializeVehicle(vehicle, this.fleetManager.getVehicleFleetId(vehicleId)));
+      this.emit(
+        "update",
+        serializeVehicle(vehicle, this.fleetManager.getVehicleFleetId(vehicleId))
+      );
     }
   }
 
@@ -771,7 +777,7 @@ export class VehicleManager extends EventEmitter {
   }
 
   public getVehicles(): VehicleDTO[] {
-    return Array.from(this.vehicles.values()).map(v =>
+    return Array.from(this.vehicles.values()).map((v) =>
       serializeVehicle(v, this.fleetManager.getVehicleFleetId(v.id))
     );
   }
@@ -810,5 +816,4 @@ export class VehicleManager extends EventEmitter {
   public getNetwork(): RoadNetwork {
     return this.network;
   }
-
 }

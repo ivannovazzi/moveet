@@ -2,8 +2,16 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { FleetManager } from "../modules/FleetManager";
 
 const PALETTE = [
-  "#e6194b", "#3cb44b", "#4363d8", "#f58231", "#911eb4",
-  "#42d4f4", "#f032e6", "#bfef45", "#fabed4", "#dcbeff",
+  "#e6194b",
+  "#3cb44b",
+  "#4363d8",
+  "#f58231",
+  "#911eb4",
+  "#42d4f4",
+  "#f032e6",
+  "#bfef45",
+  "#fabed4",
+  "#dcbeff",
 ];
 
 describe("FleetManager", () => {

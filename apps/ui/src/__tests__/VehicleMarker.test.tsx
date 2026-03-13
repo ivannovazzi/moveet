@@ -80,14 +80,14 @@ describe("VehicleMarker memo", () => {
     const { rerender } = render(
       <svg>
         <VehicleMarker {...baseProps} />
-      </svg>,
+      </svg>
     );
 
     // Re-render with the exact same prop values (new object, same content)
     rerender(
       <svg>
         <VehicleMarker {...baseProps} />
-      </svg>,
+      </svg>
     );
 
     // The component should have been rendered once, then memo'd on re-render.
@@ -101,14 +101,14 @@ describe("VehicleMarker memo", () => {
     const { rerender, container } = render(
       <svg>
         <VehicleMarker {...baseProps} />
-      </svg>,
+      </svg>
     );
 
-    const newPosition: Position = [36.83, -1.30];
+    const newPosition: Position = [36.83, -1.3];
     rerender(
       <svg>
         <VehicleMarker {...baseProps} position={newPosition} />
-      </svg>,
+      </svg>
     );
 
     // The marker should still be rendered (visible=true)
@@ -119,13 +119,13 @@ describe("VehicleMarker memo", () => {
     const { rerender, container } = render(
       <svg>
         <VehicleMarker {...baseProps} />
-      </svg>,
+      </svg>
     );
 
     rerender(
       <svg>
         <VehicleMarker {...baseProps} selected={true} />
-      </svg>,
+      </svg>
     );
 
     // Should now show the selection ring
@@ -136,13 +136,13 @@ describe("VehicleMarker memo", () => {
     const { rerender, container } = render(
       <svg>
         <VehicleMarker {...baseProps} />
-      </svg>,
+      </svg>
     );
 
     rerender(
       <svg>
         <VehicleMarker {...baseProps} hovered={true} />
-      </svg>,
+      </svg>
     );
 
     expect(container.querySelector("polygon")).toBeTruthy();
@@ -152,7 +152,7 @@ describe("VehicleMarker memo", () => {
     const { container } = render(
       <svg>
         <VehicleMarker {...baseProps} visible={false} />
-      </svg>,
+      </svg>
     );
 
     expect(container.querySelector("polygon")).toBeNull();
@@ -162,7 +162,7 @@ describe("VehicleMarker memo", () => {
     const { container, rerender } = render(
       <svg>
         <VehicleMarker {...baseProps} selected={false} />
-      </svg>,
+      </svg>
     );
 
     expect(container.querySelector("circle")).toBeNull();
@@ -170,7 +170,7 @@ describe("VehicleMarker memo", () => {
     rerender(
       <svg>
         <VehicleMarker {...baseProps} selected={true} />
-      </svg>,
+      </svg>
     );
 
     expect(container.querySelector("circle")).toBeTruthy();
@@ -180,7 +180,7 @@ describe("VehicleMarker memo", () => {
     const { container } = render(
       <svg>
         <VehicleMarker {...baseProps} fleetColor="#ff0000" />
-      </svg>,
+      </svg>
     );
 
     const polygon = container.querySelector("polygon") as SVGPolygonElement;
@@ -194,7 +194,7 @@ describe("VehicleMarker memo", () => {
     const { rerender } = render(
       <svg>
         <MemoizedTracker {...baseProps} onClick={onClick1} />
-      </svg>,
+      </svg>
     );
 
     expect(renderSpy).toHaveBeenCalledTimes(1);
@@ -203,7 +203,7 @@ describe("VehicleMarker memo", () => {
     rerender(
       <svg>
         <MemoizedTracker {...baseProps} onClick={onClick2} />
-      </svg>,
+      </svg>
     );
 
     expect(renderSpy).toHaveBeenCalledTimes(2);
@@ -216,7 +216,7 @@ describe("VehicleMarker memo", () => {
     const { rerender } = render(
       <svg>
         <MemoizedTracker {...props} />
-      </svg>,
+      </svg>
     );
 
     expect(renderSpy).toHaveBeenCalledTimes(1);
@@ -225,7 +225,7 @@ describe("VehicleMarker memo", () => {
     rerender(
       <svg>
         <MemoizedTracker {...props} />
-      </svg>,
+      </svg>
     );
 
     // memo should prevent re-render

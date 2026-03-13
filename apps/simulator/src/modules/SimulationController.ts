@@ -1,5 +1,11 @@
 import type { VehicleManager } from "./VehicleManager";
-import type { DirectionRequest, Direction, SimulationStatus, StartOptions, VehicleDTO } from "../types";
+import type {
+  DirectionRequest,
+  Direction,
+  SimulationStatus,
+  StartOptions,
+  VehicleDTO,
+} from "../types";
 import { TIME_INTERVALS } from "../constants";
 import { config } from "../utils/config";
 import EventEmitter from "events";

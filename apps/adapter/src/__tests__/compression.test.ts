@@ -31,9 +31,7 @@ describe("compression middleware", () => {
   it("compresses large JSON responses when client accepts gzip", async () => {
     const app = createAppWithCompression();
 
-    const res = await request(app)
-      .get("/large-json")
-      .set("Accept-Encoding", "gzip");
+    const res = await request(app).get("/large-json").set("Accept-Encoding", "gzip");
 
     expect(res.status).toBe(200);
     expect(res.headers["content-encoding"]).toBe("gzip");
@@ -42,9 +40,7 @@ describe("compression middleware", () => {
   it("compresses large JSON responses when client accepts deflate", async () => {
     const app = createAppWithCompression();
 
-    const res = await request(app)
-      .get("/large-json")
-      .set("Accept-Encoding", "deflate");
+    const res = await request(app).get("/large-json").set("Accept-Encoding", "deflate");
 
     expect(res.status).toBe(200);
     expect(res.headers["content-encoding"]).toBe("deflate");
@@ -53,9 +49,7 @@ describe("compression middleware", () => {
   it("does not compress small responses below threshold", async () => {
     const app = createAppWithCompression();
 
-    const res = await request(app)
-      .get("/small-json")
-      .set("Accept-Encoding", "gzip");
+    const res = await request(app).get("/small-json").set("Accept-Encoding", "gzip");
 
     expect(res.status).toBe(200);
     expect(res.headers["content-encoding"]).toBeUndefined();
@@ -64,9 +58,7 @@ describe("compression middleware", () => {
   it("does not compress when client does not accept encoding", async () => {
     const app = createAppWithCompression();
 
-    const res = await request(app)
-      .get("/large-json")
-      .set("Accept-Encoding", "identity");
+    const res = await request(app).get("/large-json").set("Accept-Encoding", "identity");
 
     expect(res.status).toBe(200);
     expect(res.headers["content-encoding"]).toBeUndefined();
@@ -75,9 +67,7 @@ describe("compression middleware", () => {
   it("returns valid JSON even when compressed", async () => {
     const app = createAppWithCompression();
 
-    const res = await request(app)
-      .get("/large-json")
-      .set("Accept-Encoding", "gzip");
+    const res = await request(app).get("/large-json").set("Accept-Encoding", "gzip");
 
     expect(res.status).toBe(200);
     const body = res.body;
