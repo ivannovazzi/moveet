@@ -41,8 +41,10 @@ interface VehicleInterp {
   updateTime: number;
 }
 
-/** Duration (ms) over which positions interpolate — slightly above WS flush interval. */
-const LERP_DURATION_MS = 150;
+/** Fallback lerp duration before we have enough samples. */
+const DEFAULT_LERP_MS = 150;
+/** Minimum lerp duration to avoid jitter from timing noise. */
+const MIN_LERP_MS = 30;
 
 /** Lerp a single value from a to b by t ∈ [0, 1]. */
 function lerp(a: number, b: number, t: number): number {
@@ -164,6 +166,9 @@ export default function VehiclesLayer({
   onClickRef.current = onClick;
   const containerRef = useRef<HTMLElement | null>(null);
   const interpRef = useRef(new Map<string, VehicleInterp>());
+  /** Tracks the measured interval between consecutive WS updates. */
+  const lerpDurationRef = useRef(DEFAULT_LERP_MS);
+  const lastUpdateTimeRef = useRef(0);
 
   // Refs for values that change but shouldn't restart the RAF loop
   const transformRef = useRef(transform);
@@ -261,6 +266,21 @@ export default function VehiclesLayer({
       // Update interpolation targets when new data arrives
       if (positionsChanged) {
         lastVersion = currentVersion;
+
+        // Measure actual interval between WS updates (EMA, α = 0.3)
+        const prevUpdate = lastUpdateTimeRef.current;
+        if (prevUpdate > 0) {
+          const delta = now - prevUpdate;
+          if (delta > MIN_LERP_MS) {
+            lerpDurationRef.current =
+              lerpDurationRef.current === DEFAULT_LERP_MS
+                ? delta // first real sample replaces the default
+                : lerpDurationRef.current * 0.7 + delta * 0.3;
+          }
+        }
+        lastUpdateTimeRef.current = now;
+
+        const lerpMs = lerpDurationRef.current;
         const store = vehicleStore.getAll();
         const interps = interpRef.current;
 
@@ -273,7 +293,7 @@ export default function VehiclesLayer({
           if (existing) {
             // Snap prev to wherever we currently are in the lerp (avoid jump-back)
             const elapsed = now - existing.updateTime;
-            const t01 = Math.min(elapsed / LERP_DURATION_MS, 1);
+            const t01 = Math.min(elapsed / lerpMs, 1);
             existing.prevLat = lerp(existing.prevLat, existing.nextLat, t01);
             existing.prevLng = lerp(existing.prevLng, existing.nextLng, t01);
             existing.prevHeading = lerpAngle(existing.prevHeading, existing.nextHeading, t01);
@@ -301,10 +321,11 @@ export default function VehiclesLayer({
       }
 
       // Determine if any vehicle is still mid-interpolation
+      const lerpMs = lerpDurationRef.current;
       animating = false;
       const interps = interpRef.current;
       for (const state of interps.values()) {
-        if (now - state.updateTime < LERP_DURATION_MS) {
+        if (now - state.updateTime < lerpMs) {
           animating = true;
           break;
         }
@@ -361,7 +382,7 @@ export default function VehiclesLayer({
 
         if (state) {
           const elapsed = now - state.updateTime;
-          const t01 = Math.min(elapsed / LERP_DURATION_MS, 1);
+          const t01 = Math.min(elapsed / lerpMs, 1);
           lat = lerp(state.prevLat, state.nextLat, t01);
           lng = lerp(state.prevLng, state.nextLng, t01);
           heading = lerpAngle(state.prevHeading, state.nextHeading, t01);
