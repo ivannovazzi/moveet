@@ -33,11 +33,13 @@ export default function BatchDispatch({
 }: BatchDispatchProps) {
   const [results, setResults] = useState<DirectionResult[]>([]);
   const [dispatching, setDispatching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleDispatch = useCallback(async () => {
     if (assignments.length === 0) return;
     setDispatching(true);
     setResults([]);
+    setError(null);
 
     const body = assignments.map((a) => ({
       id: a.vehicleId,
@@ -50,6 +52,8 @@ export default function BatchDispatch({
 
     if (response.data?.results) {
       setResults(response.data.results);
+    } else {
+      setError(response.error ?? "Dispatch failed");
     }
   }, [assignments]);
 
@@ -167,6 +171,12 @@ export default function BatchDispatch({
           ))
         )}
       </div>
+
+      {error && (
+        <div className={classNames(styles.resultRow, styles.resultError)}>
+          <span className={styles.resultDetail}>{error}</span>
+        </div>
+      )}
 
       {results.length > 0 && (
         <div className={styles.results}>
