@@ -6,6 +6,7 @@ import type {
   VehicleDTO,
   Route,
   Direction,
+  DirectionResult,
   StartOptions,
 } from "../types";
 import { VEHICLE_CONSTANTS } from "../constants";
@@ -705,28 +706,42 @@ export class VehicleManager extends EventEmitter {
    * @example
    * await vehicleManager.findAndSetRoutes('vehicle-1', [45.5017, -73.5673]);
    */
-  public async findAndSetRoutes(vehicleId: string, destination: [number, number]): Promise<void> {
+  public async findAndSetRoutes(vehicleId: string, destination: [number, number]): Promise<DirectionResult> {
     const vehicle = this.vehicles.get(vehicleId);
-    if (!vehicle) throw new Error(`Vehicle ${vehicleId} not found`);
+    if (!vehicle) {
+      return { vehicleId, status: "error", error: `Vehicle ${vehicleId} not found` };
+    }
 
     const endNode = this.network.findNearestNode(destination);
     const startNode = this.network.findNearestNode(vehicle.position);
 
     if (startNode.connections.length === 0 || endNode.connections.length === 0) {
       logger.error("Start/end node has no connections");
-      return;
+      return {
+        vehicleId,
+        status: "error",
+        error: "Start or end node has no connections",
+        snappedTo: endNode.coordinates,
+      };
     }
 
     const route = await this.network.findRouteAsync(startNode, endNode);
-    if (!route) {
+    if (!route || route.edges.length === 0) {
       logger.error("No route found to destination");
-      return;
+      return {
+        vehicleId,
+        status: "error",
+        error: "No route found to destination",
+        snappedTo: endNode.coordinates,
+      };
     }
+
+    const eta = utils.estimateRouteDuration(route, vehicle.speed);
 
     this.emit("direction", {
       vehicleId,
       route: utils.nonCircularRouteEdges(route),
-      eta: utils.estimateRouteDuration(route, vehicle.speed),
+      eta,
     });
     this.routes.set(vehicleId, route);
     const previousEdgeId = vehicle.currentEdge.id;
@@ -736,6 +751,18 @@ export class VehicleManager extends EventEmitter {
     this.moveInEdgeIndex(vehicleId, previousEdgeId, vehicle.currentEdge.id);
     vehicle.progress = 0;
     vehicle.edgeIndex = 0; // Initialize cached edge index
+
+    return {
+      vehicleId,
+      status: "ok",
+      route: {
+        start: startNode.coordinates,
+        end: endNode.coordinates,
+        distance: route.distance,
+      },
+      eta,
+      snappedTo: endNode.coordinates,
+    };
   }
 
   /**
@@ -774,6 +801,16 @@ export class VehicleManager extends EventEmitter {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Checks if a vehicle with the given ID exists.
+   *
+   * @param vehicleId - ID of the vehicle to check
+   * @returns True if the vehicle exists, false otherwise
+   */
+  public hasVehicle(vehicleId: string): boolean {
+    return this.vehicles.has(vehicleId);
   }
 
   public getVehicles(): VehicleDTO[] {

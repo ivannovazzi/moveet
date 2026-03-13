@@ -1,6 +1,7 @@
 import type { VehicleManager } from "./VehicleManager";
 import type {
   DirectionRequest,
+  DirectionResult,
   Direction,
   SimulationStatus,
   StartOptions,
@@ -143,11 +144,14 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
    *   { id: 'vehicle-2', lat: 45.5088, lng: -73.5878 }
    * ]);
    */
-  async setDirections(requests: DirectionRequest[]): Promise<void> {
+  async setDirections(requests: DirectionRequest[]): Promise<DirectionResult[]> {
+    const results: DirectionResult[] = [];
     for (const request of requests) {
       const { id, lat, lng } = request;
-      await this.vehicleManager.findAndSetRoutes(id, [lat, lng]);
+      const result = await this.vehicleManager.findAndSetRoutes(id, [lat, lng]);
+      results.push(result);
     }
+    return results;
   }
 
   /**

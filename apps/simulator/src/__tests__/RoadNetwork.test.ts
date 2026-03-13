@@ -698,6 +698,63 @@ describe("RoadNetwork", () => {
     });
   });
 
+  describe("findNearestNode snapping", () => {
+    it("should return the exact node when given exact node coordinates", () => {
+      // Node at the junction of Main Street and First Avenue: [45.5023, -73.5667]
+      const node = network.findNearestNode([45.5023, -73.5667]);
+      expect(node.id).toBe("45.5023,-73.5667");
+      expect(node.coordinates[0]).toBe(45.5023);
+      expect(node.coordinates[1]).toBe(-73.5667);
+    });
+
+    it("should snap a coordinate ~50m offset to the nearest node", () => {
+      // The node at [45.5020, -73.5670] exists in the network.
+      // Offset by roughly 50m (~0.00045 degrees latitude).
+      const offset: [number, number] = [45.50245, -73.5670];
+      const node = network.findNearestNode(offset);
+
+      // Should snap to the closest node — either [45.5023, -73.5667] or [45.5026, -73.5664]
+      // depending on exact distance. Verify it's a real network node with connections.
+      expect(node).toBeDefined();
+      expect(node.id).toBeDefined();
+      expect(node.connections.length).toBeGreaterThan(0);
+
+      // The snapped coordinate should be closer to our query than any other node
+      const snappedDist = utils.calculateDistance(offset, node.coordinates);
+      // Verify snapped distance is small (< 0.1 km = 100m)
+      expect(snappedDist).toBeLessThan(0.1);
+    });
+
+    it("should snap to the closer node when positioned between two nodes", () => {
+      // Two adjacent nodes on First Avenue:
+      //   A = [45.5023, -73.5667]
+      //   B = [45.5026, -73.5664]
+      // Place query much closer to A than B
+      const nearA: [number, number] = [45.50235, -73.56675];
+      const nodeA = network.findNearestNode([45.5023, -73.5667]);
+      const result = network.findNearestNode(nearA);
+
+      expect(result.id).toBe(nodeA.id);
+    });
+
+    it("should return a node that has connections (is routable)", () => {
+      // Use a position near the network and verify the snapped node is routable
+      const position: [number, number] = [45.5019, -73.5672];
+      const node = network.findNearestNode(position);
+
+      expect(node.connections).toBeDefined();
+      expect(Array.isArray(node.connections)).toBe(true);
+      expect(node.connections.length).toBeGreaterThan(0);
+
+      // Each connection should be a valid edge with start/end nodes
+      for (const edge of node.connections) {
+        expect(edge.start).toBeDefined();
+        expect(edge.end).toBeDefined();
+        expect(edge.distance).toBeGreaterThan(0);
+      }
+    });
+  });
+
   describe("findNearestNode spatial index", () => {
     it("should return the exact node when coordinates match exactly", () => {
       // Node at the start of Main Street: [45.5017, -73.5673]

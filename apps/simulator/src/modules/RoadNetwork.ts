@@ -1,7 +1,7 @@
 import fs from "fs";
 import crypto from "crypto";
 import type { Feature, FeatureCollection, LineString } from "geojson";
-import type { Node, Edge, Route, PathNode, HeatZoneFeature, POI, HighwayType } from "../types";
+import type { Node, Edge, Route, PathNode, HeatZoneFeature, POI, HighwayType, BoundingBox } from "../types";
 import * as utils from "../utils/helpers";
 import { LRUCache, type CacheStats } from "../utils/LRUCache";
 import { HeatZoneManager } from "./HeatZoneManager";
@@ -147,6 +147,15 @@ export class RoadNetwork extends EventEmitter {
 
     this.sectorEdges = Array.from(edgeSectorMap.values());
     this.sectorNodes = Array.from(nodeSectorMap.values());
+  }
+
+  /**
+   * Returns the bounding box of the road network computed from all node coordinates.
+   *
+   * @returns BoundingBox with minLat, maxLat, minLon, maxLon
+   */
+  public getBoundingBox(): BoundingBox {
+    return { ...this.bbox };
   }
 
   public getAllRoads(): Road[] {

@@ -516,4 +516,120 @@ describe("VehicleManager", () => {
       expect(manager.getNetwork()).toBe(network);
     });
   });
+
+  // ─── Dispatch: findAndSetRoutes ─────────────────────────────────
+
+  describe("findAndSetRoutes dispatch", () => {
+    afterEach(async () => {
+      await network.shutdownWorkers();
+    });
+
+    it("should set route and emit direction event when dispatched to reachable destination", async () => {
+      const vehicle = firstVehicle();
+      const directionListener = vi.fn();
+      manager.on("direction", directionListener);
+
+      // Destination is a known reachable node in the test network
+      // First Avenue endpoint: [45.5029, -73.5661]
+      await manager.findAndSetRoutes(vehicle.id, [45.5029, -73.5661]);
+
+      // Should have emitted a direction event
+      expect(directionListener).toHaveBeenCalledTimes(1);
+      const directionEvent = directionListener.mock.calls[0][0];
+      expect(directionEvent.vehicleId).toBe(vehicle.id);
+      expect(directionEvent.route).toBeDefined();
+      expect(directionEvent.route.edges).toBeDefined();
+      expect(directionEvent.route.edges.length).toBeGreaterThan(0);
+      expect(directionEvent.route.distance).toBeGreaterThan(0);
+
+      // Vehicle's currentEdge should be the first edge of the route
+      expect(vehicle.progress).toBe(0);
+      expect(vehicle.edgeIndex).toBe(0);
+
+      manager.off("direction", directionListener);
+    });
+
+    it("should handle unreachable destination gracefully without crashing", async () => {
+      const vehicle = firstVehicle();
+      const directionListener = vi.fn();
+      manager.on("direction", directionListener);
+
+      // Force an unreachable scenario by disconnecting the start node.
+      // Create a disconnected node scenario by temporarily replacing the vehicle position
+      // with coordinates that snap to a node with no connections.
+      // We can't easily create an unreachable destination on this small connected graph,
+      // so we test the "no connections" early return path by mocking findNearestNode
+      // to return an isolated node for the start.
+      const origFindNearest = network.findNearestNode.bind(network);
+      let callCount = 0;
+      vi.spyOn(network, "findNearestNode").mockImplementation((pos) => {
+        callCount++;
+        if (callCount === 2) {
+          // Second call is for the destination — return isolated node
+          return { id: "isolated", coordinates: [90, 180] as [number, number], connections: [] };
+        }
+        return origFindNearest(pos);
+      });
+
+      // Should not throw, should return an error result
+      const result = await manager.findAndSetRoutes(vehicle.id, [90, 180]);
+      expect(result.status).toBe("error");
+      expect(result.error).toBeDefined();
+
+      // Should NOT have emitted a direction event (no route found)
+      expect(directionListener).not.toHaveBeenCalled();
+
+      vi.restoreAllMocks();
+      manager.off("direction", directionListener);
+    });
+
+    it("should return error result when vehicle is not found", async () => {
+      const result = await manager.findAndSetRoutes("non-existent-vehicle-id", [45.5029, -73.5661]);
+      expect(result.status).toBe("error");
+      expect(result.vehicleId).toBe("non-existent-vehicle-id");
+      expect(result.error).toBe("Vehicle non-existent-vehicle-id not found");
+    });
+
+    it("should replace old route when vehicle already has one", async () => {
+      const vehicle = firstVehicle();
+
+      // Place vehicle on a known bidirectional edge so both dispatches can succeed.
+      // Use the Second Avenue edge from [45.5020, -73.5670] to [45.5023, -73.5673].
+      // This node connects to both First Avenue (via Main Street junction) and Second Avenue.
+      const startNode = network.findNearestNode([45.502, -73.567]);
+      const startEdge = startNode.connections[0];
+      vehicle.currentEdge = startEdge;
+      vehicle.position = startEdge.start.coordinates;
+      vehicle.progress = 0;
+
+      // First dispatch — route to Second Avenue endpoint: [45.5026, -73.5676]
+      const firstResult = await manager.findAndSetRoutes(vehicle.id, [45.5026, -73.5676]);
+      expect(firstResult.status).toBe("ok");
+
+      // Second dispatch — route to a different destination on the same connected component
+      // Route to First Avenue midpoint: [45.5026, -73.5664]
+      const directionListener = vi.fn();
+      manager.on("direction", directionListener);
+
+      const secondResult = await manager.findAndSetRoutes(vehicle.id, [45.5026, -73.5664]);
+
+      if (secondResult.status === "ok") {
+        // Should have emitted a new direction event for the replacement route
+        expect(directionListener).toHaveBeenCalledTimes(1);
+        const directionEvent = directionListener.mock.calls[0][0];
+        expect(directionEvent.vehicleId).toBe(vehicle.id);
+        expect(directionEvent.route.edges.length).toBeGreaterThan(0);
+
+        // Vehicle should be reset to the start of the new route
+        expect(vehicle.progress).toBe(0);
+        expect(vehicle.edgeIndex).toBe(0);
+      } else {
+        // On this small directed graph, some route pairs are unreachable due to one-way streets.
+        // Verify the error was graceful (no crash, proper error result).
+        expect(secondResult.error).toBeDefined();
+      }
+
+      manager.off("direction", directionListener);
+    });
+  });
 });

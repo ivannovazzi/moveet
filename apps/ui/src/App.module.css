@@ -122,6 +122,29 @@
   }
 }
 
+.dispatchPanel {
+  right: 0;
+  bottom: 0;
+  top: auto;
+  width: clamp(280px, 24vw, 360px);
+  height: clamp(300px, 50vh, 480px);
+  transform: translateY(calc(100% + 20px));
+}
+
+.dispatchPanelOpen {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0);
+  transition-delay: 0s;
+}
+
+.dispatchPanel .panelInner {
+  border-left: 1px solid var(--color-overlay-1);
+  border-top: 1px solid var(--color-overlay-1);
+  border-radius: var(--radius-lg) 0 0 0;
+}
+
 .contextMenu {
   padding: 0.5rem;
   backdrop-filter: var(--blur);

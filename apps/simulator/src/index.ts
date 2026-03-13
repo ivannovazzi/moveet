@@ -111,8 +111,69 @@ app.post("/stop", (_req, res) => {
 app.post(
   "/direction",
   asyncHandler(async (req, res) => {
-    await simulationController.setDirections(req.body);
-    res.json({ status: "direction" });
+    const body = req.body;
+
+    // Validate request body is a non-empty array
+    if (!Array.isArray(body) || body.length === 0) {
+      res.status(400).json({
+        error: "Request body must be a non-empty array of direction requests",
+      });
+      return;
+    }
+
+    // Validate each item in the array
+    const errors: string[] = [];
+    const bbox = network.getBoundingBox();
+    // Add a margin (~10km) around the network bounding box for coordinate validation
+    const MARGIN = 0.1;
+
+    for (let i = 0; i < body.length; i++) {
+      const item = body[i];
+
+      // Validate id field
+      if (typeof item.id !== "string" || item.id.length === 0) {
+        errors.push(`[${i}]: 'id' must be a non-empty string`);
+        continue;
+      }
+
+      // Validate lat/lng fields are numeric
+      if (typeof item.lat !== "number" || isNaN(item.lat)) {
+        errors.push(`[${i}]: 'lat' must be a valid number`);
+      }
+      if (typeof item.lng !== "number" || isNaN(item.lng)) {
+        errors.push(`[${i}]: 'lng' must be a valid number`);
+      }
+
+      // Skip further validation if lat/lng are not valid numbers
+      if (typeof item.lat !== "number" || isNaN(item.lat) || typeof item.lng !== "number" || isNaN(item.lng)) {
+        continue;
+      }
+
+      // Validate vehicle ID exists
+      if (!vehicleManager.hasVehicle(item.id)) {
+        errors.push(`[${i}]: vehicle '${item.id}' not found`);
+      }
+
+      // Validate coordinates are within network bounds (with margin)
+      if (
+        item.lat < bbox.minLat - MARGIN ||
+        item.lat > bbox.maxLat + MARGIN ||
+        item.lng < bbox.minLon - MARGIN ||
+        item.lng > bbox.maxLon + MARGIN
+      ) {
+        errors.push(
+          `[${i}]: coordinates (${item.lat}, ${item.lng}) are outside the road network bounds`
+        );
+      }
+    }
+
+    if (errors.length > 0) {
+      res.status(400).json({ error: "Validation failed", details: errors });
+      return;
+    }
+
+    const results = await simulationController.setDirections(body);
+    res.json({ status: "direction", results });
   })
 );
 
