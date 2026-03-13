@@ -509,6 +509,22 @@ describe("VehicleManager", () => {
     });
   });
 
+  // ─── hasVehicle ─────────────────────────────────────────────────────
+
+  describe("hasVehicle", () => {
+    it("should return true for an existing vehicle", () => {
+      const vehicles = manager.getVehicles();
+      expect(vehicles.length).toBeGreaterThan(0);
+
+      const vehicleId = vehicles[0].id;
+      expect(manager.hasVehicle(vehicleId)).toBe(true);
+    });
+
+    it("should return false for a non-existent vehicle", () => {
+      expect(manager.hasVehicle("non-existent-random-id-12345")).toBe(false);
+    });
+  });
+
   // ─── getNetwork ───────────────────────────────────────────────────
 
   describe("getNetwork", () => {
@@ -528,6 +544,14 @@ describe("VehicleManager", () => {
       const vehicle = firstVehicle();
       const directionListener = vi.fn();
       manager.on("direction", directionListener);
+
+      // Place vehicle on a known bidirectional edge so routing succeeds
+      const internalVehicle = (manager as any).vehicles.get(vehicle.id);
+      const startNode = network.findNearestNode([45.502, -73.567]);
+      const startEdge = startNode.connections[0];
+      internalVehicle.currentEdge = startEdge;
+      internalVehicle.position = startEdge.start.coordinates;
+      internalVehicle.progress = 0;
 
       // Destination is a known reachable node in the test network
       // First Avenue endpoint: [45.5029, -73.5661]

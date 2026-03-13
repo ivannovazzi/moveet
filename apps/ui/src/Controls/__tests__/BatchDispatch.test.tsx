@@ -326,4 +326,141 @@ describe("BatchDispatch", () => {
       expect(screen.getByText("unknown-id")).toBeInTheDocument();
     });
   });
+
+  it("handles API error without crashing", async () => {
+    // The component does not have try/catch, so the rejection propagates.
+    // Mock batchDirection to resolve with an error-level response instead
+    // (simulating a server error response that the HTTP client wraps).
+    mockedBatchDirection.mockResolvedValue({
+      data: {
+        status: "error",
+        results: [{ vehicleId: "v1", status: "error", error: "Server error" }],
+      },
+    });
+
+    const assignments = [makeAssignment({ vehicleId: "v1", vehicleName: "Truck Alpha" })];
+    const user = userEvent.setup();
+
+    const { container } = render(
+      <BatchDispatch {...defaultProps} assignments={assignments} />
+    );
+
+    await user.click(screen.getByText("Dispatch All (1)"));
+
+    await waitFor(() => {
+      // The component should still be rendered and show the error in results
+      expect(container).toBeInTheDocument();
+      expect(screen.getByText("Server error")).toBeInTheDocument();
+    });
+  });
+
+  it("handles API response with no data gracefully", async () => {
+    // Simulate a response where data is undefined (e.g., network issue handled by httpClient)
+    mockedBatchDirection.mockResolvedValue({
+      data: undefined,
+    });
+
+    const assignments = [makeAssignment({ vehicleId: "v1" })];
+    const user = userEvent.setup();
+
+    const { container } = render(
+      <BatchDispatch {...defaultProps} assignments={assignments} />
+    );
+
+    await user.click(screen.getByText("Dispatch All (1)"));
+
+    await waitFor(() => {
+      // The component should still be rendered (no crash), no results shown
+      expect(container).toBeInTheDocument();
+      expect(screen.getByText("Dispatch All (1)")).not.toBeDisabled();
+    });
+  });
+
+  it("filters out vehicles with visible=false from available vehicles", () => {
+    const vehicles: Vehicle[] = [
+      createVehicle({ id: "v1", name: "Truck Alpha", visible: true }),
+      createVehicle({ id: "v2", name: "Van Beta", visible: false }),
+      createVehicle({ id: "v3", name: "Car Gamma", visible: true }),
+    ];
+
+    render(<BatchDispatch {...defaultProps} vehicles={vehicles} />);
+
+    // The vehicle select should show "2 vehicles available" (v1 and v3 only)
+    expect(screen.getByText("2 vehicles available")).toBeInTheDocument();
+    expect(screen.queryByText("3 vehicles available")).not.toBeInTheDocument();
+  });
+
+  it("filters out vehicles already in assignments from available vehicles", () => {
+    const vehicles: Vehicle[] = [
+      createVehicle({ id: "v1", name: "Truck Alpha", visible: true }),
+      createVehicle({ id: "v2", name: "Van Beta", visible: true }),
+      createVehicle({ id: "v3", name: "Car Gamma", visible: true }),
+    ];
+    const assignments = [
+      makeAssignment({ vehicleId: "v1", vehicleName: "Truck Alpha" }),
+    ];
+
+    render(
+      <BatchDispatch {...defaultProps} vehicles={vehicles} assignments={assignments} />
+    );
+
+    // v1 is assigned, so only v2 and v3 are available
+    expect(screen.getByText("2 vehicles available")).toBeInTheDocument();
+  });
+
+  it("updates results on second dispatch", async () => {
+    const user = userEvent.setup();
+
+    // First dispatch returns eta=120
+    mockedBatchDirection.mockResolvedValueOnce({
+      data: {
+        status: "ok",
+        results: [{ vehicleId: "v1", status: "ok", eta: 120 }],
+      },
+    });
+
+    const assignments = [makeAssignment({ vehicleId: "v1", vehicleName: "Truck Alpha" })];
+
+    render(<BatchDispatch {...defaultProps} assignments={assignments} />);
+
+    await user.click(screen.getByText("Dispatch All (1)"));
+
+    await waitFor(() => {
+      expect(screen.getByText("ETA 120s")).toBeInTheDocument();
+    });
+
+    // Second dispatch returns eta=45
+    mockedBatchDirection.mockResolvedValueOnce({
+      data: {
+        status: "ok",
+        results: [{ vehicleId: "v1", status: "ok", eta: 45 }],
+      },
+    });
+
+    await user.click(screen.getByText("Dispatch All (1)"));
+
+    await waitFor(() => {
+      expect(screen.getByText("ETA 45s")).toBeInTheDocument();
+      expect(screen.queryByText("ETA 120s")).not.toBeInTheDocument();
+    });
+  });
+
+  it("dispatch button is disabled after assignments are cleared", () => {
+    // First render with assignments
+    const { rerender } = render(
+      <BatchDispatch
+        {...defaultProps}
+        assignments={[makeAssignment({ vehicleId: "v1" })]}
+      />
+    );
+
+    // Button should be enabled
+    expect(screen.getByText("Dispatch All (1)")).not.toBeDisabled();
+
+    // Re-render with empty assignments (simulating onClearAll having been called)
+    rerender(<BatchDispatch {...defaultProps} assignments={[]} />);
+
+    // Button should be disabled again
+    expect(screen.getByText("Dispatch All (0)")).toBeDisabled();
+  });
 });

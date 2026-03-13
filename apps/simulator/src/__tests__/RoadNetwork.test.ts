@@ -780,6 +780,53 @@ describe("RoadNetwork", () => {
     });
   });
 
+  describe("getBoundingBox", () => {
+    it("should return valid bbox with minLat < maxLat and minLon < maxLon", () => {
+      const bbox = network.getBoundingBox();
+
+      expect(bbox.minLat).toBeLessThan(bbox.maxLat);
+      expect(bbox.minLon).toBeLessThan(bbox.maxLon);
+    });
+
+    it("should return a copy that does not affect internal state when mutated", () => {
+      const bbox1 = network.getBoundingBox();
+      // Mutate the returned object
+      bbox1.minLat = 999;
+      bbox1.maxLat = -999;
+      bbox1.minLon = 999;
+      bbox1.maxLon = -999;
+
+      // Get a fresh copy and verify it was not affected
+      const bbox2 = network.getBoundingBox();
+      expect(bbox2.minLat).not.toBe(999);
+      expect(bbox2.maxLat).not.toBe(-999);
+      expect(bbox2.minLon).not.toBe(999);
+      expect(bbox2.maxLon).not.toBe(-999);
+    });
+
+    it("should contain all test network node coordinates within the bbox", () => {
+      const bbox = network.getBoundingBox();
+
+      // All 7 node positions from the test fixture
+      const knownPositions: [number, number][] = [
+        [45.5017, -73.5673],
+        [45.502, -73.567],
+        [45.5023, -73.5667],
+        [45.5026, -73.5664],
+        [45.5029, -73.5661],
+        [45.5023, -73.5673],
+        [45.5026, -73.5676],
+      ];
+
+      for (const [lat, lon] of knownPositions) {
+        expect(lat).toBeGreaterThanOrEqual(bbox.minLat);
+        expect(lat).toBeLessThanOrEqual(bbox.maxLat);
+        expect(lon).toBeGreaterThanOrEqual(bbox.minLon);
+        expect(lon).toBeLessThanOrEqual(bbox.maxLon);
+      }
+    });
+  });
+
   // Helper: find any edge with a given street name by checking known node positions
   function findEdgeByName(name: string) {
     const allEdges = getAllEdges();

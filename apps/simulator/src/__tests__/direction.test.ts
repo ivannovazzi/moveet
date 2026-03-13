@@ -24,6 +24,16 @@ describe("POST /direction (SimulationController.setDirections)", () => {
   let origAdapterURL: string;
   let origVehicleCount: number;
 
+  /** Place a vehicle on a known bidirectional edge so A* routing reliably succeeds. */
+  function placeOnRoutableEdge(vehicleId: string): void {
+    const internalVehicle = (manager as any).vehicles.get(vehicleId);
+    const startNode = network.findNearestNode([45.502, -73.567]);
+    const startEdge = startNode.connections[0];
+    internalVehicle.currentEdge = startEdge;
+    internalVehicle.position = startEdge.start.coordinates;
+    internalVehicle.progress = 0;
+  }
+
   beforeEach(() => {
     origAdapterURL = config.adapterURL;
     origVehicleCount = config.vehicleCount;
@@ -70,6 +80,7 @@ describe("POST /direction (SimulationController.setDirections)", () => {
     it("should return status 'ok' with route, eta, and snappedTo for a valid dispatch", async () => {
       const vehicles = manager.getVehicles();
       const vehicleId = vehicles[0].id;
+      placeOnRoutableEdge(vehicleId);
 
       // Dispatch to a known reachable node in the test network
       // First Avenue endpoint: [45.5029, -73.5661]
@@ -104,6 +115,8 @@ describe("POST /direction (SimulationController.setDirections)", () => {
     it("should return status 'ok' for all vehicles dispatched to different destinations", async () => {
       const vehicles = manager.getVehicles();
       expect(vehicles.length).toBeGreaterThanOrEqual(2);
+      placeOnRoutableEdge(vehicles[0].id);
+      placeOnRoutableEdge(vehicles[1].id);
 
       // Use destinations reachable from any node in the test network
       // (Main Street is oneway, so some nodes can't be reached from all starts)
@@ -195,12 +208,102 @@ describe("POST /direction (SimulationController.setDirections)", () => {
     });
   });
 
+  // ─── Empty request array ─────────────────────────────────────────
+
+  describe("empty request array", () => {
+    it("should return empty results array when given empty input", async () => {
+      const results = await controller.setDirections([]);
+
+      expect(results).toHaveLength(0);
+      expect(Array.isArray(results)).toBe(true);
+    });
+  });
+
+  // ─── Duplicate vehicle IDs in batch ─────────────────────────────────
+
+  describe("duplicate vehicle IDs in batch", () => {
+    it("should succeed for both entries when same vehicle is dispatched twice", async () => {
+      const vehicles = manager.getVehicles();
+      const vehicleId = vehicles[0].id;
+
+      // Place vehicle on a known bidirectional edge (Second Avenue) so both dispatches
+      // can succeed on this small directed test network.
+      const internalVehicle = (manager as any).vehicles.get(vehicleId);
+      const startNode = network.findNearestNode([45.502, -73.567]);
+      const startEdge = startNode.connections[0];
+      internalVehicle.currentEdge = startEdge;
+      internalVehicle.position = startEdge.start.coordinates;
+      internalVehicle.progress = 0;
+
+      // Dispatch the same vehicle to two different destinations on First Avenue
+      // (bidirectional road, reachable from the Second Avenue starting position)
+      const results = await controller.setDirections([
+        { id: vehicleId, lat: 45.5029, lng: -73.5661 }, // First Avenue endpoint
+        { id: vehicleId, lat: 45.5026, lng: -73.5664 }, // First Avenue midpoint
+      ]);
+
+      expect(results).toHaveLength(2);
+
+      // Both should reference the same vehicle
+      expect(results[0].vehicleId).toBe(vehicleId);
+      expect(results[1].vehicleId).toBe(vehicleId);
+
+      // Both should succeed (second overrides first)
+      expect(results[0].status).toBe("ok");
+      expect(results[1].status).toBe("ok");
+    });
+  });
+
+  // ─── Vehicle re-dispatch replaces existing route ────────────────────
+
+  describe("vehicle re-dispatch replaces existing route", () => {
+    it("should replace an existing route when vehicle is dispatched again to a different destination", async () => {
+      const vehicles = manager.getVehicles();
+      const vehicleId = vehicles[0].id;
+
+      // Place vehicle on a known bidirectional edge (Second Avenue) so dispatches
+      // can succeed on this small directed test network.
+      const internalVehicle = (manager as any).vehicles.get(vehicleId);
+      const startNode = network.findNearestNode([45.502, -73.567]);
+      const startEdge = startNode.connections[0];
+      internalVehicle.currentEdge = startEdge;
+      internalVehicle.position = startEdge.start.coordinates;
+      internalVehicle.progress = 0;
+
+      // First dispatch to First Avenue endpoint
+      const firstResults = await controller.setDirections([
+        { id: vehicleId, lat: 45.5029, lng: -73.5661 },
+      ]);
+
+      expect(firstResults).toHaveLength(1);
+      expect(firstResults[0].status).toBe("ok");
+      const firstRoute = firstResults[0].route;
+      expect(firstRoute).toBeDefined();
+
+      // Second dispatch to First Avenue midpoint (different destination on same
+      // bidirectional road, guaranteed reachable after first dispatch repositioned
+      // the vehicle onto First Avenue)
+      const secondResults = await controller.setDirections([
+        { id: vehicleId, lat: 45.5026, lng: -73.5664 },
+      ]);
+
+      expect(secondResults).toHaveLength(1);
+      expect(secondResults[0].status).toBe("ok");
+      const secondRoute = secondResults[0].route;
+      expect(secondRoute).toBeDefined();
+
+      // The new route should have a different end point than the first route
+      expect(secondRoute!.end).not.toEqual(firstRoute!.end);
+    });
+  });
+
   // ─── Mixed success/failure ─────────────────────────────────────────
 
   describe("mixed success/failure batch", () => {
     it("should return partial success with some ok and some error results", async () => {
       const vehicles = manager.getVehicles();
       const validId = vehicles[0].id;
+      placeOnRoutableEdge(validId);
       const invalidId = "does-not-exist";
 
       const results = await controller.setDirections([
@@ -226,6 +329,7 @@ describe("POST /direction (SimulationController.setDirections)", () => {
 
     it("should process all requests in order even when some fail", async () => {
       const vehicles = manager.getVehicles();
+      placeOnRoutableEdge(vehicles[0].id);
 
       const requests = [
         { id: "invalid-1", lat: 45.5029, lng: -73.5661 },
