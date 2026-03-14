@@ -27,3 +27,16 @@ export function deriveDispatchState(signals: DispatchSignals): DispatchState {
 export function useDispatchState(signals: DispatchSignals): DispatchState {
   return deriveDispatchState(signals);
 }
+
+const CURSOR_BY_STATE: Record<DispatchState, string> = {
+  [DispatchState.BROWSE]: "default",
+  [DispatchState.SELECT]: "default",
+  [DispatchState.ROUTE]: "crosshair",
+  [DispatchState.DISPATCH]: "wait",
+  [DispatchState.RESULTS]: "default",
+};
+
+export function cursorForDispatchState(state: DispatchState | undefined): string {
+  if (!state) return "grab";
+  return CURSOR_BY_STATE[state];
+}

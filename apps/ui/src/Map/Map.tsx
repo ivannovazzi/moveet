@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import type { DispatchAssignment, Fleet, Modifiers, POI, Position, Road, Vehicle } from "@/types";
 import type { Filters } from "@/hooks/useVehicles";
+import { type DispatchState, cursorForDispatchState } from "@/hooks/useDispatchState";
 
 import { useNetwork } from "@/hooks/useNetwork";
 import { RoadNetworkMap } from "@/components/Map/components/RoadNetworkMap";
@@ -27,6 +28,7 @@ interface MapProps {
   vehicleFleetMap: Map<string, Fleet>;
   hiddenFleetIds: Set<string>;
   dispatchMode?: boolean;
+  dispatchState?: DispatchState;
   assignments?: DispatchAssignment[];
 }
 
@@ -42,9 +44,17 @@ export default function Map({
   vehicleFleetMap,
   hiddenFleetIds,
   dispatchMode = false,
+  dispatchState,
   assignments = [],
 }: MapProps) {
   const network = useNetwork();
+
+  // Derive cursor: prefer dispatchState if provided, fall back to dispatchMode boolean
+  const cursor = dispatchState
+    ? cursorForDispatchState(dispatchState)
+    : dispatchMode
+      ? "crosshair"
+      : "grab";
 
   return (
     <RoadNetworkMap
@@ -54,7 +64,7 @@ export default function Map({
       strokeWidth={1.5}
       onClick={onMapClick}
       onContextClick={onMapContextClick}
-      dispatchMode={dispatchMode}
+      cursor={cursor}
       htmlMarkers={
         <>
           {modifiers.showPOIs && (
