@@ -16,7 +16,7 @@ interface RoadNetworkMapProps {
   htmlMarkers?: React.ReactNode;
   onClick?: (event: React.MouseEvent, position: Position) => void;
   onContextClick?: (event: React.MouseEvent, position: Position) => void;
-  dispatchMode?: boolean;
+  cursor?: string;
 }
 
 export const RoadNetworkMap: React.FC<RoadNetworkMapProps> = ({
@@ -28,7 +28,7 @@ export const RoadNetworkMap: React.FC<RoadNetworkMapProps> = ({
   onClick,
   onContextClick,
   htmlMarkers,
-  dispatchMode = false,
+  cursor = "grab",
 }) => {
   const htmlItemsRef = useRef<HTMLDivElement>(null);
   const [svgRef, setSvgRef] = useState<SVGSVGElement | null>(null);
@@ -164,7 +164,7 @@ export const RoadNetworkMap: React.FC<RoadNetworkMapProps> = ({
                 height: "100%",
                 background: "#111",
                 display: "block",
-                cursor: dispatchMode ? "crosshair" : "grab",
+                cursor,
               }}
               onClick={onSvgClick}
               onContextMenu={onSvgContextClick}

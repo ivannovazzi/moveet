@@ -287,3 +287,71 @@
   background: var(--color-bg-dark);
   color: var(--color-gray-lightest);
 }
+
+/* Dispatch mode: checkbox */
+.checkbox {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-xs);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: transparent;
+  flex-shrink: 0;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.checkboxChecked {
+  background: rgba(57, 153, 255, 0.85);
+  border-color: rgba(57, 153, 255, 1);
+}
+
+/* Dispatch mode: selected-for-dispatch highlight */
+.dispatchSelected {
+  background: rgba(57, 153, 255, 0.06);
+  border-color: rgba(57, 153, 255, 0.18);
+  box-shadow: inset 3px 0 0 rgba(57, 153, 255, 0.8);
+}
+
+.dispatchSelected:hover {
+  background: rgba(57, 153, 255, 0.1);
+}
+
+/* Dispatch mode: waypoint badge */
+.waypointBadge {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: rgba(57, 153, 255, 0.9);
+  background: rgba(57, 153, 255, 0.12);
+  border: 1px solid rgba(57, 153, 255, 0.18);
+  border-radius: 999px;
+  padding: 1px var(--space-2);
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+/* Dispatch mode: result badge */
+.resultBadge {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.resultBadgeOk {
+  color: rgba(80, 220, 80, 0.9);
+}
+
+.resultBadgeError {
+  color: rgba(255, 80, 80, 0.9);
+}
+
+/* Dispatch mode: dimmed (dispatching in progress) */
+.dimmed {
+  opacity: 0.6;
+  pointer-events: none;
+}

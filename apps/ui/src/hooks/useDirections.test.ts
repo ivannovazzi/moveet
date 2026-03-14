@@ -157,10 +157,7 @@ describe("useDirections", () => {
           vehicleId: "v1",
           route,
           eta: 60,
-          waypoints: [
-            { position: [-1.29, 36.82] },
-            { position: [-1.30, 36.83] },
-          ],
+          waypoints: [{ position: [-1.29, 36.82] }, { position: [-1.3, 36.83] }],
           currentWaypointIndex: 0,
         },
       ],

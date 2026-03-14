@@ -25,9 +25,6 @@ interface ControlPanelProps {
   isAdapterPanelOpen: boolean;
   onToggleAdapterPanel: () => void;
   adapterStatus: AdapterStatus;
-  isDispatchPanelOpen: boolean;
-  onToggleDispatchPanel: () => void;
-  assignmentCount: number;
 }
 
 const toggles: { key: keyof Modifiers; label: string }[] = [
@@ -64,9 +61,6 @@ export default function ControlPanel({
   isAdapterPanelOpen,
   onToggleAdapterPanel,
   adapterStatus,
-  isDispatchPanelOpen,
-  onToggleDispatchPanel,
-  assignmentCount,
 }: ControlPanelProps) {
   const { options, updateOption } = useOptions(300);
 
@@ -188,19 +182,6 @@ export default function ControlPanel({
           <span className={styles.optionValue}>{formatOptionValue(key, options[key])}</span>
         </label>
       ))}
-
-      <button
-        type="button"
-        className={classNames(styles.vehicleCount, {
-          [styles.panelToggleActive]: isDispatchPanelOpen,
-        })}
-        onClick={onToggleDispatchPanel}
-        aria-pressed={isDispatchPanelOpen}
-        title={isDispatchPanelOpen ? "Hide dispatch panel" : "Show dispatch panel"}
-      >
-        <span className={styles.vehicleCountValue}>{assignmentCount}</span>
-        <span className={styles.vehicleCountLabel}>dispatch</span>
-      </button>
 
       <button
         type="button"

@@ -135,11 +135,7 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
         <DirectionLine direction={hoveredDirection} key={`${hovered}--hovered`} color={"#f93"} />
       )}
       {selectedDirection && (
-        <DirectionLine
-          direction={selectedDirection}
-          key={`${selected}--selected`}
-          color={"#39f"}
-        />
+        <DirectionLine direction={selectedDirection} key={`${selected}--selected`} color={"#39f"} />
       )}
     </>
   );

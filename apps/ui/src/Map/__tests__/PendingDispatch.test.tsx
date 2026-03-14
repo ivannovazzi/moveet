@@ -166,7 +166,7 @@ describe("PendingDispatch", () => {
         vehicleName: "Truck Alpha",
         waypoints: [
           { position: [-1.29, 36.82] },
-          { position: [-1.30, 36.83] },
+          { position: [-1.3, 36.83] },
           { position: [-1.31, 36.84] },
         ],
       }),
@@ -200,7 +200,7 @@ describe("PendingDispatch", () => {
         vehicleName: "Truck Alpha",
         waypoints: [
           { position: [-1.29, 36.82] },
-          { position: [-1.30, 36.83] },
+          { position: [-1.3, 36.83] },
           { position: [-1.31, 36.84] },
         ],
       }),

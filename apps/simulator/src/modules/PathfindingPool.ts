@@ -7,10 +7,13 @@
  */
 
 import { Worker } from "worker_threads";
+import { fileURLToPath } from "url";
 import fs from "fs";
 import path from "path";
 import os from "os";
 import logger from "../utils/logger";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export interface PathfindingResult {
   edgeIds: string[];
