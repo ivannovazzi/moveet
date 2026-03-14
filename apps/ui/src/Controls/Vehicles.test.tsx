@@ -121,7 +121,7 @@ describe("VehicleList", () => {
           },
           roads: [],
           pois: [],
-          directions: new Map([["v1", route]]),
+          directions: new Map([["v1", { route }]]),
           heatzones: [],
           network: { type: "FeatureCollection", features: [] },
           setOptions: vi.fn(),

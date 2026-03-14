@@ -8,6 +8,8 @@ import type {
   Direction,
   DirectionResult,
   StartOptions,
+  Waypoint,
+  MultiStopRoute,
 } from "../types";
 import { VEHICLE_CONSTANTS } from "../constants";
 import type { RoadNetwork } from "./RoadNetwork";
@@ -25,6 +27,7 @@ export class VehicleManager extends EventEmitter {
   private vehicles: Map<string, Vehicle> = new Map();
   private visitedEdges: Map<string, CircularBuffer<string>> = new Map();
   private routes: Map<string, Route> = new Map();
+  private waypointRoutes: Map<string, MultiStopRoute> = new Map();
   private locationInterval: NodeJS.Timeout | null = null;
   private lastUpdateTimes: Map<string, number> = new Map();
   private lastPathfindAttempt: Map<string, number> = new Map();
@@ -140,6 +143,7 @@ export class VehicleManager extends EventEmitter {
     this.vehicles = new Map();
     this.visitedEdges = new Map();
     this.routes = new Map();
+    this.waypointRoutes = new Map();
     this.vehiclesByEdge = new Map();
     this.fleets.reset();
 
@@ -665,18 +669,77 @@ export class VehicleManager extends EventEmitter {
           edgeIndex: edgeIndex + 1,
         };
       } else {
-        // Reached destination — dwell before picking new route
-        const dwellSeconds = 10 + Math.random() * 50; // 10-60 seconds
-        vehicle.dwellUntil = Date.now() + dwellSeconds * 1000;
-        vehicle.speed = this.options.minSpeed;
-        this.routes.delete(vehicle.id);
-        return null;
+        // Reached end of current route segment
+        return this.handleRouteCompleted(vehicle);
       }
     } else {
       // Random movement
       const nextEdge = this.getNextEdge(vehicle);
       return { edge: nextEdge };
     }
+  }
+
+  /**
+   * Handles when a vehicle completes its current route segment.
+   * For multi-stop routes, advances to the next waypoint leg.
+   * For single-destination routes, dwells and picks a new random destination.
+   */
+  private handleRouteCompleted(vehicle: Vehicle): null {
+    const multiRoute = this.waypointRoutes.get(vehicle.id);
+
+    if (multiRoute && vehicle.waypoints && vehicle.currentWaypointIndex !== undefined) {
+      const wpIndex = vehicle.currentWaypointIndex;
+      const waypoint = vehicle.waypoints[wpIndex];
+      const remaining = vehicle.waypoints.length - wpIndex - 1;
+
+      this.emit("waypoint:reached", {
+        vehicleId: vehicle.id,
+        waypointIndex: wpIndex,
+        waypointLabel: waypoint?.label,
+        remaining,
+      });
+
+      if (wpIndex < vehicle.waypoints.length - 1) {
+        // More waypoints — dwell at this waypoint, then start next leg
+        const dwellSeconds = waypoint?.dwellTime ?? 10 + Math.random() * 50;
+        vehicle.dwellUntil = Date.now() + dwellSeconds * 1000;
+        vehicle.speed = this.options.minSpeed;
+
+        // Set up the next leg route so updateVehicle picks it up after dwell
+        const nextLeg = multiRoute.legs[wpIndex + 1];
+        if (nextLeg) {
+          this.routes.set(vehicle.id, { edges: nextLeg.edges, distance: nextLeg.distance });
+          vehicle.currentWaypointIndex = wpIndex + 1;
+          vehicle.edgeIndex = -1;
+        }
+        return null;
+      } else {
+        // Final waypoint reached
+        this.emit("route:completed", { vehicleId: vehicle.id });
+        this.clearWaypointState(vehicle);
+        const dwellSeconds = waypoint?.dwellTime ?? 10 + Math.random() * 50;
+        vehicle.dwellUntil = Date.now() + dwellSeconds * 1000;
+        vehicle.speed = this.options.minSpeed;
+        this.routes.delete(vehicle.id);
+        return null;
+      }
+    }
+
+    // Single-destination route: dwell before picking new route
+    const dwellSeconds = 10 + Math.random() * 50;
+    vehicle.dwellUntil = Date.now() + dwellSeconds * 1000;
+    vehicle.speed = this.options.minSpeed;
+    this.routes.delete(vehicle.id);
+    return null;
+  }
+
+  /**
+   * Clears all waypoint-related state for a vehicle.
+   */
+  private clearWaypointState(vehicle: Vehicle): void {
+    vehicle.waypoints = undefined;
+    vehicle.currentWaypointIndex = undefined;
+    this.waypointRoutes.delete(vehicle.id);
   }
 
   /**
@@ -769,15 +832,110 @@ export class VehicleManager extends EventEmitter {
   }
 
   /**
-   * Gets all vehicles with their current state as DTOs for external consumption.
-   * Converts internal vehicle representation to simplified transfer objects.
-   *
-   * @returns Array of vehicle DTOs containing position, speed, and heading
-   *
-   * @example
-   * const vehicles = vehicleManager.getVehicles();
-   * vehicles.forEach(v => console.log(`${v.name}: ${v.speed}km/h at [${v.position}]`));
+   * Calculates and sets a multi-stop route through waypoints.
+   * Computes A* routes between consecutive waypoints (current position → wp1 → wp2 → ...).
+   * Emits 'direction' event with the full stitched route and waypoint metadata.
    */
+  public async findAndSetWaypointRoutes(
+    vehicleId: string,
+    waypoints: Waypoint[]
+  ): Promise<DirectionResult> {
+    const vehicle = this.vehicles.get(vehicleId);
+    if (!vehicle) {
+      return { vehicleId, status: "error", error: `Vehicle ${vehicleId} not found` };
+    }
+
+    if (waypoints.length === 0) {
+      return { vehicleId, status: "error", error: "No waypoints provided" };
+    }
+
+    // Build ordered positions: [current position, wp1, wp2, ...]
+    const positions: [number, number][] = [vehicle.position, ...waypoints.map((wp) => wp.position)];
+    const legs: { edges: Edge[]; distance: number; waypointIndex: number }[] = [];
+    const legResults: { start: [number, number]; end: [number, number]; distance: number }[] = [];
+
+    // Compute A* for each consecutive pair
+    for (let i = 0; i < positions.length - 1; i++) {
+      const startNode = this.network.findNearestNode(positions[i]);
+      const endNode = this.network.findNearestNode(positions[i + 1]);
+
+      if (startNode.connections.length === 0 || endNode.connections.length === 0) {
+        return {
+          vehicleId,
+          status: "error",
+          error: `Waypoint ${i} has no connected road nearby`,
+          snappedTo: endNode.coordinates,
+        };
+      }
+
+      const route = await this.network.findRouteAsync(startNode, endNode);
+      if (!route || route.edges.length === 0) {
+        return {
+          vehicleId,
+          status: "error",
+          error: `No route found for leg ${i} (waypoint ${i} → ${i + 1})`,
+          snappedTo: endNode.coordinates,
+        };
+      }
+
+      legs.push({ edges: route.edges, distance: route.distance, waypointIndex: i });
+      legResults.push({
+        start: startNode.coordinates,
+        end: endNode.coordinates,
+        distance: route.distance,
+      });
+    }
+
+    const totalDistance = legs.reduce((sum, leg) => sum + leg.distance, 0);
+    const allEdges = legs.flatMap((leg) => leg.edges);
+
+    // Store multi-stop route state
+    const multiRoute: MultiStopRoute = { legs, totalDistance };
+    this.waypointRoutes.set(vehicleId, multiRoute);
+
+    // Set waypoint state on vehicle
+    vehicle.waypoints = waypoints;
+    vehicle.currentWaypointIndex = 0;
+
+    // Set the first leg as the active route
+    const firstLeg = legs[0];
+    const stitchedRoute: Route = { edges: allEdges, distance: totalDistance };
+    this.routes.set(vehicleId, { edges: firstLeg.edges, distance: firstLeg.distance });
+
+    // Snap vehicle to start of first leg
+    const previousEdgeId = vehicle.currentEdge.id;
+    this.traffic.leave(previousEdgeId);
+    vehicle.currentEdge = firstLeg.edges[0];
+    this.traffic.enter(vehicle.currentEdge.id);
+    this.moveInEdgeIndex(vehicleId, previousEdgeId, vehicle.currentEdge.id);
+    vehicle.progress = 0;
+    vehicle.edgeIndex = 0;
+
+    const eta = utils.estimateRouteDuration(stitchedRoute, vehicle.speed);
+
+    this.emit("direction", {
+      vehicleId,
+      route: utils.nonCircularRouteEdges(stitchedRoute),
+      eta,
+      waypoints,
+      currentWaypointIndex: 0,
+    });
+
+    return {
+      vehicleId,
+      status: "ok",
+      route: {
+        start: legResults[0].start,
+        end: legResults[legResults.length - 1].end,
+        distance: totalDistance,
+      },
+      eta,
+      snappedTo: legResults[legResults.length - 1].end,
+      waypointCount: waypoints.length,
+      legs: legResults,
+    };
+  }
+
   public assignVehicleToFleet(vehicleId: string, fleetId: string): boolean {
     const vehicle = this.vehicles.get(vehicleId);
     if (!vehicle) return false;
@@ -832,11 +990,19 @@ export class VehicleManager extends EventEmitter {
    * console.log(`${directions.length} vehicles have active routes`);
    */
   public getDirections(): Direction[] {
-    return Array.from(this.routes.entries()).map(([id, route]) => ({
-      vehicleId: id,
-      route: utils.nonCircularRouteEdges(route),
-      eta: utils.estimateRouteDuration(route, this.vehicles.get(id)!.speed),
-    }));
+    return Array.from(this.routes.entries()).map(([id, route]) => {
+      const vehicle = this.vehicles.get(id)!;
+      const direction: Direction = {
+        vehicleId: id,
+        route: utils.nonCircularRouteEdges(route),
+        eta: utils.estimateRouteDuration(route, vehicle.speed),
+      };
+      if (vehicle.waypoints) {
+        direction.waypoints = vehicle.waypoints;
+        direction.currentWaypointIndex = vehicle.currentWaypointIndex;
+      }
+      return direction;
+    });
   }
 
   /**

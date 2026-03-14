@@ -147,9 +147,21 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
   async setDirections(requests: DirectionRequest[]): Promise<DirectionResult[]> {
     const results: DirectionResult[] = [];
     for (const request of requests) {
-      const { id, lat, lng } = request;
-      const result = await this.vehicleManager.findAndSetRoutes(id, [lat, lng]);
-      results.push(result);
+      const { id, lat, lng, waypoints } = request;
+      if (waypoints && waypoints.length > 0) {
+        // Multi-stop routing: convert WaypointRequest[] to Waypoint[]
+        const waypointPositions = waypoints.map((wp) => ({
+          position: [wp.lat, wp.lng] as [number, number],
+          dwellTime: wp.dwellTime,
+          label: wp.label,
+        }));
+        const result = await this.vehicleManager.findAndSetWaypointRoutes(id, waypointPositions);
+        results.push(result);
+      } else {
+        // Single-destination routing (backward compat)
+        const result = await this.vehicleManager.findAndSetRoutes(id, [lat, lng]);
+        results.push(result);
+      }
     }
     return results;
   }

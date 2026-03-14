@@ -2,6 +2,7 @@
   "name": "@moveet/simulator",
   "version": "0.0.3",
   "description": "Vehicle location simulator for fleet management systems using real road networks from OpenStreetMap",
+  "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",

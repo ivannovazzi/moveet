@@ -14,6 +14,8 @@ vi.mock("@/utils/client", () => ({
     onDirection: vi.fn(),
     onConnect: vi.fn(),
     onReset: vi.fn(),
+    onWaypointReached: vi.fn(),
+    onRouteCompleted: vi.fn(),
   },
 }));
 
@@ -88,8 +90,8 @@ describe("useDirections", () => {
 
     expect(client.getDirections).toHaveBeenCalledOnce();
     expect(result.current.size).toBe(2);
-    expect(result.current.get("v1")).toBe(route1);
-    expect(result.current.get("v2")).toBe(route2);
+    expect(result.current.get("v1")?.route).toBe(route1);
+    expect(result.current.get("v2")?.route).toBe(route2);
   });
 
   it("handles WS direction updates via onDirection callback", async () => {
@@ -116,7 +118,7 @@ describe("useDirections", () => {
     });
 
     expect(result.current.size).toBe(1);
-    expect(result.current.get("ws-v1")).toBe(wsRoute);
+    expect(result.current.get("ws-v1")?.route).toBe(wsRoute);
 
     // Verify a second WS update adds to the map without removing the first
     const wsRoute2 = createRoute({ distance: 750 });
@@ -126,8 +128,8 @@ describe("useDirections", () => {
     });
 
     expect(result.current.size).toBe(2);
-    expect(result.current.get("ws-v1")).toBe(wsRoute);
-    expect(result.current.get("ws-v2")).toBe(wsRoute2);
+    expect(result.current.get("ws-v1")?.route).toBe(wsRoute);
+    expect(result.current.get("ws-v2")?.route).toBe(wsRoute2);
   });
 
   it("handles getDirections returning no data gracefully", async () => {
@@ -145,5 +147,74 @@ describe("useDirections", () => {
     expect(result.current.size).toBe(0);
     expect(consoleSpy).not.toHaveBeenCalled();
     consoleSpy.mockRestore();
+  });
+
+  it("handles waypoint:reached by updating currentWaypointIndex", async () => {
+    const route = createRoute({ distance: 300 });
+    vi.mocked(client.getDirections).mockResolvedValue({
+      data: [
+        {
+          vehicleId: "v1",
+          route,
+          eta: 60,
+          waypoints: [
+            { position: [-1.29, 36.82] },
+            { position: [-1.30, 36.83] },
+          ],
+          currentWaypointIndex: 0,
+        },
+      ],
+    });
+
+    const { result } = renderHook(() => useDirections(), {
+      wrapper: createWrapper(),
+    });
+
+    await act(async () => {
+      await vi.mocked(client.getDirections).mock.results[0].value;
+    });
+
+    expect(result.current.get("v1")?.currentWaypointIndex).toBe(0);
+
+    // Grab the onWaypointReached handler that the hook registered
+    const onWaypointReachedMock = vi.mocked(client.onWaypointReached);
+    expect(onWaypointReachedMock).toHaveBeenCalledOnce();
+    const handler = onWaypointReachedMock.mock.calls[0][0];
+
+    act(() => {
+      handler({ vehicleId: "v1", waypointIndex: 1 });
+    });
+
+    expect(result.current.get("v1")?.currentWaypointIndex).toBe(1);
+  });
+
+  it("handles route:completed by removing the direction", async () => {
+    const route = createRoute({ distance: 200 });
+    vi.mocked(client.getDirections).mockResolvedValue({
+      data: [{ vehicleId: "v1", route, eta: 45 }],
+    });
+
+    const { result } = renderHook(() => useDirections(), {
+      wrapper: createWrapper(),
+    });
+
+    await act(async () => {
+      await vi.mocked(client.getDirections).mock.results[0].value;
+    });
+
+    expect(result.current.size).toBe(1);
+    expect(result.current.has("v1")).toBe(true);
+
+    // Grab the onRouteCompleted handler that the hook registered
+    const onRouteCompletedMock = vi.mocked(client.onRouteCompleted);
+    expect(onRouteCompletedMock).toHaveBeenCalledOnce();
+    const handler = onRouteCompletedMock.mock.calls[0][0];
+
+    act(() => {
+      handler({ vehicleId: "v1" });
+    });
+
+    expect(result.current.size).toBe(0);
+    expect(result.current.has("v1")).toBe(false);
   });
 });

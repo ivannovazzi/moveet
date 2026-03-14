@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render } from "@testing-library/react";
 import type { DispatchAssignment, Vehicle, Position } from "@/types";
 import { createVehicle } from "@/test/mocks/types";
@@ -26,7 +26,7 @@ function makeAssignment(overrides: Partial<DispatchAssignment> = {}): DispatchAs
   return {
     vehicleId: "v1",
     vehicleName: "Truck Alpha",
-    destination: [-1.2921, 36.8219],
+    waypoints: [{ position: [-1.2921, 36.8219] }],
     ...overrides,
   };
 }
@@ -36,6 +36,13 @@ describe("PendingDispatch", () => {
     createVehicle({ id: "v1", name: "Truck Alpha", position: [36.8219, -1.2921] as Position }),
     createVehicle({ id: "v2", name: "Van Beta", position: [36.85, -1.3] as Position }),
   ];
+
+  beforeEach(() => {
+    mockProjection.mockReset();
+    mockProjection.mockImplementation(
+      (pos: Position) => [pos[0] * 10, pos[1] * 10] as [number, number]
+    );
+  });
 
   it("returns null with empty assignments", () => {
     const { container } = render(
@@ -53,7 +60,7 @@ describe("PendingDispatch", () => {
       makeAssignment({
         vehicleId: "v1",
         vehicleName: "Truck Alpha",
-        destination: [-1.2921, 36.8219],
+        waypoints: [{ position: [-1.2921, 36.8219] }],
       }),
     ];
 
@@ -81,9 +88,13 @@ describe("PendingDispatch", () => {
       makeAssignment({
         vehicleId: "v1",
         vehicleName: "Truck Alpha",
-        destination: [-1.2921, 36.8219],
+        waypoints: [{ position: [-1.2921, 36.8219] }],
       }),
-      makeAssignment({ vehicleId: "v2", vehicleName: "Van Beta", destination: [-1.3, 36.85] }),
+      makeAssignment({
+        vehicleId: "v2",
+        vehicleName: "Van Beta",
+        waypoints: [{ position: [-1.3, 36.85] }],
+      }),
     ];
 
     const { container } = render(
@@ -146,5 +157,106 @@ describe("PendingDispatch", () => {
     );
 
     expect(container.querySelector(".pending-dispatch")).toBeNull();
+  });
+
+  it("renders numbered markers for multi-waypoint assignments", () => {
+    const assignments = [
+      makeAssignment({
+        vehicleId: "v1",
+        vehicleName: "Truck Alpha",
+        waypoints: [
+          { position: [-1.29, 36.82] },
+          { position: [-1.30, 36.83] },
+          { position: [-1.31, 36.84] },
+        ],
+      }),
+    ];
+
+    const { container } = render(
+      <svg>
+        <PendingDispatch assignments={assignments} vehicles={defaultVehicles} />
+      </svg>
+    );
+
+    const group = container.querySelector(".pending-dispatch");
+    expect(group).not.toBeNull();
+
+    // Multi-stop renders numbered circles: one filled circle per waypoint
+    const circles = group!.querySelectorAll("circle");
+    expect(circles.length).toBe(3);
+
+    // Each waypoint has a number label text ("1", "2", "3") plus the vehicle name label
+    const texts = group!.querySelectorAll("text");
+    const textContents = Array.from(texts).map((t) => t.textContent);
+    expect(textContents).toContain("1");
+    expect(textContents).toContain("2");
+    expect(textContents).toContain("3");
+  });
+
+  it("renders dashed connecting lines between waypoints", () => {
+    const assignments = [
+      makeAssignment({
+        vehicleId: "v1",
+        vehicleName: "Truck Alpha",
+        waypoints: [
+          { position: [-1.29, 36.82] },
+          { position: [-1.30, 36.83] },
+          { position: [-1.31, 36.84] },
+        ],
+      }),
+    ];
+
+    const { container } = render(
+      <svg>
+        <PendingDispatch assignments={assignments} vehicles={defaultVehicles} />
+      </svg>
+    );
+
+    const group = container.querySelector(".pending-dispatch");
+    expect(group).not.toBeNull();
+
+    // 3 waypoints => 2 connecting lines
+    const lines = group!.querySelectorAll("line");
+    expect(lines.length).toBe(2);
+
+    // Lines should have dashed stroke
+    lines.forEach((line) => {
+      expect(line.getAttribute("stroke-dasharray")).toBeTruthy();
+    });
+  });
+
+  it("renders single-waypoint assignment with original circle style", () => {
+    const assignments = [
+      makeAssignment({
+        vehicleId: "v1",
+        vehicleName: "Truck Alpha",
+        waypoints: [{ position: [-1.2921, 36.8219] }],
+      }),
+    ];
+
+    const { container } = render(
+      <svg>
+        <PendingDispatch assignments={assignments} vehicles={defaultVehicles} />
+      </svg>
+    );
+
+    const group = container.querySelector(".pending-dispatch");
+    expect(group).not.toBeNull();
+
+    // Single-waypoint uses target circle style: outer ring (fill="none") + center dot = 2 circles
+    const circles = group!.querySelectorAll("circle");
+    expect(circles.length).toBe(2);
+
+    // The outer ring has fill="none"
+    expect(circles[0].getAttribute("fill")).toBe("none");
+
+    // No connecting lines for single waypoint
+    const lines = group!.querySelectorAll("line");
+    expect(lines.length).toBe(0);
+
+    // No numbered labels — only the vehicle name text
+    const texts = group!.querySelectorAll("text");
+    expect(texts.length).toBe(1);
+    expect(texts[0].textContent).toBe("Truck Alpha");
   });
 });

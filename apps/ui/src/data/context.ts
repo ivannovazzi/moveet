@@ -1,8 +1,9 @@
 import React from "react";
-import type { Road, Route, Heatzone, StartOptions, RoadNetwork, POI } from "@/types";
+import type { Road, Heatzone, StartOptions, RoadNetwork, POI } from "@/types";
+import type { DirectionState } from "@/hooks/useDirections";
 import { DEFAULT_START_OPTIONS } from "./constants";
 
-export type DirectionMap = Map<string, Route>;
+export type DirectionMap = Map<string, DirectionState>;
 
 interface ClientData {
   options: StartOptions;

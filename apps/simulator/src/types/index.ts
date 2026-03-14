@@ -52,6 +52,8 @@ export interface Vehicle {
   dwellUntil?: number; // timestamp (ms) when vehicle should resume moving
   targetSpeed?: number; // desired speed, changes every few seconds
   fleetId?: string;
+  waypoints?: Waypoint[]; // ordered waypoint sequence for multi-stop routing
+  currentWaypointIndex?: number; // index of current target waypoint in waypoints[]
 }
 
 export interface VehicleDTO {
@@ -87,6 +89,17 @@ export interface Route {
   distance: number;
 }
 
+export interface RouteLeg {
+  edges: Edge[];
+  distance: number;
+  waypointIndex: number; // which waypoint this leg leads to
+}
+
+export interface MultiStopRoute {
+  legs: RouteLeg[];
+  totalDistance: number;
+}
+
 export interface StartOptions {
   minSpeed: number;
   maxSpeed: number;
@@ -98,15 +111,32 @@ export interface StartOptions {
   updateInterval: number;
 }
 
+export interface WaypointRequest {
+  lat: number;
+  lng: number;
+  dwellTime?: number; // seconds to dwell at this waypoint (default: 10-60s random)
+  label?: string;
+}
+
 export interface DirectionRequest {
   id: string;
   lat: number;
   lng: number;
+  waypoints?: WaypointRequest[]; // if provided, lat/lng is ignored and waypoints are used
+}
+
+export interface Waypoint {
+  position: [number, number];
+  dwellTime?: number;
+  label?: string;
 }
 
 export interface Direction {
   vehicleId: string;
   route: Route;
+  eta?: number;
+  waypoints?: Waypoint[];
+  currentWaypointIndex?: number;
 }
 
 export interface BoundingBox {
@@ -127,6 +157,8 @@ export interface DirectionResult {
   };
   eta?: number;
   snappedTo?: [number, number];
+  waypointCount?: number;
+  legs?: { start: [number, number]; end: [number, number]; distance: number }[];
 }
 
 export interface HeatZoneProperties {
