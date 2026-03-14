@@ -5,7 +5,7 @@ import { VehicleManager } from "../modules/VehicleManager";
 import { FleetManager } from "../modules/FleetManager";
 import { SimulationController } from "../modules/SimulationController";
 import { config } from "../utils/config";
-import type { Vehicle, Incident } from "../types";
+import type { Incident } from "../types";
 import path from "path";
 
 const FIXTURE_PATH = path.join(__dirname, "fixtures", "test-network.geojson");
@@ -363,7 +363,7 @@ describe("A* pathfinding with incidents", () => {
 
     // Warm cache
     network.findRoute(start, end);
-    const stats1 = network.routeCacheStats();
+    expect(network.routeCacheStats().size).toBeGreaterThan(0);
 
     // Set incidents — should clear cache
     const edgeSpeedFactors = new Map<string, number>();
@@ -414,7 +414,6 @@ describe("Vehicle rerouting on incidents", () => {
     if (vehicles.length === 0) return;
 
     const vehicle = vehicles[0];
-    const internalVehicle = (manager as any).vehicles.get(vehicle.id) as Vehicle;
 
     // Set a route for the vehicle
     const dest = network.getRandomNode();
