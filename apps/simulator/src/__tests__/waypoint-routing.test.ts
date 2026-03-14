@@ -4,7 +4,6 @@ import { FleetManager } from "../modules/FleetManager";
 import { SimulationController } from "../modules/SimulationController";
 import { RoadNetwork } from "../modules/RoadNetwork";
 import { config } from "../utils/config";
-import type { Waypoint } from "../types";
 import path from "path";
 
 vi.mock("../utils/logger", () => ({
@@ -297,9 +296,7 @@ describe("Multi-stop waypoint routing", () => {
       const vehicleId = vehicles[0].id;
       placeOnRoutableEdge(vehicleId);
 
-      await controller.setDirections([
-        { id: vehicleId, lat: 45.5029, lng: -73.5661 },
-      ]);
+      await controller.setDirections([{ id: vehicleId, lat: 45.5029, lng: -73.5661 }]);
 
       const directions = manager.getDirections();
       const dir = directions.find((d) => d.vehicleId === vehicleId);

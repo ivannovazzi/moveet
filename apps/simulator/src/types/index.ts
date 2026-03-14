@@ -134,6 +134,7 @@ export interface Waypoint {
 export interface Direction {
   vehicleId: string;
   route: Route;
+  eta?: number;
   waypoints?: Waypoint[];
   currentWaypointIndex?: number;
 }
