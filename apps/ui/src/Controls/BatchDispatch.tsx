@@ -37,9 +37,22 @@ export default function BatchDispatch({
   const [dispatching, setDispatching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedAssignments, setExpandedAssignments] = useState<Set<string>>(new Set());
+  const [expandedResults, setExpandedResults] = useState<Set<string>>(new Set());
 
   const toggleExpanded = useCallback((vehicleId: string) => {
     setExpandedAssignments((prev) => {
+      const next = new Set(prev);
+      if (next.has(vehicleId)) {
+        next.delete(vehicleId);
+      } else {
+        next.add(vehicleId);
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleResultExpanded = useCallback((vehicleId: string) => {
+    setExpandedResults((prev) => {
       const next = new Set(prev);
       if (next.has(vehicleId)) {
         next.delete(vehicleId);
@@ -257,22 +270,55 @@ export default function BatchDispatch({
         <div className={styles.results}>
           {results.map((result) => {
             const vehicle = vehicles.find((v) => v.id === result.vehicleId);
+            const hasLegs = result.legs != null && result.legs.length > 0;
+            const isExpanded = expandedResults.has(result.vehicleId);
+            const totalDistance =
+              result.waypointCount != null && result.route?.distance != null
+                ? (result.route.distance / 1000).toFixed(1)
+                : null;
+
+            const buildDetail = () => {
+              if (result.status !== "ok") return result.error ?? "Failed";
+              const parts: string[] = [];
+              if (result.waypointCount != null) {
+                parts.push(
+                  `${result.waypointCount} stop${result.waypointCount !== 1 ? "s" : ""}${totalDistance != null ? `, ${totalDistance} km` : ""}`
+                );
+              }
+              if (result.eta != null) {
+                parts.push(`ETA ${result.eta.toFixed(0)}s`);
+              }
+              if (parts.length > 0) return parts.join(" \u00B7 ");
+              return "Dispatched";
+            };
+
             return (
-              <div
-                key={result.vehicleId}
-                className={classNames(styles.resultRow, {
-                  [styles.resultOk]: result.status === "ok",
-                  [styles.resultError]: result.status === "error",
-                })}
-              >
-                <span className={styles.resultName}>{vehicle?.name ?? result.vehicleId}</span>
-                <span className={styles.resultDetail}>
-                  {result.status === "ok"
-                    ? result.eta != null
-                      ? `ETA ${result.eta.toFixed(0)}s`
-                      : "Dispatched"
-                    : (result.error ?? "Failed")}
-                </span>
+              <div key={result.vehicleId}>
+                <div
+                  className={classNames(styles.resultRow, {
+                    [styles.resultOk]: result.status === "ok",
+                    [styles.resultError]: result.status === "error",
+                    [styles.resultExpandable]: hasLegs,
+                  })}
+                  onClick={hasLegs ? () => toggleResultExpanded(result.vehicleId) : undefined}
+                >
+                  <span className={styles.resultName}>{vehicle?.name ?? result.vehicleId}</span>
+                  <span className={styles.resultDetail}>{buildDetail()}</span>
+                  {hasLegs && (
+                    <span className={styles.resultDetail}>
+                      {isExpanded ? "\u25B4" : "\u25BE"}
+                    </span>
+                  )}
+                </div>
+                {hasLegs && isExpanded && (
+                  <div className={styles.legList}>
+                    {result.legs!.map((leg, i) => (
+                      <div key={i} className={styles.legRow}>
+                        Leg {i + 1}: {(leg.distance / 1000).toFixed(1)} km
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}

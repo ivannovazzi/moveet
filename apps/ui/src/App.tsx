@@ -146,7 +146,35 @@ export default function App() {
       })
     );
   }, []);
-  void onAddWaypoint; // Will be wired to context menu in a follow-up
+
+  const onContextMenuAddWaypoint = useCallback(() => {
+    if (!destination) return;
+    const assignedIds = new Set(assignments.map((a) => a.vehicleId));
+
+    for (const id of selectedForDispatch) {
+      if (assignedIds.has(id)) {
+        onAddWaypoint(id, destination);
+      }
+    }
+
+    const newAssignments: DispatchAssignment[] = selectedForDispatch
+      .filter((id) => !assignedIds.has(id))
+      .map((id) => {
+        const vehicle = vehicles.find((v) => v.id === id);
+        const newWaypoint: Waypoint = { position: [destination[1], destination[0]] };
+        return {
+          vehicleId: id,
+          vehicleName: vehicle?.name ?? id,
+          waypoints: [newWaypoint],
+        };
+      });
+
+    if (newAssignments.length > 0) {
+      setAssignments((prev) => [...prev, ...newAssignments]);
+    }
+
+    closeContextMenu();
+  }, [destination, selectedForDispatch, assignments, vehicles, onAddWaypoint, closeContextMenu]);
 
   const onRemoveWaypoint = useCallback((vehicleId: string, waypointIndex: number) => {
     setAssignments((prev) => {
@@ -419,6 +447,9 @@ export default function App() {
             <Button onClick={onFindRoadClick}>Identify closest road</Button>
             {filters.selected && (
               <Button onClick={onPointDestinationSingleClick}>Send selected vehicle here</Button>
+            )}
+            {dispatchMode && selectedForDispatch.length > 0 && (
+              <Button onClick={onContextMenuAddWaypoint}>Add waypoint here</Button>
             )}
           </div>
         </ContextMenu>

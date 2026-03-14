@@ -473,3 +473,27 @@
   color: #f44;
   background: rgba(255, 68, 68, 0.1);
 }
+
+.resultExpandable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.resultExpandable:hover {
+  filter: brightness(1.15);
+}
+
+.legList {
+  display: flex;
+  flex-direction: column;
+  padding-left: var(--space-6, 24px);
+  margin-top: var(--space-1);
+  margin-bottom: var(--space-1);
+}
+
+.legRow {
+  font-size: var(--text-xs);
+  color: var(--color-gray-light);
+  padding: var(--space-1) var(--space-2);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
