@@ -136,39 +136,63 @@ app.post(
         continue;
       }
 
-      // Validate lat/lng fields are numeric
-      if (typeof item.lat !== "number" || isNaN(item.lat)) {
-        errors.push(`[${i}]: 'lat' must be a valid number`);
-      }
-      if (typeof item.lng !== "number" || isNaN(item.lng)) {
-        errors.push(`[${i}]: 'lng' must be a valid number`);
-      }
-
-      // Skip further validation if lat/lng are not valid numbers
-      if (
-        typeof item.lat !== "number" ||
-        isNaN(item.lat) ||
-        typeof item.lng !== "number" ||
-        isNaN(item.lng)
-      ) {
-        continue;
-      }
-
       // Validate vehicle ID exists
       if (!vehicleManager.hasVehicle(item.id)) {
         errors.push(`[${i}]: vehicle '${item.id}' not found`);
+        continue;
       }
 
-      // Validate coordinates are within network bounds (with margin)
-      if (
-        item.lat < bbox.minLat - MARGIN ||
-        item.lat > bbox.maxLat + MARGIN ||
-        item.lng < bbox.minLon - MARGIN ||
-        item.lng > bbox.maxLon + MARGIN
-      ) {
-        errors.push(
-          `[${i}]: coordinates (${item.lat}, ${item.lng}) are outside the road network bounds`
-        );
+      if (Array.isArray(item.waypoints) && item.waypoints.length > 0) {
+        // Multi-stop waypoint validation
+        for (let j = 0; j < item.waypoints.length; j++) {
+          const wp = item.waypoints[j];
+          if (typeof wp.lat !== "number" || isNaN(wp.lat)) {
+            errors.push(`[${i}].waypoints[${j}]: 'lat' must be a valid number`);
+            continue;
+          }
+          if (typeof wp.lng !== "number" || isNaN(wp.lng)) {
+            errors.push(`[${i}].waypoints[${j}]: 'lng' must be a valid number`);
+            continue;
+          }
+          if (
+            wp.lat < bbox.minLat - MARGIN ||
+            wp.lat > bbox.maxLat + MARGIN ||
+            wp.lng < bbox.minLon - MARGIN ||
+            wp.lng > bbox.maxLon + MARGIN
+          ) {
+            errors.push(
+              `[${i}].waypoints[${j}]: coordinates (${wp.lat}, ${wp.lng}) are outside the road network bounds`
+            );
+          }
+        }
+      } else {
+        // Single-destination validation (backward compat)
+        if (typeof item.lat !== "number" || isNaN(item.lat)) {
+          errors.push(`[${i}]: 'lat' must be a valid number`);
+        }
+        if (typeof item.lng !== "number" || isNaN(item.lng)) {
+          errors.push(`[${i}]: 'lng' must be a valid number`);
+        }
+
+        if (
+          typeof item.lat !== "number" ||
+          isNaN(item.lat) ||
+          typeof item.lng !== "number" ||
+          isNaN(item.lng)
+        ) {
+          continue;
+        }
+
+        if (
+          item.lat < bbox.minLat - MARGIN ||
+          item.lat > bbox.maxLat + MARGIN ||
+          item.lng < bbox.minLon - MARGIN ||
+          item.lng > bbox.maxLon + MARGIN
+        ) {
+          errors.push(
+            `[${i}]: coordinates (${item.lat}, ${item.lng}) are outside the road network bounds`
+          );
+        }
       }
     }
 
@@ -387,6 +411,12 @@ async function main() {
   // Non-vehicle events are broadcast immediately
   network.on("heatzones", (data) => broadcaster.broadcast("heatzones", data));
   vehicleManager.on("direction", (data) => broadcaster.broadcast("direction", data));
+  vehicleManager.on("waypoint:reached", (data) =>
+    broadcaster.broadcast("waypoint:reached", data)
+  );
+  vehicleManager.on("route:completed", (data) =>
+    broadcaster.broadcast("route:completed", data)
+  );
   vehicleManager.on("options", (data) => broadcaster.broadcast("options", data));
   simulationController.on("updateStatus", (data) => broadcaster.broadcast("status", data));
   simulationController.on("reset", (data) => broadcaster.broadcast("reset", data));
