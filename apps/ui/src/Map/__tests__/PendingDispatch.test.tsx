@@ -50,7 +50,11 @@ describe("PendingDispatch", () => {
 
   it("renders SVG elements for assignments", () => {
     const assignments = [
-      makeAssignment({ vehicleId: "v1", vehicleName: "Truck Alpha", destination: [-1.2921, 36.8219] }),
+      makeAssignment({
+        vehicleId: "v1",
+        vehicleName: "Truck Alpha",
+        destination: [-1.2921, 36.8219],
+      }),
     ];
 
     const { container } = render(
@@ -74,7 +78,11 @@ describe("PendingDispatch", () => {
 
   it("renders correct number of assignment groups", () => {
     const assignments = [
-      makeAssignment({ vehicleId: "v1", vehicleName: "Truck Alpha", destination: [-1.2921, 36.8219] }),
+      makeAssignment({
+        vehicleId: "v1",
+        vehicleName: "Truck Alpha",
+        destination: [-1.2921, 36.8219],
+      }),
       makeAssignment({ vehicleId: "v2", vehicleName: "Van Beta", destination: [-1.3, 36.85] }),
     ];
 

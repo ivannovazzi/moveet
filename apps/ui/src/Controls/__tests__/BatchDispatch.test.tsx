@@ -55,15 +55,17 @@ describe("BatchDispatch", () => {
 
   it("renders dispatch mode empty state when dispatch mode is active", () => {
     render(<BatchDispatch {...defaultProps} isDispatchMode={true} />);
-    expect(
-      screen.getByText("Select vehicles in the list, then click the map")
-    ).toBeInTheDocument();
+    expect(screen.getByText("Select vehicles in the list, then click the map")).toBeInTheDocument();
   });
 
   it("shows assignments with vehicle names and coordinates", () => {
     const assignments = [
-      makeAssignment({ vehicleId: "v1", vehicleName: "Truck Alpha", destination: [-1.2921, 36.8219] }),
-      makeAssignment({ vehicleId: "v2", vehicleName: "Van Beta", destination: [-1.3000, 36.8500] }),
+      makeAssignment({
+        vehicleId: "v1",
+        vehicleName: "Truck Alpha",
+        destination: [-1.2921, 36.8219],
+      }),
+      makeAssignment({ vehicleId: "v2", vehicleName: "Van Beta", destination: [-1.3, 36.85] }),
     ];
 
     render(<BatchDispatch {...defaultProps} assignments={assignments} />);
@@ -100,9 +102,7 @@ describe("BatchDispatch", () => {
     const assignments = [makeAssignment()];
     const user = userEvent.setup();
 
-    render(
-      <BatchDispatch {...defaultProps} assignments={assignments} onClearAll={onClearAll} />
-    );
+    render(<BatchDispatch {...defaultProps} assignments={assignments} onClearAll={onClearAll} />);
 
     await user.click(screen.getByText("Clear"));
     expect(onClearAll).toHaveBeenCalledOnce();
@@ -128,7 +128,7 @@ describe("BatchDispatch", () => {
 
     const assignments = [
       makeAssignment({ vehicleId: "v1", destination: [-1.2921, 36.8219] }),
-      makeAssignment({ vehicleId: "v2", destination: [-1.3000, 36.8500] }),
+      makeAssignment({ vehicleId: "v2", destination: [-1.3, 36.85] }),
     ];
     const user = userEvent.setup();
 
@@ -138,7 +138,7 @@ describe("BatchDispatch", () => {
 
     expect(mockedBatchDirection).toHaveBeenCalledWith([
       { id: "v1", lat: -1.2921, lng: 36.8219 },
-      { id: "v2", lat: -1.3000, lng: 36.8500 },
+      { id: "v2", lat: -1.3, lng: 36.85 },
     ]);
   });
 
@@ -250,9 +250,7 @@ describe("BatchDispatch", () => {
     const onToggleDispatchMode = vi.fn();
     const user = userEvent.setup();
 
-    render(
-      <BatchDispatch {...defaultProps} onToggleDispatchMode={onToggleDispatchMode} />
-    );
+    render(<BatchDispatch {...defaultProps} onToggleDispatchMode={onToggleDispatchMode} />);
 
     await user.click(screen.getByText("Enable map click mode"));
     expect(onToggleDispatchMode).toHaveBeenCalledOnce();
@@ -345,9 +343,7 @@ describe("BatchDispatch", () => {
     const assignments = [makeAssignment({ vehicleId: "v1", vehicleName: "Truck Alpha" })];
     const user = userEvent.setup();
 
-    const { container } = render(
-      <BatchDispatch {...defaultProps} assignments={assignments} />
-    );
+    const { container } = render(<BatchDispatch {...defaultProps} assignments={assignments} />);
 
     await user.click(screen.getByText("Dispatch All (1)"));
 
@@ -367,9 +363,7 @@ describe("BatchDispatch", () => {
     const assignments = [makeAssignment({ vehicleId: "v1" })];
     const user = userEvent.setup();
 
-    const { container } = render(
-      <BatchDispatch {...defaultProps} assignments={assignments} />
-    );
+    const { container } = render(<BatchDispatch {...defaultProps} assignments={assignments} />);
 
     await user.click(screen.getByText("Dispatch All (1)"));
 
@@ -401,12 +395,15 @@ describe("BatchDispatch", () => {
       createVehicle({ id: "v2", name: "Van Beta", visible: true }),
       createVehicle({ id: "v3", name: "Car Gamma", visible: true }),
     ];
-    const assignments = [
-      makeAssignment({ vehicleId: "v1", vehicleName: "Truck Alpha" }),
-    ];
+    const assignments = [makeAssignment({ vehicleId: "v1", vehicleName: "Truck Alpha" })];
 
     render(
-      <BatchDispatch {...defaultProps} vehicles={vehicles} assignments={assignments} isDispatchMode={true} />
+      <BatchDispatch
+        {...defaultProps}
+        vehicles={vehicles}
+        assignments={assignments}
+        isDispatchMode={true}
+      />
     );
 
     // v1 is assigned, so only v2 and v3 appear in the picker
@@ -458,10 +455,7 @@ describe("BatchDispatch", () => {
   it("dispatch button is disabled after assignments are cleared", () => {
     // First render with assignments
     const { rerender } = render(
-      <BatchDispatch
-        {...defaultProps}
-        assignments={[makeAssignment({ vehicleId: "v1" })]}
-      />
+      <BatchDispatch {...defaultProps} assignments={[makeAssignment({ vehicleId: "v1" })]} />
     );
 
     // Button should be enabled

@@ -25,10 +25,9 @@ export default memo(function PendingDispatch({ assignments, vehicles }: PendingD
         if (!vehicle) return null;
 
         // Destination is [lat, lng], projection expects [lng, lat]
-        const destPos = projection([
-          assignment.destination[1],
-          assignment.destination[0],
-        ]) as Position | undefined;
+        const destPos = projection([assignment.destination[1], assignment.destination[0]]) as
+          | Position
+          | undefined;
 
         if (!destPos || !isFinite(destPos[0]) || !isFinite(destPos[1])) return null;
 
@@ -48,12 +47,7 @@ export default memo(function PendingDispatch({ assignments, vehicles }: PendingD
               stroke={COLOR_SOLID}
               strokeWidth={stroke}
             />
-            <circle
-              cx={destPos[0]}
-              cy={destPos[1]}
-              r={r * 0.3}
-              fill={COLOR_SOLID}
-            />
+            <circle cx={destPos[0]} cy={destPos[1]} r={r * 0.3} fill={COLOR_SOLID} />
 
             {/* Vehicle name label */}
             <text

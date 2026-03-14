@@ -27,7 +27,6 @@ function makeSquarePolygon(centerLat: number, centerLon: number, halfSize: numbe
  * via type coercion so tests can be deterministic.
  */
 function injectZones(manager: HeatZoneManager, zones: HeatZone[]): void {
-   
   const m = manager as any;
   m.zones = zones;
   m.buildSpatialGrid();
@@ -51,7 +50,6 @@ describe("HeatZoneManager — spatial grid", () => {
       };
       injectZones(manager, [zone]);
 
-       
       const grid: Map<string, HeatZone[]> = (manager as any).spatialGrid;
       expect(grid.size).toBeGreaterThan(0);
 
@@ -75,12 +73,12 @@ describe("HeatZoneManager — spatial grid", () => {
           timestamp: new Date().toISOString(),
         },
       ]);
-       
+
       expect((manager as any).spatialGrid.size).toBeGreaterThan(0);
 
       // Then clear
       injectZones(manager, []);
-       
+
       expect((manager as any).spatialGrid.size).toBe(0);
     });
 
@@ -93,7 +91,6 @@ describe("HeatZoneManager — spatial grid", () => {
       };
       injectZones(manager, [zone]);
 
-       
       const grid: Map<string, HeatZone[]> = (manager as any).spatialGrid;
 
       // Count cells containing this zone
@@ -258,7 +255,6 @@ describe("HeatZoneManager — spatial grid", () => {
         maxRadius: 1.0,
       });
 
-       
       const grid: Map<string, HeatZone[]> = (manager as any).spatialGrid;
       expect(grid.size).toBeGreaterThan(0);
 
@@ -268,7 +264,7 @@ describe("HeatZoneManager — spatial grid", () => {
         minRadius: 0.1,
         maxRadius: 0.2,
       });
-       
+
       const gridAfter: Map<string, HeatZone[]> = (manager as any).spatialGrid;
       // All entries in the grid should reference zones from the current generation
       const currentZones = manager.getZones();
@@ -288,12 +284,12 @@ describe("HeatZoneManager — spatial grid", () => {
           timestamp: new Date().toISOString(),
         },
       ]);
-       
+
       expect((manager as any).spatialGrid.size).toBeGreaterThan(0);
 
       // Generate with empty nodes
       manager.generateHeatedZones([], [], { count: 3 });
-       
+
       expect((manager as any).spatialGrid.size).toBe(0);
       expect(manager.getZones()).toHaveLength(0);
     });
@@ -313,7 +309,7 @@ describe("HeatZoneManager — spatial grid", () => {
       ]);
 
       // Spy on the private raycastPIP method
-       
+
       const spy = vi.spyOn(manager as any, "raycastPIP");
 
       const result = manager.isPositionInHeatZone([50.0, 50.0]);
@@ -337,7 +333,6 @@ describe("HeatZoneManager — spatial grid", () => {
       };
       injectZones(manager, [zoneA, zoneB]);
 
-       
       const spy = vi.spyOn(manager as any, "raycastPIP");
 
       // Query inside zone A — should only PIP-check zone A (1 call), not zone B
@@ -356,7 +351,6 @@ describe("HeatZoneManager — spatial grid", () => {
     it("should make zero raycastPIP calls when there are no zones", () => {
       injectZones(manager, []);
 
-       
       const spy = vi.spyOn(manager as any, "raycastPIP");
 
       manager.isPositionInHeatZone([10.0, 20.0]);
@@ -379,7 +373,6 @@ describe("HeatZoneManager — spatial grid", () => {
       };
       injectZones(manager, [zoneA, zoneB]);
 
-       
       const spy = vi.spyOn(manager as any, "raycastPIP");
 
       // Position is inside zone A, so .some() short-circuits after 1 call

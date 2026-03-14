@@ -710,7 +710,7 @@ describe("RoadNetwork", () => {
     it("should snap a coordinate ~50m offset to the nearest node", () => {
       // The node at [45.5020, -73.5670] exists in the network.
       // Offset by roughly 50m (~0.00045 degrees latitude).
-      const offset: [number, number] = [45.50245, -73.5670];
+      const offset: [number, number] = [45.50245, -73.567];
       const node = network.findNearestNode(offset);
 
       // Should snap to the closest node — either [45.5023, -73.5667] or [45.5026, -73.5664]

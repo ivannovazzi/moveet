@@ -145,7 +145,12 @@ app.post(
       }
 
       // Skip further validation if lat/lng are not valid numbers
-      if (typeof item.lat !== "number" || isNaN(item.lat) || typeof item.lng !== "number" || isNaN(item.lng)) {
+      if (
+        typeof item.lat !== "number" ||
+        isNaN(item.lat) ||
+        typeof item.lng !== "number" ||
+        isNaN(item.lng)
+      ) {
         continue;
       }
 

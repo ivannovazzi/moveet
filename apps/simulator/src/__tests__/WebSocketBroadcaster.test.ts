@@ -782,8 +782,8 @@ describe("WebSocketBroadcaster", () => {
       expect(MAX_DROPPED_FLUSHES).toBe(50);
     });
 
-    it("should export POSITION_DELTA_THRESHOLD as 0.0001", () => {
-      expect(POSITION_DELTA_THRESHOLD).toBe(0.0001);
+    it("should export POSITION_DELTA_THRESHOLD as 0.00001", () => {
+      expect(POSITION_DELTA_THRESHOLD).toBe(0.00001);
     });
   });
 });

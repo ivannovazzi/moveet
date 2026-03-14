@@ -706,7 +706,10 @@ export class VehicleManager extends EventEmitter {
    * @example
    * await vehicleManager.findAndSetRoutes('vehicle-1', [45.5017, -73.5673]);
    */
-  public async findAndSetRoutes(vehicleId: string, destination: [number, number]): Promise<DirectionResult> {
+  public async findAndSetRoutes(
+    vehicleId: string,
+    destination: [number, number]
+  ): Promise<DirectionResult> {
     const vehicle = this.vehicles.get(vehicleId);
     if (!vehicle) {
       return { vehicleId, status: "error", error: `Vehicle ${vehicleId} not found` };

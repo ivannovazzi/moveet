@@ -11,7 +11,15 @@ import MapView from "./Map/Map";
 import FleetLegend from "./Map/FleetLegend";
 import SearchBar from "./SearchBar";
 import Zoom from "./Zoom/";
-import type { DispatchAssignment, Fleet, Modifiers, POI, Position, Road, SimulationStatus } from "./types";
+import type {
+  DispatchAssignment,
+  Fleet,
+  Modifiers,
+  POI,
+  Position,
+  Road,
+  SimulationStatus,
+} from "./types";
 import styles from "./App.module.css";
 import { useVehicles } from "./hooks/useVehicles";
 import { useFleets } from "./hooks/useFleets";
@@ -135,14 +143,11 @@ export default function App() {
     });
   }, []);
 
-  const onToggleVehicleForDispatch = useCallback(
-    (id: string) => {
-      setSelectedForDispatch((prev) =>
-        prev.includes(id) ? prev.filter((vid) => vid !== id) : [...prev, id]
-      );
-    },
-    []
-  );
+  const onToggleVehicleForDispatch = useCallback((id: string) => {
+    setSelectedForDispatch((prev) =>
+      prev.includes(id) ? prev.filter((vid) => vid !== id) : [...prev, id]
+    );
+  }, []);
 
   const onSelectAllForDispatch = useCallback(() => {
     const assignedIds = new Set(assignments.map((a) => a.vehicleId));

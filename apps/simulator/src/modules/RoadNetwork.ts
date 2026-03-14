@@ -1,7 +1,16 @@
 import fs from "fs";
 import crypto from "crypto";
 import type { Feature, FeatureCollection, LineString } from "geojson";
-import type { Node, Edge, Route, PathNode, HeatZoneFeature, POI, HighwayType, BoundingBox } from "../types";
+import type {
+  Node,
+  Edge,
+  Route,
+  PathNode,
+  HeatZoneFeature,
+  POI,
+  HighwayType,
+  BoundingBox,
+} from "../types";
 import * as utils from "../utils/helpers";
 import { LRUCache, type CacheStats } from "../utils/LRUCache";
 import { HeatZoneManager } from "./HeatZoneManager";

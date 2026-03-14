@@ -196,7 +196,7 @@ export default function BatchDispatch({
                     ? result.eta != null
                       ? `ETA ${result.eta.toFixed(0)}s`
                       : "Dispatched"
-                    : result.error ?? "Failed"}
+                    : (result.error ?? "Failed")}
                 </span>
               </div>
             );

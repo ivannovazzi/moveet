@@ -177,9 +177,7 @@ describe("POST /direction (SimulationController.setDirections)", () => {
         return origFindNearest(pos);
       });
 
-      const results = await controller.setDirections([
-        { id: vehicleId, lat: 90, lng: 180 },
-      ]);
+      const results = await controller.setDirections([{ id: vehicleId, lat: 90, lng: 180 }]);
 
       expect(results).toHaveLength(1);
       const result = results[0];

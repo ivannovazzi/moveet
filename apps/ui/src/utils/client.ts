@@ -116,7 +116,9 @@ class SimulationService {
     return this.http.post("/direction", body);
   }
 
-  async batchDirection(assignments: { id: string; lat: number; lng: number }[]): Promise<ApiResponse<DirectionResponse>> {
+  async batchDirection(
+    assignments: { id: string; lat: number; lng: number }[]
+  ): Promise<ApiResponse<DirectionResponse>> {
     return this.http.post("/direction", assignments);
   }
 
