@@ -187,3 +187,30 @@ export interface HeatZoneFeature {
     coordinates: [number, number][];
   };
 }
+
+// ─── Incidents / Road Events ────────────────────────────────────────
+
+export type IncidentType = "accident" | "closure" | "construction";
+
+export interface Incident {
+  id: string;
+  edgeIds: string[];
+  type: IncidentType;
+  severity: number; // 0-1
+  speedFactor: number; // 0 = fully blocked, 0.1-0.3 = accident, 0.3-0.6 = construction
+  startTime: number; // timestamp (ms)
+  duration: number; // ms
+  autoClears: boolean;
+}
+
+export interface IncidentDTO {
+  id: string;
+  edgeIds: string[];
+  type: IncidentType;
+  severity: number;
+  speedFactor: number;
+  startTime: number;
+  duration: number;
+  expiresAt: number;
+  autoClears: boolean;
+}

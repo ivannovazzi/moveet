@@ -1,8 +1,10 @@
 import type { VehicleManager } from "./VehicleManager";
+import type { IncidentManager } from "./IncidentManager";
 import type {
   DirectionRequest,
   DirectionResult,
   Direction,
+  Incident,
   SimulationStatus,
   StartOptions,
   VehicleDTO,
@@ -24,9 +26,14 @@ type EventEmitterMap = {
 export class SimulationController extends EventEmitter<EventEmitterMap> {
   private autoHeatZoneInterval?: NodeJS.Timeout;
   private _ready = false;
+  private incidentManager?: IncidentManager;
 
-  constructor(private vehicleManager: VehicleManager) {
+  constructor(
+    private vehicleManager: VehicleManager,
+    incidentManager?: IncidentManager,
+  ) {
     super();
+    this.incidentManager = incidentManager;
     // When no adapter is configured, vehicles are loaded synchronously
     // in the VehicleManager constructor, so we're immediately ready.
     if (!config.adapterURL) {
@@ -84,6 +91,10 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
   async reset(): Promise<void> {
     this._ready = false;
     this.stop();
+    if (this.incidentManager) {
+      this.incidentManager.clearAll();
+      this.vehicleManager.getNetwork().clearIncidentEdges();
+    }
     await this.vehicleManager.reset();
     this._ready = true;
     this.emit("reset", {
@@ -117,6 +128,18 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
 
     if (config.adapterURL) {
       this.vehicleManager.startLocationUpdates(config.syncAdapterTimeout);
+    }
+
+    // Start incident cleanup and wire event listeners
+    if (this.incidentManager) {
+      this.incidentManager.startCleanup();
+      this.incidentManager.on("incident:created", (incident: Incident) => {
+        this.rebuildIncidentEdges();
+        this.vehicleManager.handleIncidentCreated(incident);
+      });
+      this.incidentManager.on("incident:cleared", () => {
+        this.rebuildIncidentEdges();
+      });
     }
 
     // Automatically regenerate heat zones every 5 minutes
@@ -177,6 +200,11 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
    * console.log('Simulation stopped');
    */
   public stop(): void {
+    // Stop incident cleanup
+    if (this.incidentManager) {
+      this.incidentManager.stopCleanup();
+    }
+
     // Stop all vehicle updates
     for (const v of this.vehicleManager.getVehicles()) {
       this.vehicleManager.stopVehicleMovement(v.id);
@@ -232,5 +260,39 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
    */
   public getVehicles(): VehicleDTO[] {
     return this.vehicleManager.getVehicles();
+  }
+
+  /**
+   * Returns the IncidentManager instance, if one was provided.
+   */
+  public getIncidentManager(): IncidentManager | undefined {
+    return this.incidentManager;
+  }
+
+  /**
+   * Rebuilds the edge speed-factor map from all active incidents and
+   * pushes it into the road network. If no incidents remain, clears the map.
+   */
+  private rebuildIncidentEdges(): void {
+    if (!this.incidentManager) return;
+
+    const incidents = this.incidentManager.getActiveIncidents();
+    const edgeSpeedFactors = new Map<string, number>();
+
+    for (const incident of incidents) {
+      for (const edgeId of incident.edgeIds) {
+        const current = edgeSpeedFactors.get(edgeId);
+        if (current === undefined || incident.speedFactor < current) {
+          edgeSpeedFactors.set(edgeId, incident.speedFactor);
+        }
+      }
+    }
+
+    const network = this.vehicleManager.getNetwork();
+    if (edgeSpeedFactors.size === 0) {
+      network.clearIncidentEdges();
+    } else {
+      network.setIncidentEdges(edgeSpeedFactors);
+    }
   }
 }

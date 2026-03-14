@@ -65,6 +65,9 @@ export class RoadNetwork extends EventEmitter {
   private sectorEdges: Edge[][] = [];
   private sectorNodes: Node[][] = [];
 
+  // Incident-based edge cost penalties: edge ID → speedFactor (lowest wins; 0 = blocked)
+  private incidentEdges: Map<string, number> = new Map();
+
   // A* route cache — avoids recomputing identical start→end routes
   private routeCache: LRUCache<Route>;
 
@@ -520,8 +523,15 @@ export class RoadNetwork extends EventEmitter {
       for (const edge of currentNode.connections) {
         if (closedSet.has(edge.end.id)) continue;
 
+        // Apply incident-based edge cost penalties
+        const incidentFactor = this.incidentEdges.get(edge.id);
+        if (incidentFactor !== undefined && incidentFactor === 0) continue; // closure — skip edge
+
         const surfacePenalty = edge.surface === "unpaved" || edge.surface === "dirt" ? 1.3 : 1.0;
-        const travelTime = (edge.distance / edge.maxSpeed) * surfacePenalty;
+        let travelTime = (edge.distance / edge.maxSpeed) * surfacePenalty;
+        if (incidentFactor !== undefined && incidentFactor < 1) {
+          travelTime = travelTime / incidentFactor;
+        }
         const tentativeCost = current.gScore + travelTime;
         const existingCost = gScore.get(edge.end.id);
 
@@ -541,6 +551,18 @@ export class RoadNetwork extends EventEmitter {
 
   /** Clear all cached routes. Useful for testing or when the network topology changes. */
   public clearRouteCache(): void {
+    this.routeCache.clear();
+  }
+
+  /** Replace incident edge speed factors and invalidate route cache. */
+  public setIncidentEdges(edgeSpeedFactors: Map<string, number>): void {
+    this.incidentEdges = edgeSpeedFactors;
+    this.routeCache.clear();
+  }
+
+  /** Clear all incident edge data and invalidate route cache. */
+  public clearIncidentEdges(): void {
+    this.incidentEdges.clear();
     this.routeCache.clear();
   }
 
@@ -569,7 +591,11 @@ export class RoadNetwork extends EventEmitter {
       this.pathfindingPool = new PathfindingPool(this.geojsonPath);
     }
 
-    const result = await this.pathfindingPool.findRoute(start.id, end.id);
+    const result = await this.pathfindingPool.findRoute(
+      start.id,
+      end.id,
+      this.incidentEdges.size > 0 ? this.incidentEdges : undefined
+    );
     if (!result) return null;
 
     // Reconstruct Route using main thread's Edge objects
