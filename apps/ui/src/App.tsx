@@ -4,6 +4,8 @@ import client from "@/utils/client";
 import ControlPanel from "./Controls/Controls";
 import Vehicles from "./Controls/Vehicles";
 import Fleets from "./Controls/Fleets";
+import Incidents from "./Controls/Incidents";
+import RecordReplay from "./Controls/RecordReplay";
 import DispatchFooter from "./Controls/DispatchFooter";
 import AdapterDrawer from "./Controls/Adapter/AdapterDrawer";
 import { useAdapterConfig } from "./Controls/Adapter/useAdapterConfig";
@@ -25,6 +27,9 @@ import type {
 import styles from "./App.module.css";
 import { useVehicles } from "./hooks/useVehicles";
 import { useFleets } from "./hooks/useFleets";
+import { useIncidents } from "./hooks/useIncidents";
+import { useRecording } from "./hooks/useRecording";
+import { useReplay } from "./hooks/useReplay";
 import { useDispatchState, DispatchState } from "./hooks/useDispatchState";
 import useContextMenu from "./hooks/useContextMenu";
 import ContextMenu from "./components/ContextMenu";
@@ -72,6 +77,10 @@ export default function App() {
     hiddenFleetIds,
     toggleFleetVisibility,
   } = useFleets();
+
+  const incidents = useIncidents();
+  const recording = useRecording();
+  const replay = useReplay();
 
   const vehicleFleetMap = useMemo(() => {
     const map = new Map<string, Fleet>();
@@ -380,6 +389,12 @@ export default function App() {
               {dispatchMode ? "Exit Dispatch" : "Dispatch"}
             </button>
             <Fleets fleets={fleets} onCreateFleet={createFleet} onDeleteFleet={deleteFleet} />
+            <Incidents
+              incidents={incidents.incidents}
+              createRandom={incidents.createRandom}
+              remove={incidents.remove}
+            />
+            <RecordReplay recording={recording} replay={replay} />
             <Vehicles
               filter={filters.filter}
               onFilterChange={onFilterChange}

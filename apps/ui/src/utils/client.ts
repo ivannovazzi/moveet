@@ -13,8 +13,18 @@ import type {
   POI,
   Fleet,
   DirectionResponse,
+  IncidentDTO,
+  RecordingFile,
+  RecordingMetadata,
+  ReplayStatus,
 } from "@/types";
-import type { ResetPayload, WaypointReachedPayload, RouteCompletedPayload } from "./wsTypes";
+import type {
+  ResetPayload,
+  WaypointReachedPayload,
+  RouteCompletedPayload,
+  IncidentClearedPayload,
+  VehicleReroutedPayload,
+} from "./wsTypes";
 
 class SimulationService {
   constructor(
@@ -56,6 +66,24 @@ class SimulationService {
     this.onFleetAssigned = this.onFleetAssigned.bind(this);
     this.onWaypointReached = this.onWaypointReached.bind(this);
     this.onRouteCompleted = this.onRouteCompleted.bind(this);
+    // incidents
+    this.getIncidents = this.getIncidents.bind(this);
+    this.createRandomIncident = this.createRandomIncident.bind(this);
+    this.removeIncident = this.removeIncident.bind(this);
+    this.onIncidentCreated = this.onIncidentCreated.bind(this);
+    this.onIncidentCleared = this.onIncidentCleared.bind(this);
+    this.onVehicleRerouted = this.onVehicleRerouted.bind(this);
+    // recording / replay
+    this.startRecording = this.startRecording.bind(this);
+    this.stopRecording = this.stopRecording.bind(this);
+    this.getRecordings = this.getRecordings.bind(this);
+    this.startReplay = this.startReplay.bind(this);
+    this.pauseReplay = this.pauseReplay.bind(this);
+    this.resumeReplay = this.resumeReplay.bind(this);
+    this.stopReplay = this.stopReplay.bind(this);
+    this.seekReplay = this.seekReplay.bind(this);
+    this.getReplayStatus = this.getReplayStatus.bind(this);
+    this.onReplayStatus = this.onReplayStatus.bind(this);
   }
 
   connectWebSocket(): void {
@@ -219,6 +247,74 @@ class SimulationService {
 
   onRouteCompleted(handler: (data: RouteCompletedPayload) => void): void {
     this.ws.on("route:completed", handler);
+  }
+
+  // ─── Incidents ──────────────────────────────────────────────────
+
+  async getIncidents(): Promise<ApiResponse<IncidentDTO[]>> {
+    return this.http.get<IncidentDTO[]>("/incidents");
+  }
+
+  async createRandomIncident(): Promise<ApiResponse<IncidentDTO>> {
+    return this.http.post<undefined, IncidentDTO>("/incidents/random");
+  }
+
+  async removeIncident(id: string): Promise<ApiResponse<void>> {
+    return this.http.delete(`/incidents/${id}`);
+  }
+
+  onIncidentCreated(handler: (data: IncidentDTO) => void): void {
+    this.ws.on("incident:created", handler);
+  }
+
+  onIncidentCleared(handler: (data: IncidentClearedPayload) => void): void {
+    this.ws.on("incident:cleared", handler);
+  }
+
+  onVehicleRerouted(handler: (data: VehicleReroutedPayload) => void): void {
+    this.ws.on("vehicle:rerouted", handler);
+  }
+
+  // ─── Recording & Replay ────────────────────────────────────────
+
+  async startRecording(): Promise<ApiResponse<{ status: string; filePath: string }>> {
+    return this.http.post("/recording/start");
+  }
+
+  async stopRecording(): Promise<ApiResponse<RecordingMetadata>> {
+    return this.http.post("/recording/stop");
+  }
+
+  async getRecordings(): Promise<ApiResponse<RecordingFile[]>> {
+    return this.http.get<RecordingFile[]>("/recordings");
+  }
+
+  async startReplay(file: string, speed?: number): Promise<ApiResponse<{ status: string }>> {
+    return this.http.post("/replay/start", { file, speed });
+  }
+
+  async pauseReplay(): Promise<ApiResponse<void>> {
+    return this.http.post("/replay/pause");
+  }
+
+  async resumeReplay(): Promise<ApiResponse<void>> {
+    return this.http.post("/replay/resume");
+  }
+
+  async stopReplay(): Promise<ApiResponse<void>> {
+    return this.http.post("/replay/stop");
+  }
+
+  async seekReplay(timestamp: number): Promise<ApiResponse<void>> {
+    return this.http.post("/replay/seek", { timestamp });
+  }
+
+  async getReplayStatus(): Promise<ApiResponse<ReplayStatus>> {
+    return this.http.get<ReplayStatus>("/replay/status");
+  }
+
+  onReplayStatus(handler: (data: ReplayStatus) => void): void {
+    this.ws.on("replayStatus", handler);
   }
 }
 

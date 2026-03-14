@@ -160,3 +160,46 @@ export interface DispatchAssignment {
   vehicleName: string;
   waypoints: Waypoint[];
 }
+
+// ─── Incidents ──────────────────────────────────────────────────────
+
+export type IncidentType = "accident" | "closure" | "construction";
+
+export interface IncidentDTO {
+  id: string;
+  edgeIds: string[];
+  type: IncidentType;
+  severity: number;
+  speedFactor: number;
+  startTime: number;
+  duration: number;
+  expiresAt: number;
+  autoClears: boolean;
+}
+
+// ─── Recording & Replay ────────────────────────────────────────────
+
+export interface RecordingFile {
+  fileName: string;
+  fileSize: number;
+  modifiedAt: string;
+}
+
+export interface RecordingMetadata {
+  filePath: string;
+  startTime: string;
+  duration: number;
+  eventCount: number;
+  fileSize: number;
+  vehicleCount: number;
+}
+
+export interface ReplayStatus {
+  mode: "live" | "replay";
+  file?: string;
+  progress?: number;
+  duration?: number;
+  currentTime?: number;
+  speed?: number;
+  paused?: boolean;
+}
