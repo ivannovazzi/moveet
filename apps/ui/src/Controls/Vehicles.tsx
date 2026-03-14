@@ -85,7 +85,7 @@ export default function VehicleList({
           </div>
         ) : (
           visibleVehicles.map((vehicle) => {
-            const routeDistance = directions.get(vehicle.id)?.distance;
+            const routeDistance = directions.get(vehicle.id)?.route.distance;
             const vehicleFleet = fleets.find((f) => f.vehicleIds.includes(vehicle.id));
 
             return (

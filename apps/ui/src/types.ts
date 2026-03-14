@@ -98,10 +98,18 @@ export interface Edge {
   bearing: number;
 }
 
+export interface Waypoint {
+  position: [number, number]; // [lat, lng]
+  label?: string;
+  dwellTime?: number;
+}
+
 export interface VehicleDirection {
   vehicleId: string;
   route: Route;
   eta: number;
+  waypoints?: Waypoint[];
+  currentWaypointIndex?: number;
 }
 
 export interface Road {
@@ -138,6 +146,8 @@ export interface DirectionResult {
   route?: { start: [number, number]; end: [number, number]; distance: number };
   eta?: number;
   snappedTo?: [number, number];
+  waypointCount?: number;
+  legs?: { start: [number, number]; end: [number, number]; distance: number }[];
 }
 
 export interface DirectionResponse {
@@ -148,5 +158,5 @@ export interface DirectionResponse {
 export interface DispatchAssignment {
   vehicleId: string;
   vehicleName: string;
-  destination: [number, number]; // [lat, lng]
+  waypoints: Waypoint[];
 }

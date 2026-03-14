@@ -19,7 +19,7 @@ function makeAssignment(overrides: Partial<DispatchAssignment> = {}): DispatchAs
   return {
     vehicleId: "v1",
     vehicleName: "Truck Alpha",
-    destination: [-1.2921, 36.8219],
+    waypoints: [{ position: [-1.2921, 36.8219] }],
     ...overrides,
   };
 }
@@ -63,9 +63,13 @@ describe("BatchDispatch", () => {
       makeAssignment({
         vehicleId: "v1",
         vehicleName: "Truck Alpha",
-        destination: [-1.2921, 36.8219],
+        waypoints: [{ position: [-1.2921, 36.8219] }],
       }),
-      makeAssignment({ vehicleId: "v2", vehicleName: "Van Beta", destination: [-1.3, 36.85] }),
+      makeAssignment({
+        vehicleId: "v2",
+        vehicleName: "Van Beta",
+        waypoints: [{ position: [-1.3, 36.85] }],
+      }),
     ];
 
     render(<BatchDispatch {...defaultProps} assignments={assignments} />);
@@ -127,8 +131,14 @@ describe("BatchDispatch", () => {
     });
 
     const assignments = [
-      makeAssignment({ vehicleId: "v1", destination: [-1.2921, 36.8219] }),
-      makeAssignment({ vehicleId: "v2", destination: [-1.3, 36.85] }),
+      makeAssignment({
+        vehicleId: "v1",
+        waypoints: [{ position: [-1.2921, 36.8219] }],
+      }),
+      makeAssignment({
+        vehicleId: "v2",
+        waypoints: [{ position: [-1.3, 36.85] }],
+      }),
     ];
     const user = userEvent.setup();
 

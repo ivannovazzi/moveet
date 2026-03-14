@@ -14,6 +14,8 @@ vi.mock("@/utils/client", () => ({
     onDirection: vi.fn(),
     onConnect: vi.fn(),
     onReset: vi.fn(),
+    onWaypointReached: vi.fn(),
+    onRouteCompleted: vi.fn(),
   },
 }));
 
@@ -88,8 +90,8 @@ describe("useDirections", () => {
 
     expect(client.getDirections).toHaveBeenCalledOnce();
     expect(result.current.size).toBe(2);
-    expect(result.current.get("v1")).toBe(route1);
-    expect(result.current.get("v2")).toBe(route2);
+    expect(result.current.get("v1")?.route).toBe(route1);
+    expect(result.current.get("v2")?.route).toBe(route2);
   });
 
   it("handles WS direction updates via onDirection callback", async () => {
@@ -116,7 +118,7 @@ describe("useDirections", () => {
     });
 
     expect(result.current.size).toBe(1);
-    expect(result.current.get("ws-v1")).toBe(wsRoute);
+    expect(result.current.get("ws-v1")?.route).toBe(wsRoute);
 
     // Verify a second WS update adds to the map without removing the first
     const wsRoute2 = createRoute({ distance: 750 });
@@ -126,8 +128,8 @@ describe("useDirections", () => {
     });
 
     expect(result.current.size).toBe(2);
-    expect(result.current.get("ws-v1")).toBe(wsRoute);
-    expect(result.current.get("ws-v2")).toBe(wsRoute2);
+    expect(result.current.get("ws-v1")?.route).toBe(wsRoute);
+    expect(result.current.get("ws-v2")?.route).toBe(wsRoute2);
   });
 
   it("handles getDirections returning no data gracefully", async () => {

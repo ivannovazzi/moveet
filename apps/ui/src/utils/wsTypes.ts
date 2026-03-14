@@ -12,6 +12,17 @@ export interface ResetPayload {
   directions: VehicleDirection[];
 }
 
+export interface WaypointReachedPayload {
+  vehicleId: string;
+  waypointIndex: number;
+  waypointLabel?: string;
+  remaining: number;
+}
+
+export interface RouteCompletedPayload {
+  vehicleId: string;
+}
+
 // Discriminated union for WebSocket messages
 export type WebSocketMessage =
   | { type: "connect" }
@@ -25,7 +36,9 @@ export type WebSocketMessage =
   | { type: "reset"; data: ResetPayload }
   | { type: "fleet:created"; data: Fleet }
   | { type: "fleet:deleted"; data: { id: string } }
-  | { type: "fleet:assigned"; data: { fleetId: string | null; vehicleIds: string[] } };
+  | { type: "fleet:assigned"; data: { fleetId: string | null; vehicleIds: string[] } }
+  | { type: "waypoint:reached"; data: WaypointReachedPayload }
+  | { type: "route:completed"; data: RouteCompletedPayload };
 
 /**
  * Type guard to validate WebSocket message structure
@@ -53,6 +66,8 @@ export function isValidMessage(msg: unknown): msg is WebSocketMessage {
     case "fleet:created":
     case "fleet:deleted":
     case "fleet:assigned":
+    case "waypoint:reached":
+    case "route:completed":
       return "data" in message;
     default:
       return false;

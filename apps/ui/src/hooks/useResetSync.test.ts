@@ -34,6 +34,8 @@ vi.mock("@/utils/client", () => ({
     onDirection: vi.fn((h: DirectionHandler) => {
       directionHandlers.push(h);
     }),
+    onWaypointReached: vi.fn(),
+    onRouteCompleted: vi.fn(),
     getVehicles: vi.fn().mockResolvedValue({ data: [] }),
     getDirections: vi.fn().mockResolvedValue({ data: [] }),
   },
@@ -222,7 +224,7 @@ describe("reset WS event: full directions replacement", () => {
 
     expect(result.current.get("stale-dir")).toBeUndefined();
     expect(result.current.get("new-dir")).toBeDefined();
-    expect(result.current.get("new-dir")!.distance).toBe(200);
+    expect(result.current.get("new-dir")!.route.distance).toBe(200);
   });
 });
 
@@ -255,6 +257,6 @@ describe("reconnect: re-fetch directions from REST", () => {
     // getDirections called at least twice: once on mount, once on reconnect
     expect(vi.mocked(client.getDirections).mock.calls.length).toBeGreaterThanOrEqual(2);
     expect(result.current.get("reconnect-v")).toBeDefined();
-    expect(result.current.get("reconnect-v")!.distance).toBe(999);
+    expect(result.current.get("reconnect-v")!.route.distance).toBe(999);
   });
 });

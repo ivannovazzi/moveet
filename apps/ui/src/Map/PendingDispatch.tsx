@@ -24,10 +24,12 @@ export default memo(function PendingDispatch({ assignments, vehicles }: PendingD
         const vehicle = vehicleMap.get(assignment.vehicleId);
         if (!vehicle) return null;
 
-        // Destination is [lat, lng], projection expects [lng, lat]
-        const destPos = projection([assignment.destination[1], assignment.destination[0]]) as
-          | Position
-          | undefined;
+        if (assignment.waypoints.length === 0) return null;
+
+        // Use last waypoint as primary destination for backward compat
+        const dest = assignment.waypoints[assignment.waypoints.length - 1];
+        // Waypoint position is [lat, lng], projection expects [lng, lat]
+        const destPos = projection([dest.position[1], dest.position[0]]) as Position | undefined;
 
         if (!destPos || !isFinite(destPos[0]) || !isFinite(destPos[1])) return null;
 

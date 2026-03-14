@@ -100,6 +100,7 @@ export default function App() {
   const onMapClick = useCallback(
     (_event?: React.MouseEvent, position?: Position) => {
       if (dispatchMode && position && selectedForDispatch.length > 0) {
+        const waypoint = { position: [position[1], position[0]] as [number, number] };
         const newAssignments: DispatchAssignment[] = selectedForDispatch
           .filter((id) => !assignments.some((a) => a.vehicleId === id))
           .map((id) => {
@@ -107,7 +108,7 @@ export default function App() {
             return {
               vehicleId: id,
               vehicleName: vehicle?.name ?? id,
-              destination: [position[1], position[0]] as [number, number],
+              waypoints: [waypoint],
             };
           });
         if (newAssignments.length > 0) {

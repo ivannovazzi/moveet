@@ -41,11 +41,24 @@ export default function BatchDispatch({
     setResults([]);
     setError(null);
 
-    const body = assignments.map((a) => ({
-      id: a.vehicleId,
-      lat: a.destination[0],
-      lng: a.destination[1],
-    }));
+    const body = assignments.map((a) => {
+      const dest = a.waypoints[a.waypoints.length - 1];
+      return {
+        id: a.vehicleId,
+        lat: dest.position[0],
+        lng: dest.position[1],
+        ...(a.waypoints.length > 1
+          ? {
+              waypoints: a.waypoints.map((wp) => ({
+                lat: wp.position[0],
+                lng: wp.position[1],
+                ...(wp.label ? { label: wp.label } : {}),
+                ...(wp.dwellTime != null ? { dwellTime: wp.dwellTime } : {}),
+              })),
+            }
+          : {}),
+      };
+    });
 
     const response = await client.batchDirection(body);
     setDispatching(false);
@@ -152,23 +165,28 @@ export default function BatchDispatch({
               : "No pending assignments"}
           </div>
         ) : (
-          assignments.map((assignment) => (
-            <div key={assignment.vehicleId} className={styles.assignment}>
-              <span className={styles.assignmentName}>{assignment.vehicleName}</span>
-              <span className={styles.assignmentArrow}>&rarr;</span>
-              <span className={styles.assignmentCoords}>
-                {assignment.destination[0].toFixed(4)}, {assignment.destination[1].toFixed(4)}
-              </span>
-              <button
-                className={styles.removeButton}
-                onClick={() => onRemoveAssignment(assignment.vehicleId)}
-                type="button"
-                title="Remove assignment"
-              >
-                x
-              </button>
-            </div>
-          ))
+          assignments.map((assignment) => {
+            const dest = assignment.waypoints[assignment.waypoints.length - 1];
+            return (
+              <div key={assignment.vehicleId} className={styles.assignment}>
+                <span className={styles.assignmentName}>{assignment.vehicleName}</span>
+                <span className={styles.assignmentArrow}>&rarr;</span>
+                <span className={styles.assignmentCoords}>
+                  {assignment.waypoints.length > 1
+                    ? `${assignment.waypoints.length} stops`
+                    : `${dest.position[0].toFixed(4)}, ${dest.position[1].toFixed(4)}`}
+                </span>
+                <button
+                  className={styles.removeButton}
+                  onClick={() => onRemoveAssignment(assignment.vehicleId)}
+                  type="button"
+                  title="Remove assignment"
+                >
+                  x
+                </button>
+              </div>
+            );
+          })
         )}
       </div>
 

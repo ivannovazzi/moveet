@@ -1,6 +1,6 @@
 import { useEffect, useState, memo } from "react";
 import type { Route } from "@/types";
-import { useDirections } from "@/hooks/useDirections";
+import { useDirections, type DirectionState } from "@/hooks/useDirections";
 import { Polyline } from "@/components/Map/components/Polyline";
 import { invertLatLng } from "@/utils/coordinates";
 import Label from "@/components/Map/components/Label";
@@ -27,8 +27,8 @@ interface DirectionProps {
 
 export default function DirectionMap({ selected, hovered }: DirectionProps) {
   const directions = useDirections();
-  const [selectedDirection, setSelectedDirection] = useState<Route | null>(null);
-  const [hoveredDirection, setHoveredDirection] = useState<Route | null>(null);
+  const [selectedDirection, setSelectedDirection] = useState<DirectionState | null>(null);
+  const [hoveredDirection, setHoveredDirection] = useState<DirectionState | null>(null);
   useEffect(() => {
     if (selected && directions.size > 0) {
       setSelectedDirection(directions.get(selected) ?? null);
@@ -48,10 +48,18 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
   return (
     <>
       {hoveredDirection && (
-        <DirectionLine direction={hoveredDirection} key={`${hovered}--hovered`} color={"#f93"} />
+        <DirectionLine
+          direction={hoveredDirection.route}
+          key={`${hovered}--hovered`}
+          color={"#f93"}
+        />
       )}
       {selectedDirection && (
-        <DirectionLine direction={selectedDirection} key={`${selected}--selected`} color={"#39f"} />
+        <DirectionLine
+          direction={selectedDirection.route}
+          key={`${selected}--selected`}
+          color={"#39f"}
+        />
       )}
     </>
   );

@@ -14,7 +14,7 @@ import type {
   Fleet,
   DirectionResponse,
 } from "@/types";
-import type { ResetPayload } from "./wsTypes";
+import type { ResetPayload, WaypointReachedPayload, RouteCompletedPayload } from "./wsTypes";
 
 class SimulationService {
   constructor(
@@ -54,6 +54,8 @@ class SimulationService {
     this.onFleetCreated = this.onFleetCreated.bind(this);
     this.onFleetDeleted = this.onFleetDeleted.bind(this);
     this.onFleetAssigned = this.onFleetAssigned.bind(this);
+    this.onWaypointReached = this.onWaypointReached.bind(this);
+    this.onRouteCompleted = this.onRouteCompleted.bind(this);
   }
 
   connectWebSocket(): void {
@@ -204,6 +206,14 @@ class SimulationService {
 
   onFleetAssigned(handler: (data: { fleetId: string | null; vehicleIds: string[] }) => void): void {
     this.ws.on("fleet:assigned", handler);
+  }
+
+  onWaypointReached(handler: (data: WaypointReachedPayload) => void): void {
+    this.ws.on("waypoint:reached", handler);
+  }
+
+  onRouteCompleted(handler: (data: RouteCompletedPayload) => void): void {
+    this.ws.on("route:completed", handler);
   }
 }
 

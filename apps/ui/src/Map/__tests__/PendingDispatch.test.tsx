@@ -26,7 +26,7 @@ function makeAssignment(overrides: Partial<DispatchAssignment> = {}): DispatchAs
   return {
     vehicleId: "v1",
     vehicleName: "Truck Alpha",
-    destination: [-1.2921, 36.8219],
+    waypoints: [{ position: [-1.2921, 36.8219] }],
     ...overrides,
   };
 }
@@ -53,7 +53,7 @@ describe("PendingDispatch", () => {
       makeAssignment({
         vehicleId: "v1",
         vehicleName: "Truck Alpha",
-        destination: [-1.2921, 36.8219],
+        waypoints: [{ position: [-1.2921, 36.8219] }],
       }),
     ];
 
@@ -81,9 +81,13 @@ describe("PendingDispatch", () => {
       makeAssignment({
         vehicleId: "v1",
         vehicleName: "Truck Alpha",
-        destination: [-1.2921, 36.8219],
+        waypoints: [{ position: [-1.2921, 36.8219] }],
       }),
-      makeAssignment({ vehicleId: "v2", vehicleName: "Van Beta", destination: [-1.3, 36.85] }),
+      makeAssignment({
+        vehicleId: "v2",
+        vehicleName: "Van Beta",
+        waypoints: [{ position: [-1.3, 36.85] }],
+      }),
     ];
 
     const { container } = render(
