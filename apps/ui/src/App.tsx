@@ -4,7 +4,7 @@ import client from "@/utils/client";
 import ControlPanel from "./Controls/Controls";
 import Vehicles from "./Controls/Vehicles";
 import Fleets from "./Controls/Fleets";
-import BatchDispatch from "./Controls/BatchDispatch";
+import DispatchFooter from "./Controls/DispatchFooter";
 import AdapterDrawer from "./Controls/Adapter/AdapterDrawer";
 import { useAdapterConfig } from "./Controls/Adapter/useAdapterConfig";
 import MapView from "./Map/Map";
@@ -12,6 +12,7 @@ import FleetLegend from "./Map/FleetLegend";
 import SearchBar from "./SearchBar";
 import Zoom from "./Zoom/";
 import type {
+  DirectionResult,
   DispatchAssignment,
   Fleet,
   Modifiers,
@@ -24,9 +25,10 @@ import type {
 import styles from "./App.module.css";
 import { useVehicles } from "./hooks/useVehicles";
 import { useFleets } from "./hooks/useFleets";
+import { useDispatchState, DispatchState } from "./hooks/useDispatchState";
 import useContextMenu from "./hooks/useContextMenu";
 import ContextMenu from "./components/ContextMenu";
-import { Button } from "./components/Inputs";
+import MapContextMenu from "./components/MapContextMenu";
 import { isRoad } from "./utils/typeGuards";
 
 export default function App() {
@@ -35,9 +37,10 @@ export default function App() {
   const [destination, setDestination] = useState<Position | null>(null);
   const [isVehiclePanelOpen, setVehiclePanelOpen] = useState(false);
   const [isAdapterPanelOpen, setAdapterPanelOpen] = useState(false);
-  const [isDispatchPanelOpen, setDispatchPanelOpen] = useState(false);
   const [dispatchMode, setDispatchMode] = useState(false);
   const [assignments, setAssignments] = useState<DispatchAssignment[]>([]);
+  const [dispatching, setDispatching] = useState(false);
+  const [results, setResults] = useState<DirectionResult[]>([]);
   const [selectedForDispatch, setSelectedForDispatch] = useState<string[]>([]);
   const [status, setStatus] = useState<SimulationStatus>({
     interval: 0,
@@ -80,6 +83,14 @@ export default function App() {
     return map;
   }, [fleets]);
 
+  const dispatchState = useDispatchState({
+    dispatchMode,
+    selectedForDispatch,
+    assignments,
+    dispatching,
+    results,
+  });
+
   const onChangeModifiers = useCallback(
     <T extends keyof Modifiers>(name: T) =>
       (value: Modifiers[T]) => {
@@ -100,7 +111,7 @@ export default function App() {
 
   const onMapClick = useCallback(
     (_event?: React.MouseEvent, position?: Position) => {
-      if (dispatchMode && position && selectedForDispatch.length > 0) {
+      if (dispatchState === DispatchState.ROUTE && position && selectedForDispatch.length > 0) {
         const newWaypoint: Waypoint = { position: [position[1], position[0]] };
 
         setAssignments((prev) => {
@@ -130,12 +141,8 @@ export default function App() {
       }
       clearMap();
     },
-    [clearMap, dispatchMode, selectedForDispatch, vehicles]
+    [clearMap, dispatchState, selectedForDispatch, vehicles]
   );
-
-  const onRemoveAssignment = useCallback((vehicleId: string) => {
-    setAssignments((prev) => prev.filter((a) => a.vehicleId !== vehicleId));
-  }, []);
 
   const onAddWaypoint = useCallback((vehicleId: string, position: Position) => {
     const newWaypoint: Waypoint = { position: [position[1], position[0]] };
@@ -176,54 +183,56 @@ export default function App() {
     closeContextMenu();
   }, [destination, selectedForDispatch, assignments, vehicles, onAddWaypoint, closeContextMenu]);
 
-  const onRemoveWaypoint = useCallback((vehicleId: string, waypointIndex: number) => {
-    setAssignments((prev) => {
-      const result: DispatchAssignment[] = [];
-      for (const a of prev) {
-        if (a.vehicleId !== vehicleId) {
-          result.push(a);
-          continue;
-        }
-        const waypoints = a.waypoints.filter((_, i) => i !== waypointIndex);
-        if (waypoints.length === 0) continue; // Remove entire assignment
-        result.push({ ...a, waypoints });
-      }
-      return result;
-    });
-  }, []);
+  const handleDispatch = useCallback(async () => {
+    if (assignments.length === 0) return;
+    setDispatching(true);
+    setResults([]);
 
-  const onClearAllAssignments = useCallback(() => {
+    const body = assignments.map((a) => {
+      const dest = a.waypoints[a.waypoints.length - 1];
+      return {
+        id: a.vehicleId,
+        lat: dest.position[0],
+        lng: dest.position[1],
+        ...(a.waypoints.length > 1
+          ? {
+              waypoints: a.waypoints.map((wp) => ({
+                lat: wp.position[0],
+                lng: wp.position[1],
+                ...(wp.label ? { label: wp.label } : {}),
+                ...(wp.dwellTime != null ? { dwellTime: wp.dwellTime } : {}),
+              })),
+            }
+          : {}),
+      };
+    });
+
+    const response = await client.batchDirection(body);
+    setDispatching(false);
+    if (response.data?.results) {
+      setResults(response.data.results);
+    }
+  }, [assignments]);
+
+  const handleDone = useCallback(() => {
+    setDispatchMode(false);
+    setSelectedForDispatch([]);
     setAssignments([]);
+    setResults([]);
+    setDispatching(false);
   }, []);
 
-  const onToggleDispatchMode = useCallback(() => {
-    setDispatchMode((prev) => !prev);
-  }, []);
-
-  const onToggleDispatchPanel = useCallback(() => {
-    setDispatchPanelOpen((prev) => {
-      if (prev) {
-        setDispatchMode(false);
-        setSelectedForDispatch([]);
-      }
-      return !prev;
-    });
-  }, []);
+  const handleRetryFailed = useCallback(() => {
+    const failedIds = results.filter((r) => r.status === "error").map((r) => r.vehicleId);
+    setSelectedForDispatch(failedIds);
+    setAssignments((prev) => prev.filter((a) => failedIds.includes(a.vehicleId)));
+    setResults([]);
+  }, [results]);
 
   const onToggleVehicleForDispatch = useCallback((id: string) => {
     setSelectedForDispatch((prev) =>
       prev.includes(id) ? prev.filter((vid) => vid !== id) : [...prev, id]
     );
-  }, []);
-
-  const onSelectAllForDispatch = useCallback(() => {
-    const assignedIds = new Set(assignments.map((a) => a.vehicleId));
-    const available = vehicles.filter((v) => v.visible && !assignedIds.has(v.id));
-    setSelectedForDispatch(available.map((v) => v.id));
-  }, [vehicles, assignments]);
-
-  const onClearDispatchSelection = useCallback(() => {
-    setSelectedForDispatch([]);
   }, []);
 
   const setFinalDestination = useCallback(async (position: Position, vehicleIds: string[]) => {
@@ -274,6 +283,13 @@ export default function App() {
     },
     [onContextClick]
   );
+
+  // Auto-open sidebar when dispatch mode is activated
+  useEffect(() => {
+    if (dispatchMode) {
+      setVehiclePanelOpen(true);
+    }
+  }, [dispatchMode]);
 
   useEffect(() => {
     client.getVehicles().then((response) => {
@@ -333,9 +349,6 @@ export default function App() {
           isAdapterPanelOpen={isAdapterPanelOpen}
           onToggleAdapterPanel={() => setAdapterPanelOpen((open) => !open)}
           adapterStatus={adapter.status}
-          isDispatchPanelOpen={isDispatchPanelOpen}
-          onToggleDispatchPanel={onToggleDispatchPanel}
-          assignmentCount={assignments.length}
         />
       </div>
 
@@ -347,6 +360,25 @@ export default function App() {
           aria-hidden={!isVehiclePanelOpen}
         >
           <div className={styles.panelInner}>
+            <button
+              type="button"
+              className={classNames(styles.dispatchToggle, {
+                [styles.dispatchToggleActive]: dispatchMode,
+              })}
+              onClick={() => {
+                setDispatchMode((prev) => {
+                  if (prev) {
+                    setSelectedForDispatch([]);
+                    setAssignments([]);
+                    setResults([]);
+                    setDispatching(false);
+                  }
+                  return !prev;
+                });
+              }}
+            >
+              {dispatchMode ? "Exit Dispatch" : "Dispatch"}
+            </button>
             <Fleets fleets={fleets} onCreateFleet={createFleet} onDeleteFleet={deleteFleet} />
             <Vehicles
               filter={filters.filter}
@@ -359,6 +391,22 @@ export default function App() {
               fleets={fleets}
               onAssignVehicle={assignVehicle}
               onUnassignVehicle={unassignVehicle}
+              dispatchState={dispatchState}
+              selectedForDispatch={selectedForDispatch}
+              onToggleVehicleForDispatch={onToggleVehicleForDispatch}
+              assignments={assignments}
+              results={results}
+            />
+            <DispatchFooter
+              state={dispatchState}
+              selectedCount={selectedForDispatch.length}
+              assignments={assignments}
+              results={results}
+              onDispatch={handleDispatch}
+              onClear={handleDone}
+              onDone={handleDone}
+              onRetryFailed={handleRetryFailed}
+              dispatching={dispatching}
             />
           </div>
         </aside>
@@ -379,7 +427,7 @@ export default function App() {
             onPOIClick={(poi) => setSelectedItem(poi)}
             vehicleFleetMap={vehicleFleetMap}
             hiddenFleetIds={hiddenFleetIds}
-            dispatchMode={dispatchMode}
+            dispatchState={dispatchState}
             assignments={assignments}
           />
           <SearchBar
@@ -394,30 +442,6 @@ export default function App() {
             hiddenFleetIds={hiddenFleetIds}
             onToggle={toggleFleetVisibility}
           />
-          {isDispatchPanelOpen && (
-            <aside
-              className={classNames(styles.panelRail, styles.dispatchPanel, {
-                [styles.dispatchPanelOpen]: isDispatchPanelOpen,
-              })}
-            >
-              <div className={styles.panelInner}>
-                <BatchDispatch
-                  assignments={assignments}
-                  onRemoveAssignment={onRemoveAssignment}
-                  onRemoveWaypoint={onRemoveWaypoint}
-                  onClearAll={onClearAllAssignments}
-                  onClose={onToggleDispatchPanel}
-                  vehicles={vehicles}
-                  isDispatchMode={dispatchMode}
-                  onToggleDispatchMode={onToggleDispatchMode}
-                  selectedForDispatch={selectedForDispatch}
-                  onToggleVehicleForDispatch={onToggleVehicleForDispatch}
-                  onSelectAllForDispatch={onSelectAllForDispatch}
-                  onClearSelection={onClearDispatchSelection}
-                />
-              </div>
-            </aside>
-          )}
         </div>
         <aside
           className={classNames(styles.panelRail, styles.rightPanel, {
@@ -443,14 +467,15 @@ export default function App() {
       {xy && (
         <ContextMenu position={xy}>
           <div ref={ref} className={styles.contextMenu}>
-            <Button onClick={onPointDestinationClick}>Find Directions To Here</Button>
-            <Button onClick={onFindRoadClick}>Identify closest road</Button>
-            {filters.selected && (
-              <Button onClick={onPointDestinationSingleClick}>Send selected vehicle here</Button>
-            )}
-            {dispatchMode && selectedForDispatch.length > 0 && (
-              <Button onClick={onContextMenuAddWaypoint}>Add waypoint here</Button>
-            )}
+            <MapContextMenu
+              state={dispatchState}
+              onFindDirections={onPointDestinationClick}
+              onFindRoad={onFindRoadClick}
+              onSendVehicle={onPointDestinationSingleClick}
+              onAddWaypoint={onContextMenuAddWaypoint}
+              hasSelectedVehicle={!!filters.selected}
+              hasDispatchSelection={selectedForDispatch.length > 0}
+            />
           </div>
         </ContextMenu>
       )}
