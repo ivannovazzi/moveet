@@ -130,3 +130,23 @@ export interface Heatzone {
     coordinates: Position[];
   };
 }
+
+export interface DirectionResult {
+  vehicleId: string;
+  status: "ok" | "error";
+  error?: string;
+  route?: { start: [number, number]; end: [number, number]; distance: number };
+  eta?: number;
+  snappedTo?: [number, number];
+}
+
+export interface DirectionResponse {
+  status: string;
+  results: DirectionResult[];
+}
+
+export interface DispatchAssignment {
+  vehicleId: string;
+  vehicleName: string;
+  destination: [number, number]; // [lat, lng]
+}

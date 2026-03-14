@@ -7,8 +7,8 @@ export const BACKPRESSURE_THRESHOLD = 64 * 1024; // 64 KB
 /** Number of consecutive skipped flushes before a slow client is disconnected. */
 export const MAX_DROPPED_FLUSHES = 50;
 
-/** Minimum position change (in degrees) to trigger a delta update for a vehicle. ~11 meters. */
-export const POSITION_DELTA_THRESHOLD = 0.0001;
+/** Minimum position change (in degrees) to trigger a delta update for a vehicle. ~1.1 meters. */
+export const POSITION_DELTA_THRESHOLD = 0.00001;
 
 export interface BroadcasterOptions {
   /** Flush interval in milliseconds. Defaults to 100. */

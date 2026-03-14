@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import type { Fleet, Modifiers, POI, Position, Road, Vehicle } from "@/types";
+import type { DispatchAssignment, Fleet, Modifiers, POI, Position, Road, Vehicle } from "@/types";
 import type { Filters } from "@/hooks/useVehicles";
 
 import { useNetwork } from "@/hooks/useNetwork";
@@ -7,6 +7,7 @@ import { RoadNetworkMap } from "@/components/Map/components/RoadNetworkMap";
 import VehiclesLayer from "./Vehicle/VehiclesLayer";
 import Direction from "./Direction";
 import RoadRenderer from "./Road";
+import PendingDispatch from "./PendingDispatch";
 import { isPOI, isRoad } from "@/utils/typeGuards";
 import POIMarker from "./POI/POI";
 
@@ -25,6 +26,8 @@ interface MapProps {
   onPOIClick: (poi: POI) => void;
   vehicleFleetMap: Map<string, Fleet>;
   hiddenFleetIds: Set<string>;
+  dispatchMode?: boolean;
+  assignments?: DispatchAssignment[];
 }
 
 export default function Map({
@@ -38,6 +41,8 @@ export default function Map({
   onPOIClick,
   vehicleFleetMap,
   hiddenFleetIds,
+  dispatchMode = false,
+  assignments = [],
 }: MapProps) {
   const network = useNetwork();
 
@@ -49,6 +54,7 @@ export default function Map({
       strokeWidth={1.5}
       onClick={onMapClick}
       onContextClick={onMapContextClick}
+      dispatchMode={dispatchMode}
       htmlMarkers={
         <>
           {modifiers.showPOIs && (
@@ -84,6 +90,7 @@ export default function Map({
         </Suspense>
       )}
       {selectedItem && isRoad(selectedItem) && <RoadRenderer road={selectedItem} />}
+      {assignments.length > 0 && <PendingDispatch assignments={assignments} vehicles={vehicles} />}
     </RoadNetworkMap>
   );
 }

@@ -109,6 +109,26 @@ export interface Direction {
   route: Route;
 }
 
+export interface BoundingBox {
+  minLat: number;
+  maxLat: number;
+  minLon: number;
+  maxLon: number;
+}
+
+export interface DirectionResult {
+  vehicleId: string;
+  status: "ok" | "error";
+  error?: string;
+  route?: {
+    start: [number, number];
+    end: [number, number];
+    distance: number;
+  };
+  eta?: number;
+  snappedTo?: [number, number];
+}
+
 export interface HeatZoneProperties {
   id: string;
   intensity: number;

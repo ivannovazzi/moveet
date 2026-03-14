@@ -12,6 +12,7 @@ import type {
   RoadNetwork,
   POI,
   Fleet,
+  DirectionResponse,
 } from "@/types";
 import type { ResetPayload } from "./wsTypes";
 
@@ -44,6 +45,7 @@ class SimulationService {
     this.onDirection = this.onDirection.bind(this);
     this.onReset = this.onReset.bind(this);
     this.direction = this.direction.bind(this);
+    this.batchDirection = this.batchDirection.bind(this);
     this.getFleets = this.getFleets.bind(this);
     this.createFleet = this.createFleet.bind(this);
     this.deleteFleet = this.deleteFleet.bind(this);
@@ -112,6 +114,12 @@ class SimulationService {
   async direction(ids: string[], position: Position): Promise<ApiResponse<void>> {
     const body = ids.map((id) => ({ id, lat: position[1], lng: position[0] }));
     return this.http.post("/direction", body);
+  }
+
+  async batchDirection(
+    assignments: { id: string; lat: number; lng: number }[]
+  ): Promise<ApiResponse<DirectionResponse>> {
+    return this.http.post("/direction", assignments);
   }
 
   async getStatus(): Promise<ApiResponse<SimulationStatus>> {
