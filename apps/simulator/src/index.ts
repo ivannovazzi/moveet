@@ -6,8 +6,10 @@ import { WebSocketServer } from "ws";
 import { RoadNetwork } from "./modules/RoadNetwork";
 import { VehicleManager } from "./modules/VehicleManager";
 import { FleetManager } from "./modules/FleetManager";
+import { IncidentManager } from "./modules/IncidentManager";
 import { SimulationController } from "./modules/SimulationController";
 import { WebSocketBroadcaster } from "./modules/WebSocketBroadcaster";
+import type { IncidentType } from "./types";
 import { config, verifyConfig } from "./utils/config";
 import { HEAT_ZONE_DEFAULTS } from "./constants";
 import { generalRateLimiter, expensiveRateLimiter } from "./middleware/rateLimiter";
@@ -39,8 +41,9 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
 const network = new RoadNetwork(config.geojsonPath);
 const fleetManager = new FleetManager();
+const incidentManager = new IncidentManager();
 const vehicleManager = new VehicleManager(network, fleetManager);
-const simulationController = new SimulationController(vehicleManager);
+const simulationController = new SimulationController(vehicleManager, incidentManager);
 
 // Vehicles loaded in main() below, after await
 
@@ -331,6 +334,79 @@ app.get("/heatzones", (_req, res) => {
   }
 });
 
+// ─── Incidents ──────────────────────────────────────────────────────
+
+const VALID_INCIDENT_TYPES: IncidentType[] = ["accident", "closure", "construction"];
+
+app.get("/incidents", (_req, res) => {
+  try {
+    const incidents = incidentManager.getActiveIncidents();
+    res.json(incidents.map((i) => incidentManager.toDTO(i)));
+  } catch (error) {
+    logger.error(`Error in /incidents GET: ${error}`);
+    res.status(500).json({ error: "Failed to get incidents" });
+  }
+});
+
+app.post(
+  "/incidents",
+  expensiveRateLimiter.middleware(),
+  asyncHandler(async (req, res) => {
+    const { edgeIds, type, duration, severity } = req.body;
+
+    const errors: string[] = [];
+
+    if (!Array.isArray(edgeIds) || edgeIds.length === 0 || !edgeIds.every((id: unknown) => typeof id === "string")) {
+      errors.push("edgeIds must be a non-empty array of strings");
+    }
+
+    if (!VALID_INCIDENT_TYPES.includes(type)) {
+      errors.push(`type must be one of: ${VALID_INCIDENT_TYPES.join(", ")}`);
+    }
+
+    if (typeof duration !== "number" || duration <= 0) {
+      errors.push("duration must be a positive number");
+    }
+
+    if (severity !== undefined && (typeof severity !== "number" || severity < 0 || severity > 1)) {
+      errors.push("severity must be a number between 0 and 1");
+    }
+
+    if (errors.length > 0) {
+      res.status(400).json({ error: "Validation failed", details: errors });
+      return;
+    }
+
+    const incident = incidentManager.createIncident(edgeIds, type, duration, severity);
+    res.status(201).json(incidentManager.toDTO(incident));
+  })
+);
+
+app.delete("/incidents/:id", (_req, res) => {
+  const removed = incidentManager.removeIncident(_req.params.id);
+  if (!removed) {
+    res.status(404).json({ error: "Incident not found" });
+    return;
+  }
+  res.json({ status: "removed" });
+});
+
+app.post(
+  "/incidents/random",
+  expensiveRateLimiter.middleware(),
+  asyncHandler(async (_req, res) => {
+    const edge = network.getRandomEdge();
+    const type = VALID_INCIDENT_TYPES[Math.floor(Math.random() * VALID_INCIDENT_TYPES.length)];
+    const duration = 30000 + Math.random() * 270000; // 30s to 5min
+    const severity = 0.3 + Math.random() * 0.5; // 0.3 to 0.8
+
+    const incident = incidentManager.createIncident([edge.id], type, duration, severity);
+    res.status(201).json(incidentManager.toDTO(incident));
+  })
+);
+
+// ─── Fleets ─────────────────────────────────────────────────────────
+
 app.get("/fleets", (_req, res) => {
   res.json(fleetManager.getFleets());
 });
@@ -419,6 +495,9 @@ async function main() {
   fleetManager.on("fleet:created", (data) => broadcaster.broadcast("fleet:created", data));
   fleetManager.on("fleet:deleted", (data) => broadcaster.broadcast("fleet:deleted", data));
   fleetManager.on("fleet:assigned", (data) => broadcaster.broadcast("fleet:assigned", data));
+  incidentManager.on("incident:created", (data) => broadcaster.broadcast("incident:created", data));
+  incidentManager.on("incident:cleared", (data) => broadcaster.broadcast("incident:cleared", data));
+  vehicleManager.on("vehicle:rerouted", (data) => broadcaster.broadcast("vehicle:rerouted", data));
 
   wss.on("connection", (ws) => {
     logger.info(`Client connected (total: ${broadcaster.clientCount})`);

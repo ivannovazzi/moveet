@@ -75,7 +75,11 @@ export class PathfindingPool {
   /**
    * Route a pathfinding request to a worker and return the result.
    */
-  public findRoute(startId: string, endId: string): Promise<PathfindingResult | null> {
+  public findRoute(
+    startId: string,
+    endId: string,
+    incidentEdges?: Map<string, number>
+  ): Promise<PathfindingResult | null> {
     if (this.workers.length === 0) {
       return Promise.resolve(null);
     }
@@ -87,7 +91,11 @@ export class PathfindingPool {
       const worker = this.workers[this.nextWorker % this.workers.length];
       this.nextWorker++;
 
-      worker.postMessage({ type: "findRoute", id, startId, endId });
+      const msg: Record<string, unknown> = { type: "findRoute", id, startId, endId };
+      if (incidentEdges) {
+        msg.incidentEdges = Object.fromEntries(incidentEdges);
+      }
+      worker.postMessage(msg);
     });
   }
 

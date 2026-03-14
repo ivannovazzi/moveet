@@ -2,6 +2,7 @@ import type {
   Vehicle,
   DataVehicle,
   Edge,
+  Incident,
   Node,
   VehicleDTO,
   Route,
@@ -1012,6 +1013,74 @@ export class VehicleManager extends EventEmitter {
    */
   public isRunning(): boolean {
     return this.activeVehicles.size > 0;
+  }
+
+  // ─── Incident rerouting ──────────────────────────────────────────
+
+  /**
+   * Reroutes vehicles whose active route is affected by a newly created incident.
+   * Only checks edges AHEAD of each vehicle's current position (edgeIndex).
+   * Pathfinding is async — the vehicle continues moving on its current edge
+   * while the new route is computed.
+   */
+  public handleIncidentCreated(incident: Incident): void {
+    const affectedEdgeIds = new Set(incident.edgeIds);
+
+    for (const [vehicleId, route] of this.routes) {
+      const vehicle = this.vehicles.get(vehicleId);
+      if (!vehicle) continue;
+
+      const currentIdx = vehicle.edgeIndex ?? 0;
+
+      // Check if any edge AHEAD of the vehicle's current position is affected
+      const hasOverlap = route.edges.some(
+        (edge, idx) => idx > currentIdx && affectedEdgeIds.has(edge.id)
+      );
+
+      if (!hasOverlap) continue;
+
+      // Determine start and end nodes for rerouting
+      const startNode = vehicle.currentEdge.end;
+      const lastEdge = route.edges[route.edges.length - 1];
+      const destinationNode = lastEdge.end;
+
+      this.network
+        .findRouteAsync(startNode, destinationNode)
+        .then((newRoute) => {
+          // Vehicle may have been removed or route cleared while pathfinding
+          if (!this.vehicles.has(vehicleId)) return;
+          if (!this.routes.has(vehicleId)) return;
+
+          if (newRoute && newRoute.edges.length > 0) {
+            this.routes.set(vehicleId, newRoute);
+            vehicle.edgeIndex = -1;
+
+            this.emit("vehicle:rerouted", {
+              vehicleId,
+              incidentId: incident.id,
+              newRoute: utils.nonCircularRouteEdges(newRoute),
+            });
+
+            this.emit("direction", {
+              vehicleId,
+              route: utils.nonCircularRouteEdges(newRoute),
+              eta: utils.estimateRouteDuration(newRoute, vehicle.speed),
+            });
+          }
+        })
+        .catch(() => {
+          // Worker error — vehicle continues on current route
+        });
+    }
+  }
+
+  /**
+   * Placeholder for future incident-cleared handling.
+   * Could be used to reroute vehicles back to optimal paths
+   * once an incident is resolved.
+   */
+  public handleIncidentCleared(_incidentId: string): void {
+    // noop — reserved for future use
   }
 
   /**

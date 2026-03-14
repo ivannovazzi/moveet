@@ -6,7 +6,7 @@
  * thread.
  *
  * Protocol:
- *   Request:  { type: 'findRoute', id: number, startId: string, endId: string }
+ *   Request:  { type: 'findRoute', id: number, startId: string, endId: string, incidentEdges?: Record<string, number> }
  *   Response: { type: 'result',    id: number, route: { edgeIds: string[], distance: number } | null }
  */
 
@@ -156,7 +156,8 @@ function buildGraph(geojsonPath: string): Map<string, WorkerNode> {
 function findRoute(
   nodes: Map<string, WorkerNode>,
   startId: string,
-  endId: string
+  endId: string,
+  incidentEdges?: Record<string, number>
 ): { edgeIds: string[]; distance: number } | null {
   const startNode = nodes.get(startId);
   const endNode = nodes.get(endId);
@@ -233,8 +234,15 @@ function findRoute(
     for (const edge of currentNode.edges) {
       if (closedSet.has(edge.endNodeId)) continue;
 
+      // Apply incident-based edge cost penalties
+      const incidentFactor = incidentEdges?.[edge.id];
+      if (incidentFactor !== undefined && incidentFactor === 0) continue; // closure — skip edge
+
       const surfacePenalty = edge.surface === "unpaved" || edge.surface === "dirt" ? 1.3 : 1.0;
-      const travelTime = (edge.distance / edge.maxSpeed) * surfacePenalty;
+      let travelTime = (edge.distance / edge.maxSpeed) * surfacePenalty;
+      if (incidentFactor !== undefined && incidentFactor < 1) {
+        travelTime = travelTime / incidentFactor;
+      }
       const tentativeCost = current.gScore + travelTime;
       const existingCost = gScore.get(edge.endNodeId);
 
@@ -262,12 +270,21 @@ if (parentPort) {
   const geojsonPath: string = workerData.geojsonPath;
   const nodes = buildGraph(geojsonPath);
 
-  parentPort.on("message", (msg: { type: string; id: number; startId: string; endId: string }) => {
-    if (msg.type === "findRoute") {
-      const route = findRoute(nodes, msg.startId, msg.endId);
-      parentPort!.postMessage({ type: "result", id: msg.id, route });
+  parentPort.on(
+    "message",
+    (msg: {
+      type: string;
+      id: number;
+      startId: string;
+      endId: string;
+      incidentEdges?: Record<string, number>;
+    }) => {
+      if (msg.type === "findRoute") {
+        const route = findRoute(nodes, msg.startId, msg.endId, msg.incidentEdges);
+        parentPort!.postMessage({ type: "result", id: msg.id, route });
+      }
     }
-  });
+  );
 }
 
 // Export for testing
