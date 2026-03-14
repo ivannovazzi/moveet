@@ -33,6 +33,7 @@ describe("BatchDispatch", () => {
   const defaultProps = {
     assignments: [] as DispatchAssignment[],
     onRemoveAssignment: vi.fn(),
+    onRemoveWaypoint: vi.fn(),
     onClearAll: vi.fn(),
     onClose: vi.fn(),
     vehicles: defaultVehicles,
@@ -476,5 +477,149 @@ describe("BatchDispatch", () => {
 
     // Button should be disabled again
     expect(screen.getByText("Dispatch All (0)")).toBeDisabled();
+  });
+
+  it("shows waypoint count badge for multi-waypoint assignments", () => {
+    const assignments = [
+      makeAssignment({
+        vehicleId: "v1",
+        vehicleName: "Truck Alpha",
+        waypoints: [
+          { position: [-1.29, 36.82] },
+          { position: [-1.30, 36.83] },
+          { position: [-1.31, 36.84] },
+        ],
+      }),
+    ];
+
+    render(<BatchDispatch {...defaultProps} assignments={assignments} />);
+
+    expect(screen.getByText("3 stops")).toBeInTheDocument();
+    expect(screen.getByText("3 pts")).toBeInTheDocument();
+  });
+
+  it("expands waypoint list when badge is clicked", async () => {
+    const assignments = [
+      makeAssignment({
+        vehicleId: "v1",
+        vehicleName: "Truck Alpha",
+        waypoints: [
+          { position: [-1.29, 36.82] },
+          { position: [-1.30, 36.83] },
+          { position: [-1.31, 36.84] },
+        ],
+      }),
+    ];
+    const user = userEvent.setup();
+
+    render(<BatchDispatch {...defaultProps} assignments={assignments} />);
+
+    await user.click(screen.getByText("3 pts"));
+
+    // Individual waypoint coordinates should now be visible
+    expect(screen.getByText("-1.2900, 36.8200")).toBeInTheDocument();
+    expect(screen.getByText("-1.3000, 36.8300")).toBeInTheDocument();
+    expect(screen.getByText("-1.3100, 36.8400")).toBeInTheDocument();
+  });
+
+  it("calls onRemoveWaypoint when waypoint remove button clicked", async () => {
+    const onRemoveWaypoint = vi.fn();
+    const assignments = [
+      makeAssignment({
+        vehicleId: "v1",
+        vehicleName: "Truck Alpha",
+        waypoints: [
+          { position: [-1.29, 36.82] },
+          { position: [-1.30, 36.83] },
+          { position: [-1.31, 36.84] },
+        ],
+      }),
+    ];
+    const user = userEvent.setup();
+
+    render(
+      <BatchDispatch
+        {...defaultProps}
+        assignments={assignments}
+        onRemoveWaypoint={onRemoveWaypoint}
+      />
+    );
+
+    // Expand waypoints first
+    await user.click(screen.getByText("3 pts"));
+
+    // Click remove button on waypoint 2 (index 1)
+    const removeButton = screen.getByTitle("Remove waypoint 2");
+    await user.click(removeButton);
+
+    expect(onRemoveWaypoint).toHaveBeenCalledWith("v1", 1);
+  });
+
+  it("shows done button when dispatch mode active with assignments", () => {
+    const assignments = [makeAssignment()];
+
+    render(
+      <BatchDispatch {...defaultProps} assignments={assignments} isDispatchMode={true} />
+    );
+
+    expect(screen.getByText("Done adding waypoints")).toBeInTheDocument();
+  });
+
+  it("calls batchDirection with waypoints for multi-stop assignments", async () => {
+    mockedBatchDirection.mockResolvedValue({
+      data: { status: "ok", results: [] },
+    });
+
+    const assignments = [
+      makeAssignment({
+        vehicleId: "v1",
+        waypoints: [
+          { position: [-1.29, 36.82] },
+          { position: [-1.30, 36.83] },
+          { position: [-1.31, 36.84] },
+        ],
+      }),
+    ];
+    const user = userEvent.setup();
+
+    render(<BatchDispatch {...defaultProps} assignments={assignments} />);
+
+    await user.click(screen.getByText("Dispatch All (1)"));
+
+    expect(mockedBatchDirection).toHaveBeenCalledWith([
+      {
+        id: "v1",
+        lat: -1.31,
+        lng: 36.84,
+        waypoints: [
+          { lat: -1.29, lng: 36.82 },
+          { lat: -1.30, lng: 36.83 },
+          { lat: -1.31, lng: 36.84 },
+        ],
+      },
+    ]);
+  });
+
+  it("single-waypoint assignment sends flat format without waypoints field", async () => {
+    mockedBatchDirection.mockResolvedValue({
+      data: { status: "ok", results: [] },
+    });
+
+    const assignments = [
+      makeAssignment({
+        vehicleId: "v1",
+        waypoints: [{ position: [-1.2921, 36.8219] }],
+      }),
+    ];
+    const user = userEvent.setup();
+
+    render(<BatchDispatch {...defaultProps} assignments={assignments} />);
+
+    await user.click(screen.getByText("Dispatch All (1)"));
+
+    const call = mockedBatchDirection.mock.calls[0][0];
+    expect(call).toEqual([{ id: "v1", lat: -1.2921, lng: 36.8219 }]);
+    // Ensure there is no waypoints field on the payload
+    expect(call[0]).not.toHaveProperty("waypoints");
   });
 });
