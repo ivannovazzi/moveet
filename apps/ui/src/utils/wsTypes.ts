@@ -5,6 +5,8 @@ import type {
   Heatzone,
   VehicleDirection,
   Fleet,
+  IncidentDTO,
+  ReplayStatus,
 } from "@/types";
 
 export interface ResetPayload {
@@ -23,6 +25,16 @@ export interface RouteCompletedPayload {
   vehicleId: string;
 }
 
+export interface IncidentClearedPayload {
+  id: string;
+  reason: string;
+}
+
+export interface VehicleReroutedPayload {
+  vehicleId: string;
+  incidentId: string;
+}
+
 // Discriminated union for WebSocket messages
 export type WebSocketMessage =
   | { type: "connect" }
@@ -38,7 +50,11 @@ export type WebSocketMessage =
   | { type: "fleet:deleted"; data: { id: string } }
   | { type: "fleet:assigned"; data: { fleetId: string | null; vehicleIds: string[] } }
   | { type: "waypoint:reached"; data: WaypointReachedPayload }
-  | { type: "route:completed"; data: RouteCompletedPayload };
+  | { type: "route:completed"; data: RouteCompletedPayload }
+  | { type: "incident:created"; data: IncidentDTO }
+  | { type: "incident:cleared"; data: IncidentClearedPayload }
+  | { type: "vehicle:rerouted"; data: VehicleReroutedPayload }
+  | { type: "replayStatus"; data: ReplayStatus };
 
 /**
  * Type guard to validate WebSocket message structure
@@ -68,6 +84,10 @@ export function isValidMessage(msg: unknown): msg is WebSocketMessage {
     case "fleet:assigned":
     case "waypoint:reached":
     case "route:completed":
+    case "incident:created":
+    case "incident:cleared":
+    case "vehicle:rerouted":
+    case "replayStatus":
       return "data" in message;
     default:
       return false;
