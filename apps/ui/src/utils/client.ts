@@ -119,7 +119,12 @@ class SimulationService {
   }
 
   async batchDirection(
-    assignments: { id: string; lat: number; lng: number }[]
+    assignments: {
+      id: string;
+      lat: number;
+      lng: number;
+      waypoints?: { lat: number; lng: number; dwellTime?: number; label?: string }[];
+    }[]
   ): Promise<ApiResponse<DirectionResponse>> {
     return this.http.post("/direction", assignments);
   }

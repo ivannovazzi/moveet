@@ -7,6 +7,7 @@ import styles from "./BatchDispatch.module.css";
 interface BatchDispatchProps {
   assignments: DispatchAssignment[];
   onRemoveAssignment: (vehicleId: string) => void;
+  onRemoveWaypoint: (vehicleId: string, waypointIndex: number) => void;
   onClearAll: () => void;
   onClose: () => void;
   vehicles: Vehicle[];
@@ -21,6 +22,7 @@ interface BatchDispatchProps {
 export default function BatchDispatch({
   assignments,
   onRemoveAssignment,
+  onRemoveWaypoint,
   onClearAll,
   onClose,
   vehicles,
@@ -34,6 +36,19 @@ export default function BatchDispatch({
   const [results, setResults] = useState<DirectionResult[]>([]);
   const [dispatching, setDispatching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expandedAssignments, setExpandedAssignments] = useState<Set<string>>(new Set());
+
+  const toggleExpanded = useCallback((vehicleId: string) => {
+    setExpandedAssignments((prev) => {
+      const next = new Set(prev);
+      if (next.has(vehicleId)) {
+        next.delete(vehicleId);
+      } else {
+        next.add(vehicleId);
+      }
+      return next;
+    });
+  }, []);
 
   const handleDispatch = useCallback(async () => {
     if (assignments.length === 0) return;
@@ -104,6 +119,12 @@ export default function BatchDispatch({
         </span>
       </button>
 
+      {isDispatchMode && assignments.length > 0 && (
+        <button type="button" className={styles.doneButton} onClick={onToggleDispatchMode}>
+          Done adding waypoints
+        </button>
+      )}
+
       {isDispatchMode && availableVehicles.length > 0 && (
         <div className={styles.vehiclePicker}>
           <div className={styles.vehiclePickerHeader}>
@@ -167,23 +188,59 @@ export default function BatchDispatch({
         ) : (
           assignments.map((assignment) => {
             const dest = assignment.waypoints[assignment.waypoints.length - 1];
+            const waypointCount = assignment.waypoints.length;
+            const isExpanded = expandedAssignments.has(assignment.vehicleId);
+
             return (
-              <div key={assignment.vehicleId} className={styles.assignment}>
-                <span className={styles.assignmentName}>{assignment.vehicleName}</span>
-                <span className={styles.assignmentArrow}>&rarr;</span>
-                <span className={styles.assignmentCoords}>
-                  {assignment.waypoints.length > 1
-                    ? `${assignment.waypoints.length} stops`
-                    : `${dest.position[0].toFixed(4)}, ${dest.position[1].toFixed(4)}`}
-                </span>
-                <button
-                  className={styles.removeButton}
-                  onClick={() => onRemoveAssignment(assignment.vehicleId)}
-                  type="button"
-                  title="Remove assignment"
-                >
-                  x
-                </button>
+              <div key={assignment.vehicleId} className={styles.assignmentGroup}>
+                <div className={styles.assignment}>
+                  <span className={styles.assignmentName}>{assignment.vehicleName}</span>
+                  <span className={styles.assignmentArrow}>&rarr;</span>
+                  <span className={styles.assignmentCoords}>
+                    {waypointCount > 1
+                      ? `${waypointCount} stops`
+                      : `${dest.position[0].toFixed(4)}, ${dest.position[1].toFixed(4)}`}
+                  </span>
+                  {waypointCount > 1 && (
+                    <button
+                      type="button"
+                      className={styles.waypointBadge}
+                      onClick={() => toggleExpanded(assignment.vehicleId)}
+                      title={isExpanded ? "Collapse waypoints" : "Expand waypoints"}
+                    >
+                      {waypointCount} pts
+                    </button>
+                  )}
+                  <button
+                    className={styles.removeButton}
+                    onClick={() => onRemoveAssignment(assignment.vehicleId)}
+                    type="button"
+                    title="Remove assignment"
+                  >
+                    x
+                  </button>
+                </div>
+                {waypointCount > 1 && isExpanded && (
+                  <div className={styles.waypointList}>
+                    {assignment.waypoints.map((wp, i) => (
+                      <div key={i} className={styles.waypointRow}>
+                        <span className={styles.waypointIndex}>{i + 1}</span>
+                        <span className={styles.waypointCoords}>
+                          {wp.position[0].toFixed(4)}, {wp.position[1].toFixed(4)}
+                        </span>
+                        {wp.label && <span className={styles.waypointLabel}>{wp.label}</span>}
+                        <button
+                          type="button"
+                          className={styles.waypointRemove}
+                          onClick={() => onRemoveWaypoint(assignment.vehicleId, i)}
+                          title={`Remove waypoint ${i + 1}`}
+                        >
+                          x
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })

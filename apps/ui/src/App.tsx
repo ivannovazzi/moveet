@@ -19,6 +19,7 @@ import type {
   Position,
   Road,
   SimulationStatus,
+  Waypoint,
 } from "./types";
 import styles from "./App.module.css";
 import { useVehicles } from "./hooks/useVehicles";
@@ -100,30 +101,67 @@ export default function App() {
   const onMapClick = useCallback(
     (_event?: React.MouseEvent, position?: Position) => {
       if (dispatchMode && position && selectedForDispatch.length > 0) {
-        const waypoint = { position: [position[1], position[0]] as [number, number] };
-        const newAssignments: DispatchAssignment[] = selectedForDispatch
-          .filter((id) => !assignments.some((a) => a.vehicleId === id))
-          .map((id) => {
-            const vehicle = vehicles.find((v) => v.id === id);
-            return {
-              vehicleId: id,
-              vehicleName: vehicle?.name ?? id,
-              waypoints: [waypoint],
-            };
+        const newWaypoint: Waypoint = { position: [position[1], position[0]] };
+
+        setAssignments((prev) => {
+          // Append waypoint to existing assignments for selected vehicles
+          const updated = prev.map((a) => {
+            if (!selectedForDispatch.includes(a.vehicleId)) return a;
+            return { ...a, waypoints: [...a.waypoints, newWaypoint] };
           });
-        if (newAssignments.length > 0) {
-          setAssignments((prev) => [...prev, ...newAssignments]);
-        }
-        setSelectedForDispatch([]);
+
+          // Create new assignments for vehicles not yet assigned
+          const existingIds = new Set(updated.map((a) => a.vehicleId));
+          const newAssignments: DispatchAssignment[] = selectedForDispatch
+            .filter((id) => !existingIds.has(id))
+            .map((id) => {
+              const vehicle = vehicles.find((v) => v.id === id);
+              return {
+                vehicleId: id,
+                vehicleName: vehicle?.name ?? id,
+                waypoints: [newWaypoint],
+              };
+            });
+
+          return [...updated, ...newAssignments];
+        });
+        // Do NOT clear selectedForDispatch — user can keep adding waypoints
         return;
       }
       clearMap();
     },
-    [clearMap, dispatchMode, selectedForDispatch, assignments, vehicles]
+    [clearMap, dispatchMode, selectedForDispatch, vehicles]
   );
 
   const onRemoveAssignment = useCallback((vehicleId: string) => {
     setAssignments((prev) => prev.filter((a) => a.vehicleId !== vehicleId));
+  }, []);
+
+  const onAddWaypoint = useCallback((vehicleId: string, position: Position) => {
+    const newWaypoint: Waypoint = { position: [position[1], position[0]] };
+    setAssignments((prev) =>
+      prev.map((a) => {
+        if (a.vehicleId !== vehicleId) return a;
+        return { ...a, waypoints: [...a.waypoints, newWaypoint] };
+      })
+    );
+  }, []);
+  void onAddWaypoint; // Will be wired to context menu in a follow-up
+
+  const onRemoveWaypoint = useCallback((vehicleId: string, waypointIndex: number) => {
+    setAssignments((prev) => {
+      const result: DispatchAssignment[] = [];
+      for (const a of prev) {
+        if (a.vehicleId !== vehicleId) {
+          result.push(a);
+          continue;
+        }
+        const waypoints = a.waypoints.filter((_, i) => i !== waypointIndex);
+        if (waypoints.length === 0) continue; // Remove entire assignment
+        result.push({ ...a, waypoints });
+      }
+      return result;
+    });
   }, []);
 
   const onClearAllAssignments = useCallback(() => {
@@ -338,6 +376,7 @@ export default function App() {
                 <BatchDispatch
                   assignments={assignments}
                   onRemoveAssignment={onRemoveAssignment}
+                  onRemoveWaypoint={onRemoveWaypoint}
                   onClearAll={onClearAllAssignments}
                   onClose={onToggleDispatchPanel}
                   vehicles={vehicles}
