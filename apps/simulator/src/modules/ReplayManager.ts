@@ -155,6 +155,9 @@ export class ReplayManager extends EventEmitter<ReplayEventMap> {
     this.cleanup();
     this.state = "idle";
     this.currentIndex = 0;
+    this.events = [];
+    this.header = null;
+    this.filePath = null;
     this.emitStatus();
   }
 

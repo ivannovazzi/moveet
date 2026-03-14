@@ -36,7 +36,7 @@ export class RecordingManager extends EventEmitter {
   private vehicleCount = 0;
   private eventCount = 0;
 
-  private stream: fs.WriteStream | null = null;
+  private fd: number | null = null;
   private buffer: string[] = [];
   private flushTimer: NodeJS.Timeout | null = null;
 
@@ -83,11 +83,8 @@ export class RecordingManager extends EventEmitter {
     const dir = path.dirname(this.filePath);
     fs.mkdirSync(dir, { recursive: true });
 
-    // Open write stream
-    this.stream = fs.createWriteStream(this.filePath, { flags: "w" });
-    this.stream.on("error", (err) => {
-      this.emit("recording:error", err);
-    });
+    // Open file descriptor for synchronous writes
+    this.fd = fs.openSync(this.filePath, "w");
 
     // Write header as first line
     const header: RecordingHeader = {
@@ -97,7 +94,7 @@ export class RecordingManager extends EventEmitter {
       vehicleCount,
       options,
     };
-    this.stream.write(JSON.stringify(header) + "\n");
+    fs.writeSync(this.fd, JSON.stringify(header) + "\n");
 
     // Start periodic flush timer
     this.flushTimer = setInterval(() => this.flushBuffer(), BUFFER_FLUSH_INTERVAL_MS);
@@ -125,10 +122,10 @@ export class RecordingManager extends EventEmitter {
       this.flushTimer = null;
     }
 
-    // Close stream
-    if (this.stream) {
-      this.stream.end();
-      this.stream = null;
+    // Close file descriptor
+    if (this.fd !== null) {
+      fs.closeSync(this.fd);
+      this.fd = null;
     }
 
     this.recording = false;
@@ -138,7 +135,7 @@ export class RecordingManager extends EventEmitter {
     try {
       fileSize = fs.statSync(this.filePath).size;
     } catch {
-      // File may not be fully flushed yet; ignore
+      // ignore
     }
 
     const metadata: RecordingMetadata = {
@@ -233,13 +230,13 @@ export class RecordingManager extends EventEmitter {
   }
 
   /**
-   * Writes all buffered event lines to the stream.
+   * Writes all buffered event lines to the file.
    */
   private flushBuffer(): void {
-    if (this.buffer.length === 0 || !this.stream) return;
+    if (this.buffer.length === 0 || this.fd === null) return;
 
     const chunk = this.buffer.join("\n") + "\n";
     this.buffer = [];
-    this.stream.write(chunk);
+    fs.writeSync(this.fd, chunk);
   }
 }
