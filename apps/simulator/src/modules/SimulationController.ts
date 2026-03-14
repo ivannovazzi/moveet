@@ -1,10 +1,13 @@
 import type { VehicleManager } from "./VehicleManager";
 import type { IncidentManager } from "./IncidentManager";
+import { ReplayManager } from "./ReplayManager";
 import type {
   DirectionRequest,
   DirectionResult,
   Direction,
   Incident,
+  RecordingHeader,
+  ReplayStatus,
   SimulationStatus,
   StartOptions,
   VehicleDTO,
@@ -21,12 +24,26 @@ interface ResetPayload {
 type EventEmitterMap = {
   updateStatus: [SimulationStatus];
   reset: [ResetPayload];
+  replayStatus: [ReplayStatus];
+  replayVehicle: [unknown];
+  replayDirection: [unknown];
+  "replayIncident:created": [unknown];
+  "replayIncident:cleared": [unknown];
+  replayHeatzones: [unknown];
+  "replayWaypoint:reached": [unknown];
+  "replayRoute:completed": [unknown];
+  "replayVehicle:rerouted": [unknown];
+  "replaySimulation:start": [unknown];
+  "replaySimulation:stop": [unknown];
+  "replaySimulation:reset": [unknown];
 };
 
 export class SimulationController extends EventEmitter<EventEmitterMap> {
   private autoHeatZoneInterval?: NodeJS.Timeout;
   private _ready = false;
   private incidentManager?: IncidentManager;
+  private _mode: "live" | "replay" = "live";
+  private replayManager?: ReplayManager;
 
   constructor(
     private vehicleManager: VehicleManager,
@@ -39,6 +56,13 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
     if (!config.adapterURL) {
       this._ready = true;
     }
+  }
+
+  /**
+   * Returns the current simulation mode: 'live' or 'replay'.
+   */
+  public get mode(): "live" | "replay" {
+    return this._mode;
   }
 
   /**
@@ -267,6 +291,119 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
    */
   public getIncidentManager(): IncidentManager | undefined {
     return this.incidentManager;
+  }
+
+  // ─── Replay Mode ────────────────────────────────────────────────────
+
+  /**
+   * Starts replay mode: stops the live simulation if running, loads the
+   * recording file, and begins playback. ReplayManager events are forwarded
+   * as SimulationController events so the WS broadcaster picks them up.
+   *
+   * @param filePath - Path to the NDJSON recording file
+   * @param speed - Playback speed multiplier (default: 1.0)
+   * @returns The recording header metadata
+   */
+  async startReplay(filePath: string, speed?: number): Promise<RecordingHeader> {
+    // Stop live simulation if running
+    if (this.vehicleManager.isRunning()) {
+      this.stop();
+    }
+
+    this._mode = "replay";
+
+    // Create a fresh ReplayManager and wire up event forwarding
+    this.replayManager = new ReplayManager();
+    this.wireReplayEvents(this.replayManager);
+
+    const header = await this.replayManager.loadRecording(filePath);
+    this.replayManager.startReplay(speed);
+
+    return header;
+  }
+
+  /**
+   * Pauses the current replay.
+   */
+  pauseReplay(): void {
+    if (this._mode !== "replay" || !this.replayManager) return;
+    this.replayManager.pauseReplay();
+  }
+
+  /**
+   * Resumes the current replay from its paused position.
+   */
+  resumeReplay(): void {
+    if (this._mode !== "replay" || !this.replayManager) return;
+    this.replayManager.resumeReplay();
+  }
+
+  /**
+   * Stops replay mode and returns to live mode.
+   * Cleans up the ReplayManager instance.
+   */
+  stopReplay(): void {
+    if (this.replayManager) {
+      this.replayManager.stopReplay();
+      this.replayManager.removeAllListeners();
+      this.replayManager = undefined;
+    }
+    this._mode = "live";
+    this.emit("replayStatus", { mode: "live" });
+  }
+
+  /**
+   * Seeks to a specific timestamp in the recording.
+   *
+   * @param timestamp - Target timestamp in ms offset from the start of the recording
+   */
+  seekReplay(timestamp: number): void {
+    if (this._mode !== "replay" || !this.replayManager) return;
+    this.replayManager.seekTo(timestamp);
+  }
+
+  /**
+   * Returns the current replay status, or a default live status if not in replay mode.
+   */
+  getReplayStatus(): ReplayStatus {
+    if (this.replayManager) {
+      return this.replayManager.getStatus();
+    }
+    return { mode: "live" };
+  }
+
+  /**
+   * Wires ReplayManager events to SimulationController events
+   * so the WS broadcaster can forward them to clients.
+   */
+  private wireReplayEvents(rm: ReplayManager): void {
+    const forwardEvents = [
+      ["vehicle", "replayVehicle"],
+      ["direction", "replayDirection"],
+      ["incident:created", "replayIncident:created"],
+      ["incident:cleared", "replayIncident:cleared"],
+      ["heatzones", "replayHeatzones"],
+      ["waypoint:reached", "replayWaypoint:reached"],
+      ["route:completed", "replayRoute:completed"],
+      ["vehicle:rerouted", "replayVehicle:rerouted"],
+      ["simulation:start", "replaySimulation:start"],
+      ["simulation:stop", "replaySimulation:stop"],
+      ["simulation:reset", "replaySimulation:reset"],
+    ] as const;
+
+    for (const [source, target] of forwardEvents) {
+      rm.on(source, (data: unknown) => {
+        (this.emit as (event: string, ...args: unknown[]) => boolean)(target, data);
+      });
+    }
+
+    rm.on("replayStatus", (status: ReplayStatus) => {
+      this.emit("replayStatus", status);
+    });
+
+    rm.on("replayEnd", () => {
+      this.stopReplay();
+    });
   }
 
   /**

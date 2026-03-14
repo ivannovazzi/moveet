@@ -2,11 +2,14 @@ import type { Request, Response, NextFunction } from "express";
 import express from "express";
 import compression from "compression";
 import cors from "cors";
+import fs from "fs";
+import path from "path";
 import { WebSocketServer } from "ws";
 import { RoadNetwork } from "./modules/RoadNetwork";
 import { VehicleManager } from "./modules/VehicleManager";
 import { FleetManager } from "./modules/FleetManager";
 import { IncidentManager } from "./modules/IncidentManager";
+import { RecordingManager } from "./modules/RecordingManager";
 import { SimulationController } from "./modules/SimulationController";
 import { WebSocketBroadcaster } from "./modules/WebSocketBroadcaster";
 import type { IncidentType } from "./types";
@@ -44,6 +47,7 @@ const fleetManager = new FleetManager();
 const incidentManager = new IncidentManager();
 const vehicleManager = new VehicleManager(network, fleetManager);
 const simulationController = new SimulationController(vehicleManager, incidentManager);
+const recordingManager = new RecordingManager();
 
 // Vehicles loaded in main() below, after await
 
@@ -334,6 +338,115 @@ app.get("/heatzones", (_req, res) => {
   }
 });
 
+// ─── Recording ──────────────────────────────────────────────────────
+
+app.post(
+  "/recording/start",
+  expensiveRateLimiter.middleware(),
+  asyncHandler(async (_req, res) => {
+    if (recordingManager.isRecording()) {
+      res.status(409).json({ error: "Recording already in progress" });
+      return;
+    }
+    const options = simulationController.getOptions();
+    const vehicleCount = simulationController.getVehicles().length;
+    const filePath = recordingManager.startRecording(options, vehicleCount);
+    res.json({ status: "recording", filePath });
+  })
+);
+
+app.post(
+  "/recording/stop",
+  asyncHandler(async (_req, res) => {
+    if (!recordingManager.isRecording()) {
+      res.status(409).json({ error: "No recording in progress" });
+      return;
+    }
+    const metadata = recordingManager.stopRecording();
+    res.json(metadata);
+  })
+);
+
+app.get(
+  "/recordings",
+  asyncHandler(async (_req, res) => {
+    const dir = "recordings";
+    if (!fs.existsSync(dir)) {
+      res.json([]);
+      return;
+    }
+    const files = fs.readdirSync(dir);
+    const result = files.map((fileName) => {
+      const stat = fs.statSync(path.join(dir, fileName));
+      return {
+        fileName,
+        fileSize: stat.size,
+        modifiedAt: stat.mtime.toISOString(),
+      };
+    });
+    res.json(result);
+  })
+);
+
+// ─── Replay ─────────────────────────────────────────────────────────
+
+app.post(
+  "/replay/start",
+  expensiveRateLimiter.middleware(),
+  asyncHandler(async (req, res) => {
+    const { file, speed } = req.body;
+    if (!file || typeof file !== "string") {
+      res.status(400).json({ error: "file is required" });
+      return;
+    }
+    const filePath = path.join("recordings", file);
+    const header = await simulationController.startReplay(filePath, speed);
+    res.json({ status: "replaying", header });
+  })
+);
+
+app.post(
+  "/replay/pause",
+  asyncHandler(async (_req, res) => {
+    simulationController.pauseReplay();
+    res.json({ status: "paused" });
+  })
+);
+
+app.post(
+  "/replay/resume",
+  asyncHandler(async (_req, res) => {
+    simulationController.resumeReplay();
+    res.json({ status: "resumed" });
+  })
+);
+
+app.post(
+  "/replay/stop",
+  asyncHandler(async (_req, res) => {
+    simulationController.stopReplay();
+    res.json({ status: "stopped" });
+  })
+);
+
+app.post(
+  "/replay/seek",
+  asyncHandler(async (req, res) => {
+    const { timestamp } = req.body;
+    simulationController.seekReplay(timestamp);
+    res.json({ status: "seeked", timestamp });
+  })
+);
+
+app.get("/replay/status", (_req, res) => {
+  try {
+    res.json(simulationController.getReplayStatus());
+  } catch (error) {
+    logger.error(`Error in /replay/status: ${error}`);
+    res.status(500).json({ error: "Failed to get replay status" });
+  }
+});
+
 // ─── Incidents ──────────────────────────────────────────────────────
 
 const VALID_INCIDENT_TYPES: IncidentType[] = ["accident", "closure", "construction"];
@@ -482,6 +595,7 @@ async function main() {
   // Vehicle updates are batched by the broadcaster
   vehicleManager.on("update", (data) => {
     broadcaster.queueVehicleUpdate(data);
+    recordingManager.captureVehicleSnapshot([data]);
   });
 
   // Non-vehicle events are broadcast immediately
@@ -498,6 +612,26 @@ async function main() {
   incidentManager.on("incident:created", (data) => broadcaster.broadcast("incident:created", data));
   incidentManager.on("incident:cleared", (data) => broadcaster.broadcast("incident:cleared", data));
   vehicleManager.on("vehicle:rerouted", (data) => broadcaster.broadcast("vehicle:rerouted", data));
+
+  // Wire discrete events to recording manager
+  vehicleManager.on("direction", (data) => recordingManager.recordEvent("direction", data));
+  vehicleManager.on("waypoint:reached", (data) => recordingManager.recordEvent("waypoint", data));
+  vehicleManager.on("route:completed", (data) => recordingManager.recordEvent("route:completed", data));
+  vehicleManager.on("vehicle:rerouted", (data) => recordingManager.recordEvent("vehicle:rerouted", data));
+  network.on("heatzones", (data) => recordingManager.recordEvent("heatzone", data));
+  incidentManager.on("incident:created", (data) => recordingManager.recordEvent("incident", { action: "created", ...data }));
+  incidentManager.on("incident:cleared", (data) => recordingManager.recordEvent("incident", { action: "cleared", ...data }));
+
+  // Wire replay events from SimulationController to WS broadcaster
+  simulationController.on("replayVehicle", (data) => broadcaster.broadcast("vehicle", data));
+  simulationController.on("replayDirection", (data) => broadcaster.broadcast("direction", data));
+  simulationController.on("replayIncident:created", (data) => broadcaster.broadcast("incident:created", data));
+  simulationController.on("replayIncident:cleared", (data) => broadcaster.broadcast("incident:cleared", data));
+  simulationController.on("replayHeatzones", (data) => broadcaster.broadcast("heatzones", data));
+  simulationController.on("replayWaypoint:reached", (data) => broadcaster.broadcast("waypoint:reached", data));
+  simulationController.on("replayRoute:completed", (data) => broadcaster.broadcast("route:completed", data));
+  simulationController.on("replayVehicle:rerouted", (data) => broadcaster.broadcast("vehicle:rerouted", data));
+  simulationController.on("replayStatus", (data) => broadcaster.broadcast("replayStatus", data));
 
   wss.on("connection", (ws) => {
     logger.info(`Client connected (total: ${broadcaster.clientCount})`);

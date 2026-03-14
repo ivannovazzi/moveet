@@ -214,3 +214,61 @@ export interface IncidentDTO {
   expiresAt: number;
   autoClears: boolean;
 }
+
+// ─── Recording & Replay ─────────────────────────────────────────────
+
+export type RecordingEventType =
+  | "vehicle"
+  | "incident"
+  | "heatzone"
+  | "spawn"
+  | "despawn"
+  | "direction"
+  | "waypoint"
+  | "route:completed"
+  | "vehicle:rerouted"
+  | "simulation:start"
+  | "simulation:stop"
+  | "simulation:reset";
+
+export interface RecordingHeader {
+  format: "moveet-recording";
+  version: 1;
+  startTime: string; // ISO 8601
+  vehicleCount: number;
+  options: StartOptions;
+}
+
+export interface RecordingEvent {
+  timestamp: number; // ms since recording start
+  type: RecordingEventType;
+  data: Record<string, unknown>;
+}
+
+export interface RecordingMetadata {
+  filePath: string;
+  startTime: string;
+  duration: number;
+  eventCount: number;
+  fileSize: number;
+  vehicleCount: number;
+}
+
+export interface VehicleSnapshot {
+  id: string;
+  position: [number, number];
+  speed: number;
+  heading: number;
+  edgeId: string;
+  fleetId?: string;
+}
+
+export interface ReplayStatus {
+  mode: "live" | "replay";
+  file?: string;
+  progress?: number; // 0-1
+  duration?: number; // total recording duration in ms
+  currentTime?: number; // current playback position in ms
+  speed?: number; // playback speed multiplier
+  paused?: boolean;
+}
