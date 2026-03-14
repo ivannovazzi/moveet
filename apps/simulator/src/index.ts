@@ -411,12 +411,8 @@ async function main() {
   // Non-vehicle events are broadcast immediately
   network.on("heatzones", (data) => broadcaster.broadcast("heatzones", data));
   vehicleManager.on("direction", (data) => broadcaster.broadcast("direction", data));
-  vehicleManager.on("waypoint:reached", (data) =>
-    broadcaster.broadcast("waypoint:reached", data)
-  );
-  vehicleManager.on("route:completed", (data) =>
-    broadcaster.broadcast("route:completed", data)
-  );
+  vehicleManager.on("waypoint:reached", (data) => broadcaster.broadcast("waypoint:reached", data));
+  vehicleManager.on("route:completed", (data) => broadcaster.broadcast("route:completed", data));
   vehicleManager.on("options", (data) => broadcaster.broadcast("options", data));
   simulationController.on("updateStatus", (data) => broadcaster.broadcast("status", data));
   simulationController.on("reset", (data) => broadcaster.broadcast("reset", data));

@@ -701,7 +701,7 @@ export class VehicleManager extends EventEmitter {
 
       if (wpIndex < vehicle.waypoints.length - 1) {
         // More waypoints — dwell at this waypoint, then start next leg
-        const dwellSeconds = waypoint?.dwellTime ?? (10 + Math.random() * 50);
+        const dwellSeconds = waypoint?.dwellTime ?? 10 + Math.random() * 50;
         vehicle.dwellUntil = Date.now() + dwellSeconds * 1000;
         vehicle.speed = this.options.minSpeed;
 
@@ -717,7 +717,7 @@ export class VehicleManager extends EventEmitter {
         // Final waypoint reached
         this.emit("route:completed", { vehicleId: vehicle.id });
         this.clearWaypointState(vehicle);
-        const dwellSeconds = waypoint?.dwellTime ?? (10 + Math.random() * 50);
+        const dwellSeconds = waypoint?.dwellTime ?? 10 + Math.random() * 50;
         vehicle.dwellUntil = Date.now() + dwellSeconds * 1000;
         vehicle.speed = this.options.minSpeed;
         this.routes.delete(vehicle.id);
