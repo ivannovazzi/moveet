@@ -38,9 +38,7 @@ export default function MapContextMenu({
     case DispatchState.ROUTE:
       return (
         <>
-          {hasDispatchSelection && (
-            <Button onClick={onAddWaypoint}>Add waypoint here</Button>
-          )}
+          {hasDispatchSelection && <Button onClick={onAddWaypoint}>Add waypoint here</Button>}
           <Button onClick={onFindRoad}>Identify closest road</Button>
         </>
       );

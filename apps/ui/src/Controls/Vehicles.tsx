@@ -53,7 +53,7 @@ function ResultBadge({ result }: { result: DirectionResult }) {
   if (result.waypointCount && result.waypointCount > 1) {
     const totalDistance = result.legs
       ? result.legs.reduce((sum, leg) => sum + leg.distance, 0)
-      : result.route?.distance ?? 0;
+      : (result.route?.distance ?? 0);
     return (
       <span className={classNames(styles.resultBadge, styles.resultBadgeOk)}>
         {result.waypointCount} stops, {totalDistance.toFixed(1)} km
@@ -71,9 +71,7 @@ function ResultBadge({ result }: { result: DirectionResult }) {
   }
 
   // OK without ETA
-  return (
-    <span className={classNames(styles.resultBadge, styles.resultBadgeOk)}>Dispatched</span>
-  );
+  return <span className={classNames(styles.resultBadge, styles.resultBadgeOk)}>Dispatched</span>;
 }
 
 export default function VehicleList({

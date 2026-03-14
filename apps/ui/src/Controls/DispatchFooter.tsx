@@ -94,9 +94,7 @@ export default function DispatchFooter({
     const successes = results.filter((r) => r.status === "ok").length;
     const failures = results.filter((r) => r.status === "error").length;
     const text =
-      failures > 0
-        ? `${successes} dispatched, ${failures} failed`
-        : `${successes} dispatched`;
+      failures > 0 ? `${successes} dispatched, ${failures} failed` : `${successes} dispatched`;
 
     return (
       <div className={styles.footer}>

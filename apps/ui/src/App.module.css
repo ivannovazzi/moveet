@@ -122,7 +122,6 @@
   }
 }
 
-
 .dispatchToggle {
   display: flex;
   align-items: center;
@@ -137,7 +136,9 @@
   font-weight: 500;
   letter-spacing: 0.3px;
   cursor: pointer;
-  transition: background 150ms ease, color 150ms ease;
+  transition:
+    background 150ms ease,
+    color 150ms ease;
 }
 
 .dispatchToggle:hover {

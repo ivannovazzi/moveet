@@ -6,7 +6,7 @@ import { DispatchState } from "@/hooks/useDispatchState";
 import type { DispatchAssignment, DirectionResult } from "@/types";
 
 function defaultProps(
-  overrides: Partial<React.ComponentProps<typeof DispatchFooter>> = {},
+  overrides: Partial<React.ComponentProps<typeof DispatchFooter>> = {}
 ): React.ComponentProps<typeof DispatchFooter> {
   return {
     state: DispatchState.BROWSE,
@@ -43,7 +43,7 @@ describe("DispatchFooter", () => {
       {
         vehicleId: "v1",
         vehicleName: "Truck A",
-        waypoints: [{ position: [-1.29, 36.82] }, { position: [-1.30, 36.83] }],
+        waypoints: [{ position: [-1.29, 36.82] }, { position: [-1.3, 36.83] }],
       },
       {
         vehicleId: "v2",
@@ -51,9 +51,7 @@ describe("DispatchFooter", () => {
         waypoints: [{ position: [-1.31, 36.84] }],
       },
     ];
-    render(
-      <DispatchFooter {...defaultProps({ state: DispatchState.ROUTE, assignments })} />,
-    );
+    render(<DispatchFooter {...defaultProps({ state: DispatchState.ROUTE, assignments })} />);
     expect(screen.getByText("2 vehicles, 3 stops")).toBeInTheDocument();
   });
 
@@ -65,9 +63,7 @@ describe("DispatchFooter", () => {
         waypoints: [{ position: [-1.29, 36.82] }],
       },
     ];
-    render(
-      <DispatchFooter {...defaultProps({ state: DispatchState.ROUTE, assignments })} />,
-    );
+    render(<DispatchFooter {...defaultProps({ state: DispatchState.ROUTE, assignments })} />);
     const dispatchBtn = screen.getByRole("button", { name: "Dispatch" });
     const clearBtn = screen.getByRole("button", { name: "Clear" });
     expect(dispatchBtn).toBeEnabled();
@@ -76,9 +72,7 @@ describe("DispatchFooter", () => {
 
   it('shows "Dispatching..." with spinner for DISPATCH state', () => {
     render(
-      <DispatchFooter
-        {...defaultProps({ state: DispatchState.DISPATCH, dispatching: true })}
-      />,
+      <DispatchFooter {...defaultProps({ state: DispatchState.DISPATCH, dispatching: true })} />
     );
     expect(screen.getByText(/Dispatching\.\.\./)).toBeInTheDocument();
   });
@@ -123,9 +117,7 @@ describe("DispatchFooter", () => {
       },
     ];
     render(
-      <DispatchFooter
-        {...defaultProps({ state: DispatchState.ROUTE, assignments, onDispatch })}
-      />,
+      <DispatchFooter {...defaultProps({ state: DispatchState.ROUTE, assignments, onDispatch })} />
     );
     await user.click(screen.getByRole("button", { name: "Dispatch" }));
     expect(onDispatch).toHaveBeenCalledTimes(1);
@@ -134,9 +126,7 @@ describe("DispatchFooter", () => {
   it("calls onClear when Clear/Exit button clicked", async () => {
     const user = userEvent.setup();
     const onClear = vi.fn();
-    render(
-      <DispatchFooter {...defaultProps({ state: DispatchState.SELECT, onClear })} />,
-    );
+    render(<DispatchFooter {...defaultProps({ state: DispatchState.SELECT, onClear })} />);
     await user.click(screen.getByRole("button", { name: "Exit" }));
     expect(onClear).toHaveBeenCalledTimes(1);
   });
@@ -145,9 +135,7 @@ describe("DispatchFooter", () => {
     const user = userEvent.setup();
     const onDone = vi.fn();
     const results: DirectionResult[] = [{ vehicleId: "v1", status: "ok" }];
-    render(
-      <DispatchFooter {...defaultProps({ state: DispatchState.RESULTS, results, onDone })} />,
-    );
+    render(<DispatchFooter {...defaultProps({ state: DispatchState.RESULTS, results, onDone })} />);
     await user.click(screen.getByRole("button", { name: "Done" }));
     expect(onDone).toHaveBeenCalledTimes(1);
   });
@@ -155,13 +143,9 @@ describe("DispatchFooter", () => {
   it("calls onRetryFailed when Retry Failed button clicked", async () => {
     const user = userEvent.setup();
     const onRetryFailed = vi.fn();
-    const results: DirectionResult[] = [
-      { vehicleId: "v1", status: "error", error: "no route" },
-    ];
+    const results: DirectionResult[] = [{ vehicleId: "v1", status: "error", error: "no route" }];
     render(
-      <DispatchFooter
-        {...defaultProps({ state: DispatchState.RESULTS, results, onRetryFailed })}
-      />,
+      <DispatchFooter {...defaultProps({ state: DispatchState.RESULTS, results, onRetryFailed })} />
     );
     await user.click(screen.getByRole("button", { name: "Retry Failed" }));
     expect(onRetryFailed).toHaveBeenCalledTimes(1);

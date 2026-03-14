@@ -4,7 +4,7 @@ import MapContextMenu from "../MapContextMenu";
 import { DispatchState } from "@/hooks/useDispatchState";
 
 function defaultProps(
-  overrides: Partial<React.ComponentProps<typeof MapContextMenu>> = {},
+  overrides: Partial<React.ComponentProps<typeof MapContextMenu>> = {}
 ): React.ComponentProps<typeof MapContextMenu> {
   return {
     state: DispatchState.BROWSE,
@@ -44,7 +44,7 @@ describe("MapContextMenu", () => {
     render(
       <MapContextMenu
         {...defaultProps({ state: DispatchState.ROUTE, hasDispatchSelection: true })}
-      />,
+      />
     );
     expect(screen.getByText("Add waypoint here")).toBeInTheDocument();
     expect(screen.getByText("Identify closest road")).toBeInTheDocument();
@@ -54,7 +54,7 @@ describe("MapContextMenu", () => {
     render(
       <MapContextMenu
         {...defaultProps({ state: DispatchState.ROUTE, hasDispatchSelection: false })}
-      />,
+      />
     );
     expect(screen.queryByText("Add waypoint here")).not.toBeInTheDocument();
     expect(screen.getByText("Identify closest road")).toBeInTheDocument();

@@ -9,7 +9,7 @@ function makeSignals(
     assignments: DispatchAssignment[];
     dispatching: boolean;
     results: DirectionResult[];
-  }> = {},
+  }> = {}
 ) {
   return {
     dispatchMode: false,
@@ -36,8 +36,8 @@ describe("deriveDispatchState", () => {
         makeSignals({
           dispatchMode: true,
           selectedForDispatch: ["v1", "v2"],
-        }),
-      ),
+        })
+      )
     ).toBe(DispatchState.ROUTE);
   });
 
@@ -52,8 +52,8 @@ describe("deriveDispatchState", () => {
           ],
           dispatching: true,
           results: [{ vehicleId: "v1", status: "ok" }],
-        }),
-      ),
+        })
+      )
     ).toBe(DispatchState.DISPATCH);
   });
 
@@ -64,8 +64,8 @@ describe("deriveDispatchState", () => {
           dispatchMode: true,
           selectedForDispatch: ["v1"],
           results: [{ vehicleId: "v1", status: "ok" }],
-        }),
-      ),
+        })
+      )
     ).toBe(DispatchState.RESULTS);
   });
 
@@ -80,8 +80,8 @@ describe("deriveDispatchState", () => {
           ],
           dispatching: true,
           results: [{ vehicleId: "v1", status: "ok" }],
-        }),
-      ),
+        })
+      )
     ).toBe(DispatchState.BROWSE);
   });
 });
