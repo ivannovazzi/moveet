@@ -1,0 +1,16 @@
+.marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  cursor: default;
+}
+
+.icon {
+  width: 20px;
+  height: 20px;
+}

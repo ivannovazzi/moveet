@@ -1,5 +1,6 @@
 import { DispatchState } from "@/hooks/useDispatchState";
 import { Button } from "@/components/Inputs";
+import type { IncidentType } from "@/types";
 
 interface MapContextMenuProps {
   state: DispatchState;
@@ -7,6 +8,7 @@ interface MapContextMenuProps {
   onFindRoad: () => void;
   onSendVehicle: () => void;
   onAddWaypoint: () => void;
+  onCreateIncident?: (type: IncidentType) => void;
   hasSelectedVehicle: boolean;
   hasDispatchSelection: boolean;
 }
@@ -17,6 +19,7 @@ export default function MapContextMenu({
   onFindRoad,
   onSendVehicle,
   onAddWaypoint,
+  onCreateIncident,
   hasSelectedVehicle,
   hasDispatchSelection,
 }: MapContextMenuProps) {
@@ -29,6 +32,9 @@ export default function MapContextMenu({
           {hasSelectedVehicle && (
             <Button onClick={onSendVehicle}>Send selected vehicle here</Button>
           )}
+          <Button onClick={() => onCreateIncident?.("accident")}>Create Accident</Button>
+          <Button onClick={() => onCreateIncident?.("closure")}>Create Closure</Button>
+          <Button onClick={() => onCreateIncident?.("construction")}>Create Construction</Button>
         </>
       );
 

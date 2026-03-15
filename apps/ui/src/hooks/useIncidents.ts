@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import client from "@/utils/client";
-import type { IncidentDTO } from "@/types";
+import type { IncidentDTO, IncidentType } from "@/types";
 
 export interface UseIncidents {
   incidents: IncidentDTO[];
   createRandom: () => Promise<void>;
   remove: (id: string) => Promise<void>;
+  createAtPosition: (lat: number, lng: number, type: IncidentType) => Promise<void>;
 }
 
 export function useIncidents(): UseIncidents {
@@ -33,5 +34,9 @@ export function useIncidents(): UseIncidents {
     await client.removeIncident(id);
   }, []);
 
-  return { incidents, createRandom, remove };
+  const createAtPosition = useCallback(async (lat: number, lng: number, type: IncidentType) => {
+    await client.createIncidentAtPosition(lat, lng, type);
+  }, []);
+
+  return { incidents, createRandom, remove, createAtPosition };
 }

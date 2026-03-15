@@ -434,6 +434,7 @@ describe("Vehicle rerouting on incidents", () => {
       startTime: Date.now(),
       duration: 60000,
       autoClears: true,
+      position: [0, 0],
     };
 
     const reroutedPromise = new Promise<void>((resolve) => {
@@ -464,6 +465,7 @@ describe("Vehicle rerouting on incidents", () => {
       startTime: Date.now(),
       duration: 60000,
       autoClears: true,
+      position: [0, 0],
     };
 
     manager.handleIncidentCreated(incident);

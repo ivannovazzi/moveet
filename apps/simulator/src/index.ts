@@ -490,7 +490,14 @@ app.post(
       return;
     }
 
-    const incident = incidentManager.createIncident(edgeIds, type, duration, severity);
+    const edge = network.getEdge(edgeIds[0]);
+    const position: [number, number] = edge
+      ? [
+          (edge.start.coordinates[0] + edge.end.coordinates[0]) / 2,
+          (edge.start.coordinates[1] + edge.end.coordinates[1]) / 2,
+        ]
+      : [0, 0];
+    const incident = incidentManager.createIncident(edgeIds, type, duration, severity, position);
     res.status(201).json(incidentManager.toDTO(incident));
   })
 );
@@ -512,8 +519,45 @@ app.post(
     const type = VALID_INCIDENT_TYPES[Math.floor(Math.random() * VALID_INCIDENT_TYPES.length)];
     const duration = 30000 + Math.random() * 270000; // 30s to 5min
     const severity = 0.3 + Math.random() * 0.5; // 0.3 to 0.8
+    const position: [number, number] = [
+      (edge.start.coordinates[0] + edge.end.coordinates[0]) / 2,
+      (edge.start.coordinates[1] + edge.end.coordinates[1]) / 2,
+    ];
 
-    const incident = incidentManager.createIncident([edge.id], type, duration, severity);
+    const incident = incidentManager.createIncident([edge.id], type, duration, severity, position);
+    res.status(201).json(incidentManager.toDTO(incident));
+  })
+);
+
+app.post(
+  "/incidents/at-position",
+  expensiveRateLimiter.middleware(),
+  asyncHandler(async (req, res) => {
+    const { lat, lng, type } = req.body;
+
+    if (typeof lat !== "number" || typeof lng !== "number") {
+      res.status(400).json({ error: "lat and lng are required numbers" });
+      return;
+    }
+    if (!VALID_INCIDENT_TYPES.includes(type)) {
+      res.status(400).json({ error: `type must be one of: ${VALID_INCIDENT_TYPES.join(", ")}` });
+      return;
+    }
+
+    const node = network.findNearestNode([lat, lng]);
+    if (node.connections.length === 0) {
+      res.status(400).json({ error: "No road found near position" });
+      return;
+    }
+    const edge = node.connections[0];
+    const duration = 30000 + Math.random() * 270000;
+    const severity = 0.3 + Math.random() * 0.5;
+    const position: [number, number] = [
+      (edge.start.coordinates[0] + edge.end.coordinates[0]) / 2,
+      (edge.start.coordinates[1] + edge.end.coordinates[1]) / 2,
+    ];
+
+    const incident = incidentManager.createIncident([edge.id], type, duration, severity, position);
     res.status(201).json(incidentManager.toDTO(incident));
   })
 );

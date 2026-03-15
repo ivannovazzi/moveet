@@ -24,7 +24,8 @@ export class IncidentManager extends EventEmitter {
     edgeIds: string[],
     type: IncidentType,
     duration: number,
-    severity: number = 0.5
+    severity: number = 0.5,
+    position?: [number, number]
   ): Incident {
     const speedFactor = this.computeSpeedFactor(type, severity);
 
@@ -37,6 +38,7 @@ export class IncidentManager extends EventEmitter {
       startTime: Date.now(),
       duration,
       autoClears: true,
+      position: position ?? [0, 0],
     };
 
     this.incidents.set(incident.id, incident);
@@ -179,6 +181,7 @@ export class IncidentManager extends EventEmitter {
       duration: incident.duration,
       expiresAt: incident.startTime + incident.duration,
       autoClears: incident.autoClears,
+      position: incident.position,
     };
   }
 

@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { IncidentDTO, IncidentType } from "@/types";
+import { Switch } from "@/components/Inputs";
 import styles from "./Incidents.module.css";
 
 interface IncidentsProps {
@@ -8,13 +9,7 @@ interface IncidentsProps {
   remove: (id: string) => Promise<void>;
 }
 
-const INDICATOR_COLORS: Record<IncidentType, string> = {
-  closure: "#f44336",
-  accident: "#ff9800",
-  construction: "#ffeb3b",
-};
-
-const SEVERITY_COLORS: Record<IncidentType, string> = {
+const INCIDENT_COLORS: Record<IncidentType, string> = {
   closure: "#f44336",
   accident: "#ff9800",
   construction: "#ffeb3b",
@@ -34,6 +29,9 @@ function formatTimeRemaining(expiresAt: number): string {
 
 export default function Incidents({ incidents, createRandom, remove }: IncidentsProps) {
   const [, setTick] = useState(0);
+  const [autoGenerate, setAutoGenerate] = useState(false);
+
+  const toggleAutoGenerate = useCallback(() => setAutoGenerate((prev) => !prev), []);
 
   // Re-render every second to update countdown timers
   useEffect(() => {
@@ -44,10 +42,27 @@ export default function Incidents({ incidents, createRandom, remove }: Incidents
     return () => clearInterval(interval);
   }, [incidents.length]);
 
+  useEffect(() => {
+    if (!autoGenerate) return;
+    createRandom(); // immediate first
+    const interval = setInterval(() => {
+      createRandom();
+    }, 15000 + Math.random() * 15000);
+    return () => clearInterval(interval);
+  }, [autoGenerate, createRandom]);
+
   return (
     <div className={styles.section}>
       <div className={styles.header}>
         <span className={styles.title}>Incidents</span>
+        <label className={styles.autoLabel}>
+          <Switch
+            checked={autoGenerate}
+            onChange={toggleAutoGenerate}
+            aria-label="Auto-generate incidents"
+          />
+          <span className={styles.autoText}>Auto</span>
+        </label>
         <button className={styles.addButton} onClick={createRandom} type="button">
           +
         </button>
@@ -60,7 +75,7 @@ export default function Incidents({ incidents, createRandom, remove }: Incidents
           <div key={incident.id} className={styles.incident}>
             <span
               className={styles.indicator}
-              style={{ backgroundColor: INDICATOR_COLORS[incident.type] }}
+              style={{ backgroundColor: INCIDENT_COLORS[incident.type] }}
             />
             <div className={styles.info}>
               <span className={styles.typeLabel}>{incident.type}</span>
@@ -70,7 +85,7 @@ export default function Incidents({ incidents, createRandom, remove }: Incidents
                     className={styles.severityFill}
                     style={{
                       width: `${incident.severity * 100}%`,
-                      backgroundColor: SEVERITY_COLORS[incident.type],
+                      backgroundColor: INCIDENT_COLORS[incident.type],
                     }}
                   />
                 </div>
