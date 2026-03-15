@@ -623,7 +623,14 @@ async function main() {
   incidentManager.on("incident:cleared", (data) => recordingManager.recordEvent("incident", { action: "cleared", ...data }));
 
   // Wire replay events from SimulationController to WS broadcaster
-  simulationController.on("replayVehicle", (data) => broadcaster.broadcast("vehicle", data));
+  simulationController.on("replayVehicle", (data) => {
+    // Replay vehicle events arrive as { vehicles: VehicleSnapshot[] }
+    // Broadcast as "vehicles" batch type so the UI processes them correctly
+    const payload = data as { vehicles?: unknown[] };
+    if (payload.vehicles && Array.isArray(payload.vehicles)) {
+      broadcaster.broadcast("vehicles", payload.vehicles);
+    }
+  });
   simulationController.on("replayDirection", (data) => broadcaster.broadcast("direction", data));
   simulationController.on("replayIncident:created", (data) => broadcaster.broadcast("incident:created", data));
   simulationController.on("replayIncident:cleared", (data) => broadcaster.broadcast("incident:cleared", data));
