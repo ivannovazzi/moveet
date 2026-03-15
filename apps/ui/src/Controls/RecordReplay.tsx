@@ -75,71 +75,73 @@ export default function RecordReplay({ recording, onStartReplay }: RecordReplayP
   );
 
   return (
-    <div className={styles.section}>
-      {/* ── Recording ── */}
-      <div className={styles.sectionHeader}>
-        <span className={styles.title}>Record</span>
+    <>
+      <div className={styles.header}>
+        <h2 className={styles.title}>Recordings</h2>
       </div>
 
-      <div className={styles.recordRow}>
-        <button
-          type="button"
-          className={classNames(styles.recordButton, {
-            [styles.recordButtonActive]: isRecording,
-          })}
-          onClick={handleRecordToggle}
-          aria-label={isRecording ? "Stop recording" : "Start recording"}
-        >
-          {isRecording ? (
-            <>
-              <span className={classNames(styles.recordDot, styles.recordDotActive)} />
-              <Stop className={styles.recordIcon} />
-              Stop
-            </>
-          ) : (
-            <>
-              <span className={styles.recordDot} />
-              <Record className={styles.recordIcon} />
-              Record
-            </>
-          )}
-        </button>
-        {isRecording && <span className={styles.elapsed}>{formatTime(elapsed)}</span>}
-      </div>
+      <div className={styles.body}>
+        {/* Record section */}
+        <div className={styles.recordRow}>
+          <button
+            type="button"
+            className={classNames(styles.recordButton, {
+              [styles.recordButtonActive]: isRecording,
+            })}
+            onClick={handleRecordToggle}
+            aria-label={isRecording ? "Stop recording" : "Start recording"}
+          >
+            {isRecording ? (
+              <>
+                <span className={classNames(styles.recordDot, styles.recordDotActive)} />
+                <Stop className={styles.recordIcon} />
+                Stop
+              </>
+            ) : (
+              <>
+                <span className={styles.recordDot} />
+                <Record className={styles.recordIcon} />
+                Record
+              </>
+            )}
+          </button>
+          {isRecording && <span className={styles.elapsed}>{formatTime(elapsed)}</span>}
+        </div>
 
-      {/* ── Recordings list ── */}
-      <div className={styles.sectionHeader} style={{ marginTop: "var(--space-5)" }}>
-        <span className={styles.title}>Recordings</span>
-      </div>
+        {/* List header */}
+        <div className={styles.listHeader}>
+          <span className={styles.listTitle}>Saved</span>
+        </div>
 
-      {recordings.length === 0 ? (
-        <div className={styles.empty}>No recordings yet</div>
-      ) : (
-        <div className={styles.recordingList}>
-          {recordings.map((file) => (
-            <div
-              key={file.fileName}
-              className={styles.recordingItem}
-              onClick={() => handleFileClick(file)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") handleFileClick(file);
-              }}
-            >
-              <div className={styles.recordingInfo}>
-                <div className={styles.recordingName} title={file.fileName}>
-                  {file.fileName}
-                </div>
-                <div className={styles.recordingMeta}>
-                  <span>{formatFileSize(file.fileSize)}</span>
-                  <span>{formatDate(file.modifiedAt)}</span>
+        {recordings.length === 0 ? (
+          <div className={styles.empty}>No recordings yet</div>
+        ) : (
+          <div className={styles.recordingList}>
+            {recordings.map((file) => (
+              <div
+                key={file.fileName}
+                className={styles.recordingItem}
+                onClick={() => handleFileClick(file)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") handleFileClick(file);
+                }}
+              >
+                <div className={styles.recordingInfo}>
+                  <div className={styles.recordingName} title={file.fileName}>
+                    {file.fileName}
+                  </div>
+                  <div className={styles.recordingMeta}>
+                    <span>{formatFileSize(file.fileSize)}</span>
+                    <span>{formatDate(file.modifiedAt)}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
   );
 }

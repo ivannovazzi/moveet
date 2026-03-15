@@ -32,9 +32,9 @@ export default function Fleets({ fleets, onCreateFleet, onDeleteFleet }: FleetsP
   );
 
   return (
-    <div className={styles.section}>
+    <>
       <div className={styles.header}>
-        <span className={styles.title}>Fleets</span>
+        <h2 className={styles.title}>Fleets</h2>
         {fleets.length < 10 && (
           <button className={styles.addButton} onClick={() => setIsAdding(true)} type="button">
             + New
@@ -42,45 +42,47 @@ export default function Fleets({ fleets, onCreateFleet, onDeleteFleet }: FleetsP
         )}
       </div>
 
-      {fleets.length === 0 && !isAdding && <div className={styles.empty}>No fleets defined</div>}
+      <div className={styles.body}>
+        {fleets.length === 0 && !isAdding && <div className={styles.empty}>No fleets defined</div>}
 
-      <div className={styles.fleetList}>
-        {fleets.map((fleet) => (
-          <div key={fleet.id} className={styles.fleet}>
-            <span className={styles.colorDot} style={{ backgroundColor: fleet.color }} />
-            <span className={styles.fleetName}>{fleet.name}</span>
-            <span className={styles.fleetCount}>{fleet.vehicleIds.length}</span>
-            {fleet.source === "external" ? (
-              <span className={styles.lockIcon} title="External fleet (read-only)">
-                ext
-              </span>
-            ) : (
-              <button
-                className={styles.deleteButton}
-                onClick={() => onDeleteFleet(fleet.id)}
-                title="Delete fleet"
-                type="button"
-              >
-                x
-              </button>
-            )}
-          </div>
-        ))}
+        <div className={styles.fleetList}>
+          {fleets.map((fleet) => (
+            <div key={fleet.id} className={styles.fleet}>
+              <span className={styles.colorDot} style={{ backgroundColor: fleet.color }} />
+              <span className={styles.fleetName}>{fleet.name}</span>
+              <span className={styles.fleetCount}>{fleet.vehicleIds.length}</span>
+              {fleet.source === "external" ? (
+                <span className={styles.lockIcon} title="External fleet (read-only)">
+                  ext
+                </span>
+              ) : (
+                <button
+                  className={styles.deleteButton}
+                  onClick={() => onDeleteFleet(fleet.id)}
+                  title="Delete fleet"
+                  type="button"
+                >
+                  x
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {isAdding && (
+          <input
+            className={styles.newFleetInput}
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onBlur={() => {
+              if (!newName.trim()) setIsAdding(false);
+            }}
+            placeholder="Fleet name..."
+            autoFocus
+          />
+        )}
       </div>
-
-      {isAdding && (
-        <input
-          className={styles.newFleetInput}
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onBlur={() => {
-            if (!newName.trim()) setIsAdding(false);
-          }}
-          placeholder="Fleet name..."
-          autoFocus
-        />
-      )}
-    </div>
+    </>
   );
 }
