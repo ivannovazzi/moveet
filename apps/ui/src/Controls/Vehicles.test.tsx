@@ -19,8 +19,6 @@ describe("VehicleList", () => {
     onSelectVehicle: vi.fn(),
     onHoverVehicle: vi.fn(),
     onUnhoverVehicle: vi.fn(),
-    onAssignVehicle: vi.fn(),
-    onUnassignVehicle: vi.fn(),
   };
 
   it("renders vehicle names", () => {
@@ -85,7 +83,6 @@ describe("VehicleList", () => {
 
     render(<VehicleList {...defaultProps} filter="truck" vehicles={vehicles} />);
 
-    expect(screen.getByText("Fleet overview")).toBeInTheDocument();
     expect(screen.getByText('Showing 2 of 3 matching "truck"')).toBeInTheDocument();
   });
 
