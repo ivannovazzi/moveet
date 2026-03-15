@@ -126,7 +126,9 @@ function ReplayDock({
       <div className={styles.divider} />
 
       <div ref={progressRef} className={styles.progressWrap} onClick={handleProgressClick}>
-        <div className={styles.progressFill} style={{ width: `${progress * 100}%` }} />
+        <div className={styles.progressTrack}>
+          <div className={styles.progressFill} style={{ width: `${progress * 100}%` }} />
+        </div>
       </div>
 
       <span className={styles.time}>

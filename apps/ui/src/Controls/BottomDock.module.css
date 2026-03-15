@@ -213,11 +213,20 @@
 .progressWrap {
   flex: 0 1 280px;
   min-width: 80px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  position: relative;
+}
+
+.progressTrack {
+  width: 100%;
   height: 6px;
   background: rgba(255, 255, 255, 0.08);
   border-radius: 999px;
-  cursor: pointer;
   position: relative;
+  overflow: hidden;
 }
 
 .progressFill {
@@ -248,8 +257,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 28px;
-  padding: 0 var(--space-3);
+  height: 32px;
+  padding: 0 var(--space-4);
   border: none;
   background: var(--surface-bg);
   color: var(--color-gray-light);
