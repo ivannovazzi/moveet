@@ -503,6 +503,9 @@ export default function App() {
             onStopReplay={replay.stopReplay}
             onSeekReplay={replay.seekReplay}
             onStartReplay={replay.startReplay}
+            isRecording={recording.isRecording}
+            onStartRecording={recording.startRecording}
+            onStopRecording={recording.stopRecording}
           />
         </div>
       </div>

@@ -69,13 +69,13 @@
   --radius-full: 50%;
 
   /* Font Sizes */
-  --text-xs: 9px;
-  --text-sm: 11px;
-  --text-base: 12px;
-  --text-md: 13px;
-  --text-lg: 14px;
-  --text-xl: 16px;
-  --text-2xl: 20px;
+  --text-xs: 10px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-lg: 15px;
+  --text-xl: 17px;
+  --text-2xl: 21px;
 
   /* Surfaces — reusable bg/border for interactive elements */
   --surface-bg: rgba(255, 255, 255, 0.05);

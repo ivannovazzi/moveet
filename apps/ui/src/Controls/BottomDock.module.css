@@ -105,6 +105,57 @@
   box-shadow: 0 0 4px #4c4;
 }
 
+/* ── Record button ── */
+
+.recordBtn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 32px;
+  padding: 0 var(--space-3);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--surface-bg);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.recordBtn:hover {
+  background: var(--surface-bg-hover);
+}
+
+.recordIcon {
+  width: 14px;
+  height: 14px;
+  fill: var(--color-gray-light);
+  transition: fill var(--transition-fast);
+}
+
+.recordBtnActive {
+  background: rgba(244, 67, 54, 0.12);
+}
+
+.recordBtnActive:hover {
+  background: rgba(244, 67, 54, 0.18);
+}
+
+.recordBtnActive .recordIcon {
+  fill: #f44;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.recordTime {
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: #f44;
+  white-space: nowrap;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
 /* ── Vehicle count ── */
 
 .vehicleCount {

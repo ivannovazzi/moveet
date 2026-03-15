@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import classNames from "classnames";
 import client from "@/utils/client";
 import type { ReplayStatus, SimulationStatus } from "@/types";
-import { Flame, Pause, Play, Reset, Stop } from "@/components/Icons";
+import { Flame, Pause, Play, Record, Reset, Stop } from "@/components/Icons";
 import { useOptions } from "@/hooks/useOptions";
 import styles from "./BottomDock.module.css";
 
@@ -165,6 +165,9 @@ interface BottomDockProps {
   onStopReplay: () => Promise<void>;
   onSeekReplay: (timestamp: number) => Promise<void>;
   onStartReplay: (file: string, speed?: number) => Promise<void>;
+  isRecording: boolean;
+  onStartRecording: () => Promise<void>;
+  onStopRecording: () => Promise<unknown>;
 }
 
 export default function BottomDock({
@@ -177,11 +180,26 @@ export default function BottomDock({
   onStopReplay,
   onSeekReplay,
   onStartReplay,
+  isRecording,
+  onStartRecording,
+  onStopRecording,
 }: BottomDockProps) {
   const { options } = useOptions(300);
+  const [elapsed, setElapsed] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval>>(undefined);
 
   const handleStart = useCallback(() => client.start(options), [options]);
   const handleReset = useCallback(async () => { await client.reset(); }, []);
+
+  useEffect(() => {
+    if (isRecording) {
+      setElapsed(0);
+      timerRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
+    } else {
+      clearInterval(timerRef.current);
+    }
+    return () => clearInterval(timerRef.current);
+  }, [isRecording]);
 
   if (replayStatus.mode === "replay") {
     return (
@@ -219,6 +237,20 @@ export default function BottomDock({
           <Flame className={styles.btnIcon} />
         </button>
       </div>
+
+      <div className={styles.divider} />
+
+      <button
+        type="button"
+        className={classNames(styles.recordBtn, { [styles.recordBtnActive]: isRecording })}
+        onClick={isRecording ? onStopRecording : onStartRecording}
+        aria-label={isRecording ? "Stop recording" : "Start recording"}
+      >
+        <Record className={styles.recordIcon} />
+        {isRecording && (
+          <span className={styles.recordTime}>{formatTime(elapsed)}</span>
+        )}
+      </button>
 
       <div className={styles.divider} />
 
