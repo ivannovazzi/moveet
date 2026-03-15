@@ -47,7 +47,7 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
 
   constructor(
     private vehicleManager: VehicleManager,
-    incidentManager?: IncidentManager,
+    incidentManager?: IncidentManager
   ) {
     super();
     this.incidentManager = incidentManager;
@@ -375,6 +375,14 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
   seekReplay(timestamp: number): void {
     if (this._mode !== "replay" || !this.replayManager) return;
     this.replayManager.seekTo(timestamp);
+  }
+
+  /**
+   * Changes playback speed without restarting the replay.
+   */
+  setReplaySpeed(speed: number): void {
+    if (this._mode !== "replay" || !this.replayManager) return;
+    this.replayManager.setSpeed(speed);
   }
 
   /**

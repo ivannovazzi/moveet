@@ -52,7 +52,7 @@ interface ReplayDockProps {
   onResumeReplay: () => Promise<void>;
   onStopReplay: () => Promise<void>;
   onSeekReplay: (timestamp: number) => Promise<void>;
-  onStartReplay: (file: string, speed?: number) => Promise<void>;
+  onSetReplaySpeed: (speed: number) => Promise<void>;
 }
 
 function ReplayDock({
@@ -61,7 +61,7 @@ function ReplayDock({
   onResumeReplay,
   onStopReplay,
   onSeekReplay,
-  onStartReplay,
+  onSetReplaySpeed,
 }: ReplayDockProps) {
   const progressRef = useRef<HTMLDivElement>(null);
   const { displayTime, progress, duration } = useInterpolatedProgress(replayStatus);
@@ -87,18 +87,18 @@ function ReplayDock({
 
   const handleSpeedChange = useCallback(
     async (speed: number) => {
-      if (replayStatus.file) {
-        await onStartReplay(replayStatus.file, speed);
-      }
+      await onSetReplaySpeed(speed);
     },
-    [replayStatus.file, onStartReplay]
+    [onSetReplaySpeed]
   );
 
   const fileName = replayStatus.file?.replace(/^recordings\//, "");
 
   return (
     <div className={styles.dock}>
-      <span className={styles.fileName} title={fileName}>{fileName}</span>
+      <span className={styles.fileName} title={fileName}>
+        {fileName}
+      </span>
 
       <div className={styles.transportGroup}>
         <button
@@ -166,7 +166,7 @@ interface BottomDockProps {
   onResumeReplay: () => Promise<void>;
   onStopReplay: () => Promise<void>;
   onSeekReplay: (timestamp: number) => Promise<void>;
-  onStartReplay: (file: string, speed?: number) => Promise<void>;
+  onSetReplaySpeed: (speed: number) => Promise<void>;
   isRecording: boolean;
   onStartRecording: () => Promise<void>;
   onStopRecording: () => Promise<unknown>;
@@ -181,7 +181,7 @@ export default function BottomDock({
   onResumeReplay,
   onStopReplay,
   onSeekReplay,
-  onStartReplay,
+  onSetReplaySpeed,
   isRecording,
   onStartRecording,
   onStopRecording,
@@ -191,7 +191,9 @@ export default function BottomDock({
   const timerRef = useRef<ReturnType<typeof setInterval>>(undefined);
 
   const handleStart = useCallback(() => client.start(options), [options]);
-  const handleReset = useCallback(async () => { await client.reset(); }, []);
+  const handleReset = useCallback(async () => {
+    await client.reset();
+  }, []);
 
   useEffect(() => {
     if (isRecording) {
@@ -211,7 +213,7 @@ export default function BottomDock({
         onResumeReplay={onResumeReplay}
         onStopReplay={onStopReplay}
         onSeekReplay={onSeekReplay}
-        onStartReplay={onStartReplay}
+        onSetReplaySpeed={onSetReplaySpeed}
       />
     );
   }
@@ -230,12 +232,21 @@ export default function BottomDock({
           className={classNames(styles.dockBtn, { [styles.dockBtnActive]: status.running })}
           aria-label={status.running ? "Pause" : "Start"}
         >
-          {status.running ? <Pause className={styles.btnIcon} /> : <Play className={styles.btnIcon} />}
+          {status.running ? (
+            <Pause className={styles.btnIcon} />
+          ) : (
+            <Play className={styles.btnIcon} />
+          )}
         </button>
         <button type="button" onClick={handleReset} className={styles.dockBtn} aria-label="Reset">
           <Reset className={styles.btnIcon} />
         </button>
-        <button type="button" onClick={client.makeHeatzones} className={styles.dockBtn} aria-label="Make zones">
+        <button
+          type="button"
+          onClick={client.makeHeatzones}
+          className={styles.dockBtn}
+          aria-label="Make zones"
+        >
           <Flame className={styles.btnIcon} />
         </button>
       </div>
@@ -249,9 +260,7 @@ export default function BottomDock({
         aria-label={isRecording ? "Stop recording" : "Start recording"}
       >
         <Record className={styles.recordIcon} />
-        {isRecording && (
-          <span className={styles.recordTime}>{formatTime(elapsed)}</span>
-        )}
+        {isRecording && <span className={styles.recordTime}>{formatTime(elapsed)}</span>}
       </button>
 
       <div className={styles.divider} />

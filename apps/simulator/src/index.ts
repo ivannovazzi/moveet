@@ -443,6 +443,15 @@ app.post(
   })
 );
 
+app.post(
+  "/replay/speed",
+  asyncHandler(async (req, res) => {
+    const { speed } = req.body;
+    simulationController.setReplaySpeed(speed ?? 1);
+    res.json({ status: "speed_changed", speed });
+  })
+);
+
 app.get("/replay/status", (_req, res) => {
   try {
     res.json(simulationController.getReplayStatus());
@@ -474,7 +483,11 @@ app.post(
 
     const errors: string[] = [];
 
-    if (!Array.isArray(edgeIds) || edgeIds.length === 0 || !edgeIds.every((id: unknown) => typeof id === "string")) {
+    if (
+      !Array.isArray(edgeIds) ||
+      edgeIds.length === 0 ||
+      !edgeIds.every((id: unknown) => typeof id === "string")
+    ) {
       errors.push("edgeIds must be a non-empty array of strings");
     }
 
@@ -665,11 +678,19 @@ async function main() {
   // Wire discrete events to recording manager
   vehicleManager.on("direction", (data) => recordingManager.recordEvent("direction", data));
   vehicleManager.on("waypoint:reached", (data) => recordingManager.recordEvent("waypoint", data));
-  vehicleManager.on("route:completed", (data) => recordingManager.recordEvent("route:completed", data));
-  vehicleManager.on("vehicle:rerouted", (data) => recordingManager.recordEvent("vehicle:rerouted", data));
+  vehicleManager.on("route:completed", (data) =>
+    recordingManager.recordEvent("route:completed", data)
+  );
+  vehicleManager.on("vehicle:rerouted", (data) =>
+    recordingManager.recordEvent("vehicle:rerouted", data)
+  );
   network.on("heatzones", (data) => recordingManager.recordEvent("heatzone", data));
-  incidentManager.on("incident:created", (data) => recordingManager.recordEvent("incident", { action: "created", ...data }));
-  incidentManager.on("incident:cleared", (data) => recordingManager.recordEvent("incident", { action: "cleared", ...data }));
+  incidentManager.on("incident:created", (data) =>
+    recordingManager.recordEvent("incident", { action: "created", ...data })
+  );
+  incidentManager.on("incident:cleared", (data) =>
+    recordingManager.recordEvent("incident", { action: "cleared", ...data })
+  );
 
   // Wire replay events from SimulationController to WS broadcaster
   simulationController.on("replayVehicle", (data) => {
@@ -681,12 +702,22 @@ async function main() {
     }
   });
   simulationController.on("replayDirection", (data) => broadcaster.broadcast("direction", data));
-  simulationController.on("replayIncident:created", (data) => broadcaster.broadcast("incident:created", data));
-  simulationController.on("replayIncident:cleared", (data) => broadcaster.broadcast("incident:cleared", data));
+  simulationController.on("replayIncident:created", (data) =>
+    broadcaster.broadcast("incident:created", data)
+  );
+  simulationController.on("replayIncident:cleared", (data) =>
+    broadcaster.broadcast("incident:cleared", data)
+  );
   simulationController.on("replayHeatzones", (data) => broadcaster.broadcast("heatzones", data));
-  simulationController.on("replayWaypoint:reached", (data) => broadcaster.broadcast("waypoint:reached", data));
-  simulationController.on("replayRoute:completed", (data) => broadcaster.broadcast("route:completed", data));
-  simulationController.on("replayVehicle:rerouted", (data) => broadcaster.broadcast("vehicle:rerouted", data));
+  simulationController.on("replayWaypoint:reached", (data) =>
+    broadcaster.broadcast("waypoint:reached", data)
+  );
+  simulationController.on("replayRoute:completed", (data) =>
+    broadcaster.broadcast("route:completed", data)
+  );
+  simulationController.on("replayVehicle:rerouted", (data) =>
+    broadcaster.broadcast("vehicle:rerouted", data)
+  );
   simulationController.on("replayStatus", (data) => broadcaster.broadcast("replayStatus", data));
 
   wss.on("connection", (ws) => {

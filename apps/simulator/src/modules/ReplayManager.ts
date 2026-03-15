@@ -1,11 +1,7 @@
 import * as fs from "fs";
 import * as readline from "readline";
 import { EventEmitter } from "events";
-import type {
-  RecordingHeader,
-  RecordingEvent,
-  ReplayStatus,
-} from "../types";
+import type { RecordingHeader, RecordingEvent, ReplayStatus } from "../types";
 
 type ReplayState = "idle" | "playing" | "paused";
 
@@ -121,6 +117,27 @@ export class ReplayManager extends EventEmitter<ReplayEventMap> {
   }
 
   /**
+   * Changes playback speed without restarting. Re-anchors timing
+   * so remaining events play at the new rate from the current position.
+   */
+  setSpeed(speed: number): void {
+    this.speed = speed;
+
+    if (this.state === "playing" && this.currentIndex < this.events.length) {
+      // Re-anchor: treat "now" as the start for the current event
+      if (this.playbackTimer) {
+        clearTimeout(this.playbackTimer);
+        this.playbackTimer = null;
+      }
+      this.playbackStartRecTs = this.events[this.currentIndex].timestamp;
+      this.playbackStartWall = Date.now();
+      this.scheduleNextEvent();
+    }
+
+    this.emitStatus();
+  }
+
+  /**
    * Pauses playback, saving the current position.
    */
   pauseReplay(): void {
@@ -230,9 +247,7 @@ export class ReplayManager extends EventEmitter<ReplayEventMap> {
     const duration = lastTs - firstTs;
 
     const currentTs =
-      this.currentIndex < this.events.length
-        ? this.events[this.currentIndex].timestamp
-        : lastTs;
+      this.currentIndex < this.events.length ? this.events[this.currentIndex].timestamp : lastTs;
 
     const currentTime = currentTs - firstTs;
     const progress = duration > 0 ? currentTime / duration : 1;

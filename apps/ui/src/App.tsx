@@ -73,13 +73,7 @@ export default function App() {
     onFilterChange,
   } = useVehicles();
 
-  const {
-    fleets,
-    createFleet,
-    deleteFleet,
-    hiddenFleetIds,
-    toggleFleetVisibility,
-  } = useFleets();
+  const { fleets, createFleet, deleteFleet, hiddenFleetIds, toggleFleetVisibility } = useFleets();
 
   const incidents = useIncidents();
   const recording = useRecording();
@@ -437,14 +431,9 @@ export default function App() {
               />
             )}
             {activePanel === "toggles" && (
-              <TogglesPanel
-                modifiers={modifiers}
-                onChangeModifiers={onChangeModifiers}
-              />
+              <TogglesPanel modifiers={modifiers} onChangeModifiers={onChangeModifiers} />
             )}
-            {activePanel === "speed" && (
-              <SpeedPanel maxSpeedRef={maxSpeedRef} />
-            )}
+            {activePanel === "speed" && <SpeedPanel maxSpeedRef={maxSpeedRef} />}
             {activePanel === "adapter" && (
               <AdapterDrawer
                 isOpen={true}
@@ -502,7 +491,7 @@ export default function App() {
             onResumeReplay={replay.resumeReplay}
             onStopReplay={replay.stopReplay}
             onSeekReplay={replay.seekReplay}
-            onStartReplay={replay.startReplay}
+            onSetReplaySpeed={replay.setReplaySpeed}
             isRecording={recording.isRecording}
             onStartRecording={recording.startRecording}
             onStopRecording={recording.stopRecording}
