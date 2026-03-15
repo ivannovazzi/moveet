@@ -7,6 +7,8 @@ import Fleets from "./Controls/Fleets";
 import Incidents from "./Controls/Incidents";
 import RecordReplay from "./Controls/RecordReplay";
 import DispatchFooter from "./Controls/DispatchFooter";
+import IconRail from "./Controls/IconRail";
+import type { PanelId } from "./Controls/IconRail";
 import AdapterDrawer from "./Controls/Adapter/AdapterDrawer";
 import { useAdapterConfig } from "./Controls/Adapter/useAdapterConfig";
 import MapView from "./Map/Map";
@@ -41,7 +43,7 @@ export default function App() {
   const [onContextClick, ref, xy, closeContextMenu] = useContextMenu();
   const [selectedItem, setSelectedItem] = useState<Road | POI | null>(null);
   const [destination, setDestination] = useState<Position | null>(null);
-  const [isVehiclePanelOpen, setVehiclePanelOpen] = useState(false);
+  const [activePanel, setActivePanel] = useState<PanelId | null>(null);
   const [isAdapterPanelOpen, setAdapterPanelOpen] = useState(false);
   const [dispatchMode, setDispatchMode] = useState(false);
   const [assignments, setAssignments] = useState<DispatchAssignment[]>([]);
@@ -306,7 +308,7 @@ export default function App() {
   // Auto-open sidebar when dispatch mode is activated
   useEffect(() => {
     if (dispatchMode) {
-      setVehiclePanelOpen(true);
+      setActivePanel("vehicles");
     }
   }, [dispatchMode]);
 
@@ -363,8 +365,8 @@ export default function App() {
           filters={filters}
           onChangeModifiers={onChangeModifiers}
           maxSpeedRef={maxSpeedRef}
-          isVehiclePanelOpen={isVehiclePanelOpen}
-          onToggleVehiclePanel={() => setVehiclePanelOpen((open) => !open)}
+          isVehiclePanelOpen={activePanel === "vehicles"}
+          onToggleVehiclePanel={() => setActivePanel((prev) => prev === "vehicles" ? null : "vehicles")}
           isAdapterPanelOpen={isAdapterPanelOpen}
           onToggleAdapterPanel={() => setAdapterPanelOpen((open) => !open)}
           adapterStatus={adapter.status}
@@ -372,67 +374,80 @@ export default function App() {
       </div>
 
       <div className={styles.content}>
+        <IconRail
+          activePanel={activePanel}
+          onPanelChange={setActivePanel}
+          incidentCount={incidents.incidents.length}
+        />
         <aside
           className={classNames(styles.panelRail, styles.leftPanel, {
-            [styles.leftPanelOpen]: isVehiclePanelOpen,
+            [styles.leftPanelOpen]: activePanel !== null,
           })}
-          aria-hidden={!isVehiclePanelOpen}
+          aria-hidden={activePanel === null}
         >
           <div className={styles.panelInner}>
-            <button
-              type="button"
-              className={classNames(styles.dispatchToggle, {
-                [styles.dispatchToggleActive]: dispatchMode,
-              })}
-              onClick={() => {
-                setDispatchMode((prev) => {
-                  if (prev) {
-                    setSelectedForDispatch([]);
-                    setAssignments([]);
-                    setResults([]);
-                    setDispatching(false);
-                  }
-                  return !prev;
-                });
-              }}
-            >
-              {dispatchMode ? "Exit Dispatch" : "Dispatch"}
-            </button>
-            <Fleets fleets={fleets} onCreateFleet={createFleet} onDeleteFleet={deleteFleet} />
-            <Incidents
-              incidents={incidents.incidents}
-              createRandom={incidents.createRandom}
-              remove={incidents.remove}
-            />
-            <RecordReplay recording={recording} onStartReplay={replay.startReplay} />
-            <Vehicles
-              filter={filters.filter}
-              onFilterChange={onFilterChange}
-              vehicles={vehicles}
-              onSelectVehicle={onSelectVehicle}
-              onHoverVehicle={onHoverVehicle}
-              onUnhoverVehicle={onUnhoverVehicle}
-              maxSpeed={maxSpeedRef.current}
-              fleets={fleets}
-              onAssignVehicle={assignVehicle}
-              onUnassignVehicle={unassignVehicle}
-              dispatchState={dispatchState}
-              selectedForDispatch={selectedForDispatch}
-              onToggleVehicleForDispatch={onToggleVehicleForDispatch}
-              assignments={assignments}
-              results={results}
-            />
-            <DispatchFooter
-              state={dispatchState}
-              selectedCount={selectedForDispatch.length}
-              assignments={assignments}
-              results={results}
-              onDispatch={handleDispatch}
-              onClear={handleDone}
-              onDone={handleDone}
-              onRetryFailed={handleRetryFailed}
-              dispatching={dispatching}
-            />
+            {activePanel === "vehicles" && (
+              <>
+                <button
+                  type="button"
+                  className={classNames(styles.dispatchToggle, {
+                    [styles.dispatchToggleActive]: dispatchMode,
+                  })}
+                  onClick={() => {
+                    setDispatchMode((prev) => {
+                      if (prev) {
+                        setSelectedForDispatch([]);
+                        setAssignments([]);
+                        setResults([]);
+                        setDispatching(false);
+                      }
+                      return !prev;
+                    });
+                  }}
+                >
+                  {dispatchMode ? "Exit Dispatch" : "Dispatch"}
+                </button>
+                <Vehicles
+                  filter={filters.filter}
+                  onFilterChange={onFilterChange}
+                  vehicles={vehicles}
+                  onSelectVehicle={onSelectVehicle}
+                  onHoverVehicle={onHoverVehicle}
+                  onUnhoverVehicle={onUnhoverVehicle}
+                  maxSpeed={maxSpeedRef.current}
+                  fleets={fleets}
+                  dispatchState={dispatchState}
+                  selectedForDispatch={selectedForDispatch}
+                  onToggleVehicleForDispatch={onToggleVehicleForDispatch}
+                  assignments={assignments}
+                  results={results}
+                />
+                <DispatchFooter
+                  state={dispatchState}
+                  selectedCount={selectedForDispatch.length}
+                  assignments={assignments}
+                  results={results}
+                  onDispatch={handleDispatch}
+                  onClear={handleDone}
+                  onDone={handleDone}
+                  onRetryFailed={handleRetryFailed}
+                  dispatching={dispatching}
+                />
+              </>
+            )}
+            {activePanel === "fleets" && (
+              <Fleets fleets={fleets} onCreateFleet={createFleet} onDeleteFleet={deleteFleet} />
+            )}
+            {activePanel === "incidents" && (
+              <Incidents
+                incidents={incidents.incidents}
+                createRandom={incidents.createRandom}
+                remove={incidents.remove}
+              />
+            )}
+            {activePanel === "recordings" && (
+              <RecordReplay recording={recording} onStartReplay={replay.startReplay} />
+            )}
           </div>
         </aside>
         <div className={styles.map}>

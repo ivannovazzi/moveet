@@ -52,7 +52,7 @@
 }
 
 .leftPanel {
-  left: 0;
+  left: 48px;
   width: clamp(248px, 22vw, 304px);
   transform: translateX(calc(-100% - 20px));
 }
