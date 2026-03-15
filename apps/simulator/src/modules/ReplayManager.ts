@@ -87,6 +87,10 @@ export class ReplayManager extends EventEmitter<ReplayEventMap> {
       throw new Error("Recording file is empty or missing header");
     }
 
+    if (this.events.length === 0) {
+      throw new Error("Recording contains no events");
+    }
+
     this.state = "idle";
     this.currentIndex = 0;
     this.emitStatus();

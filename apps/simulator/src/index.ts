@@ -400,8 +400,13 @@ app.post(
       return;
     }
     const filePath = path.join("recordings", file);
-    const header = await simulationController.startReplay(filePath, speed);
-    res.json({ status: "replaying", header });
+    try {
+      const header = await simulationController.startReplay(filePath, speed);
+      res.json({ status: "replaying", header });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to start replay";
+      res.status(400).json({ error: message });
+    }
   })
 );
 
