@@ -19,7 +19,7 @@
 .panelTitle {
   grid-area: title;
   margin: 0;
-  font-size: var(--text-xl);
+  font-size: var(--text-lg);
   font-weight: 600;
   color: var(--color-white);
 }
@@ -41,8 +41,8 @@
   height: 20px;
   padding: 0 var(--space-2);
   border-radius: 999px;
-  background: rgba(57, 153, 255, 0.14);
-  border: 1px solid rgba(57, 153, 255, 0.18);
+  background: var(--color-active-bg);
+  border: 1px solid var(--color-active-border);
   color: var(--color-white);
   font-size: var(--text-xs);
   font-weight: 600;
@@ -67,7 +67,7 @@
 .filterInput {
   width: 100%;
   box-sizing: border-box;
-  height: 44px;
+  height: var(--control-lg);
   padding: 0 44px 0 40px;
   font-size: var(--text-base);
   font-weight: 400;
@@ -93,9 +93,9 @@
 }
 
 .filterInput:focus {
-  border-color: rgba(57, 153, 255, 0.5);
-  background: rgba(57, 153, 255, 0.06);
-  box-shadow: 0 0 0 2px rgba(57, 153, 255, 0.1);
+  border-color: var(--focus-border);
+  background: var(--focus-bg);
+  box-shadow: var(--focus-ring);
 }
 
 .filterClear {
@@ -178,12 +178,12 @@
 
 .vehicle:focus-visible {
   outline: none;
-  border-color: rgba(57, 153, 255, 0.5);
-  box-shadow: 0 0 0 2px rgba(57, 153, 255, 0.1);
+  border-color: var(--focus-border);
+  box-shadow: var(--focus-ring);
 }
 
 .selected {
-  background: rgba(57, 153, 255, 0.08);
+  background: var(--color-active-bg);
   border-color: rgba(57, 153, 255, 0.22);
   box-shadow: inset 2px 0 0 rgba(57, 153, 255, 0.9);
 }
@@ -277,8 +277,8 @@
 }
 
 .checkboxChecked {
-  background: rgba(57, 153, 255, 0.85);
-  border-color: rgba(57, 153, 255, 1);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
 }
 
 /* Dispatch mode: selected-for-dispatch highlight */

@@ -30,7 +30,7 @@
   font-weight: 600;
   font-family: inherit;
   color: var(--color-white);
-  background: rgba(57, 153, 255, 0.85);
+  background: var(--color-accent);
   border: 1px solid rgba(57, 153, 255, 0.6);
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -40,7 +40,7 @@
 }
 
 .primaryButton:hover:not(:disabled) {
-  background: rgba(57, 153, 255, 1);
+  background: var(--color-accent);
   border-color: rgba(57, 153, 255, 0.8);
 }
 

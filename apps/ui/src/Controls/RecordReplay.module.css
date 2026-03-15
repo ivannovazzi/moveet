@@ -93,8 +93,13 @@
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
 }
 
 .recordIcon {
@@ -175,11 +180,9 @@
   font-weight: 500;
 }
 
-
 .empty {
   font-size: var(--text-sm);
   color: var(--color-gray);
   padding: var(--space-3);
   text-align: center;
 }
-

@@ -8,6 +8,6 @@
 
 .zoom button {
   border-radius: var(--radius-full);
-  height: var(--control-height-lg);
-  width: var(--control-height-lg);
+  height: var(--control-lg);
+  width: var(--control-lg);
 }
