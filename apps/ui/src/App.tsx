@@ -446,7 +446,14 @@ export default function App() {
               />
             )}
             {activePanel === "recordings" && (
-              <RecordReplay recording={recording} onStartReplay={replay.startReplay} />
+              <RecordReplay
+                recording={recording}
+                replayStatus={replay.replayStatus}
+                onStartReplay={replay.startReplay}
+                onPauseReplay={replay.pauseReplay}
+                onResumeReplay={replay.resumeReplay}
+                onStopReplay={replay.stopReplay}
+              />
             )}
           </div>
         </aside>
