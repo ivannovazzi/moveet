@@ -1,19 +1,19 @@
 .dock {
   position: absolute;
-  bottom: var(--space-4);
+  bottom: var(--space-5);
   left: 50%;
   transform: translateX(-50%);
   z-index: 40;
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  height: 44px;
-  padding: 0 var(--space-4);
+  gap: var(--space-4);
+  height: 48px;
+  padding: 0 var(--space-5);
   background: rgba(7, 9, 13, 0.88);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--color-overlay-1);
-  border-radius: 12px;
+  border-radius: 14px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
@@ -27,7 +27,7 @@
 
 .divider {
   width: 1px;
-  height: 20px;
+  height: 22px;
   background: var(--color-overlay-1);
   flex-shrink: 0;
 }
@@ -36,8 +36,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   border: none;
   background: var(--surface-bg);
   cursor: pointer;
@@ -57,8 +57,8 @@
 }
 
 .btnIcon {
-  width: 13px;
-  height: 13px;
+  width: 15px;
+  height: 15px;
   fill: var(--color-gray-light);
 }
 
@@ -111,8 +111,8 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  height: 32px;
-  padding: 0 var(--space-3);
+  height: 34px;
+  padding: 0 var(--space-4);
   border: none;
   border-radius: var(--radius-sm);
   background: var(--surface-bg);
@@ -164,12 +164,12 @@
   gap: var(--space-2);
   font-variant-numeric: tabular-nums;
   color: var(--color-gray-lightest);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   white-space: nowrap;
 }
 
 .vehicleCountValue {
-  font-size: var(--text-base);
+  font-size: var(--text-md);
   font-weight: 600;
   color: var(--color-white);
 }
@@ -194,8 +194,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   border: none;
   background: var(--surface-bg);
   cursor: pointer;
@@ -211,9 +211,9 @@
 }
 
 .progressWrap {
-  flex: 0 1 280px;
-  min-width: 80px;
-  height: 28px;
+  flex: 0 1 320px;
+  min-width: 100px;
+  height: 34px;
   display: flex;
   align-items: center;
   cursor: pointer;
@@ -227,6 +227,11 @@
   border-radius: 999px;
   position: relative;
   overflow: hidden;
+  transition: height 150ms ease;
+}
+
+.progressWrap:hover .progressTrack {
+  height: 8px;
 }
 
 .progressFill {
@@ -238,7 +243,7 @@
 }
 
 .time {
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
   color: var(--color-gray-light);
   white-space: nowrap;
@@ -257,12 +262,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 32px;
+  height: 34px;
   padding: 0 var(--space-4);
   border: none;
   background: var(--surface-bg);
   color: var(--color-gray-light);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   font-family: inherit;
   font-weight: 500;
   cursor: pointer;
@@ -279,8 +284,8 @@
 }
 
 .fileName {
-  max-width: 120px;
-  font-size: var(--text-xs);
+  max-width: 140px;
+  font-size: var(--text-sm);
   color: var(--color-gray);
   white-space: nowrap;
   overflow: hidden;
