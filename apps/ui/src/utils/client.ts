@@ -14,6 +14,7 @@ import type {
   Fleet,
   DirectionResponse,
   IncidentDTO,
+  IncidentType,
   RecordingFile,
   RecordingMetadata,
   ReplayStatus,
@@ -84,6 +85,7 @@ class SimulationService {
     this.seekReplay = this.seekReplay.bind(this);
     this.getReplayStatus = this.getReplayStatus.bind(this);
     this.onReplayStatus = this.onReplayStatus.bind(this);
+    this.createIncidentAtPosition = this.createIncidentAtPosition.bind(this);
   }
 
   connectWebSocket(): void {
@@ -273,6 +275,10 @@ class SimulationService {
 
   onVehicleRerouted(handler: (data: VehicleReroutedPayload) => void): void {
     this.ws.on("vehicle:rerouted", handler);
+  }
+
+  async createIncidentAtPosition(lat: number, lng: number, type: IncidentType): Promise<ApiResponse<IncidentDTO>> {
+    return this.http.post("/incidents/at-position", { lat, lng, type });
   }
 
   // ─── Recording & Replay ────────────────────────────────────────

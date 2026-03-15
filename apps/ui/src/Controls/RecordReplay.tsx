@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import classNames from "classnames";
-import type { RecordingFile, ReplayStatus } from "@/types";
-import { Play, Pause, Stop, Record } from "@/components/Icons";
+import type { RecordingFile } from "@/types";
+import { Stop, Record } from "@/components/Icons";
 import styles from "./RecordReplay.module.css";
 
 interface RecordingHook {
@@ -12,18 +12,9 @@ interface RecordingHook {
   refreshRecordings: () => Promise<void>;
 }
 
-interface ReplayHook {
-  replayStatus: ReplayStatus;
-  startReplay: (file: string, speed?: number) => Promise<void>;
-  pauseReplay: () => Promise<void>;
-  resumeReplay: () => Promise<void>;
-  stopReplay: () => Promise<void>;
-  seekReplay: (timestamp: number) => Promise<void>;
-}
-
 interface RecordReplayProps {
   recording: RecordingHook;
-  replay: ReplayHook;
+  onStartReplay: (file: string, speed?: number) => Promise<void>;
 }
 
 function formatTime(seconds: number): string {
@@ -43,11 +34,8 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-const SPEEDS = [1, 2, 4] as const;
-
-export default function RecordReplay({ recording, replay }: RecordReplayProps) {
+export default function RecordReplay({ recording, onStartReplay }: RecordReplayProps) {
   const { isRecording, recordings, startRecording, stopRecording } = recording;
-  const { replayStatus, startReplay, pauseReplay, resumeReplay, stopReplay } = replay;
 
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -81,29 +69,10 @@ export default function RecordReplay({ recording, replay }: RecordReplayProps) {
 
   const handleFileClick = useCallback(
     async (file: RecordingFile) => {
-      await startReplay(file.fileName, 1);
+      await onStartReplay(file.fileName, 1);
     },
-    [startReplay]
+    [onStartReplay]
   );
-
-  const handleSpeedChange = useCallback(
-    async (speed: number) => {
-      if (replayStatus.file) {
-        await startReplay(replayStatus.file, speed);
-      }
-    },
-    [replayStatus.file, startReplay]
-  );
-
-  const handlePlayPause = useCallback(async () => {
-    if (replayStatus.paused) {
-      await resumeReplay();
-    } else {
-      await pauseReplay();
-    }
-  }, [replayStatus.paused, pauseReplay, resumeReplay]);
-
-  const inReplay = replayStatus.mode === "replay";
 
   return (
     <div className={styles.section}>
@@ -150,9 +119,7 @@ export default function RecordReplay({ recording, replay }: RecordReplayProps) {
           {recordings.map((file) => (
             <div
               key={file.fileName}
-              className={classNames(styles.recordingItem, {
-                [styles.recordingItemActive]: inReplay && replayStatus.file === file.fileName,
-              })}
+              className={styles.recordingItem}
               onClick={() => handleFileClick(file)}
               role="button"
               tabIndex={0}
@@ -171,69 +138,6 @@ export default function RecordReplay({ recording, replay }: RecordReplayProps) {
               </div>
             </div>
           ))}
-        </div>
-      )}
-
-      {/* ── Playback controls (only shown in replay mode) ── */}
-      {inReplay && (
-        <div className={styles.playbackSection}>
-          <div className={styles.playbackHeader}>
-            <span className={styles.playbackTitle}>Replay</span>
-            <span className={styles.playbackFile} title={replayStatus.file}>
-              {replayStatus.file}
-            </span>
-          </div>
-
-          <div className={styles.progressBar}>
-            <div
-              className={styles.progressFill}
-              style={{ width: `${(replayStatus.progress ?? 0) * 100}%` }}
-            />
-          </div>
-
-          <div className={styles.timeRow}>
-            <span>{formatTime(replayStatus.currentTime ?? 0)}</span>
-            <span>{formatTime(replayStatus.duration ?? 0)}</span>
-          </div>
-
-          <div className={styles.transportRow}>
-            <button
-              type="button"
-              className={styles.transportButton}
-              onClick={handlePlayPause}
-              aria-label={replayStatus.paused ? "Resume" : "Pause"}
-            >
-              {replayStatus.paused ? (
-                <Play className={styles.transportIcon} />
-              ) : (
-                <Pause className={styles.transportIcon} />
-              )}
-            </button>
-
-            <button
-              type="button"
-              className={styles.stopButton}
-              onClick={stopReplay}
-              aria-label="Stop replay"
-            >
-              <Stop className={styles.transportIcon} />
-            </button>
-
-            <div className={styles.speedGroup}>
-              {SPEEDS.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  className={classNames(styles.speedButton, {
-                    [styles.speedButtonActive]: (replayStatus.speed ?? 1) === s,
-                  })}
-                  onClick={() => handleSpeedChange(s)}
-                >
-                  {s}x
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       )}
     </div>

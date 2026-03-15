@@ -17,6 +17,7 @@ import type {
   DirectionResult,
   DispatchAssignment,
   Fleet,
+  IncidentType,
   Modifiers,
   POI,
   Position,
@@ -191,6 +192,15 @@ export default function App() {
 
     closeContextMenu();
   }, [destination, selectedForDispatch, assignments, vehicles, onAddWaypoint, closeContextMenu]);
+
+  const onCreateIncident = useCallback(
+    (type: IncidentType) => {
+      if (!destination) return;
+      incidents.createAtPosition(destination[1], destination[0], type);
+      closeContextMenu();
+    },
+    [destination, incidents, closeContextMenu]
+  );
 
   const handleDispatch = useCallback(async () => {
     if (assignments.length === 0) return;
@@ -394,7 +404,7 @@ export default function App() {
               createRandom={incidents.createRandom}
               remove={incidents.remove}
             />
-            <RecordReplay recording={recording} replay={replay} />
+            <RecordReplay recording={recording} onStartReplay={replay.startReplay} />
             <Vehicles
               filter={filters.filter}
               onFilterChange={onFilterChange}
@@ -444,6 +454,13 @@ export default function App() {
             hiddenFleetIds={hiddenFleetIds}
             dispatchState={dispatchState}
             assignments={assignments}
+            incidents={incidents.incidents}
+            replayStatus={replay.replayStatus}
+            onPauseReplay={replay.pauseReplay}
+            onResumeReplay={replay.resumeReplay}
+            onStopReplay={replay.stopReplay}
+            onSeekReplay={replay.seekReplay}
+            onStartReplay={replay.startReplay}
           />
           <SearchBar
             selectedItem={selectedItem}
@@ -488,6 +505,7 @@ export default function App() {
               onFindRoad={onFindRoadClick}
               onSendVehicle={onPointDestinationSingleClick}
               onAddWaypoint={onContextMenuAddWaypoint}
+              onCreateIncident={onCreateIncident}
               hasSelectedVehicle={!!filters.selected}
               hasDispatchSelection={selectedForDispatch.length > 0}
             />

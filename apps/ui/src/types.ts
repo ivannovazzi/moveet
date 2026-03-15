@@ -175,6 +175,7 @@ export interface IncidentDTO {
   duration: number;
   expiresAt: number;
   autoClears: boolean;
+  position: [number, number];
 }
 
 // ─── Recording & Replay ────────────────────────────────────────────
