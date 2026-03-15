@@ -146,7 +146,7 @@ export function useVehicles(): UseVehicle {
       position: [vehicle.position[1], vehicle.position[0]] as Position,
       visible:
         (visibleSet === null || visibleSet.has(vehicle.id)) &&
-        vehicle.name.toLowerCase().includes(lowerCaseFilter),
+        (vehicle.name ?? "").toLowerCase().includes(lowerCaseFilter),
       selected: filters.selected === vehicle.id,
       hovered: filters.hovered === vehicle.id,
     }));
