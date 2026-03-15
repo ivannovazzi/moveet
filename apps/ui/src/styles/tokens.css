@@ -11,6 +11,8 @@
   --color-gray-lightest: #eee;
   --color-white: #fff;
   --color-text: rgba(255, 255, 255, 0.87);
+  --color-text-primary: rgba(255, 255, 255, 0.92);
+  --color-text-secondary: rgba(255, 255, 255, 0.55);
 
   /* Overlays */
   --color-overlay-1: rgba(255, 255, 255, 0.1);

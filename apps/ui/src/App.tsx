@@ -1,7 +1,6 @@
 import classNames from "classnames";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import client from "@/utils/client";
-import ControlPanel from "./Controls/Controls";
 import Vehicles from "./Controls/Vehicles";
 import Fleets from "./Controls/Fleets";
 import Incidents from "./Controls/Incidents";
@@ -9,8 +8,12 @@ import RecordReplay from "./Controls/RecordReplay";
 import DispatchFooter from "./Controls/DispatchFooter";
 import IconRail from "./Controls/IconRail";
 import type { PanelId } from "./Controls/IconRail";
+import BottomDock from "./Controls/BottomDock";
+import TogglesPanel from "./Controls/TogglesPanel";
+import SpeedPanel from "./Controls/SpeedPanel";
 import AdapterDrawer from "./Controls/Adapter/AdapterDrawer";
 import { useAdapterConfig } from "./Controls/Adapter/useAdapterConfig";
+import useTracking from "./Controls/useTracking";
 import MapView from "./Map/Map";
 import FleetLegend from "./Map/FleetLegend";
 import SearchBar from "./SearchBar";
@@ -44,7 +47,6 @@ export default function App() {
   const [selectedItem, setSelectedItem] = useState<Road | POI | null>(null);
   const [destination, setDestination] = useState<Position | null>(null);
   const [activePanel, setActivePanel] = useState<PanelId | null>(null);
-  const [isAdapterPanelOpen, setAdapterPanelOpen] = useState(false);
   const [dispatchMode, setDispatchMode] = useState(false);
   const [assignments, setAssignments] = useState<DispatchAssignment[]>([]);
   const [dispatching, setDispatching] = useState(false);
@@ -57,7 +59,7 @@ export default function App() {
   });
 
   const [connected, setConnected] = useState(false);
-  const adapter = useAdapterConfig(isAdapterPanelOpen);
+  const adapter = useAdapterConfig(activePanel === "adapter");
   const {
     vehicles,
     modifiers,
@@ -75,8 +77,6 @@ export default function App() {
     fleets,
     createFleet,
     deleteFleet,
-    assignVehicle,
-    unassignVehicle,
     hiddenFleetIds,
     toggleFleetVisibility,
   } = useFleets();
@@ -353,26 +353,10 @@ export default function App() {
   }, [setVehicles, onUnselectVehicle]);
 
   const maxSpeedRef = useRef(60);
+  useTracking(vehicles, filters.selected, status.interval);
 
   return (
     <div className={styles.app}>
-      <div className={styles.controls}>
-        <ControlPanel
-          status={status}
-          vehicles={vehicles}
-          connected={connected}
-          modifiers={modifiers}
-          filters={filters}
-          onChangeModifiers={onChangeModifiers}
-          maxSpeedRef={maxSpeedRef}
-          isVehiclePanelOpen={activePanel === "vehicles"}
-          onToggleVehiclePanel={() => setActivePanel((prev) => prev === "vehicles" ? null : "vehicles")}
-          isAdapterPanelOpen={isAdapterPanelOpen}
-          onToggleAdapterPanel={() => setAdapterPanelOpen((open) => !open)}
-          adapterStatus={adapter.status}
-        />
-      </div>
-
       <div className={styles.content}>
         <IconRail
           activePanel={activePanel}
@@ -452,6 +436,28 @@ export default function App() {
                 onStartReplay={replay.startReplay}
               />
             )}
+            {activePanel === "toggles" && (
+              <TogglesPanel
+                modifiers={modifiers}
+                onChangeModifiers={onChangeModifiers}
+              />
+            )}
+            {activePanel === "speed" && (
+              <SpeedPanel maxSpeedRef={maxSpeedRef} />
+            )}
+            {activePanel === "adapter" && (
+              <AdapterDrawer
+                isOpen={true}
+                health={adapter.health}
+                config={adapter.config}
+                loading={adapter.loading}
+                error={adapter.error}
+                onClose={() => setActivePanel(null)}
+                onSetSource={adapter.setSource}
+                onAddSink={adapter.addSink}
+                onRemoveSink={adapter.removeSink}
+              />
+            )}
           </div>
         </aside>
         <div className={styles.map}>
@@ -474,12 +480,6 @@ export default function App() {
             dispatchState={dispatchState}
             assignments={assignments}
             incidents={incidents.incidents}
-            replayStatus={replay.replayStatus}
-            onPauseReplay={replay.pauseReplay}
-            onResumeReplay={replay.resumeReplay}
-            onStopReplay={replay.stopReplay}
-            onSeekReplay={replay.seekReplay}
-            onStartReplay={replay.startReplay}
           />
           <SearchBar
             selectedItem={selectedItem}
@@ -493,27 +493,18 @@ export default function App() {
             hiddenFleetIds={hiddenFleetIds}
             onToggle={toggleFleetVisibility}
           />
+          <BottomDock
+            status={status}
+            connected={connected}
+            vehicleCount={vehicles.length}
+            replayStatus={replay.replayStatus}
+            onPauseReplay={replay.pauseReplay}
+            onResumeReplay={replay.resumeReplay}
+            onStopReplay={replay.stopReplay}
+            onSeekReplay={replay.seekReplay}
+            onStartReplay={replay.startReplay}
+          />
         </div>
-        <aside
-          className={classNames(styles.panelRail, styles.rightPanel, {
-            [styles.rightPanelOpen]: isAdapterPanelOpen,
-          })}
-          aria-hidden={!isAdapterPanelOpen}
-        >
-          <div className={styles.panelInner}>
-            <AdapterDrawer
-              isOpen={isAdapterPanelOpen}
-              health={adapter.health}
-              config={adapter.config}
-              loading={adapter.loading}
-              error={adapter.error}
-              onClose={() => setAdapterPanelOpen(false)}
-              onSetSource={adapter.setSource}
-              onAddSink={adapter.addSink}
-              onRemoveSink={adapter.removeSink}
-            />
-          </div>
-        </aside>
       </div>
       {xy && (
         <ContextMenu position={xy}>

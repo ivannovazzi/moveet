@@ -6,7 +6,6 @@ import type {
   Modifiers,
   POI,
   Position,
-  ReplayStatus,
   Road,
   Vehicle,
 } from "@/types";
@@ -20,7 +19,6 @@ import Direction from "./Direction";
 import RoadRenderer from "./Road";
 import PendingDispatch from "./PendingDispatch";
 import IncidentMarkers from "./IncidentMarkers";
-import ReplayBar from "./ReplayBar";
 import { isPOI, isRoad } from "@/utils/typeGuards";
 import POIMarker from "./POI/POI";
 
@@ -42,12 +40,6 @@ interface MapProps {
   dispatchState?: DispatchState;
   assignments?: DispatchAssignment[];
   incidents?: IncidentDTO[];
-  replayStatus?: ReplayStatus;
-  onPauseReplay?: () => Promise<void>;
-  onResumeReplay?: () => Promise<void>;
-  onStopReplay?: () => Promise<void>;
-  onSeekReplay?: (timestamp: number) => Promise<void>;
-  onStartReplay?: (file: string, speed?: number) => Promise<void>;
 }
 
 export default function Map({
@@ -64,12 +56,6 @@ export default function Map({
   dispatchState,
   assignments = [],
   incidents,
-  replayStatus,
-  onPauseReplay,
-  onResumeReplay,
-  onStopReplay,
-  onSeekReplay,
-  onStartReplay,
 }: MapProps) {
   const network = useNetwork();
 
@@ -124,21 +110,6 @@ export default function Map({
         {selectedItem && isRoad(selectedItem) && <RoadRenderer road={selectedItem} />}
         {assignments.length > 0 && <PendingDispatch assignments={assignments} vehicles={vehicles} />}
       </RoadNetworkMap>
-      {replayStatus?.mode === "replay" &&
-        onPauseReplay &&
-        onResumeReplay &&
-        onStopReplay &&
-        onSeekReplay &&
-        onStartReplay && (
-          <ReplayBar
-            replayStatus={replayStatus}
-            onPauseReplay={onPauseReplay}
-            onResumeReplay={onResumeReplay}
-            onStopReplay={onStopReplay}
-            onSeekReplay={onSeekReplay}
-            onStartReplay={onStartReplay}
-          />
-        )}
     </>
   );
 }
