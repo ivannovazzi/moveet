@@ -232,3 +232,55 @@ export function FastForward(props: SVGProps) {
     </svg>
   );
 }
+
+export function CarIcon(props: SVGProps) {
+  return (
+    <svg {...props} viewBox="0 0 24 24">
+      <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z" />
+    </svg>
+  );
+}
+
+export function LayersIcon(props: SVGProps) {
+  return (
+    <svg {...props} viewBox="0 0 24 24">
+      <path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z" />
+    </svg>
+  );
+}
+
+export function AlertIcon(props: SVGProps) {
+  return (
+    <svg {...props} viewBox="0 0 24 24">
+      <path d="M12 2L1 21h22L12 2zm0 3.99L19.53 19H4.47L12 5.99zM11 16h2v2h-2zm0-6h2v4h-2z" />
+    </svg>
+  );
+}
+
+export function RecordCircleIcon(props: SVGProps) {
+  return (
+    <svg {...props} viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2" />
+      <circle cx="12" cy="12" r="5" />
+    </svg>
+  );
+}
+
+export function EyeIcon(props: SVGProps) {
+  return (
+    <svg viewBox="0 0 24 24" {...props}>
+      <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zm0 12.5c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
+    </svg>
+  );
+}
+
+export function GaugeIcon(props: SVGProps) {
+  return (
+    <svg viewBox="0 0 24 24" {...props}>
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z" />
+      <path d="M12 6v2m-4.24.76l1.42 1.42M6 12h2m.76 4.24l1.42-1.42M12 16v2m4.24-.76l-1.42-1.42M18 12h-2m-.76-4.24l-1.42 1.42" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+      <circle cx="12" cy="12" r="1.5" />
+      <path d="M12 12l3-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+    </svg>
+  );
+}

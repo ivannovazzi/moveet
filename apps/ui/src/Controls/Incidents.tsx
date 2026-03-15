@@ -52,9 +52,9 @@ export default function Incidents({ incidents, createRandom, remove }: Incidents
   }, [autoGenerate, createRandom]);
 
   return (
-    <div className={styles.section}>
+    <>
       <div className={styles.header}>
-        <span className={styles.title}>Incidents</span>
+        <h2 className={styles.title}>Incidents</h2>
         <label className={styles.autoLabel}>
           <Switch
             checked={autoGenerate}
@@ -68,43 +68,45 @@ export default function Incidents({ incidents, createRandom, remove }: Incidents
         </button>
       </div>
 
-      {incidents.length === 0 && <div className={styles.empty}>No active incidents</div>}
+      <div className={styles.body}>
+        {incidents.length === 0 && <div className={styles.empty}>No active incidents</div>}
 
-      <div className={styles.list}>
-        {incidents.map((incident) => (
-          <div key={incident.id} className={styles.incident}>
-            <span
-              className={styles.indicator}
-              style={{ backgroundColor: INCIDENT_COLORS[incident.type] }}
-            />
-            <div className={styles.info}>
-              <span className={styles.typeLabel}>{incident.type}</span>
-              <div className={styles.meta}>
-                <div className={styles.severityBar}>
-                  <div
-                    className={styles.severityFill}
-                    style={{
-                      width: `${incident.severity * 100}%`,
-                      backgroundColor: INCIDENT_COLORS[incident.type],
-                    }}
-                  />
+        <div className={styles.list}>
+          {incidents.map((incident) => (
+            <div key={incident.id} className={styles.incident}>
+              <span
+                className={styles.indicator}
+                style={{ backgroundColor: INCIDENT_COLORS[incident.type] }}
+              />
+              <div className={styles.info}>
+                <span className={styles.typeLabel}>{incident.type}</span>
+                <div className={styles.meta}>
+                  <div className={styles.severityBar}>
+                    <div
+                      className={styles.severityFill}
+                      style={{
+                        width: `${incident.severity * 100}%`,
+                        backgroundColor: INCIDENT_COLORS[incident.type],
+                      }}
+                    />
+                  </div>
+                  <span className={styles.timeRemaining}>
+                    {formatTimeRemaining(incident.expiresAt)}
+                  </span>
                 </div>
-                <span className={styles.timeRemaining}>
-                  {formatTimeRemaining(incident.expiresAt)}
-                </span>
               </div>
+              <button
+                className={styles.removeButton}
+                onClick={() => remove(incident.id)}
+                title="Remove incident"
+                type="button"
+              >
+                x
+              </button>
             </div>
-            <button
-              className={styles.removeButton}
-              onClick={() => remove(incident.id)}
-              title="Remove incident"
-              type="button"
-            >
-              x
-            </button>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

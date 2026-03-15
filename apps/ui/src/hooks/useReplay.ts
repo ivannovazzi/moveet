@@ -31,5 +31,9 @@ export function useReplay() {
     await client.seekReplay(timestamp);
   }, []);
 
-  return { replayStatus, startReplay, pauseReplay, resumeReplay, stopReplay, seekReplay };
+  const setReplaySpeed = useCallback(async (speed: number) => {
+    await client.setReplaySpeed(speed);
+  }, []);
+
+  return { replayStatus, startReplay, pauseReplay, resumeReplay, stopReplay, seekReplay, setReplaySpeed };
 }

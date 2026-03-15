@@ -6,10 +6,6 @@
   overflow: hidden;
 }
 
-.controls {
-  flex: 0;
-}
-
 .content {
   display: flex;
   flex: 1 1 0;
@@ -52,7 +48,7 @@
 }
 
 .leftPanel {
-  left: 0;
+  left: 56px;
   width: clamp(248px, 22vw, 304px);
   transform: translateX(calc(-100% - 20px));
 }
@@ -65,26 +61,8 @@
   transition-delay: 0s;
 }
 
-.rightPanel {
-  right: 0;
-  width: clamp(340px, 30vw, 420px);
-  transform: translateX(calc(100% + 20px));
-}
-
-.rightPanelOpen {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-  transform: translateX(0);
-  transition-delay: 0s;
-}
-
 .leftPanel .panelInner {
   border-right: 1px solid var(--color-overlay-1);
-}
-
-.rightPanel .panelInner {
-  border-left: 1px solid var(--color-overlay-1);
 }
 
 .map {

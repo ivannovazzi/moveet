@@ -1,6 +1,6 @@
 .button {
   padding: 0 var(--space-5);
-  height: var(--control-height);
+  height: var(--control);
   border-radius: var(--radius-sm);
   font-size: var(--text-base);
   cursor: pointer;
@@ -22,13 +22,13 @@
 
 .button:focus-visible {
   outline: none;
-  border-color: rgba(57, 153, 255, 0.5);
-  box-shadow: 0 0 0 2px rgba(57, 153, 255, 0.1);
+  border-color: var(--focus-border);
+  box-shadow: var(--focus-ring);
 }
 
 .squaredButton {
-  height: var(--control-height);
-  width: var(--control-height);
+  height: var(--control);
+  width: var(--control);
   border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -46,7 +46,7 @@
 }
 .squaredButton:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(57, 153, 255, 0.15);
+  box-shadow: var(--focus-ring);
 }
 
 .squaredButton:disabled {
@@ -55,8 +55,8 @@
 }
 
 .squaredButtonIcon {
-  height: 16px;
-  width: 16px;
+  height: var(--icon);
+  width: var(--icon);
   fill: var(--color-gray-light);
 }
 
@@ -90,7 +90,7 @@
   border-radius: var(--radius-sm);
   font-size: var(--text-base);
   font-variant-numeric: tabular-nums;
-  height: var(--control-height-sm);
+  height: var(--control-sm);
   color: var(--color-gray-lightest);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -115,9 +115,9 @@
 
 .input:focus {
   outline: none;
-  border-color: rgba(57, 153, 255, 0.5);
-  background: rgba(57, 153, 255, 0.06);
-  box-shadow: 0 0 0 2px rgba(57, 153, 255, 0.1);
+  border-color: var(--focus-border);
+  background: var(--focus-bg);
+  box-shadow: var(--focus-ring);
 }
 
 /* Range slider */
@@ -161,7 +161,7 @@
 }
 
 .range:focus::-webkit-slider-thumb {
-  box-shadow: 0 0 0 2px rgba(57, 153, 255, 0.2);
+  box-shadow: var(--focus-ring);
 }
 
 /* Switch toggle */
@@ -242,5 +242,5 @@
 }
 
 .option:hover {
-  background: rgba(57, 153, 255, 0.12);
+  background: var(--color-active-bg);
 }
