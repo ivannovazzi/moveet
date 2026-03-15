@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import classNames from "classnames";
 import type { RecordingFile, ReplayStatus } from "@/types";
-import { Stop, Record, Play, Pause } from "@/components/Icons";
+import { Stop, Record } from "@/components/Icons";
 import styles from "./RecordReplay.module.css";
 
 interface RecordingHook {
@@ -16,9 +16,6 @@ interface RecordReplayProps {
   recording: RecordingHook;
   replayStatus: ReplayStatus;
   onStartReplay: (file: string, speed?: number) => Promise<void>;
-  onPauseReplay: () => Promise<void>;
-  onResumeReplay: () => Promise<void>;
-  onStopReplay: () => Promise<void>;
 }
 
 /** Recordings smaller than this are header-only (no events). */
@@ -58,50 +55,10 @@ function formatLabel(file: RecordingFile): string {
   return count ? `${count} vehicles \u2014 ${date}` : date;
 }
 
-/**
- * Client-side interpolated progress. Uses server-provided currentTime as
- * anchor and locally advances it every second while playing.
- */
-function useInterpolatedProgress(replayStatus: ReplayStatus) {
-  const duration = replayStatus.duration ?? 0;
-  const serverTime = replayStatus.currentTime ?? 0;
-  const speed = replayStatus.speed ?? 1;
-  const isPlaying = replayStatus.mode === "replay" && !replayStatus.paused;
-
-  const [displayTime, setDisplayTime] = useState(serverTime);
-  const anchorRef = useRef({ serverTime, wall: Date.now() });
-
-  // Reset anchor when server sends a new position
-  useEffect(() => {
-    anchorRef.current = { serverTime, wall: Date.now() };
-    setDisplayTime(serverTime);
-  }, [serverTime]);
-
-  // Tick every second while playing
-  useEffect(() => {
-    if (!isPlaying || duration <= 0) return;
-
-    const interval = setInterval(() => {
-      const elapsed = Date.now() - anchorRef.current.wall;
-      const interpolated = anchorRef.current.serverTime + elapsed * speed;
-      setDisplayTime(Math.min(interpolated, duration));
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [isPlaying, speed, duration]);
-
-  const progress = duration > 0 ? Math.min(displayTime / duration, 1) : 0;
-
-  return { displayTime, progress, duration };
-}
-
 export default function RecordReplay({
   recording,
   replayStatus,
   onStartReplay,
-  onPauseReplay,
-  onResumeReplay,
-  onStopReplay,
 }: RecordReplayProps) {
   const { isRecording, recordings, startRecording, stopRecording } = recording;
 
@@ -112,8 +69,6 @@ export default function RecordReplay({
   const isPaused = replayStatus.paused ?? false;
   // Server returns path like "recordings/file.ndjson", recordings list has just "file.ndjson"
   const activeFile = replayStatus.file?.replace(/^recordings\//, "") ?? null;
-
-  const { displayTime, progress, duration } = useInterpolatedProgress(replayStatus);
 
   // Elapsed timer for recording
   useEffect(() => {
@@ -149,14 +104,6 @@ export default function RecordReplay({
     },
     [onStartReplay]
   );
-
-  const handlePlayPause = useCallback(async () => {
-    if (isPaused) {
-      await onResumeReplay();
-    } else {
-      await onPauseReplay();
-    }
-  }, [isPaused, onPauseReplay, onResumeReplay]);
 
   const playableRecordings = recordings.filter((f) => f.fileSize >= MIN_PLAYABLE_SIZE);
 
@@ -234,51 +181,6 @@ export default function RecordReplay({
                       )}
                     </div>
                   </div>
-
-                  {isActive && (
-                    <div className={styles.replayControls}>
-                      <button
-                        type="button"
-                        className={styles.transportBtn}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handlePlayPause();
-                        }}
-                        aria-label={isPaused ? "Resume" : "Pause"}
-                      >
-                        {isPaused ? (
-                          <Play className={styles.transportIcon} />
-                        ) : (
-                          <Pause className={styles.transportIcon} />
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.stopBtn}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onStopReplay();
-                        }}
-                        aria-label="Stop replay"
-                      >
-                        <Stop className={styles.transportIcon} />
-                      </button>
-                    </div>
-                  )}
-
-                  {isActive && (
-                    <div className={styles.progressRow}>
-                      <div className={styles.progressBar}>
-                        <div
-                          className={styles.progressFill}
-                          style={{ width: `${progress * 100}%` }}
-                        />
-                      </div>
-                      <span className={styles.progressTime}>
-                        {formatTime(displayTime / 1000)} / {formatTime(duration / 1000)}
-                      </span>
-                    </div>
-                  )}
                 </div>
               );
             })}

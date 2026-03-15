@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import classNames from "classnames";
 import type { ReplayStatus } from "@/types";
 import { Play, Pause, Stop } from "@/components/Icons";
@@ -19,6 +19,44 @@ function formatTime(seconds: number): string {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
+/**
+ * Client-side interpolated progress. Uses server-provided currentTime as
+ * anchor and locally advances it every second while playing, so the
+ * progress bar animates smoothly between server events.
+ */
+function useInterpolatedProgress(replayStatus: ReplayStatus) {
+  const duration = replayStatus.duration ?? 0;
+  const serverTime = replayStatus.currentTime ?? 0;
+  const speed = replayStatus.speed ?? 1;
+  const isPlaying = replayStatus.mode === "replay" && !replayStatus.paused;
+
+  const [displayTime, setDisplayTime] = useState(serverTime);
+  const anchorRef = useRef({ serverTime, wall: Date.now() });
+
+  // Reset anchor when server sends a new position
+  useEffect(() => {
+    anchorRef.current = { serverTime, wall: Date.now() };
+    setDisplayTime(serverTime);
+  }, [serverTime]);
+
+  // Tick every second while playing
+  useEffect(() => {
+    if (!isPlaying || duration <= 0) return;
+
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - anchorRef.current.wall;
+      const interpolated = anchorRef.current.serverTime + elapsed * speed;
+      setDisplayTime(Math.min(interpolated, duration));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isPlaying, speed, duration]);
+
+  const progress = duration > 0 ? Math.min(displayTime / duration, 1) : 0;
+
+  return { displayTime, progress, duration };
+}
+
 const SPEEDS = [1, 2, 4] as const;
 
 export default function ReplayBar({
@@ -30,10 +68,7 @@ export default function ReplayBar({
   onStartReplay,
 }: ReplayBarProps) {
   const progressRef = useRef<HTMLDivElement>(null);
-
-  const duration = replayStatus.duration ?? 0;
-  const currentTime = replayStatus.currentTime ?? 0;
-  const progress = duration > 0 ? currentTime / duration : 0;
+  const { displayTime, progress, duration } = useInterpolatedProgress(replayStatus);
 
   const handlePlayPause = useCallback(async () => {
     if (replayStatus.paused) {
@@ -64,10 +99,13 @@ export default function ReplayBar({
     [replayStatus.file, onStartReplay]
   );
 
+  // Show friendly filename
+  const fileName = replayStatus.file?.replace(/^recordings\//, "");
+
   return (
     <div className={styles.bar}>
-      <span className={styles.fileName} title={replayStatus.file}>
-        {replayStatus.file}
+      <span className={styles.fileName} title={fileName}>
+        {fileName}
       </span>
 
       <button
@@ -104,7 +142,7 @@ export default function ReplayBar({
       </div>
 
       <span className={styles.time}>
-        {formatTime(currentTime / 1000)} / {formatTime(duration / 1000)}
+        {formatTime(displayTime / 1000)} / {formatTime(duration / 1000)}
       </span>
 
       <div className={styles.speedGroup}>

@@ -450,9 +450,6 @@ export default function App() {
                 recording={recording}
                 replayStatus={replay.replayStatus}
                 onStartReplay={replay.startReplay}
-                onPauseReplay={replay.pauseReplay}
-                onResumeReplay={replay.resumeReplay}
-                onStopReplay={replay.stopReplay}
               />
             )}
           </div>

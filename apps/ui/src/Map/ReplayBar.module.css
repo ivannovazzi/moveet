@@ -75,7 +75,7 @@
   height: 100%;
   background: var(--color-accent, rgba(59, 130, 246, 0.7));
   border-radius: 999px;
-  transition: width 0.3s ease-out;
+  transition: width 1s linear;
   pointer-events: none;
 }
 
