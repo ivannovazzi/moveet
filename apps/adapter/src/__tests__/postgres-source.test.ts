@@ -66,7 +66,31 @@ describe("PostgresSource", () => {
 
   it("throws when not connected", async () => {
     const source = new PostgresSource();
-    await expect(source.getVehicles()).rejects.toThrow("not connected");
+    await expect(source.getVehicles()).rejects.toThrow("PostgresSource: not connected");
+  });
+
+  it("throws after disconnect", async () => {
+    const source = new PostgresSource();
+    await source.connect({ connectionString: "postgresql://user:pass@localhost:5432/fleet" });
+    await source.disconnect();
+    await expect(source.getVehicles()).rejects.toThrow("PostgresSource: not connected");
+  });
+
+  it("returns [] on successful query with no rows", async () => {
+    mockQuery.mockResolvedValue({ rows: [] });
+
+    const source = new PostgresSource();
+    await source.connect({ connectionString: "postgresql://user:pass@localhost:5432/fleet" });
+    const vehicles = await source.getVehicles();
+    expect(vehicles).toEqual([]);
+  });
+
+  it("throws on query execution error", async () => {
+    mockQuery.mockRejectedValue(new Error("connection terminated"));
+
+    const source = new PostgresSource();
+    await source.connect({ connectionString: "postgresql://user:pass@localhost:5432/fleet" });
+    await expect(source.getVehicles()).rejects.toThrow("connection terminated");
   });
 
   it("has config schema", () => {

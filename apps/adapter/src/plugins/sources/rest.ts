@@ -66,7 +66,9 @@ export class RestSource implements DataSource {
   }
 
   async getVehicles(): Promise<ExportVehicle[]> {
-    if (!this.url) return [];
+    if (!this.url) {
+      throw new Error("RestSource: not connected");
+    }
 
     const fetchOptions: RequestInit = {
       method: this.method,

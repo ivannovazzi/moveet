@@ -30,6 +30,30 @@ export interface PublishResult {
   sinks: SinkResult[];
 }
 
+/**
+ * Interface for data source plugins that provide vehicle data.
+ *
+ * ## Error handling contract
+ *
+ * All implementations MUST follow these rules:
+ *
+ * - **`connect()`** MUST throw on configuration errors (e.g. missing required
+ *   fields such as `url`, `host`, credentials, etc.).
+ *
+ * - **`getVehicles()`** MUST throw when the source is not connected (i.e.
+ *   `connect()` was never called or `disconnect()` was called). This allows
+ *   `PluginManager` to distinguish a connection problem from genuinely empty
+ *   data and mark the source as unhealthy.
+ *
+ * - **`getVehicles()`** MUST throw on network / query / auth errors so that
+ *   callers can detect failures rather than silently receiving an empty array.
+ *
+ * - **`getVehicles()`** returns `[]` **only** when the upstream was
+ *   successfully queried and the result set is genuinely empty.
+ *
+ * - **`healthCheck()`** MUST NOT throw. It returns a `HealthCheckResult` with
+ *   `{ healthy: false, message }` on failure.
+ */
 export interface DataSource {
   readonly type: string;
   readonly name: string;

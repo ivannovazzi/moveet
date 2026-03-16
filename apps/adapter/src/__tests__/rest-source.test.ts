@@ -102,9 +102,36 @@ describe("RestSource", () => {
     await expect(source.getVehicles()).rejects.toThrow("500");
   });
 
-  it("returns empty when not connected", async () => {
+  it("throws when not connected", async () => {
     const source = new RestSource();
-    expect(await source.getVehicles()).toEqual([]);
+    await expect(source.getVehicles()).rejects.toThrow("RestSource: not connected");
+  });
+
+  it("returns [] on successful fetch with no vehicles", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ vehicles: [] }),
+    });
+
+    const source = new RestSource();
+    await source.connect({ url: "https://api.example.com" });
+    const vehicles = await source.getVehicles();
+    expect(vehicles).toEqual([]);
+  });
+
+  it("throws on network error during getVehicles", async () => {
+    mockFetch.mockRejectedValue(new Error("ECONNREFUSED"));
+
+    const source = new RestSource();
+    await source.connect({ url: "https://api.example.com" });
+    await expect(source.getVehicles()).rejects.toThrow("ECONNREFUSED");
+  });
+
+  it("throws after disconnect", async () => {
+    const source = new RestSource();
+    await source.connect({ url: "https://api.example.com" });
+    await source.disconnect();
+    await expect(source.getVehicles()).rejects.toThrow("RestSource: not connected");
   });
 
   it("has config schema", () => {

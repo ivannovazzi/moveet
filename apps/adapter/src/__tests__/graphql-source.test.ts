@@ -85,12 +85,47 @@ describe("GraphQLSource", () => {
     expect(vehicles).toHaveLength(10);
   });
 
+  it("throws when not connected", async () => {
+    const source = new GraphQLSource();
+    await expect(source.getVehicles()).rejects.toThrow("GraphQLSource: not connected");
+  });
+
+  it("throws after disconnect", async () => {
+    const source = new GraphQLSource();
+    await source.connect({ url: "https://api.example.com/graphql" });
+    await source.disconnect();
+    await expect(source.getVehicles()).rejects.toThrow("GraphQLSource: not connected");
+  });
+
   it("throws on query error instead of returning empty array", async () => {
     mockRequest.mockRejectedValue(new Error("Network error"));
 
     const source = new GraphQLSource();
     await source.connect({ url: "https://api.example.com/graphql" });
     await expect(source.getVehicles()).rejects.toThrow("Network error");
+  });
+
+  it("throws when vehicle path yields non-array", async () => {
+    mockRequest.mockResolvedValue({
+      vehicles: { nodes: "not-an-array" },
+    });
+
+    const source = new GraphQLSource();
+    await source.connect({ url: "https://api.example.com/graphql" });
+    await expect(source.getVehicles()).rejects.toThrow(
+      'expected array at path "vehicles.nodes"'
+    );
+  });
+
+  it("returns [] on successful query with empty result set", async () => {
+    mockRequest.mockResolvedValue({
+      vehicles: { nodes: [] },
+    });
+
+    const source = new GraphQLSource();
+    await source.connect({ url: "https://api.example.com/graphql" });
+    const vehicles = await source.getVehicles();
+    expect(vehicles).toEqual([]);
   });
 
   it("filters out vehicles with NaN coordinates", async () => {

@@ -77,7 +77,31 @@ describe("MySQLSource", () => {
 
   it("throws when not connected", async () => {
     const source = new MySQLSource();
-    await expect(source.getVehicles()).rejects.toThrow("not connected");
+    await expect(source.getVehicles()).rejects.toThrow("MySQLSource: not connected");
+  });
+
+  it("throws after disconnect", async () => {
+    const source = new MySQLSource();
+    await source.connect({ host: "localhost", user: "root", password: "pass", database: "fleet" });
+    await source.disconnect();
+    await expect(source.getVehicles()).rejects.toThrow("MySQLSource: not connected");
+  });
+
+  it("returns [] on successful query with no rows", async () => {
+    mockExecute.mockResolvedValue([[]]);
+
+    const source = new MySQLSource();
+    await source.connect({ host: "localhost", user: "root", password: "pass", database: "fleet" });
+    const vehicles = await source.getVehicles();
+    expect(vehicles).toEqual([]);
+  });
+
+  it("throws on query execution error", async () => {
+    mockExecute.mockRejectedValue(new Error("ECONNREFUSED"));
+
+    const source = new MySQLSource();
+    await source.connect({ host: "localhost", user: "root", password: "pass", database: "fleet" });
+    await expect(source.getVehicles()).rejects.toThrow("ECONNREFUSED");
   });
 
   it("has config schema", () => {
