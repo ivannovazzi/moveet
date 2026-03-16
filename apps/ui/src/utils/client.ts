@@ -19,6 +19,7 @@ import type {
   RecordingMetadata,
   ReplayStatus,
   ClockState,
+  TrafficEdge,
 } from "@/types";
 import type {
   ResetPayload,
@@ -91,6 +92,9 @@ class SimulationService {
     this.getClock = this.getClock.bind(this);
     this.setClock = this.setClock.bind(this);
     this.onClock = this.onClock.bind(this);
+    // traffic
+    this.getTraffic = this.getTraffic.bind(this);
+    this.onTraffic = this.onTraffic.bind(this);
   }
 
   connectWebSocket(): void {
@@ -342,12 +346,25 @@ class SimulationService {
     return this.http.get<ClockState>("/clock");
   }
 
-  async setClock(params: { speedMultiplier?: number; setTime?: string }): Promise<ApiResponse<ClockState>> {
+  async setClock(params: {
+    speedMultiplier?: number;
+    setTime?: string;
+  }): Promise<ApiResponse<ClockState>> {
     return this.http.post<typeof params, ClockState>("/clock", params);
   }
 
   onClock(handler: (state: ClockState) => void): void {
     this.ws.on("clock", handler);
+  }
+
+  // ─── Traffic Congestion ──────────────────────────────────────────
+
+  async getTraffic(): Promise<ApiResponse<TrafficEdge[]>> {
+    return this.http.get<TrafficEdge[]>("/traffic");
+  }
+
+  onTraffic(handler: (data: TrafficEdge[]) => void): void {
+    this.ws.on("traffic", handler);
   }
 }
 

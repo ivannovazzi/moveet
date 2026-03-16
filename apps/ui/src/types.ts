@@ -189,6 +189,15 @@ export interface IncidentDTO {
   position: [number, number];
 }
 
+// ─── Traffic ────────────────────────────────────────────────────────
+
+export interface TrafficEdge {
+  edgeId: string;
+  congestion: number; // 0.2 (jammed) to 1.0 (free flow)
+  coordinates: [number, number][];
+  highway: string;
+}
+
 // ─── Recording & Replay ────────────────────────────────────────────
 
 export interface RecordingFile {

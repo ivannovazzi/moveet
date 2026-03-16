@@ -620,6 +620,15 @@ app.post(
 
 // ─── Traffic Profile ────────────────────────────────────────────────
 
+app.get("/traffic", (_req, res) => {
+  try {
+    res.json(vehicleManager.getTrafficSnapshot());
+  } catch (error) {
+    logger.error(`Error in /traffic: ${error}`);
+    res.status(500).json({ error: "Failed to get traffic data" });
+  }
+});
+
 app.get("/traffic-profile", (_req, res) => {
   try {
     res.json(simulationController.getTrafficProfile());
@@ -633,11 +642,7 @@ app.post(
   "/traffic-profile",
   asyncHandler(async (req, res) => {
     const profile = req.body as { name?: string; timeRanges?: unknown[] };
-    if (
-      !profile ||
-      typeof profile.name !== "string" ||
-      !Array.isArray(profile.timeRanges)
-    ) {
+    if (!profile || typeof profile.name !== "string" || !Array.isArray(profile.timeRanges)) {
       res.status(400).json({ error: "Invalid traffic profile format" });
       return;
     }
@@ -744,6 +749,12 @@ async function main() {
   incidentManager.on("incident:cleared", (data) => broadcaster.broadcast("incident:cleared", data));
   vehicleManager.on("vehicle:rerouted", (data) => broadcaster.broadcast("vehicle:rerouted", data));
 
+  // Broadcast per-edge traffic congestion snapshot every 2 seconds
+  const trafficBroadcastInterval = setInterval(() => {
+    const traffic = vehicleManager.getTrafficSnapshot();
+    broadcaster.broadcast("traffic", traffic);
+  }, 2000);
+
   // Wire discrete events to recording manager
   vehicleManager.on("direction", (data) => recordingManager.recordEvent("direction", data));
   vehicleManager.on("waypoint:reached", (data) => recordingManager.recordEvent("waypoint", data));
@@ -802,6 +813,7 @@ async function main() {
     logger.info(`${signal} received. Starting graceful shutdown...`);
 
     broadcaster.stop();
+    clearInterval(trafficBroadcastInterval);
     logger.info("WebSocket broadcaster stopped");
 
     server.close(() => {

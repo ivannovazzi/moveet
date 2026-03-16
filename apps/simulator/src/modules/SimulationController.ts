@@ -188,7 +188,8 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
 
     // Wire clock hour:changed to broadcast clock events
     this.vehicleManager.clock.on("hour:changed", (hour: number, timeOfDay: string) => {
-      void hour; void timeOfDay; // used via getStatus()
+      void hour;
+      void timeOfDay; // used via getStatus()
       this.emit("clock", this.getStatus().clock);
     });
 

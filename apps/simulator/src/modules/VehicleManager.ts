@@ -492,7 +492,8 @@ export class VehicleManager extends EventEmitter {
 
     // Time-based speed adjustment: night bonus on highways, no change otherwise
     const hour = this.clock.getHour();
-    const isHighway = vehicle.currentEdge.highway === "trunk" || vehicle.currentEdge.highway === "primary";
+    const isHighway =
+      vehicle.currentEdge.highway === "trunk" || vehicle.currentEdge.highway === "primary";
     const timeSpeedModifier = (hour >= 22 || hour < 5) && isHighway ? 1.1 : 1.0;
     const adjustedEdgeMaxSpeed = edgeMaxSpeed * timeSpeedModifier;
 
@@ -503,7 +504,8 @@ export class VehicleManager extends EventEmitter {
       vehicle.currentEdge.distance,
       vehicle.currentEdge.highway
     );
-    const effectiveMax = Math.min(this.options.maxSpeed, adjustedEdgeMaxSpeed) * speedFactor * congestion;
+    const effectiveMax =
+      Math.min(this.options.maxSpeed, adjustedEdgeMaxSpeed) * speedFactor * congestion;
 
     // Refresh target speed occasionally (roughly every 5 seconds)
     if (!vehicle.targetSpeed || Math.random() < deltaMs / 5000) {
@@ -1116,5 +1118,9 @@ export class VehicleManager extends EventEmitter {
 
   public setTrafficProfile(profile: TrafficProfile): void {
     this.traffic.setProfile(profile);
+  }
+
+  public getTrafficSnapshot() {
+    return this.traffic.getTrafficSnapshot((id) => this.network.getEdge(id));
   }
 }

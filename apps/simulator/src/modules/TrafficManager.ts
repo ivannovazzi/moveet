@@ -4,7 +4,7 @@ import {
   DEFAULT_TRAFFIC_PROFILE,
   type TrafficProfile,
 } from "../utils/trafficProfiles";
-import type { HighwayType } from "../types";
+import type { Edge, HighwayType } from "../types";
 
 export class TrafficManager {
   private edgeOccupancy: Map<string, number> = new Map();
@@ -26,7 +26,11 @@ export class TrafficManager {
   /**
    * Returns a speed multiplier (0.2 to 1.0) based on edge congestion and time-of-day demand.
    */
-  getCongestionFactor(edgeId: string, edgeDistanceKm: number, highway: HighwayType = "primary"): number {
+  getCongestionFactor(
+    edgeId: string,
+    edgeDistanceKm: number,
+    highway: HighwayType = "primary"
+  ): number {
     const count = this.edgeOccupancy.get(edgeId) ?? 0;
     const capacity = Math.max(1, edgeDistanceKm * TrafficManager.CAPACITY_PER_KM);
     const hour = this.clock?.getHour() ?? new Date().getHours();
@@ -42,5 +46,45 @@ export class TrafficManager {
 
   setProfile(profile: TrafficProfile): void {
     this.profile = profile;
+  }
+
+  /**
+   * Returns a snapshot of all edges with congestion data.
+   * congestionFactor: 1.0 = free flow, 0.2 = completely jammed.
+   */
+  getTrafficSnapshot(
+    getEdge: (id: string) => Edge | undefined
+  ): Array<{
+    edgeId: string;
+    congestion: number;
+    coordinates: [number, number][];
+    highway: string;
+  }> {
+    const result: Array<{
+      edgeId: string;
+      congestion: number;
+      coordinates: [number, number][];
+      highway: string;
+    }> = [];
+    for (const [edgeId, count] of this.edgeOccupancy) {
+      if (count <= 0) continue;
+      const edge = getEdge(edgeId);
+      if (!edge) continue;
+      const congestion = this.getCongestionFactor(
+        edgeId,
+        edge.distance,
+        edge.highway
+      );
+      result.push({
+        edgeId,
+        congestion,
+        coordinates: [
+          [edge.start.coordinates[0], edge.start.coordinates[1]],
+          [edge.end.coordinates[0], edge.end.coordinates[1]],
+        ],
+        highway: edge.highway,
+      });
+    }
+    return result;
   }
 }
