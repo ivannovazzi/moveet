@@ -16,13 +16,15 @@ A real-time vehicle fleet simulator built around provider-agnostic road-network 
 
 - **Map-data agnostic simulation core** -- ingests GeoJSON/OpenStreetMap-derived road graphs and can be adapted to any compatible road network dataset rather than a single baked-in map provider or city
 - **A\* pathfinding on graph topology** -- computes routes with a haversine heuristic across bidirectional road segments and node-level connectivity
+- **Multi-stop waypoint routing** -- chains A\* legs across ordered waypoint sequences with progress tracking per leg
 - **Realistic vehicle motion model** -- updates each vehicle independently with acceleration, deceleration, and turn-speed reduction
-- **Custom route drawing engine** -- renders roads, routes, vehicles, POIs, and overlays through a D3-driven HTML/SVG scene instead of Leaflet, Mapbox, or a tile-widget dependency
+- **Custom route drawing engine** -- renders roads, routes, vehicles, POIs, heat zones, and overlays through a D3-driven HTML/SVG scene instead of Leaflet, Mapbox, or a tile-widget dependency
 - **Real-time state distribution** -- WebSocket streams push vehicle positions, route updates, heat zones, and simulation state to connected clients
 - **Heat-zone generation** -- derives traffic density regions around high-connectivity intersections
-- **Interactive operator UI** -- includes vehicle filtering, route visualization, POI search, simulation controls, and contextual actions
+- **Incidents & dynamic rerouting** -- operator-created road incidents trigger live A\* rerouting around blocked segments
+- **Session recording & replay** -- record simulation sessions to NDJSON and replay them with pause, seek, and variable-speed controls
+- **Interactive operator UI** -- icon-rail sidebar with fleet management, incident creation, dispatch controls, speed/toggle panels, and a replay timeline
 - **Optional external integration** -- adapter service bridges to external fleet management APIs via GraphQL and Kafka/Redpanda
-- **Docker Compose** -- single-command deployment of all three services
 
 ## Use Case
 
@@ -30,32 +32,53 @@ Moveet exists to generate realistic, moving vehicle data on real road networks -
 
 Point it at any environment -- staging, CI, local dev -- and it will continuously produce GPS positions, speeds, and routes that behave like real vehicles: they follow actual roads, accelerate and brake through turns, and cluster in traffic zones. The adapter's plugin system lets you push that data wherever your application expects it.
 
+## Architecture
+
+```mermaid
+flowchart TD
+    UI["<b>apps/ui</b><br/>React · D3 · Vite<br/>:5012"]
+    SIM["<b>apps/simulator</b><br/>Express · WebSocket<br/>:5010"]
+    ADP["<b>apps/adapter</b><br/>Express · GraphQL<br/>:5011"]
+    EXT["External Fleet API<br/><i>or local dev stack</i>"]
+
+    UI -- "REST + WebSocket" --> SIM
+    SIM -- "GET /vehicles · POST /sync" --> ADP
+    ADP -- "GraphQL · Kafka/Redpanda" --> EXT
+```
+
+The **simulator** is the core service and works standalone with synthetic vehicles plus a routable road-network graph. The **UI** connects to it for visualization and implements its own browser-native route/map drawing layer using React + D3 over HTML/SVG primitives. The **adapter** is only needed when integrating with external fleet management systems.
+
 ### Data Sources & Sinks
 
 The adapter service uses a plugin architecture to connect the simulator to external systems. Plugins are hot-swappable at runtime via REST API, so you can reconfigure integrations without restarting.
 
-**Sources** (where vehicles are read from):
+```mermaid
+flowchart LR
+    subgraph Sources
+        S1[static]
+        S2[graphql]
+        S3[rest]
+        S4[mysql]
+        S5[postgres]
+    end
 
-| Plugin | Description |
-|---|---|
-| `static` | Built-in synthetic vehicles (default, no external dependency) |
-| `graphql` | Fetch vehicles from a GraphQL API |
-| `rest` | Fetch vehicles from a REST API |
-| `mysql` | Query vehicles from a MySQL database |
-| `postgres` | Query vehicles from a PostgreSQL database |
+    subgraph Adapter
+        MGR[Plugin Manager]
+    end
 
-**Sinks** (where position updates are pushed to):
+    subgraph Sinks
+        K1[console]
+        K2[graphql]
+        K3[rest]
+        K4[redpanda / kafka]
+        K5[redis]
+        K6[webhook]
+    end
 
-| Plugin | Description |
-|---|---|
-| `console` | Log updates to stdout (debugging) |
-| `graphql` | Push updates to a GraphQL mutation endpoint |
-| `rest` | POST updates to a REST API |
-| `kafka` | Publish to Kafka/Redpanda topics |
-| `redis` | Publish to Redis channels |
-| `webhook` | Fire-and-forget HTTP webhooks |
+    Sources --> MGR --> Sinks
+```
 
-Multiple sinks can be active simultaneously -- e.g. stream to Kafka for your event pipeline while also pushing to a REST endpoint for a legacy system.
+Multiple sinks can be active simultaneously -- e.g. stream to Kafka for your event pipeline while also posting to a REST endpoint for a legacy system.
 
 ## Run with Docker
 
@@ -72,23 +95,6 @@ Images are published to GitHub Container Registry on every release:
 - `ghcr.io/ivannovazzi/moveet-simulator`
 - `ghcr.io/ivannovazzi/moveet-adapter`
 - `ghcr.io/ivannovazzi/moveet-ui`
-
-## Architecture
-
-```
-apps/ui (React + D3 route renderer)
-    |  REST + WebSocket
-    v
-apps/simulator (simulation engine, Express + WS, road-network graph)
-    |  GET /vehicles, POST /sync
-    v
-apps/adapter (optional bridge to external fleet management APIs)
-    |  GraphQL + Kafka/Redpanda
-    v
-External API  or  Local dev stack
-```
-
-The **simulator** is the core service and works standalone with synthetic vehicles plus a routable road-network graph. The **UI** connects to it for visualization and implements its own browser-native route/map drawing layer using React + D3 over HTML/SVG primitives. The **adapter** is only needed when integrating with external fleet management systems.
 
 ## Quick Start
 
@@ -163,7 +169,7 @@ Each project has its own README with detailed architecture documentation.
 
 | Layer | Technology |
 |---|---|
-| Language | TypeScript (ES2022 target) |
+| Language | TypeScript (ES2024 target) |
 | Simulator | Node.js, Express, WebSocket (ws), Turf.js |
 | UI | React 19, D3.js 7, Vite, Sass, CSS Modules |
 | Adapter | Express, graphql-request, KafkaJS, ioredis |
@@ -182,7 +188,7 @@ npm test
 Or run tests for a specific project:
 
 ```bash
-# Simulator tests (pathfinding, heat zones, adapter)
+# Simulator tests (pathfinding, heat zones, recording/replay, adapter, etc.)
 cd apps/simulator && npm test
 
 # UI tests (components, hooks)
