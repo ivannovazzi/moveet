@@ -1,8 +1,11 @@
 import { randomUUID } from "node:crypto";
-import type { Producer } from "kafkajs";
+import type { Admin, Producer } from "kafkajs";
 import { Kafka } from "kafkajs";
 import type { ConfigField, DataSink, HealthCheckResult, PluginConfig } from "../types";
 import type { VehicleUpdate } from "../../types";
+
+/** Default timeout for health check broker probe (ms). Overridable via `healthCheckTimeoutMs` config. */
+const DEFAULT_HEALTH_CHECK_TIMEOUT_MS = 5000;
 
 export class RedpandaSink implements DataSink {
   readonly type = "redpanda";
@@ -30,23 +33,27 @@ export class RedpandaSink implements DataSink {
       ],
     },
   ];
+  private kafka: Kafka | null = null;
   private producer: Producer | null = null;
   private topic = "dispatch.vehicle.positions";
   private batchSize = 500;
   private acks: number = 1;
+  private healthCheckTimeoutMs: number = DEFAULT_HEALTH_CHECK_TIMEOUT_MS;
 
   async connect(config: PluginConfig): Promise<void> {
     const brokers = ((config.brokers as string) || "localhost:19092").split(",");
     this.topic = (config.topic as string) || "dispatch.vehicle.positions";
     this.batchSize = (config.batchSize as number) || 500;
     this.acks = config.acks != null ? Number(config.acks) : 1;
+    this.healthCheckTimeoutMs =
+      (config.healthCheckTimeoutMs as number) || DEFAULT_HEALTH_CHECK_TIMEOUT_MS;
 
-    const kafka = new Kafka({
+    this.kafka = new Kafka({
       clientId: "moveet-adapter",
       brokers,
     });
 
-    this.producer = kafka.producer({ allowAutoTopicCreation: false });
+    this.producer = this.kafka.producer({ allowAutoTopicCreation: false });
     await this.producer.connect();
   }
 
@@ -55,6 +62,7 @@ export class RedpandaSink implements DataSink {
       await this.producer.disconnect();
       this.producer = null;
     }
+    this.kafka = null;
   }
 
   async publishUpdates(updates: VehicleUpdate[]): Promise<void> {
@@ -89,7 +97,38 @@ export class RedpandaSink implements DataSink {
   }
 
   async healthCheck(): Promise<HealthCheckResult> {
-    if (!this.producer) return { healthy: false, message: "producer not initialized" };
-    return { healthy: true, message: "producer connected" };
+    if (!this.producer || !this.kafka) {
+      return { healthy: false, message: "producer not initialized" };
+    }
+
+    let admin: Admin | null = null;
+    const start = Date.now();
+
+    try {
+      admin = this.kafka.admin();
+      await admin.connect();
+
+      const result = await Promise.race([
+        admin.describeCluster(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("health check timed out")), this.healthCheckTimeoutMs)
+        ),
+      ]);
+
+      const latencyMs = Date.now() - start;
+      return {
+        healthy: true,
+        message: `cluster reachable (${result.brokers.length} broker${result.brokers.length !== 1 ? "s" : ""})`,
+        latencyMs,
+      };
+    } catch (err) {
+      const latencyMs = Date.now() - start;
+      const message = err instanceof Error ? err.message : String(err);
+      return { healthy: false, message, latencyMs };
+    } finally {
+      if (admin) {
+        await admin.disconnect().catch(() => {});
+      }
+    }
   }
 }

@@ -3,6 +3,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mockSend = vi.fn().mockResolvedValue(undefined);
 const mockProducerConnect = vi.fn().mockResolvedValue(undefined);
 const mockProducerDisconnect = vi.fn().mockResolvedValue(undefined);
+const mockAdminConnect = vi.fn().mockResolvedValue(undefined);
+const mockAdminDisconnect = vi.fn().mockResolvedValue(undefined);
+const mockDescribeCluster = vi.fn().mockResolvedValue({
+  brokers: [{ nodeId: 0, host: "localhost", port: 9092 }],
+  controller: 0,
+  clusterId: "test-cluster",
+});
 
 vi.mock("kafkajs", () => ({
   Kafka: class MockKafka {
@@ -12,6 +19,13 @@ vi.mock("kafkajs", () => ({
         connect: mockProducerConnect,
         disconnect: mockProducerDisconnect,
         send: mockSend,
+      };
+    }
+    admin() {
+      return {
+        connect: mockAdminConnect,
+        disconnect: mockAdminDisconnect,
+        describeCluster: mockDescribeCluster,
       };
     }
   },
@@ -53,7 +67,10 @@ describe("RedpandaSink", () => {
   it("uses default brokers and topic", async () => {
     const sink = new RedpandaSink();
     await sink.connect({});
-    expect(await sink.healthCheck()).toMatchObject({ healthy: true });
+    const health = await sink.healthCheck();
+    expect(health).toMatchObject({ healthy: true });
+    expect(health.latencyMs).toBeDefined();
+    expect(typeof health.latencyMs).toBe("number");
   });
 
   it("disconnects producer", async () => {

@@ -17,6 +17,7 @@ export interface ConfigField {
 export interface HealthCheckResult {
   healthy: boolean;
   message?: string;
+  latencyMs?: number;
 }
 
 export interface SinkResult {
