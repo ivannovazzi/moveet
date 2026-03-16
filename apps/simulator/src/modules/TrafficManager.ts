@@ -59,12 +59,14 @@ export class TrafficManager {
     congestion: number;
     coordinates: [number, number][];
     highway: string;
+    streetId: string;
   }> {
     const result: Array<{
       edgeId: string;
       congestion: number;
       coordinates: [number, number][];
       highway: string;
+      streetId: string;
     }> = [];
     for (const [edgeId, count] of this.edgeOccupancy) {
       if (count <= 0) continue;
@@ -83,6 +85,7 @@ export class TrafficManager {
           [edge.end.coordinates[1], edge.end.coordinates[0]],
         ],
         highway: edge.highway,
+        streetId: edge.streetId,
       });
     }
     return result;

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo, useCallback } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import { select, geoPath } from "d3";
 import { useTraffic } from "@/hooks/useTraffic";
 import { useNetwork } from "@/hooks/useNetwork";
@@ -13,8 +13,6 @@ const HIGHWAY_WIDTH: Record<string, number> = {
   tertiary: 1.5,
 };
 
-const HIGHWAY_TYPES = new Set(Object.keys(HIGHWAY_WIDTH));
-
 // Google Maps–style: green → yellow → orange → red
 function congestionColor(factor: number): string {
   if (factor >= 0.85) return "#22c55e"; // green — free flow
@@ -24,19 +22,16 @@ function congestionColor(factor: number): string {
   return "#ef4444"; // red — jammed
 }
 
-// Build a spatial index: "lon,lat" → worst congestion factor
-function buildCongestionIndex(edges: TrafficEdge[]): Map<string, number> {
-  const index = new Map<string, number>();
+// Aggregate congestion per streetId (worst = lowest factor wins)
+function buildStreetCongestion(edges: TrafficEdge[]): Map<string, number> {
+  const map = new Map<string, number>();
   for (const edge of edges) {
-    for (const [lon, lat] of edge.coordinates) {
-      const key = `${lon.toFixed(4)},${lat.toFixed(4)}`;
-      const existing = index.get(key);
-      if (existing === undefined || edge.congestion < existing) {
-        index.set(key, edge.congestion);
-      }
+    const existing = map.get(edge.streetId);
+    if (existing === undefined || edge.congestion < existing) {
+      map.set(edge.streetId, edge.congestion);
     }
   }
-  return index;
+  return map;
 }
 
 export default function TrafficOverlay({ visible }: { visible: boolean }) {
@@ -45,38 +40,18 @@ export default function TrafficOverlay({ visible }: { visible: boolean }) {
   const { projection } = useMapContext();
   const gRef = useRef<SVGGElement>(null);
 
-  const roads = useMemo(
-    () => network.features.filter((f) => HIGHWAY_TYPES.has(f.properties.highway ?? "")),
-    [network]
-  );
-
-  const congestionIndex = useMemo(() => buildCongestionIndex(trafficEdges), [trafficEdges]);
-
-  // Returns congestion or null if no traffic data touches this road
-  const getRoadCongestion = useCallback(
-    (coordinates: [number, number][]): number | null => {
-      let worst: number | null = null;
-      for (const [lon, lat] of coordinates) {
-        const key = `${lon.toFixed(4)},${lat.toFixed(4)}`;
-        const val = congestionIndex.get(key);
-        if (val !== undefined) {
-          if (worst === null || val < worst) worst = val;
-        }
-      }
-      return worst;
-    },
-    [congestionIndex]
-  );
+  const streetCongestion = useMemo(() => buildStreetCongestion(trafficEdges), [trafficEdges]);
 
   useEffect(() => {
-    if (!gRef.current || !projection || roads.length === 0) return;
+    if (!gRef.current || !projection || network.features.length === 0) return;
     const pathGen = geoPath().projection(projection);
     const g = select(gRef.current);
 
-    // Only render roads that have traffic data
-    const roadsWithTraffic = roads.filter(
-      (d) => getRoadCongestion(d.geometry.coordinates) !== null
-    );
+    // Only render features that have traffic data (matched by streetId)
+    const roadsWithTraffic = network.features.filter((f) => {
+      const sid = f.properties.streetId ?? f.properties["@id"];
+      return sid != null && streetCongestion.has(sid);
+    });
 
     g.selectAll("path")
       .data(roadsWithTraffic, (_d, i) => i)
@@ -85,13 +60,14 @@ export default function TrafficOverlay({ visible }: { visible: boolean }) {
       .attr("fill", "none")
       .attr("stroke-linejoin", "round")
       .attr("stroke-linecap", "round")
-      .attr("stroke-width", (d) => HIGHWAY_WIDTH[d.properties.highway ?? ""] ?? 1)
+      .attr("stroke-width", (d) => HIGHWAY_WIDTH[d.properties.highway ?? ""] ?? 1.5)
       .attr("stroke", (d) => {
-        const c = getRoadCongestion(d.geometry.coordinates)!;
+        const sid = d.properties.streetId ?? d.properties["@id"];
+        const c = streetCongestion.get(sid!)!;
         return congestionColor(c);
       })
       .attr("stroke-opacity", 0.85);
-  }, [roads, projection, getRoadCongestion]);
+  }, [network, projection, streetCongestion]);
 
   if (!visible) return null;
   return <g ref={gRef} />;

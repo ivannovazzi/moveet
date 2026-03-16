@@ -82,6 +82,8 @@ interface RoadFeature {
     type?: string;
     speed_limit?: number;
     highway?: string;
+    streetId?: string;
+    "@id"?: string;
   };
 }
 
@@ -196,6 +198,7 @@ export interface TrafficEdge {
   congestion: number; // 0.2 (jammed) to 1.0 (free flow)
   coordinates: [number, number][];
   highway: string;
+  streetId: string;
 }
 
 // ─── Recording & Replay ────────────────────────────────────────────
