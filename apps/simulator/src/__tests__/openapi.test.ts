@@ -18,16 +18,31 @@ function loadSpec(): Record<string, unknown> {
  * Matches app.get, app.post, app.delete, app.put, app.patch patterns.
  */
 function extractRoutesFromSource(): Set<string> {
-  const indexPath = path.resolve(__dirname, "../index.ts");
-  const source = fs.readFileSync(indexPath, "utf-8");
-  const routeRegex = /app\.(get|post|put|patch|delete)\(\s*["'`]([^"'`]+)["'`]/g;
   const routes = new Set<string>();
-  let match: RegExpExecArray | null;
-  while ((match = routeRegex.exec(source)) !== null) {
-    const method = match[1].toUpperCase();
-    const routePath = match[2];
-    routes.add(`${method} ${routePath}`);
+  const routeRegex = /router\.(get|post|put|patch|delete)\(\s*["'`]([^"'`]+)["'`]/g;
+  const appRouteRegex = /app\.(get|post|put|patch|delete)\(\s*["'`]([^"'`]+)["'`]/g;
+
+  // Scan route modules
+  const routesDir = path.resolve(__dirname, "../routes");
+  if (fs.existsSync(routesDir)) {
+    for (const file of fs.readdirSync(routesDir)) {
+      if (!file.endsWith(".ts") || file === "index.ts" || file === "types.ts" || file === "helpers.ts") continue;
+      const source = fs.readFileSync(path.join(routesDir, file), "utf-8");
+      let match: RegExpExecArray | null;
+      while ((match = routeRegex.exec(source)) !== null) {
+        routes.add(`${match[1].toUpperCase()} ${match[2]}`);
+      }
+    }
   }
+
+  // Also scan index.ts for routes registered directly on app
+  const indexPath = path.resolve(__dirname, "../index.ts");
+  const indexSource = fs.readFileSync(indexPath, "utf-8");
+  let match: RegExpExecArray | null;
+  while ((match = appRouteRegex.exec(indexSource)) !== null) {
+    routes.add(`${match[1].toUpperCase()} ${match[2]}`);
+  }
+
   return routes;
 }
 
