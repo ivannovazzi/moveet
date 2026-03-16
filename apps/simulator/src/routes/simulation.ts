@@ -1,6 +1,13 @@
 import { Router } from "express";
 import type { RouteContext } from "./types";
 import { asyncHandler } from "./helpers";
+import { validateBody } from "../middleware/validate";
+import {
+  startSchema,
+  optionsSchema,
+  clockSchema,
+  trafficProfileSchema,
+} from "../middleware/schemas";
 import logger from "../utils/logger";
 
 /**
@@ -29,6 +36,7 @@ export function createSimulationRoutes(ctx: RouteContext): Router {
 
   router.post(
     "/start",
+    validateBody(startSchema),
     asyncHandler(async (req, res) => {
       await simulationController.start(req.body);
       res.json({ status: "started", vehicleTypes: req.body.vehicleTypes ?? null });
@@ -56,6 +64,7 @@ export function createSimulationRoutes(ctx: RouteContext): Router {
 
   router.post(
     "/options",
+    validateBody(optionsSchema),
     asyncHandler(async (req, res) => {
       await simulationController.setOptions(req.body);
       res.json({ status: "options set" });
@@ -75,6 +84,7 @@ export function createSimulationRoutes(ctx: RouteContext): Router {
 
   router.post(
     "/clock",
+    validateBody(clockSchema),
     asyncHandler(async (req, res) => {
       const { speedMultiplier, setTime } = req.body as {
         speedMultiplier?: number;
@@ -82,19 +92,10 @@ export function createSimulationRoutes(ctx: RouteContext): Router {
       };
       const clock = simulationController.getClock();
       if (speedMultiplier !== undefined) {
-        if (typeof speedMultiplier !== "number" || speedMultiplier < 0) {
-          res.status(400).json({ error: "speedMultiplier must be a non-negative number" });
-          return;
-        }
         clock.setSpeedMultiplier(speedMultiplier);
       }
       if (setTime !== undefined) {
-        const t = new Date(setTime);
-        if (isNaN(t.getTime())) {
-          res.status(400).json({ error: "setTime must be a valid ISO date string" });
-          return;
-        }
-        clock.setTime(t);
+        clock.setTime(new Date(setTime));
       }
       res.json(clock.getState());
     })
@@ -122,12 +123,8 @@ export function createSimulationRoutes(ctx: RouteContext): Router {
 
   router.post(
     "/traffic-profile",
+    validateBody(trafficProfileSchema),
     asyncHandler(async (req, res) => {
-      const profile = req.body as { name?: string; timeRanges?: unknown[] };
-      if (!profile || typeof profile.name !== "string" || !Array.isArray(profile.timeRanges)) {
-        res.status(400).json({ error: "Invalid traffic profile format" });
-        return;
-      }
       simulationController.setTrafficProfile(req.body);
       res.json(simulationController.getTrafficProfile());
     })

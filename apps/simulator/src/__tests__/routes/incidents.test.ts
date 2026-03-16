@@ -121,7 +121,8 @@ describe("Incident routes", () => {
         duration: 60000,
       });
       expect(res.status).toBe(400);
-      expect(res.body.details).toContain("edgeIds must be a non-empty array of strings");
+      expect(res.body.error).toBe("Validation failed");
+      expect(res.body.details.some((d: string) => d.includes("edgeIds"))).toBe(true);
     });
 
     it("should reject invalid type", async () => {
@@ -131,7 +132,7 @@ describe("Incident routes", () => {
         duration: 60000,
       });
       expect(res.status).toBe(400);
-      expect(res.body.details[0]).toContain("type must be one of");
+      expect(res.body.details.some((d: string) => d.includes("type must be one of"))).toBe(true);
     });
 
     it("should reject invalid duration", async () => {
@@ -141,7 +142,7 @@ describe("Incident routes", () => {
         duration: -1,
       });
       expect(res.status).toBe(400);
-      expect(res.body.details[0]).toContain("duration");
+      expect(res.body.details.some((d: string) => d.includes("duration"))).toBe(true);
     });
 
     it("should reject severity out of range", async () => {
@@ -152,7 +153,7 @@ describe("Incident routes", () => {
         severity: 1.5,
       });
       expect(res.status).toBe(400);
-      expect(res.body.details[0]).toContain("severity");
+      expect(res.body.details.some((d: string) => d.includes("severity"))).toBe(true);
     });
 
     it("should accept missing severity (optional)", async () => {
@@ -202,7 +203,8 @@ describe("Incident routes", () => {
         type: "accident",
       });
       expect(res.status).toBe(400);
-      expect(res.body.error).toContain("lat and lng");
+      expect(res.body.error).toBe("Validation failed");
+      expect(res.body.details.some((d: string) => d.includes("lat") || d.includes("lng"))).toBe(true);
     });
 
     it("should reject invalid type", async () => {
@@ -212,7 +214,8 @@ describe("Incident routes", () => {
         type: "invalid",
       });
       expect(res.status).toBe(400);
-      expect(res.body.error).toContain("type must be one of");
+      expect(res.body.error).toBe("Validation failed");
+      expect(res.body.details.some((d: string) => d.includes("type must be one of"))).toBe(true);
     });
 
     it("should return 400 if no road near position", async () => {

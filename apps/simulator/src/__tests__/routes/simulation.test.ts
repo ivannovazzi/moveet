@@ -131,7 +131,16 @@ describe("Simulation routes", () => {
 
   describe("POST /options", () => {
     it("should set options", async () => {
-      const newOptions = { minSpeed: 10, maxSpeed: 80 };
+      const newOptions = {
+        minSpeed: 10,
+        maxSpeed: 80,
+        speedVariation: 0.1,
+        acceleration: 5,
+        deceleration: 7,
+        turnThreshold: 30,
+        heatZoneSpeedFactor: 0.5,
+        updateInterval: 500,
+      };
       const res = await request(app).post("/options").send(newOptions);
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ status: "options set" });
@@ -159,7 +168,8 @@ describe("Simulation routes", () => {
     it("should reject negative speed multiplier", async () => {
       const res = await request(app).post("/clock").send({ speedMultiplier: -1 });
       expect(res.status).toBe(400);
-      expect(res.body.error).toContain("non-negative");
+      expect(res.body.error).toBe("Validation failed");
+      expect(res.body.details.some((d: string) => d.includes("non-negative"))).toBe(true);
     });
 
     it("should set time with valid ISO string", async () => {
@@ -172,7 +182,8 @@ describe("Simulation routes", () => {
     it("should reject invalid date string", async () => {
       const res = await request(app).post("/clock").send({ setTime: "not-a-date" });
       expect(res.status).toBe(400);
-      expect(res.body.error).toContain("valid ISO date");
+      expect(res.body.error).toBe("Validation failed");
+      expect(res.body.details.some((d: string) => d.includes("setTime"))).toBe(true);
     });
   });
 
@@ -194,7 +205,10 @@ describe("Simulation routes", () => {
 
   describe("POST /traffic-profile", () => {
     it("should set traffic profile with valid body", async () => {
-      const profile = { name: "rush", timeRanges: [{ start: 7, end: 9 }] };
+      const profile = {
+        name: "rush",
+        timeRanges: [{ start: 7, end: 9, demandMultiplier: 1.5, affectedHighways: ["primary"] }],
+      };
       const res = await request(app).post("/traffic-profile").send(profile);
       expect(res.status).toBe(200);
       expect(ctx.simulationController.setTrafficProfile).toHaveBeenCalled();
@@ -203,7 +217,7 @@ describe("Simulation routes", () => {
     it("should reject invalid traffic profile", async () => {
       const res = await request(app).post("/traffic-profile").send({ name: 42 });
       expect(res.status).toBe(400);
-      expect(res.body.error).toContain("Invalid traffic profile");
+      expect(res.body.error).toBe("Validation failed");
     });
 
     it("should reject missing timeRanges", async () => {

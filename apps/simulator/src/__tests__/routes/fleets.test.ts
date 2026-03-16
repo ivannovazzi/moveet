@@ -65,7 +65,8 @@ describe("Fleet routes", () => {
     it("should reject missing name", async () => {
       const res = await request(app).post("/fleets").send({});
       expect(res.status).toBe(400);
-      expect(res.body.error).toContain("name is required");
+      expect(res.body.error).toBe("Validation failed");
+      expect(res.body.details.some((d: string) => d.includes("name"))).toBe(true);
     });
 
     it("should reject non-string name", async () => {
@@ -103,7 +104,8 @@ describe("Fleet routes", () => {
     it("should reject missing vehicleIds", async () => {
       const res = await request(app).post("/fleets/f1/assign").send({});
       expect(res.status).toBe(400);
-      expect(res.body.error).toContain("vehicleIds array");
+      expect(res.body.error).toBe("Validation failed");
+      expect(res.body.details.some((d: string) => d.includes("vehicleIds"))).toBe(true);
     });
 
     it("should return 400 if assignVehicles throws", async () => {

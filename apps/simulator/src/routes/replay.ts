@@ -2,6 +2,8 @@ import { Router } from "express";
 import path from "path";
 import type { RouteContext } from "./types";
 import { asyncHandler } from "./helpers";
+import { validateBody } from "../middleware/validate";
+import { replayStartSchema, replaySeekSchema, replaySpeedSchema } from "../middleware/schemas";
 import { expensiveRateLimiter } from "../middleware/rateLimiter";
 import logger from "../utils/logger";
 
@@ -15,12 +17,9 @@ export function createReplayRoutes(ctx: RouteContext): Router {
   router.post(
     "/replay/start",
     expensiveRateLimiter.middleware(),
+    validateBody(replayStartSchema),
     asyncHandler(async (req, res) => {
       const { file, speed } = req.body;
-      if (!file || typeof file !== "string") {
-        res.status(400).json({ error: "file is required" });
-        return;
-      }
       const filePath = path.join("recordings", file);
       try {
         const header = await simulationController.startReplay(filePath, speed);
@@ -58,6 +57,7 @@ export function createReplayRoutes(ctx: RouteContext): Router {
 
   router.post(
     "/replay/seek",
+    validateBody(replaySeekSchema),
     asyncHandler(async (req, res) => {
       const { timestamp } = req.body;
       simulationController.seekReplay(timestamp);
@@ -67,6 +67,7 @@ export function createReplayRoutes(ctx: RouteContext): Router {
 
   router.post(
     "/replay/speed",
+    validateBody(replaySpeedSchema),
     asyncHandler(async (req, res) => {
       const { speed } = req.body;
       simulationController.setReplaySpeed(speed ?? 1);

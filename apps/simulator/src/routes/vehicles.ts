@@ -1,6 +1,12 @@
 import { Router } from "express";
 import type { RouteContext } from "./types";
-import { asyncHandler, validateCoordinates, validateSearchQuery } from "./helpers";
+import { asyncHandler } from "./helpers";
+import { validateBody } from "../middleware/validate";
+import {
+  directionSchema,
+  coordinatesSchema,
+  searchSchema,
+} from "../middleware/schemas";
 import { expensiveRateLimiter } from "../middleware/rateLimiter";
 import { VEHICLE_PROFILES } from "../utils/vehicleProfiles";
 import logger from "../utils/logger";
@@ -35,18 +41,11 @@ export function createVehicleRoutes(ctx: RouteContext): Router {
 
   router.post(
     "/direction",
+    validateBody(directionSchema),
     asyncHandler(async (req, res) => {
       const body = req.body;
 
-      // Validate request body is a non-empty array
-      if (!Array.isArray(body) || body.length === 0) {
-        res.status(400).json({
-          error: "Request body must be a non-empty array of direction requests",
-        });
-        return;
-      }
-
-      // Validate each item in the array
+      // Business-logic validation: vehicle existence + bounding box checks
       const errors: string[] = [];
       const bbox = network.getBoundingBox();
       // Add a margin (~10km) around the network bounding box for coordinate validation
@@ -55,12 +54,6 @@ export function createVehicleRoutes(ctx: RouteContext): Router {
       for (let i = 0; i < body.length; i++) {
         const item = body[i];
 
-        // Validate id field
-        if (typeof item.id !== "string" || item.id.length === 0) {
-          errors.push(`[${i}]: 'id' must be a non-empty string`);
-          continue;
-        }
-
         // Validate vehicle ID exists
         if (!vehicleManager.hasVehicle(item.id)) {
           errors.push(`[${i}]: vehicle '${item.id}' not found`);
@@ -68,17 +61,9 @@ export function createVehicleRoutes(ctx: RouteContext): Router {
         }
 
         if (Array.isArray(item.waypoints) && item.waypoints.length > 0) {
-          // Multi-stop waypoint validation
+          // Multi-stop waypoint bounding box validation
           for (let j = 0; j < item.waypoints.length; j++) {
             const wp = item.waypoints[j];
-            if (typeof wp.lat !== "number" || isNaN(wp.lat)) {
-              errors.push(`[${i}].waypoints[${j}]: 'lat' must be a valid number`);
-              continue;
-            }
-            if (typeof wp.lng !== "number" || isNaN(wp.lng)) {
-              errors.push(`[${i}].waypoints[${j}]: 'lng' must be a valid number`);
-              continue;
-            }
             if (
               wp.lat < bbox.minLat - MARGIN ||
               wp.lat > bbox.maxLat + MARGIN ||
@@ -90,24 +75,8 @@ export function createVehicleRoutes(ctx: RouteContext): Router {
               );
             }
           }
-        } else {
-          // Single-destination validation (backward compat)
-          if (typeof item.lat !== "number" || isNaN(item.lat)) {
-            errors.push(`[${i}]: 'lat' must be a valid number`);
-          }
-          if (typeof item.lng !== "number" || isNaN(item.lng)) {
-            errors.push(`[${i}]: 'lng' must be a valid number`);
-          }
-
-          if (
-            typeof item.lat !== "number" ||
-            isNaN(item.lat) ||
-            typeof item.lng !== "number" ||
-            isNaN(item.lng)
-          ) {
-            continue;
-          }
-
+        } else if (item.lat !== undefined && item.lng !== undefined) {
+          // Single-destination bounding box validation
           if (
             item.lat < bbox.minLat - MARGIN ||
             item.lat > bbox.maxLat + MARGIN ||
@@ -134,11 +103,8 @@ export function createVehicleRoutes(ctx: RouteContext): Router {
   router.post(
     "/find-node",
     expensiveRateLimiter.middleware(),
+    validateBody(coordinatesSchema),
     asyncHandler(async (req, res) => {
-      if (!validateCoordinates(req.body)) {
-        res.status(400).json({ error: "Invalid coordinates. Expected [longitude, latitude]" });
-        return;
-      }
       const { coordinates } = await network.findNearestNode([req.body[1], req.body[0]]);
       res.json([coordinates[1], coordinates[0]]);
     })
@@ -147,11 +113,8 @@ export function createVehicleRoutes(ctx: RouteContext): Router {
   router.post(
     "/find-road",
     expensiveRateLimiter.middleware(),
+    validateBody(coordinatesSchema),
     asyncHandler(async (req, res) => {
-      if (!validateCoordinates(req.body)) {
-        res.status(400).json({ error: "Invalid coordinates. Expected [longitude, latitude]" });
-        return;
-      }
       const road = await network.findNearestRoad([req.body[1], req.body[0]]);
       res.json(road);
     })
@@ -160,11 +123,8 @@ export function createVehicleRoutes(ctx: RouteContext): Router {
   router.post(
     "/search",
     expensiveRateLimiter.middleware(),
+    validateBody(searchSchema),
     asyncHandler(async (req, res) => {
-      if (!validateSearchQuery(req.body)) {
-        res.status(400).json({ error: "Invalid request body. Expected { query: string }" });
-        return;
-      }
       const results = await network.searchByName(req.body.query);
       res.json(results);
     })

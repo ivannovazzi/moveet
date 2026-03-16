@@ -115,7 +115,7 @@ describe("Vehicle routes", () => {
     it("should reject non-array body", async () => {
       const res = await request(app).post("/direction").send({ id: "v1", lat: -1.3, lng: 36.8 });
       expect(res.status).toBe(400);
-      expect(res.body.error).toContain("non-empty array");
+      expect(res.body.error).toBe("Validation failed");
     });
 
     it("should reject empty array", async () => {
@@ -176,7 +176,7 @@ describe("Vehicle routes", () => {
     it("should reject invalid coordinates", async () => {
       const res = await request(app).post("/find-node").send({ foo: "bar" });
       expect(res.status).toBe(400);
-      expect(res.body.error).toContain("Invalid coordinates");
+      expect(res.body.error).toBe("Validation failed");
     });
   });
 
@@ -203,7 +203,8 @@ describe("Vehicle routes", () => {
     it("should reject missing query", async () => {
       const res = await request(app).post("/search").send({});
       expect(res.status).toBe(400);
-      expect(res.body.error).toContain("query");
+      expect(res.body.error).toBe("Validation failed");
+      expect(res.body.details.some((d: string) => d.includes("query"))).toBe(true);
     });
   });
 });

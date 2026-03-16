@@ -77,7 +77,8 @@ describe("Replay routes", () => {
     it("should reject missing file parameter", async () => {
       const res = await request(app).post("/replay/start").send({});
       expect(res.status).toBe(400);
-      expect(res.body.error).toContain("file is required");
+      expect(res.body.error).toBe("Validation failed");
+      expect(res.body.details.some((d: string) => d.includes("file"))).toBe(true);
     });
 
     it("should return 400 if startReplay throws", async () => {

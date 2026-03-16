@@ -1,5 +1,7 @@
 import { Router } from "express";
 import type { RouteContext } from "./types";
+import { validateBody } from "../middleware/validate";
+import { createFleetSchema, fleetAssignSchema } from "../middleware/schemas";
 
 /**
  * Routes for fleet management: CRUD and vehicle assignment.
@@ -12,12 +14,8 @@ export function createFleetRoutes(ctx: RouteContext): Router {
     res.json(fleetManager.getFleets());
   });
 
-  router.post("/fleets", (req, res) => {
+  router.post("/fleets", validateBody(createFleetSchema), (req, res) => {
     const { name, source } = req.body;
-    if (!name || typeof name !== "string") {
-      res.status(400).json({ error: "name is required" });
-      return;
-    }
     const fleet = fleetManager.createFleet(name, source);
     res.status(201).json(fleet);
   });
@@ -32,12 +30,8 @@ export function createFleetRoutes(ctx: RouteContext): Router {
     }
   });
 
-  router.post("/fleets/:id/assign", (req, res) => {
+  router.post("/fleets/:id/assign", validateBody(fleetAssignSchema), (req, res) => {
     const { vehicleIds } = req.body;
-    if (!Array.isArray(vehicleIds)) {
-      res.status(400).json({ error: "vehicleIds array is required" });
-      return;
-    }
     try {
       fleetManager.assignVehicles(req.params.id, vehicleIds);
       res.json({ status: "assigned" });
@@ -47,12 +41,8 @@ export function createFleetRoutes(ctx: RouteContext): Router {
     }
   });
 
-  router.post("/fleets/:id/unassign", (req, res) => {
+  router.post("/fleets/:id/unassign", validateBody(fleetAssignSchema), (req, res) => {
     const { vehicleIds } = req.body;
-    if (!Array.isArray(vehicleIds)) {
-      res.status(400).json({ error: "vehicleIds array is required" });
-      return;
-    }
     try {
       fleetManager.unassignVehicles(req.params.id, vehicleIds);
       res.json({ status: "unassigned" });

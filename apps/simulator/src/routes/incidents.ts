@@ -2,6 +2,8 @@ import { Router } from "express";
 import type { RouteContext } from "./types";
 import type { IncidentType } from "../types";
 import { asyncHandler } from "./helpers";
+import { validateBody } from "../middleware/validate";
+import { createIncidentSchema, incidentAtPositionSchema } from "../middleware/schemas";
 import { expensiveRateLimiter } from "../middleware/rateLimiter";
 import logger from "../utils/logger";
 
@@ -27,35 +29,9 @@ export function createIncidentRoutes(ctx: RouteContext): Router {
   router.post(
     "/incidents",
     expensiveRateLimiter.middleware(),
+    validateBody(createIncidentSchema),
     asyncHandler(async (req, res) => {
       const { edgeIds, type, duration, severity } = req.body;
-
-      const errors: string[] = [];
-
-      if (
-        !Array.isArray(edgeIds) ||
-        edgeIds.length === 0 ||
-        !edgeIds.every((id: unknown) => typeof id === "string")
-      ) {
-        errors.push("edgeIds must be a non-empty array of strings");
-      }
-
-      if (!VALID_INCIDENT_TYPES.includes(type)) {
-        errors.push(`type must be one of: ${VALID_INCIDENT_TYPES.join(", ")}`);
-      }
-
-      if (typeof duration !== "number" || duration <= 0) {
-        errors.push("duration must be a positive number");
-      }
-
-      if (severity !== undefined && (typeof severity !== "number" || severity < 0 || severity > 1)) {
-        errors.push("severity must be a number between 0 and 1");
-      }
-
-      if (errors.length > 0) {
-        res.status(400).json({ error: "Validation failed", details: errors });
-        return;
-      }
 
       const edge = network.getEdge(edgeIds[0]);
       const position: [number, number] = edge
@@ -99,17 +75,9 @@ export function createIncidentRoutes(ctx: RouteContext): Router {
   router.post(
     "/incidents/at-position",
     expensiveRateLimiter.middleware(),
+    validateBody(incidentAtPositionSchema),
     asyncHandler(async (req, res) => {
       const { lat, lng, type } = req.body;
-
-      if (typeof lat !== "number" || typeof lng !== "number") {
-        res.status(400).json({ error: "lat and lng are required numbers" });
-        return;
-      }
-      if (!VALID_INCIDENT_TYPES.includes(type)) {
-        res.status(400).json({ error: `type must be one of: ${VALID_INCIDENT_TYPES.join(", ")}` });
-        return;
-      }
 
       const node = network.findNearestNode([lat, lng]);
       if (node.connections.length === 0) {
