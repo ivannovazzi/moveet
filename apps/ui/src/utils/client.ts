@@ -1,5 +1,6 @@
 import { HttpClient } from "./httpClient";
 import { WebSocketClient } from "./wsClient";
+import type { ConnectionStateListener } from "./wsClient";
 import type {
   ApiResponse,
   StartOptions,
@@ -95,6 +96,8 @@ class SimulationService {
     // traffic
     this.getTraffic = this.getTraffic.bind(this);
     this.onTraffic = this.onTraffic.bind(this);
+    // connection state
+    this.onConnectionStateChange = this.onConnectionStateChange.bind(this);
   }
 
   connectWebSocket(): void {
@@ -111,6 +114,10 @@ class SimulationService {
 
   onDisconnect(handler: () => void): void {
     this.ws.on("disconnect", () => handler());
+  }
+
+  onConnectionStateChange(listener: ConnectionStateListener): () => void {
+    return this.ws.onConnectionStateChange(listener);
   }
 
   onVehicle(handler: (vehicle: VehicleDTO) => void): void {

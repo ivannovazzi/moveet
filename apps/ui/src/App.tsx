@@ -41,6 +41,8 @@ import { useDispatchState, DispatchState } from "./hooks/useDispatchState";
 import useContextMenu from "./hooks/useContextMenu";
 import ContextMenu from "./components/ContextMenu";
 import MapContextMenu from "./components/MapContextMenu";
+import ConnectionStatus from "./components/ConnectionStatus";
+import { useConnectionState } from "./hooks/useConnectionState";
 import { isRoad } from "./utils/typeGuards";
 import ErrorBoundary, { SectionErrorFallback } from "./components/ErrorBoundary";
 
@@ -61,6 +63,7 @@ export default function App() {
   });
 
   const [connected, setConnected] = useState(false);
+  const connectionInfo = useConnectionState();
   const adapter = useAdapterConfig(activePanel === "adapter");
   const {
     vehicles,
@@ -461,11 +464,7 @@ export default function App() {
         </ErrorBoundary>
         <ErrorBoundary fallback={<SectionErrorFallback section="Map" />}>
           <div className={styles.map}>
-            {!connected && (
-              <div className={styles.disconnectedBanner} role="alert">
-                Disconnected — attempting to reconnect...
-              </div>
-            )}
+            <ConnectionStatus connectionInfo={connectionInfo} />
             <MapView
               vehicles={vehicles}
               filters={filters}

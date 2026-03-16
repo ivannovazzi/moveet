@@ -5,6 +5,16 @@ type HandlerFn<T = unknown> = (data: T) => void;
 
 const MAX_RECONNECT_ATTEMPTS = 10;
 
+export type ConnectionState = "connected" | "reconnecting" | "disconnected";
+
+export type ConnectionStateInfo = {
+  state: ConnectionState;
+  attempt: number;
+  maxAttempts: number;
+};
+
+export type ConnectionStateListener = (info: ConnectionStateInfo) => void;
+
 interface WebSocketClientOptions {
   autoReconnect?: boolean;
   logReconnects?: boolean;
@@ -19,11 +29,37 @@ export class WebSocketClient {
   private reconnectAttempts = 0;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private manualClose = false;
+  private connectionStateListeners = new Set<ConnectionStateListener>();
+  private _connectionState: ConnectionState = "disconnected";
 
   constructor(
     private wsUrl: string,
     private options: WebSocketClientOptions = {}
   ) {}
+
+  get connectionState(): ConnectionState {
+    return this._connectionState;
+  }
+
+  private setConnectionState(state: ConnectionState) {
+    this._connectionState = state;
+    const maxAttempts = this.options.maxReconnectAttempts ?? MAX_RECONNECT_ATTEMPTS;
+    const info: ConnectionStateInfo = {
+      state,
+      attempt: this.reconnectAttempts,
+      maxAttempts,
+    };
+    for (const listener of this.connectionStateListeners) {
+      listener(info);
+    }
+  }
+
+  onConnectionStateChange(listener: ConnectionStateListener): () => void {
+    this.connectionStateListeners.add(listener);
+    return () => {
+      this.connectionStateListeners.delete(listener);
+    };
+  }
 
   connect() {
     if (this.ws) return; // Already connected
@@ -66,6 +102,7 @@ export class WebSocketClient {
       if (this.ws !== ws) return;
       // Reset reconnect attempts on successful connection
       this.reconnectAttempts = 0;
+      this.setConnectionState("connected");
       this.handlers.get("connect")?.({});
     };
 
@@ -75,14 +112,21 @@ export class WebSocketClient {
       this.handlers.get("disconnect")?.({});
 
       // Do not auto-reconnect if the close was intentional
-      if (this.manualClose) return;
+      if (this.manualClose) {
+        this.setConnectionState("disconnected");
+        return;
+      }
 
-      if (this.options.autoReconnect === false) return;
+      if (this.options.autoReconnect === false) {
+        this.setConnectionState("disconnected");
+        return;
+      }
 
       const maxReconnectAttempts = this.options.maxReconnectAttempts ?? MAX_RECONNECT_ATTEMPTS;
 
       // Implement exponential backoff for reconnection
       if (this.reconnectAttempts < maxReconnectAttempts) {
+        this.setConnectionState("reconnecting");
         const delay = calculateBackoffDelay(this.reconnectAttempts);
 
         if (this.options.logReconnects !== false) {
@@ -96,6 +140,7 @@ export class WebSocketClient {
           this.connect();
         }, delay);
       } else {
+        this.setConnectionState("disconnected");
         (this.options.logger ?? console).error(
           "Max reconnection attempts reached. Please refresh the page."
         );
@@ -126,5 +171,6 @@ export class WebSocketClient {
     this.reconnectAttempts = 0;
     this.ws?.close();
     this.ws = null;
+    this.setConnectionState("disconnected");
   }
 }

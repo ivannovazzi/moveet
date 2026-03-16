@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { WebSocketClient } from "./wsClient";
+import type { ConnectionStateInfo } from "./wsClient";
 
 // Minimal mock WebSocket that lets us trigger lifecycle events
 class MockWebSocket {
@@ -140,5 +141,158 @@ describe("WebSocketClient", () => {
     ws4.onclose?.();
     vi.advanceTimersByTime(1_000); // delay should be 1000ms (attempt 0), not escalated
     expect(mockInstances).toHaveLength(5);
+  });
+});
+
+describe("WebSocketClient connection state", () => {
+  it("starts in disconnected state", () => {
+    const client = createClient();
+    expect(client.connectionState).toBe("disconnected");
+  });
+
+  it("transitions to connected on successful open", () => {
+    const client = createClient();
+    const states: ConnectionStateInfo[] = [];
+    client.onConnectionStateChange((info) => states.push({ ...info }));
+
+    client.connect();
+    mockInstances[0].onopen?.();
+
+    expect(client.connectionState).toBe("connected");
+    expect(states).toHaveLength(1);
+    expect(states[0]).toEqual({ state: "connected", attempt: 0, maxAttempts: 10 });
+  });
+
+  it("transitions to reconnecting on unexpected close", () => {
+    const client = createClient();
+    const states: ConnectionStateInfo[] = [];
+    client.onConnectionStateChange((info) => states.push({ ...info }));
+
+    client.connect();
+    mockInstances[0].onopen?.();
+    mockInstances[0].onclose?.();
+
+    expect(client.connectionState).toBe("reconnecting");
+    expect(states).toHaveLength(2);
+    expect(states[1]).toEqual({ state: "reconnecting", attempt: 0, maxAttempts: 10 });
+  });
+
+  it("transitions to disconnected on manual disconnect", () => {
+    const client = createClient();
+    const states: ConnectionStateInfo[] = [];
+    client.onConnectionStateChange((info) => states.push({ ...info }));
+
+    client.connect();
+    mockInstances[0].onopen?.();
+    client.disconnect();
+
+    const lastState = states[states.length - 1];
+    expect(lastState.state).toBe("disconnected");
+    expect(client.connectionState).toBe("disconnected");
+  });
+
+  it("transitions to disconnected after max reconnect attempts exhausted", () => {
+    const maxAttempts = 3;
+    const client = new WebSocketClient("ws://localhost:5010", {
+      autoReconnect: true,
+      logReconnects: false,
+      maxReconnectAttempts: maxAttempts,
+    });
+    const states: ConnectionStateInfo[] = [];
+    client.onConnectionStateChange((info) => states.push({ ...info }));
+
+    client.connect();
+    mockInstances[0].onopen?.();
+
+    // Exhaust all reconnect attempts
+    for (let i = 0; i < maxAttempts; i++) {
+      const ws = mockInstances[mockInstances.length - 1];
+      ws.onclose?.();
+      // Advance past the backoff delay to trigger reconnect
+      vi.advanceTimersByTime(30_000);
+    }
+
+    // One more close after all attempts used
+    const lastWs = mockInstances[mockInstances.length - 1];
+    lastWs.onclose?.();
+
+    expect(client.connectionState).toBe("disconnected");
+    const lastState = states[states.length - 1];
+    expect(lastState.state).toBe("disconnected");
+  });
+
+  it("tracks reconnection attempt number in state info", () => {
+    const client = createClient();
+    const states: ConnectionStateInfo[] = [];
+    client.onConnectionStateChange((info) => states.push({ ...info }));
+
+    client.connect();
+    mockInstances[0].onopen?.();
+
+    // First unexpected close — attempt 0
+    mockInstances[0].onclose?.();
+    vi.advanceTimersByTime(1_000); // triggers reconnect, reconnectAttempts becomes 1
+
+    // Second unexpected close — attempt 1
+    mockInstances[1].onclose?.();
+
+    const reconnectingStates = states.filter((s) => s.state === "reconnecting");
+    expect(reconnectingStates[0].attempt).toBe(0);
+    expect(reconnectingStates[1].attempt).toBe(1);
+  });
+
+  it("unsubscribes listener when calling returned cleanup function", () => {
+    const client = createClient();
+    const states: ConnectionStateInfo[] = [];
+    const unsubscribe = client.onConnectionStateChange((info) => states.push({ ...info }));
+
+    client.connect();
+    mockInstances[0].onopen?.();
+    expect(states).toHaveLength(1);
+
+    unsubscribe();
+
+    // This should NOT trigger the listener
+    client.disconnect();
+    expect(states).toHaveLength(1);
+  });
+
+  it("transitions to disconnected when autoReconnect is false", () => {
+    const client = new WebSocketClient("ws://localhost:5010", {
+      autoReconnect: false,
+      logReconnects: false,
+    });
+    const states: ConnectionStateInfo[] = [];
+    client.onConnectionStateChange((info) => states.push({ ...info }));
+
+    client.connect();
+    mockInstances[0].onopen?.();
+    mockInstances[0].onclose?.();
+
+    expect(client.connectionState).toBe("disconnected");
+    expect(states[states.length - 1].state).toBe("disconnected");
+  });
+
+  it("returns to connected after successful reconnect", () => {
+    const client = createClient();
+    const states: ConnectionStateInfo[] = [];
+    client.onConnectionStateChange((info) => states.push({ ...info }));
+
+    client.connect();
+    mockInstances[0].onopen?.();
+
+    // Unexpected close
+    mockInstances[0].onclose?.();
+    expect(client.connectionState).toBe("reconnecting");
+
+    // Advance to trigger reconnect
+    vi.advanceTimersByTime(1_000);
+
+    // Reconnect succeeds
+    mockInstances[1].onopen?.();
+    expect(client.connectionState).toBe("connected");
+
+    const stateSequence = states.map((s) => s.state);
+    expect(stateSequence).toEqual(["connected", "reconnecting", "connected"]);
   });
 });
