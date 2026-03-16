@@ -3,6 +3,7 @@ import { contourDensity, scaleSequential, interpolateRgb, max, select, geoPath }
 import type { ContourMultiPolygon } from "d3";
 import { useMapContext } from "@/components/Map/hooks";
 import type { Position } from "@/types";
+import { HEAT_LAYER } from "@/data/constants";
 
 interface HeatLayerProps {
   data: Position[];
@@ -31,7 +32,7 @@ export default function HeatLayer({
         .y((d) => d[1])
         .bandwidth(bandwidth)
         .thresholds(thresholds)
-        .size([1300, 1000]),
+        .size([HEAT_LAYER.VIEWPORT_WIDTH, HEAT_LAYER.VIEWPORT_HEIGHT]),
     [bandwidth, thresholds]
   );
 

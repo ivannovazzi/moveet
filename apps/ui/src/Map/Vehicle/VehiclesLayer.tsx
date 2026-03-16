@@ -3,6 +3,7 @@ import type { Fleet, Position } from "@/types";
 import { toMapPosition } from "@/utils/coordinates";
 import { useMapContext } from "../../components/Map/hooks";
 import { vehicleStore } from "../../hooks/vehicleStore";
+import { VEHICLE_RENDER, VEHICLE_INTERPOLATION } from "../../data/constants";
 
 // Arrow shape vertices (same as original VehicleMarker polygon)
 const AX = [0, 2.5, 0, -2.5];
@@ -63,12 +64,7 @@ interface VehicleInterp {
   lerpMs: number;
 }
 
-/** Fallback lerp duration before we have enough samples. */
-const DEFAULT_LERP_MS = 150;
-/** Minimum lerp duration to avoid jitter from timing noise. */
-const MIN_LERP_MS = 30;
-/** Allow interpolation to overshoot target by this factor to avoid pause at destination. */
-const MAX_T = 1.15;
+const { DEFAULT_LERP_MS, MIN_LERP_MS, MAX_T } = VEHICLE_INTERPOLATION;
 
 /** Lerp a single value from a to b by t ∈ [0, 1]. */
 function lerp(a: number, b: number, t: number): number {
@@ -147,7 +143,7 @@ function drawGlowShape(
   ctx.shadowBlur = glowRadius;
   ctx.shadowOffsetX = 0;
   ctx.shadowOffsetY = 0;
-  drawShape(ctx, x, y, heading, s, vehicleType, fillColor, glowColor, 0.8);
+  drawShape(ctx, x, y, heading, s, vehicleType, fillColor, glowColor, VEHICLE_RENDER.GLOW_STROKE_WIDTH);
   ctx.restore();
 }
 
@@ -157,11 +153,11 @@ function drawGlowShape(
 function drawSelectionRing(ctx: CanvasRenderingContext2D, x: number, y: number, s: number) {
   ctx.save();
   ctx.beginPath();
-  ctx.arc(x, y, 6 * s, 0, Math.PI * 2);
+  ctx.arc(x, y, VEHICLE_RENDER.SELECTION_RING_RADIUS * s, 0, Math.PI * 2);
   ctx.fillStyle = SELECTED_BG;
   ctx.fill();
   ctx.strokeStyle = SELECTED_STROKE;
-  ctx.lineWidth = 0.4 * s;
+  ctx.lineWidth = VEHICLE_RENDER.SELECTION_RING_STROKE_WIDTH * s;
   ctx.stroke();
   ctx.restore();
 }
@@ -447,7 +443,7 @@ export default function VehiclesLayer({
         const [color, batchType] = key.split("|");
 
         for (const v of vehicles) {
-          drawShape(ctx, v.x, v.y, v.heading, s, batchType, color, DEFAULT_STROKE, 0.5);
+          drawShape(ctx, v.x, v.y, v.heading, s, batchType, color, DEFAULT_STROKE, VEHICLE_RENDER.STROKE_WIDTH);
         }
       }
 
@@ -465,7 +461,7 @@ export default function VehiclesLayer({
           hoveredVehicle.type,
           resolveCSSColor(hoveredVehicle.color),
           HOVER_STROKE,
-          3
+          VEHICLE_RENDER.HOVER_GLOW_RADIUS
         );
       }
 
@@ -479,7 +475,7 @@ export default function VehiclesLayer({
           selectedVehicle.type,
           resolveCSSColor(selectedVehicle.color),
           SELECTED_STROKE,
-          4
+          VEHICLE_RENDER.SELECTED_GLOW_RADIUS
         );
       }
     };
@@ -510,7 +506,7 @@ export default function VehiclesLayer({
       const projX = (clientX - t.x) / k;
       const projY = (clientY - t.y) / k;
 
-      const hitRadius = (8 * scale) / Math.pow(k, 0.75);
+      const hitRadius = (VEHICLE_RENDER.HIT_TEST_RADIUS * scale) / Math.pow(k, 0.75);
       const hitRadiusSq = hitRadius * hitRadius;
 
       let closestId: string | null = null;

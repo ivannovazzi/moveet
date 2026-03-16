@@ -1,14 +1,15 @@
 import type { WebSocketServer, WebSocket } from "ws";
 import type { VehicleDTO } from "../types";
+import { WS_BROADCASTER } from "../constants";
 
-/** Backpressure threshold in bytes. Clients with bufferedAmount above this are skipped. */
-export const BACKPRESSURE_THRESHOLD = 64 * 1024; // 64 KB
+/** @deprecated Import from constants.ts instead. Re-exported for backwards compatibility. */
+export const BACKPRESSURE_THRESHOLD = WS_BROADCASTER.BACKPRESSURE_THRESHOLD;
 
-/** Number of consecutive skipped flushes before a slow client is disconnected. */
-export const MAX_DROPPED_FLUSHES = 50;
+/** @deprecated Import from constants.ts instead. Re-exported for backwards compatibility. */
+export const MAX_DROPPED_FLUSHES = WS_BROADCASTER.MAX_DROPPED_FLUSHES;
 
-/** Minimum position change (in degrees) to trigger a delta update for a vehicle. ~1.1 meters. */
-export const POSITION_DELTA_THRESHOLD = 0.00001;
+/** @deprecated Import from constants.ts instead. Re-exported for backwards compatibility. */
+export const POSITION_DELTA_THRESHOLD = WS_BROADCASTER.POSITION_DELTA_THRESHOLD;
 
 /** Default interval between ping frames sent to each client (ms). */
 export const DEFAULT_PING_INTERVAL_MS = 30_000;
@@ -64,7 +65,7 @@ export class WebSocketBroadcaster {
 
   constructor(wss: WebSocketServer, options: BroadcasterOptions = {}) {
     this.wss = wss;
-    this.flushIntervalMs = options.flushIntervalMs ?? 100;
+    this.flushIntervalMs = options.flushIntervalMs ?? WS_BROADCASTER.DEFAULT_FLUSH_INTERVAL_MS;
     this.pingIntervalMs = options.pingIntervalMs ?? DEFAULT_PING_INTERVAL_MS;
     this.pongTimeoutMs = options.pongTimeoutMs ?? DEFAULT_PONG_TIMEOUT_MS;
   }

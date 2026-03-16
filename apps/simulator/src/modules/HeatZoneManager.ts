@@ -1,6 +1,7 @@
 import { point, destination, lineString, bezierSpline } from "@turf/turf";
 import crypto from "crypto";
 import type { Edge, Node, HeatZone, HeatZoneFeature } from "../types";
+import { SPATIAL_GRID } from "../constants";
 
 export class HeatZoneManager {
   private zones: HeatZone[] = [];
@@ -9,7 +10,7 @@ export class HeatZoneManager {
   // Cuts isPositionInHeatZone from O(zones) ray-casts to O(candidates) where candidates is
   // typically 0-1 for most positions on the map.
   private spatialGrid: Map<string, HeatZone[]> = new Map();
-  private static readonly GRID_CELL_SIZE = 0.005; // ~500m in degrees, matches RoadNetwork grid
+  private static readonly GRID_CELL_SIZE = SPATIAL_GRID.CELL_SIZE;
 
   constructor() {}
 

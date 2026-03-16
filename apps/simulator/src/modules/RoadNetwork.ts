@@ -15,6 +15,7 @@ import * as utils from "../utils/helpers";
 import { LRUCache, type CacheStats } from "../utils/LRUCache";
 import { HeatZoneManager } from "./HeatZoneManager";
 import { PathfindingPool } from "./PathfindingPool";
+import { SPATIAL_GRID } from "../constants";
 import EventEmitter from "events";
 
 type Street = [number, number][];
@@ -56,7 +57,7 @@ export class RoadNetwork extends EventEmitter {
 
   // Spatial grid index for O(1) nearest-node lookups
   private spatialGrid: Map<string, Node[]> = new Map();
-  private gridCellSize = 0.005; // ~500m cells in degrees
+  private gridCellSize = SPATIAL_GRID.CELL_SIZE;
 
   // Network bounding box for uniform spatial sampling
   private bbox = { minLat: Infinity, maxLat: -Infinity, minLon: Infinity, maxLon: -Infinity };

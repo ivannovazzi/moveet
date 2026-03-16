@@ -28,6 +28,24 @@ export const VEHICLE_CONSTANTS = {
   MAX_VISITED_EDGES: 1000,
 } as const;
 
+// WebSocket broadcaster tuning
+export const WS_BROADCASTER = {
+  /** Backpressure threshold in bytes. Clients with bufferedAmount above this are skipped. */
+  BACKPRESSURE_THRESHOLD: 64 * 1024, // 64 KB
+  /** Number of consecutive skipped flushes before a slow client is disconnected. */
+  MAX_DROPPED_FLUSHES: 50,
+  /** Minimum position change (in degrees) to trigger a delta update for a vehicle. ~1.1 meters. */
+  POSITION_DELTA_THRESHOLD: 0.00001,
+  /** Default flush interval in milliseconds. */
+  DEFAULT_FLUSH_INTERVAL_MS: 100,
+} as const;
+
+// Spatial grid shared between HeatZoneManager and RoadNetwork
+export const SPATIAL_GRID = {
+  /** Grid cell size in degrees (~500 m). Used for spatial indexing in both HeatZoneManager and RoadNetwork. */
+  CELL_SIZE: 0.005,
+} as const;
+
 // Fleet color palette (10 distinct colors for fleet grouping)
 export const FLEET_COLORS = [
   "#ef4444", // red
