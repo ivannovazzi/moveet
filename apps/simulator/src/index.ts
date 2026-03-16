@@ -81,6 +81,15 @@ function validateSearchQuery(body: unknown): body is { query: string } {
   );
 }
 
+app.get("/api-docs", (_req, res) => {
+  const specPath = path.join(__dirname, "..", "openapi.yaml");
+  if (!fs.existsSync(specPath)) {
+    res.status(404).json({ error: "OpenAPI spec not found" });
+    return;
+  }
+  res.type("text/yaml").send(fs.readFileSync(specPath, "utf-8"));
+});
+
 app.get("/status", (_req, res) => {
   try {
     res.json(simulationController.getStatus());
