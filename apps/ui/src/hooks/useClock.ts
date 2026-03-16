@@ -1,6 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import client from "@/utils/client";
-import type { ClockState } from "@/types";
+import type { ClockState, TimeOfDay } from "@/types";
+
+function getTimeOfDay(hour: number): TimeOfDay {
+  if (hour >= 7 && hour < 9) return "morning_rush";
+  if (hour >= 17 && hour < 19) return "evening_rush";
+  if (hour >= 22 || hour < 5) return "night";
+  return "midday";
+}
 
 const DEFAULT_CLOCK: ClockState = {
   currentTime: new Date().toISOString(),
@@ -11,7 +18,6 @@ const DEFAULT_CLOCK: ClockState = {
 
 export function useClock() {
   const [clock, setClock] = useState<ClockState>(DEFAULT_CLOCK);
-  // Keep a ref to the latest clock so the interval closure always reads current values
   const clockRef = useRef(clock);
   clockRef.current = clock;
 
@@ -19,19 +25,24 @@ export function useClock() {
     client.getClock().then((res) => {
       if (res.data) setClock(res.data);
     });
-    // WS events fire on hour boundaries — sync full state when they arrive
     client.onClock((state) => setClock(state));
   }, []);
 
-  // Local tick — advance currentTime every real second based on speedMultiplier
+  // Local tick — advance currentTime and derive hour/timeOfDay every real second
   useEffect(() => {
     const id = setInterval(() => {
-      setClock((prev) => ({
-        ...prev,
-        currentTime: new Date(
+      setClock((prev) => {
+        const nextTime = new Date(
           new Date(prev.currentTime).getTime() + prev.speedMultiplier * 1000
-        ).toISOString(),
-      }));
+        );
+        const hour = nextTime.getHours();
+        return {
+          ...prev,
+          currentTime: nextTime.toISOString(),
+          hour,
+          timeOfDay: getTimeOfDay(hour),
+        };
+      });
     }, 1000);
     return () => clearInterval(id);
   }, []);
