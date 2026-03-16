@@ -6,7 +6,7 @@ import {
   nonCircularRouteEdges,
   estimateRouteDuration,
 } from "../utils/helpers";
-import type { Route, Edge, Node } from "../types";
+import type { Route, Edge, Node as RoadNode } from "../types";
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
@@ -23,27 +23,27 @@ function makeEdge(
 ): Edge {
   const start = makeNode("a", startLat, startLng);
   const end = makeNode("b", endLat, endLng);
-  // Add a circular reference to verify nonCircularRouteEdges strips it
-  (start.connections as Node[]).push(end);
-  (end.connections as Node[]).push(start);
-  return {
+  const edge: Edge = {
     id: "e1",
+    streetId: "s1",
     start,
     end,
     distance,
+    bearing: 0,
     maxSpeed: 60,
     name: "Test St",
-    oneWay: false,
+    oneway: false,
     highway: "residential",
+    surface: "asphalt",
   };
+  // Add edge to connections to create circular references that nonCircularRouteEdges strips
+  start.connections.push(edge);
+  end.connections.push(edge);
+  return edge;
 }
 
 function makeRoute(edges: Edge[]): Route {
-  return {
-    edges,
-    startNodeId: edges[0]?.start.id ?? "a",
-    endNodeId: edges[edges.length - 1]?.end.id ?? "b",
-  };
+  return { edges, distance: edges.reduce((s, e) => s + e.distance, 0) };
 }
 
 // ─── calculateBearing ───────────────────────────────────────────────

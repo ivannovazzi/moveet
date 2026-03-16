@@ -69,7 +69,7 @@ describe("SimulationController lifecycle", () => {
     network = new RoadNetwork(FIXTURE_PATH);
 
     // Stub setRandomDestination to avoid pathfinding on the tiny test network
-    const proto = VehicleManager.prototype as Record<string, unknown>;
+    const proto = VehicleManager.prototype as unknown as Record<string, unknown>;
     const orig = proto.setRandomDestination as () => void;
     proto.setRandomDestination = function () {};
     manager = new VehicleManager(network, new FleetManager());

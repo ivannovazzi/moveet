@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import fs from "fs";
-import path from "path";
 
 // We test verifyConfig in isolation by controlling both the `config` values
 // (via vi.mock) and the filesystem (vi.spyOn on fs.existsSync).
@@ -24,16 +23,17 @@ import { config, verifyConfig } from "../utils/config";
 
 /** Mutate the readonly `config` object for a single test. */
 function withConfig(overrides: Partial<typeof config>, fn: () => void): void {
-  const saved: Partial<typeof config> = {};
+  const mutable = config as unknown as Record<string, unknown>;
+  const saved: Record<string, unknown> = {};
   for (const k of Object.keys(overrides) as (keyof typeof config)[]) {
-    saved[k] = (config as Record<string, unknown>)[k] as never;
-    (config as Record<string, unknown>)[k] = overrides[k];
+    saved[k] = mutable[k];
+    mutable[k] = overrides[k];
   }
   try {
     fn();
   } finally {
-    for (const k of Object.keys(saved) as (keyof typeof config)[]) {
-      (config as Record<string, unknown>)[k] = saved[k];
+    for (const k of Object.keys(saved)) {
+      mutable[k] = saved[k];
     }
   }
 }

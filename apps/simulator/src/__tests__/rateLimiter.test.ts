@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import type { Request, Response, NextFunction } from "express";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import type { Request, Response } from "express";
 import { RateLimiter } from "../middleware/rateLimiter";
 
 vi.mock("../utils/logger", () => ({
