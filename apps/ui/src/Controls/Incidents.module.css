@@ -1,43 +1,19 @@
-.header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-5) var(--space-6);
-  border-bottom: 1px solid var(--color-overlay-1);
-  flex-shrink: 0;
-}
-
-.title {
-  font-size: var(--text-lg);
-  font-weight: 600;
-  color: var(--color-white);
-  margin: 0;
-  margin-right: auto;
-}
-
 .body {
-  flex: 1;
-  overflow-y: auto;
-  padding: var(--space-4) var(--space-6);
+  gap: var(--space-3);
 }
 
-.addButton {
-  background: none;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: var(--color-gray-light);
-  font-size: var(--text-sm);
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-sm);
+.autoLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   cursor: pointer;
-  font-family: inherit;
-  transition:
-    background var(--transition-fast),
-    color var(--transition-fast);
 }
 
-.addButton:hover {
-  background: var(--surface-bg-hover);
-  color: var(--color-white);
+.autoText {
+  font-size: var(--text-xs);
+  color: var(--color-gray);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
 }
 
 .list {
@@ -52,13 +28,16 @@
   gap: var(--space-3);
   padding: var(--space-3);
   border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--surface-bg);
   border: var(--surface-border);
-  transition: background var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
 }
 
 .incident:hover {
   background: var(--surface-bg-hover);
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 .indicator {
@@ -111,40 +90,5 @@
 }
 
 .removeButton {
-  background: none;
-  border: none;
-  color: var(--color-gray);
-  cursor: pointer;
-  padding: var(--space-1);
-  font-size: var(--text-sm);
-  line-height: 1;
-  border-radius: var(--radius-xs);
   flex-shrink: 0;
-  transition:
-    color var(--transition-fast),
-    background var(--transition-fast);
-}
-
-.removeButton:hover {
-  color: #f44;
-  background: rgba(255, 68, 68, 0.1);
-}
-
-.empty {
-  font-size: var(--text-sm);
-  color: var(--color-gray);
-  padding: var(--space-3);
-  text-align: center;
-}
-
-.autoLabel {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  cursor: pointer;
-}
-
-.autoText {
-  font-size: var(--text-xs);
-  color: var(--color-gray);
 }

@@ -4,6 +4,7 @@ import client from "@/utils/client";
 import type { ReplayStatus, SimulationStatus } from "@/types";
 import { Flame, Pause, Play, Record, Reset, Stop } from "@/components/Icons";
 import { useOptions } from "@/hooks/useOptions";
+import { SquaredButton } from "@/components/Inputs";
 import styles from "./BottomDock.module.css";
 
 /* ── Replay helpers (ported from ReplayBar.tsx) ── */
@@ -101,26 +102,25 @@ function ReplayDock({
       </span>
 
       <div className={styles.transportGroup}>
-        <button
-          type="button"
+        <SquaredButton
           className={styles.dockBtn}
+          icon={replayStatus.paused ? <Play /> : <Pause />}
+          iconClassName={styles.btnIcon}
+          size="lg"
+          variant="surface"
           onClick={handlePlayPause}
           aria-label={replayStatus.paused ? "Resume" : "Pause"}
-        >
-          {replayStatus.paused ? (
-            <Play className={styles.btnIcon} />
-          ) : (
-            <Pause className={styles.btnIcon} />
-          )}
-        </button>
-        <button
-          type="button"
-          className={styles.stopBtn}
+        />
+        <SquaredButton
+          className={styles.dockBtn}
+          icon={<Stop />}
+          iconClassName={styles.btnIcon}
+          size="lg"
+          variant="surface"
+          tone="danger"
           onClick={onStopReplay}
           aria-label="Stop replay"
-        >
-          <Stop className={styles.btnIcon} />
-        </button>
+        />
       </div>
 
       <div className={styles.divider} />
@@ -226,29 +226,35 @@ export default function BottomDock({
   return (
     <div className={styles.dock}>
       <div className={styles.group}>
-        <button
-          type="button"
+        <SquaredButton
           onClick={status.running ? client.stop : handleStart}
-          className={classNames(styles.dockBtn, { [styles.dockBtnActive]: status.running })}
+          className={styles.dockBtn}
+          icon={status.running ? <Pause /> : <Play />}
+          iconClassName={styles.btnIcon}
+          size="lg"
+          variant="surface"
+          tone="success"
+          active={status.running}
           aria-label={status.running ? "Pause" : "Start"}
-        >
-          {status.running ? (
-            <Pause className={styles.btnIcon} />
-          ) : (
-            <Play className={styles.btnIcon} />
-          )}
-        </button>
-        <button type="button" onClick={handleReset} className={styles.dockBtn} aria-label="Reset">
-          <Reset className={styles.btnIcon} />
-        </button>
-        <button
-          type="button"
+        />
+        <SquaredButton
+          onClick={handleReset}
+          className={styles.dockBtn}
+          icon={<Reset />}
+          iconClassName={styles.btnIcon}
+          size="lg"
+          variant="surface"
+          aria-label="Reset"
+        />
+        <SquaredButton
           onClick={client.makeHeatzones}
           className={styles.dockBtn}
+          icon={<Flame />}
+          iconClassName={styles.btnIcon}
+          size="lg"
+          variant="surface"
           aria-label="Make zones"
-        >
-          <Flame className={styles.btnIcon} />
-        </button>
+        />
       </div>
 
       <div className={styles.divider} />

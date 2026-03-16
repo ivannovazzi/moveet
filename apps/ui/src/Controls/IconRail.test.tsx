@@ -1,19 +1,21 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import IconRail from "./IconRail";
-import type { PanelId } from "./IconRail";
 
 describe("IconRail", () => {
-  it("renders all four navigation buttons", () => {
+  it("renders all navigation buttons", () => {
     render(<IconRail activePanel={null} onPanelChange={() => {}} />);
 
     const buttons = screen.getAllByRole("button");
-    expect(buttons).toHaveLength(4);
+    expect(buttons).toHaveLength(7);
 
     expect(screen.getByLabelText("Vehicles")).toBeInTheDocument();
     expect(screen.getByLabelText("Fleets")).toBeInTheDocument();
     expect(screen.getByLabelText("Incidents")).toBeInTheDocument();
     expect(screen.getByLabelText("Recordings")).toBeInTheDocument();
+    expect(screen.getByLabelText("Visibility")).toBeInTheDocument();
+    expect(screen.getByLabelText("Speed")).toBeInTheDocument();
+    expect(screen.getByLabelText("Adapter")).toBeInTheDocument();
   });
 
   it("calls onPanelChange with panel id when clicking inactive button", async () => {

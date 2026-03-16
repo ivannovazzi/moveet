@@ -35,5 +35,13 @@ export function useReplay() {
     await client.setReplaySpeed(speed);
   }, []);
 
-  return { replayStatus, startReplay, pauseReplay, resumeReplay, stopReplay, seekReplay, setReplaySpeed };
+  return {
+    replayStatus,
+    startReplay,
+    pauseReplay,
+    resumeReplay,
+    stopReplay,
+    seekReplay,
+    setReplaySpeed,
+  };
 }

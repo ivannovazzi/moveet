@@ -278,9 +278,21 @@ export function GaugeIcon(props: SVGProps) {
   return (
     <svg viewBox="0 0 24 24" {...props}>
       <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z" />
-      <path d="M12 6v2m-4.24.76l1.42 1.42M6 12h2m.76 4.24l1.42-1.42M12 16v2m4.24-.76l-1.42-1.42M18 12h-2m-.76-4.24l-1.42 1.42" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+      <path
+        d="M12 6v2m-4.24.76l1.42 1.42M6 12h2m.76 4.24l1.42-1.42M12 16v2m4.24-.76l-1.42-1.42M18 12h-2m-.76-4.24l-1.42 1.42"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        fill="none"
+      />
       <circle cx="12" cy="12" r="1.5" />
-      <path d="M12 12l3-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+      <path
+        d="M12 12l3-5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        fill="none"
+      />
     </svg>
   );
 }

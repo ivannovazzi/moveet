@@ -108,7 +108,9 @@ export default function Map({
           </Suspense>
         )}
         {selectedItem && isRoad(selectedItem) && <RoadRenderer road={selectedItem} />}
-        {assignments.length > 0 && <PendingDispatch assignments={assignments} vehicles={vehicles} />}
+        {assignments.length > 0 && (
+          <PendingDispatch assignments={assignments} vehicles={vehicles} />
+        )}
       </RoadNetworkMap>
     </>
   );

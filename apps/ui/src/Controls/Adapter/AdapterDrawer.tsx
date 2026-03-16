@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { PanelBadge, PanelHeader, PanelShell } from "../PanelPrimitives";
 import type { HealthResponse, ConfigResponse } from "./adapterClient";
 import SourceTab from "./SourceTab";
 import SinksTab from "./SinksTab";
@@ -39,28 +40,26 @@ export default function AdapterDrawer({
         : "Needs attention";
 
   return (
-    <section className={styles.drawer} aria-busy={loading} aria-hidden={!isOpen}>
-      <div className={styles.header}>
-        <div className={styles.headerCopy}>
-          <div className={styles.eyebrow}>Adapter control</div>
-          <div className={styles.titleRow}>
-            <h3 className={styles.title}>Connections</h3>
-            <span
-              className={styles.statusPill}
-              data-status={
-                drawerStatus === "Healthy"
-                  ? "healthy"
-                  : drawerStatus === "Needs attention"
-                    ? "warning"
-                    : "neutral"
-              }
-            >
-              {drawerStatus}
-            </span>
-            <p className={styles.subtitle}>Configure upstream source and downstream sinks.</p>
-          </div>
-        </div>
-      </div>
+    <PanelShell className={styles.drawer} aria-busy={loading} aria-hidden={!isOpen}>
+      <PanelHeader
+        eyebrow="Adapter control"
+        title="Connections"
+        titleAs="h3"
+        subtitle="Configure upstream source and downstream sinks."
+        badge={
+          <PanelBadge
+            tone={
+              drawerStatus === "Healthy"
+                ? "healthy"
+                : drawerStatus === "Needs attention"
+                  ? "warning"
+                  : "neutral"
+            }
+          >
+            {drawerStatus}
+          </PanelBadge>
+        }
+      />
 
       {loading && <div className={styles.loadingBar} aria-hidden="true" />}
 
@@ -104,6 +103,6 @@ export default function AdapterDrawer({
           onRemove={onRemoveSink}
         />
       )}
-    </section>
+    </PanelShell>
   );
 }

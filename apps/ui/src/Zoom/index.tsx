@@ -8,8 +8,20 @@ export default function Zoom() {
 
   return (
     <div className={styles.zoom}>
-      <SquaredButton onClick={zoomIn} icon={<ZoomIn />} aria-label="Zoom in" title="Zoom in" />
-      <SquaredButton onClick={zoomOut} icon={<ZoomOut />} aria-label="Zoom out" title="Zoom out" />
+      <SquaredButton
+        onClick={zoomIn}
+        icon={<ZoomIn />}
+        size="lg"
+        aria-label="Zoom in"
+        title="Zoom in"
+      />
+      <SquaredButton
+        onClick={zoomOut}
+        icon={<ZoomOut />}
+        size="lg"
+        aria-label="Zoom out"
+        title="Zoom out"
+      />
     </div>
   );
 }

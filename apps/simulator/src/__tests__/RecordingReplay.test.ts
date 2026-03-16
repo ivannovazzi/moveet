@@ -4,12 +4,7 @@ import path from "path";
 import os from "os";
 import { RecordingManager } from "../modules/RecordingManager";
 import { ReplayManager } from "../modules/ReplayManager";
-import type {
-  StartOptions,
-  VehicleDTO,
-  RecordingHeader,
-  RecordingEvent,
-} from "../types";
+import type { StartOptions, VehicleDTO, RecordingHeader, RecordingEvent } from "../types";
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
@@ -30,12 +25,9 @@ function tmpFile(name: string): string {
 function writeTestRecording(
   filePath: string,
   header: RecordingHeader,
-  events: RecordingEvent[],
+  events: RecordingEvent[]
 ): void {
-  const lines = [
-    JSON.stringify(header),
-    ...events.map((e) => JSON.stringify(e)),
-  ];
+  const lines = [JSON.stringify(header), ...events.map((e) => JSON.stringify(e))];
   fs.writeFileSync(filePath, lines.join("\n") + "\n");
 }
 
@@ -43,7 +35,7 @@ function makeVehicle(
   id: string,
   lat: number,
   lng: number,
-  overrides?: Partial<VehicleDTO>,
+  overrides?: Partial<VehicleDTO>
 ): VehicleDTO {
   return {
     id,
@@ -209,9 +201,9 @@ describe("RecordingManager", () => {
       const filePath = tmpFile("double-start.ndjson");
       rm.startRecording(defaultOptions, 1, filePath);
 
-      expect(() =>
-        rm.startRecording(defaultOptions, 1, tmpFile("second.ndjson")),
-      ).toThrow("Recording already in progress");
+      expect(() => rm.startRecording(defaultOptions, 1, tmpFile("second.ndjson"))).toThrow(
+        "Recording already in progress"
+      );
     });
   });
 
@@ -465,9 +457,7 @@ describe("ReplayManager", () => {
     it("should return mode 'live' after stop", async () => {
       const filePath = tmpFile("replay-stop.ndjson");
       const header = makeHeader();
-      const events: RecordingEvent[] = [
-        { timestamp: 100, type: "vehicle", data: {} },
-      ];
+      const events: RecordingEvent[] = [{ timestamp: 100, type: "vehicle", data: {} }];
       writeTestRecording(filePath, header, events);
 
       await rp.loadRecording(filePath);
@@ -485,26 +475,19 @@ describe("ReplayManager", () => {
   describe("loadRecording validates format", () => {
     it("should throw on header with wrong format", async () => {
       const filePath = tmpFile("wrong-format.ndjson");
-      fs.writeFileSync(
-        filePath,
-        JSON.stringify({ format: "wrong", version: 1 }) + "\n",
-      );
+      fs.writeFileSync(filePath, JSON.stringify({ format: "wrong", version: 1 }) + "\n");
 
-      await expect(rp.loadRecording(filePath)).rejects.toThrow(
-        "Invalid recording format",
-      );
+      await expect(rp.loadRecording(filePath)).rejects.toThrow("Invalid recording format");
     });
 
     it("should throw on header with wrong version", async () => {
       const filePath = tmpFile("wrong-version.ndjson");
       fs.writeFileSync(
         filePath,
-        JSON.stringify({ format: "moveet-recording", version: 99 }) + "\n",
+        JSON.stringify({ format: "moveet-recording", version: 99 }) + "\n"
       );
 
-      await expect(rp.loadRecording(filePath)).rejects.toThrow(
-        "Invalid recording format",
-      );
+      await expect(rp.loadRecording(filePath)).rejects.toThrow("Invalid recording format");
     });
   });
 
@@ -515,18 +498,14 @@ describe("ReplayManager", () => {
       const filePath = tmpFile("empty.ndjson");
       fs.writeFileSync(filePath, "");
 
-      await expect(rp.loadRecording(filePath)).rejects.toThrow(
-        "empty or missing header",
-      );
+      await expect(rp.loadRecording(filePath)).rejects.toThrow("empty or missing header");
     });
 
     it("should throw on whitespace-only file", async () => {
       const filePath = tmpFile("whitespace.ndjson");
       fs.writeFileSync(filePath, "   \n  \n  ");
 
-      await expect(rp.loadRecording(filePath)).rejects.toThrow(
-        "empty or missing header",
-      );
+      await expect(rp.loadRecording(filePath)).rejects.toThrow("empty or missing header");
     });
   });
 

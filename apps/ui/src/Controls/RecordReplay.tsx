@@ -2,6 +2,13 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import classNames from "classnames";
 import type { RecordingFile, ReplayStatus } from "@/types";
 import { Stop, Record } from "@/components/Icons";
+import {
+  PanelBadge,
+  PanelBody,
+  PanelEmptyState,
+  PanelHeader,
+  PanelSectionLabel,
+} from "./PanelPrimitives";
 import styles from "./RecordReplay.module.css";
 
 interface RecordingHook {
@@ -109,12 +116,17 @@ export default function RecordReplay({
 
   return (
     <>
-      <div className={styles.header}>
-        <h2 className={styles.title}>Recordings</h2>
-      </div>
+      <PanelHeader
+        title="Recordings"
+        subtitle={
+          playableRecordings.length === 0
+            ? "Capture and replay simulator sessions."
+            : `${playableRecordings.length} saved capture${playableRecordings.length === 1 ? "" : "s"} ready to replay`
+        }
+        badge={<PanelBadge>{playableRecordings.length}</PanelBadge>}
+      />
 
-      <div className={styles.body}>
-        {/* Record section */}
+      <PanelBody className={styles.body}>
         <div className={styles.recordRow}>
           <button
             type="button"
@@ -141,13 +153,12 @@ export default function RecordReplay({
           {isRecording && <span className={styles.elapsed}>{formatTime(elapsed)}</span>}
         </div>
 
-        {/* List header */}
         <div className={styles.listHeader}>
-          <span className={styles.listTitle}>Saved</span>
+          <PanelSectionLabel>Saved</PanelSectionLabel>
         </div>
 
         {playableRecordings.length === 0 ? (
-          <div className={styles.empty}>No recordings yet</div>
+          <PanelEmptyState>No recordings yet</PanelEmptyState>
         ) : (
           <div className={styles.recordingList}>
             {playableRecordings.map((file) => {
@@ -186,7 +197,7 @@ export default function RecordReplay({
             })}
           </div>
         )}
-      </div>
+      </PanelBody>
     </>
   );
 }

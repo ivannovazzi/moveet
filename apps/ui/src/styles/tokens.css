@@ -93,6 +93,15 @@
   --glass-blur: blur(16px);
   --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 
+  /* Panel surfaces */
+  --panel-surface: rgba(7, 9, 13, 0.74);
+  --panel-surface-strong: rgba(7, 9, 13, 0.88);
+  --panel-border: 1px solid var(--color-overlay-1);
+  --panel-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  --panel-header-bg:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0)),
+    var(--panel-surface-strong);
+
   /* Status colors */
   --color-success-bg: rgba(68, 204, 68, 0.12);
   --color-success-bg-hover: rgba(68, 204, 68, 0.2);

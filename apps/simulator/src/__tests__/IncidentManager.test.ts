@@ -225,9 +225,7 @@ describe("IncidentManager", () => {
       vi.advanceTimersByTime(200);
 
       expect(im.getActiveIncidents()).toHaveLength(0);
-      expect(handler).toHaveBeenCalledWith(
-        expect.objectContaining({ reason: "expired" })
-      );
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ reason: "expired" }));
 
       vi.useRealTimers();
     });

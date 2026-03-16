@@ -9,10 +9,10 @@
   gap: var(--space-5);
   height: var(--control-xl);
   padding: 0 var(--space-6);
-  background: var(--glass-bg);
+  background: var(--panel-surface-strong);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--color-overlay-1);
+  border: var(--panel-border);
   border-radius: var(--radius-xl);
   box-shadow: var(--glass-shadow);
 }
@@ -32,38 +32,9 @@
   flex-shrink: 0;
 }
 
-.dockBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--control-lg);
-  height: var(--control-lg);
-  border: none;
-  background: var(--surface-bg);
-  cursor: pointer;
-  transition: background var(--transition-fast);
-}
-
-.dockBtn:hover {
-  background: var(--surface-bg-hover);
-}
-
-.dockBtnActive {
-  background: var(--color-success-bg);
-}
-
-.dockBtnActive:hover {
-  background: var(--color-success-bg-hover);
-}
-
 .btnIcon {
   width: var(--icon-lg);
   height: var(--icon-lg);
-  fill: var(--color-gray-light);
-}
-
-.dockBtnActive .btnIcon {
-  fill: var(--color-success);
 }
 
 /* ── Status chips ── */
@@ -110,8 +81,10 @@
 .recordBtn {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-2);
   height: var(--control-lg);
+  min-width: var(--control-lg);
   padding: 0 var(--space-4);
   border: none;
   border-radius: var(--radius-sm);
@@ -185,34 +158,12 @@
   opacity: 0.55;
 }
 
-/* ── Replay mode ── */
-
 .transportGroup {
   display: flex;
   align-items: center;
   gap: 1px;
   border-radius: var(--radius-sm);
   overflow: hidden;
-}
-
-.stopBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--control-lg);
-  height: var(--control-lg);
-  border: none;
-  background: var(--surface-bg);
-  cursor: pointer;
-  transition: background var(--transition-fast);
-}
-
-.stopBtn:hover {
-  background: var(--color-danger-bg);
-}
-
-.stopBtn:hover .btnIcon {
-  fill: var(--color-danger);
 }
 
 .progressWrap {

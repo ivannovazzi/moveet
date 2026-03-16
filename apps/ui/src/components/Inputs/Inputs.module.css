@@ -27,26 +27,92 @@
 }
 
 .squaredButton {
-  height: var(--control);
-  width: var(--control);
-  border: none;
+  --squared-button-size: var(--control);
+  width: var(--squared-button-size);
+  height: var(--squared-button-size);
+  min-width: var(--squared-button-size);
+  aspect-ratio: 1;
+  border: var(--surface-border);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  background: var(--surface-bg);
   display: inline-flex;
   justify-content: center;
   align-items: center;
+  color: var(--color-gray-light);
   transition:
     background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
     box-shadow var(--transition-fast);
 }
-.squaredButton:hover,
-.squaredButton:focus {
-  background: var(--surface-bg-hover);
+
+.squaredButtonMd {
+  --squared-button-size: var(--control);
 }
+
+.squaredButtonLg {
+  --squared-button-size: var(--control-lg);
+}
+
+.squaredButtonSurface {
+  background: var(--surface-bg);
+}
+
+.squaredButtonGhost {
+  background: transparent;
+  border-color: transparent;
+}
+
+.squaredButtonToneNeutral {
+  color: var(--color-gray-light);
+}
+
+.squaredButtonToneActive {
+  color: var(--color-gray-light);
+}
+
+.squaredButtonToneSuccess {
+  color: var(--color-gray-light);
+}
+
+.squaredButtonToneDanger {
+  color: var(--color-gray-light);
+}
+
+.squaredButton:hover {
+  background: var(--surface-bg-hover);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: var(--color-white);
+}
+
 .squaredButton:focus-visible {
   outline: none;
+  border-color: var(--focus-border);
   box-shadow: var(--focus-ring);
+}
+
+.squaredButtonActive.squaredButtonToneActive {
+  background: var(--color-active-bg);
+  border-color: var(--color-active-border);
+  color: var(--color-white);
+}
+
+.squaredButtonActive.squaredButtonToneSuccess {
+  background: var(--color-success-bg);
+  border-color: rgba(76, 204, 76, 0.22);
+  color: var(--color-success);
+}
+
+.squaredButtonActive.squaredButtonToneDanger {
+  background: var(--color-danger-bg);
+  border-color: rgba(244, 67, 54, 0.22);
+  color: var(--color-danger);
+}
+
+.squaredButtonToneDanger:hover {
+  background: var(--color-danger-bg);
+  border-color: rgba(244, 67, 54, 0.22);
+  color: var(--color-danger);
 }
 
 .squaredButton:disabled {
@@ -55,9 +121,21 @@
 }
 
 .squaredButtonIcon {
-  height: var(--icon);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: var(--icon);
-  fill: var(--color-gray-light);
+  height: var(--icon);
+  color: currentColor;
+  fill: currentColor;
+  font-size: var(--icon);
+  line-height: 1;
+}
+
+.squaredButtonLg .squaredButtonIcon {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  font-size: var(--icon-lg);
 }
 
 .label {

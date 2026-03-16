@@ -40,8 +40,8 @@
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
-  background: rgba(7, 9, 13, 0.74);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  background: var(--panel-surface);
+  box-shadow: var(--panel-shadow);
   transition:
     background 220ms ease,
     box-shadow 280ms ease;
@@ -62,7 +62,7 @@
 }
 
 .leftPanel .panelInner {
-  border-right: 1px solid var(--color-overlay-1);
+  border-right: var(--panel-border);
 }
 
 .map {

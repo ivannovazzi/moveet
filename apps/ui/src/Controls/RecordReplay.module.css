@@ -1,39 +1,10 @@
-/* ── Panel header ── */
-
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-5) var(--space-6);
-  border-bottom: 1px solid var(--color-overlay-1);
-  flex-shrink: 0;
-}
-
-.title {
-  font-size: var(--text-lg);
-  font-weight: 600;
-  color: var(--color-white);
-  margin: 0;
-}
-
-/* ── Panel body ── */
-
 .body {
-  flex: 1;
-  overflow-y: auto;
-  padding: var(--space-4) var(--space-6);
+  gap: var(--space-4);
 }
 
 .listHeader {
-  padding: var(--space-4) 0 var(--space-2);
-}
-
-.listTitle {
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--color-gray-light);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
 }
 
 /* ── Record button ── */
@@ -178,11 +149,4 @@
 .playingLabel {
   color: var(--color-accent, #39f);
   font-weight: 500;
-}
-
-.empty {
-  font-size: var(--text-sm);
-  color: var(--color-gray);
-  padding: var(--space-3);
-  text-align: center;
 }

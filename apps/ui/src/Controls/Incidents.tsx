@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { IncidentDTO, IncidentType } from "@/types";
-import { Switch } from "@/components/Inputs";
+import { Switch, SquaredButton } from "@/components/Inputs";
+import { PanelBadge, PanelBody, PanelEmptyState, PanelHeader } from "./PanelPrimitives";
 import styles from "./Incidents.module.css";
 
 interface IncidentsProps {
@@ -33,7 +34,6 @@ export default function Incidents({ incidents, createRandom, remove }: Incidents
 
   const toggleAutoGenerate = useCallback(() => setAutoGenerate((prev) => !prev), []);
 
-  // Re-render every second to update countdown timers
   useEffect(() => {
     if (incidents.length === 0) return;
     const interval = setInterval(() => {
@@ -44,32 +44,49 @@ export default function Incidents({ incidents, createRandom, remove }: Incidents
 
   useEffect(() => {
     if (!autoGenerate) return;
-    createRandom(); // immediate first
-    const interval = setInterval(() => {
-      createRandom();
-    }, 15000 + Math.random() * 15000);
+    createRandom();
+    const interval = setInterval(
+      () => {
+        createRandom();
+      },
+      15000 + Math.random() * 15000
+    );
     return () => clearInterval(interval);
   }, [autoGenerate, createRandom]);
 
   return (
     <>
-      <div className={styles.header}>
-        <h2 className={styles.title}>Incidents</h2>
-        <label className={styles.autoLabel}>
-          <Switch
-            checked={autoGenerate}
-            onChange={toggleAutoGenerate}
-            aria-label="Auto-generate incidents"
-          />
-          <span className={styles.autoText}>Auto</span>
-        </label>
-        <button className={styles.addButton} onClick={createRandom} type="button">
-          +
-        </button>
-      </div>
+      <PanelHeader
+        title="Incidents"
+        subtitle={
+          incidents.length === 0
+            ? "Monitor closures, accidents, and construction events."
+            : `${incidents.length} active disruptions on the network`
+        }
+        badge={<PanelBadge>{incidents.length}</PanelBadge>}
+        actions={
+          <>
+            <label className={styles.autoLabel}>
+              <Switch
+                checked={autoGenerate}
+                onChange={toggleAutoGenerate}
+                aria-label="Auto-generate incidents"
+              />
+              <span className={styles.autoText}>Auto</span>
+            </label>
+            <SquaredButton
+              icon={<span aria-hidden="true">+</span>}
+              variant="surface"
+              aria-label="Create incident"
+              title="Create incident"
+              onClick={createRandom}
+            />
+          </>
+        }
+      />
 
-      <div className={styles.body}>
-        {incidents.length === 0 && <div className={styles.empty}>No active incidents</div>}
+      <PanelBody className={styles.body}>
+        {incidents.length === 0 ? <PanelEmptyState>No active incidents</PanelEmptyState> : null}
 
         <div className={styles.list}>
           {incidents.map((incident) => (
@@ -95,18 +112,19 @@ export default function Incidents({ incidents, createRandom, remove }: Incidents
                   </span>
                 </div>
               </div>
-              <button
+              <SquaredButton
                 className={styles.removeButton}
-                onClick={() => remove(incident.id)}
+                icon={<span aria-hidden="true">×</span>}
+                variant="ghost"
+                tone="danger"
+                aria-label="Remove incident"
                 title="Remove incident"
-                type="button"
-              >
-                x
-              </button>
+                onClick={() => remove(incident.id)}
+              />
             </div>
           ))}
         </div>
-      </div>
+      </PanelBody>
     </>
   );
 }

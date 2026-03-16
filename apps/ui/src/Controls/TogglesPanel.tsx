@@ -1,6 +1,7 @@
 import type { Modifiers } from "@/types";
 import { Switch } from "@/components/Inputs";
 import { eValue } from "@/utils/form";
+import { PanelBody, PanelHeader } from "./PanelPrimitives";
 import styles from "./TogglesPanel.module.css";
 
 interface TogglesPanelProps {
@@ -19,10 +20,11 @@ const toggles: { key: keyof Modifiers; label: string }[] = [
 export default function TogglesPanel({ modifiers, onChangeModifiers }: TogglesPanelProps) {
   return (
     <>
-      <div className={styles.header}>
-        <h2 className={styles.title}>Visibility</h2>
-      </div>
-      <div className={styles.body}>
+      <PanelHeader
+        title="Visibility"
+        subtitle="Toggle map layers and overlays without leaving the panel."
+      />
+      <PanelBody className={styles.body}>
         {toggles.map(({ key, label }) => (
           <label key={key} className={styles.row}>
             <span className={styles.label}>{label}</span>
@@ -33,7 +35,7 @@ export default function TogglesPanel({ modifiers, onChangeModifiers }: TogglesPa
             />
           </label>
         ))}
-      </div>
+      </PanelBody>
     </>
   );
 }

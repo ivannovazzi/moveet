@@ -37,7 +37,8 @@ describe("Fleets", () => {
     render(<Fleets fleets={fleets} onCreateFleet={noop} onDeleteFleet={noop} />);
     expect(screen.getByText("Alpha")).toBeInTheDocument();
     expect(screen.getByText("Bravo")).toBeInTheDocument();
-    expect(screen.getByText("2")).toBeInTheDocument();
+    expect(screen.getByText("2 fleet groups available")).toBeInTheDocument();
+    expect(screen.getAllByText("2")).toHaveLength(2);
     expect(screen.getByText("1")).toBeInTheDocument();
   });
 

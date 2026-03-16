@@ -1,5 +1,7 @@
 import { useState, useCallback } from "react";
 import type { Fleet } from "@/types";
+import { Button, SquaredButton } from "@/components/Inputs";
+import { PanelBadge, PanelBody, PanelEmptyState, PanelHeader } from "./PanelPrimitives";
 import styles from "./Fleets.module.css";
 
 interface FleetsProps {
@@ -33,17 +35,27 @@ export default function Fleets({ fleets, onCreateFleet, onDeleteFleet }: FleetsP
 
   return (
     <>
-      <div className={styles.header}>
-        <h2 className={styles.title}>Fleets</h2>
-        {fleets.length < 10 && (
-          <button className={styles.addButton} onClick={() => setIsAdding(true)} type="button">
-            + New
-          </button>
-        )}
-      </div>
+      <PanelHeader
+        title="Fleets"
+        subtitle={
+          fleets.length === 0
+            ? "Organize vehicles into reusable groups."
+            : `${fleets.length} fleet ${fleets.length === 1 ? "group" : "groups"} available`
+        }
+        badge={<PanelBadge>{fleets.length}</PanelBadge>}
+        actions={
+          fleets.length < 10 ? (
+            <Button className={styles.addButton} onClick={() => setIsAdding(true)} type="button">
+              + New
+            </Button>
+          ) : null
+        }
+      />
 
-      <div className={styles.body}>
-        {fleets.length === 0 && !isAdding && <div className={styles.empty}>No fleets defined</div>}
+      <PanelBody className={styles.body}>
+        {fleets.length === 0 && !isAdding ? (
+          <PanelEmptyState>No fleets defined</PanelEmptyState>
+        ) : null}
 
         <div className={styles.fleetList}>
           {fleets.map((fleet) => (
@@ -52,24 +64,25 @@ export default function Fleets({ fleets, onCreateFleet, onDeleteFleet }: FleetsP
               <span className={styles.fleetName}>{fleet.name}</span>
               <span className={styles.fleetCount}>{fleet.vehicleIds.length}</span>
               {fleet.source === "external" ? (
-                <span className={styles.lockIcon} title="External fleet (read-only)">
+                <PanelBadge className={styles.externalBadge} tone="neutral">
                   ext
-                </span>
+                </PanelBadge>
               ) : (
-                <button
+                <SquaredButton
                   className={styles.deleteButton}
-                  onClick={() => onDeleteFleet(fleet.id)}
+                  icon={<span aria-hidden="true">×</span>}
+                  variant="ghost"
+                  tone="danger"
+                  aria-label="Delete fleet"
                   title="Delete fleet"
-                  type="button"
-                >
-                  x
-                </button>
+                  onClick={() => onDeleteFleet(fleet.id)}
+                />
               )}
             </div>
           ))}
         </div>
 
-        {isAdding && (
+        {isAdding ? (
           <input
             className={styles.newFleetInput}
             value={newName}
@@ -81,8 +94,8 @@ export default function Fleets({ fleets, onCreateFleet, onDeleteFleet }: FleetsP
             placeholder="Fleet name..."
             autoFocus
           />
-        )}
-      </div>
+        ) : null}
+      </PanelBody>
     </>
   );
 }

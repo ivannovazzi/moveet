@@ -6,43 +6,29 @@
   flex-shrink: 0;
   padding: var(--space-3) 0;
   gap: var(--space-2);
-  background: rgba(7, 9, 13, 0.74);
-  border-right: 1px solid var(--color-overlay-1);
+  background: var(--panel-surface);
+  border-right: var(--panel-border);
   z-index: 31;
 }
 
 .railButton {
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--control-lg);
-  height: var(--control-lg);
-  border: none;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--color-gray-light);
-  cursor: pointer;
-  transition:
-    background 150ms ease,
-    color 150ms ease;
 }
 
-.railButton:hover {
-  background: var(--surface-bg-hover);
-  color: var(--color-white);
-}
-
-.railButtonActive {
-  background: var(--surface-bg-active);
-  color: var(--color-white);
-  box-shadow: inset 2px 0 0 var(--color-accent);
+.railButton[aria-pressed="true"]::before {
+  content: "";
+  position: absolute;
+  left: -7px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 999px;
+  background: var(--color-accent);
 }
 
 .railIcon {
   width: var(--icon-lg);
   height: var(--icon-lg);
-  fill: currentColor;
 }
 
 .badge {

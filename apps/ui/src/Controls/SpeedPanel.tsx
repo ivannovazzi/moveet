@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import type { StartOptions } from "@/types";
 import { Range } from "@/components/Inputs";
 import { useOptions } from "@/hooks/useOptions";
+import { PanelBody, PanelHeader } from "./PanelPrimitives";
 import styles from "./SpeedPanel.module.css";
 
 const sliders: {
@@ -34,10 +35,11 @@ export default function SpeedPanel({ maxSpeedRef }: SpeedPanelProps) {
 
   return (
     <>
-      <div className={styles.header}>
-        <h2 className={styles.title}>Speed</h2>
-      </div>
-      <div className={styles.body}>
+      <PanelHeader
+        title="Speed"
+        subtitle="Adjust runtime speed, acceleration, and update cadence."
+      />
+      <PanelBody className={styles.body}>
         {sliders.map(({ key, label, min, max, step }) => (
           <Range
             key={key}
@@ -49,7 +51,7 @@ export default function SpeedPanel({ maxSpeedRef }: SpeedPanelProps) {
             onChange={handleChange(key)}
           />
         ))}
-      </div>
+      </PanelBody>
     </>
   );
 }
