@@ -3,6 +3,7 @@ import { VehicleManager } from "../modules/VehicleManager";
 import { FleetManager } from "../modules/FleetManager";
 import { RoadNetwork } from "../modules/RoadNetwork";
 import { config } from "../utils/config";
+import { getProfile } from "../utils/vehicleProfiles";
 import type { Vehicle } from "../types";
 import path from "path";
 
@@ -88,10 +89,10 @@ describe("VehicleManager", () => {
       }
     });
 
-    it("should assign initial speed equal to minSpeed from options", () => {
-      const opts = manager.getOptions();
+    it("should assign initial speed equal to minSpeed from vehicle profile", () => {
       for (const v of internalVehicles().values()) {
-        expect(v.speed).toBe(opts.minSpeed);
+        const profile = getProfile(v.type);
+        expect(v.speed).toBe(profile.minSpeed);
       }
     });
 
