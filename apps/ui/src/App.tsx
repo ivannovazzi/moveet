@@ -11,6 +11,7 @@ import type { PanelId } from "./Controls/IconRail";
 import BottomDock from "./Controls/BottomDock";
 import TogglesPanel from "./Controls/TogglesPanel";
 import SpeedPanel from "./Controls/SpeedPanel";
+import ClockPanel from "./Controls/ClockPanel";
 import AdapterDrawer from "./Controls/Adapter/AdapterDrawer";
 import { useAdapterConfig } from "./Controls/Adapter/useAdapterConfig";
 import useTracking from "./Controls/useTracking";
@@ -434,6 +435,7 @@ export default function App() {
               <TogglesPanel modifiers={modifiers} onChangeModifiers={onChangeModifiers} />
             )}
             {activePanel === "speed" && <SpeedPanel maxSpeedRef={maxSpeedRef} />}
+            {activePanel === "clock" && <ClockPanel />}
             {activePanel === "adapter" && (
               <AdapterDrawer
                 isOpen={true}

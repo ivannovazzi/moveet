@@ -25,6 +25,7 @@ import POIMarker from "./POI/POI";
 const Heatmap = lazy(() => import("./Heatmap"));
 const POIs = lazy(() => import("./POIs"));
 const TrafficZones = lazy(() => import("./TrafficZones"));
+const TrafficOverlay = lazy(() => import("./TrafficOverlay"));
 
 interface MapProps {
   filters: Filters;
@@ -89,6 +90,11 @@ export default function Map({
         {modifiers.showHeatzones && (
           <Suspense fallback={null}>
             <TrafficZones visible={modifiers.showHeatzones} />
+          </Suspense>
+        )}
+        {modifiers.showTrafficOverlay && (
+          <Suspense fallback={null}>
+            <TrafficOverlay visible={true} />
           </Suspense>
         )}
 

@@ -7,6 +7,8 @@ import type {
   Fleet,
   IncidentDTO,
   ReplayStatus,
+  ClockState,
+  TrafficEdge,
 } from "@/types";
 
 export interface ResetPayload {
@@ -54,7 +56,9 @@ export type WebSocketMessage =
   | { type: "incident:created"; data: IncidentDTO }
   | { type: "incident:cleared"; data: IncidentClearedPayload }
   | { type: "vehicle:rerouted"; data: VehicleReroutedPayload }
-  | { type: "replayStatus"; data: ReplayStatus };
+  | { type: "replayStatus"; data: ReplayStatus }
+  | { type: "clock"; data: ClockState }
+  | { type: "traffic"; data: TrafficEdge[] };
 
 /**
  * Type guard to validate WebSocket message structure
@@ -88,6 +92,8 @@ export function isValidMessage(msg: unknown): msg is WebSocketMessage {
     case "incident:cleared":
     case "vehicle:rerouted":
     case "replayStatus":
+    case "clock":
+    case "traffic":
       return "data" in message;
     default:
       return false;

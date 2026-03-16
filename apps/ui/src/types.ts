@@ -16,6 +16,7 @@ export interface Modifiers {
   showHeatmap: boolean;
   showVehicles: boolean;
   showPOIs: boolean;
+  showTrafficOverlay: boolean;
 }
 
 export interface Fleet {
@@ -47,6 +48,16 @@ export interface SimulationStatus {
   interval: number;
   running: boolean;
   ready: boolean;
+  clock?: ClockState;
+}
+
+export type TimeOfDay = "morning_rush" | "midday" | "evening_rush" | "night";
+
+export interface ClockState {
+  currentTime: string; // ISO date string
+  speedMultiplier: number;
+  hour: number;
+  timeOfDay: TimeOfDay;
 }
 
 export interface StartOptions {
@@ -71,6 +82,8 @@ interface RoadFeature {
     type?: string;
     speed_limit?: number;
     highway?: string;
+    streetId?: string;
+    "@id"?: string;
   };
 }
 
@@ -176,6 +189,16 @@ export interface IncidentDTO {
   expiresAt: number;
   autoClears: boolean;
   position: [number, number];
+}
+
+// ─── Traffic ────────────────────────────────────────────────────────
+
+export interface TrafficEdge {
+  edgeId: string;
+  congestion: number; // 0.2 (jammed) to 1.0 (free flow)
+  coordinates: [number, number][];
+  highway: string;
+  streetId: string;
 }
 
 // ─── Recording & Replay ────────────────────────────────────────────

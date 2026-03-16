@@ -7,6 +7,7 @@ import {
   EyeIcon,
   GaugeIcon,
   Gear,
+  ClockIcon,
 } from "@/components/Icons";
 import styles from "./IconRail.module.css";
 
@@ -17,6 +18,7 @@ export type PanelId =
   | "recordings"
   | "toggles"
   | "speed"
+  | "clock"
   | "adapter";
 
 interface IconRailProps {
@@ -32,6 +34,7 @@ const topItems: { id: PanelId; Icon: React.FC<React.SVGProps<SVGSVGElement>>; la
   { id: "recordings", Icon: RecordCircleIcon, label: "Recordings" },
   { id: "toggles", Icon: EyeIcon, label: "Visibility" },
   { id: "speed", Icon: GaugeIcon, label: "Speed" },
+  { id: "clock", Icon: ClockIcon, label: "Simulation Clock" },
 ];
 
 const bottomItems: typeof topItems = [{ id: "adapter", Icon: Gear, label: "Adapter" }];

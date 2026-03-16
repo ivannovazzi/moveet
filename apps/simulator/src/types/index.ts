@@ -65,10 +65,33 @@ export interface VehicleDTO {
   fleetId?: string;
 }
 
+// Time-of-day types
+export type TimeOfDay = "morning_rush" | "midday" | "evening_rush" | "night";
+
+export interface ClockState {
+  currentTime: string; // ISO string for JSON serialization
+  speedMultiplier: number;
+  hour: number;
+  timeOfDay: TimeOfDay;
+}
+
+export interface TimeRange {
+  start: number;
+  end: number;
+  demandMultiplier: number;
+  affectedHighways: string[];
+}
+
+export interface TrafficProfile {
+  name: string;
+  timeRanges: TimeRange[];
+}
+
 export interface SimulationStatus {
   interval: number;
   running: boolean;
   ready: boolean;
+  clock?: ClockState;
 }
 
 export interface PathNode {

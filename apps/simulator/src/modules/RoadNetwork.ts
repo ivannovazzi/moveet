@@ -224,7 +224,10 @@ export class RoadNetwork extends EventEmitter {
   private buildNetwork(data: FeatureCollection): void {
     data.features.forEach((feature) => {
       if (feature.geometry.type === "LineString") {
-        const streetId = feature.properties?.id || crypto.randomUUID();
+        const streetId =
+          feature.properties?.id || feature.properties?.["@id"] || crypto.randomUUID();
+        // Stamp the resolved streetId back onto the feature for the /network API
+        feature.properties!.streetId = streetId;
         const streetName = feature.properties?.name || "";
         const coords = (feature.geometry as LineString).coordinates;
 

@@ -1,7 +1,9 @@
 import type { VehicleManager } from "./VehicleManager";
 import type { IncidentManager } from "./IncidentManager";
+import type { SimulationClock } from "./SimulationClock";
 import { ReplayManager } from "./ReplayManager";
 import type {
+  ClockState,
   DirectionRequest,
   DirectionResult,
   Direction,
@@ -10,6 +12,7 @@ import type {
   ReplayStatus,
   SimulationStatus,
   StartOptions,
+  TrafficProfile,
   VehicleDTO,
 } from "../types";
 import { TIME_INTERVALS } from "../constants";
@@ -36,6 +39,7 @@ type EventEmitterMap = {
   "replaySimulation:start": [unknown];
   "replaySimulation:stop": [unknown];
   "replaySimulation:reset": [unknown];
+  clock: [ClockState | undefined];
 };
 
 export class SimulationController extends EventEmitter<EventEmitterMap> {
@@ -85,10 +89,17 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
    * console.log(`Update interval: ${status.interval}ms`);
    */
   getStatus(): SimulationStatus {
+    const clockState = this.vehicleManager.clock.getState();
     return {
       interval: this.vehicleManager.getOptions().updateInterval,
       running: this.vehicleManager.isRunning(),
       ready: this._ready,
+      clock: {
+        currentTime: clockState.currentTime.toISOString(),
+        speedMultiplier: clockState.speedMultiplier,
+        hour: clockState.hour,
+        timeOfDay: clockState.timeOfDay,
+      },
     };
   }
 
@@ -175,7 +186,35 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
       }, TIME_INTERVALS.HEAT_ZONE_REGEN_INTERVAL);
     }
 
+    // Wire clock hour:changed to broadcast clock events
+    this.vehicleManager.clock.on("hour:changed", (hour: number, timeOfDay: string) => {
+      void hour;
+      void timeOfDay; // used via getStatus()
+      this.emit("clock", this.getStatus().clock);
+    });
+
     this.emit("updateStatus", this.getStatus());
+  }
+
+  /**
+   * Returns the SimulationClock instance from the VehicleManager.
+   */
+  public getClock(): SimulationClock {
+    return this.vehicleManager.clock;
+  }
+
+  /**
+   * Returns the current traffic profile.
+   */
+  public getTrafficProfile(): TrafficProfile {
+    return this.vehicleManager.getTrafficProfile();
+  }
+
+  /**
+   * Sets the active traffic profile.
+   */
+  public setTrafficProfile(profile: TrafficProfile): void {
+    this.vehicleManager.setTrafficProfile(profile);
   }
 
   /**
