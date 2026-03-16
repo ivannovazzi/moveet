@@ -10,7 +10,7 @@ import type { Route, Edge, Node as RoadNode } from "../types";
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
-function makeNode(id: string, lat: number, lng: number): Node {
+function makeNode(id: string, lat: number, lng: number): RoadNode {
   return { id, coordinates: [lat, lng], connections: [] };
 }
 
