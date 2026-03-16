@@ -24,9 +24,11 @@ export const Polyline = memo<PolylineProps>(function Polyline({
   useEffect(() => {
     if (!projection || !pathRef.current || coordinates.length < 2) return;
 
-    const points = coordinates
-      .map((coord) => projection(coord))
-      .filter((p): p is Position => p !== null);
+    const points: Position[] = [];
+    for (const coord of coordinates) {
+      const p = projection(coord);
+      if (p && isFinite(p[0]) && isFinite(p[1])) points.push(p as Position);
+    }
 
     if (points.length < 2) return;
 
