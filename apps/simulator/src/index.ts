@@ -580,6 +580,72 @@ app.post(
   })
 );
 
+// ─── Clock ──────────────────────────────────────────────────────────
+
+app.get("/clock", (_req, res) => {
+  try {
+    res.json(simulationController.getClock().getState());
+  } catch (error) {
+    logger.error(`Error in /clock: ${error}`);
+    res.status(500).json({ error: "Failed to get clock state" });
+  }
+});
+
+app.post(
+  "/clock",
+  asyncHandler(async (req, res) => {
+    const { speedMultiplier, setTime } = req.body as {
+      speedMultiplier?: number;
+      setTime?: string;
+    };
+    const clock = simulationController.getClock();
+    if (speedMultiplier !== undefined) {
+      if (typeof speedMultiplier !== "number" || speedMultiplier < 0) {
+        res.status(400).json({ error: "speedMultiplier must be a non-negative number" });
+        return;
+      }
+      clock.setSpeedMultiplier(speedMultiplier);
+    }
+    if (setTime !== undefined) {
+      const t = new Date(setTime);
+      if (isNaN(t.getTime())) {
+        res.status(400).json({ error: "setTime must be a valid ISO date string" });
+        return;
+      }
+      clock.setTime(t);
+    }
+    res.json(clock.getState());
+  })
+);
+
+// ─── Traffic Profile ────────────────────────────────────────────────
+
+app.get("/traffic-profile", (_req, res) => {
+  try {
+    res.json(simulationController.getTrafficProfile());
+  } catch (error) {
+    logger.error(`Error in /traffic-profile: ${error}`);
+    res.status(500).json({ error: "Failed to get traffic profile" });
+  }
+});
+
+app.post(
+  "/traffic-profile",
+  asyncHandler(async (req, res) => {
+    const profile = req.body as { name?: string; timeRanges?: unknown[] };
+    if (
+      !profile ||
+      typeof profile.name !== "string" ||
+      !Array.isArray(profile.timeRanges)
+    ) {
+      res.status(400).json({ error: "Invalid traffic profile format" });
+      return;
+    }
+    simulationController.setTrafficProfile(req.body);
+    res.json(simulationController.getTrafficProfile());
+  })
+);
+
 // ─── Fleets ─────────────────────────────────────────────────────────
 
 app.get("/fleets", (_req, res) => {
@@ -668,6 +734,9 @@ async function main() {
   vehicleManager.on("options", (data) => broadcaster.broadcast("options", data));
   simulationController.on("updateStatus", (data) => broadcaster.broadcast("status", data));
   simulationController.on("reset", (data) => broadcaster.broadcast("reset", data));
+  simulationController.on("clock", (clockState) => {
+    broadcaster.broadcast("clock", clockState);
+  });
   fleetManager.on("fleet:created", (data) => broadcaster.broadcast("fleet:created", data));
   fleetManager.on("fleet:deleted", (data) => broadcaster.broadcast("fleet:deleted", data));
   fleetManager.on("fleet:assigned", (data) => broadcaster.broadcast("fleet:assigned", data));

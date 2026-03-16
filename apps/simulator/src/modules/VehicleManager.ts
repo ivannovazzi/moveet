@@ -11,7 +11,9 @@ import type {
   StartOptions,
   Waypoint,
   MultiStopRoute,
+  TrafficProfile,
 } from "../types";
+import { SimulationClock } from "./SimulationClock";
 import { VEHICLE_CONSTANTS } from "../constants";
 import type { RoadNetwork } from "./RoadNetwork";
 import { config } from "../utils/config";
@@ -34,13 +36,15 @@ export class VehicleManager extends EventEmitter {
   private lastPathfindAttempt: Map<string, number> = new Map();
   private static readonly PATHFIND_COOLDOWN = 3000;
   private adapter = new Adapter();
-  private traffic = new TrafficManager();
+  public readonly clock = new SimulationClock({ startHour: 7, speedMultiplier: 1 });
+  private traffic = new TrafficManager(this.clock);
   public readonly fleets = new FleetManager();
 
   // Task 1: Single game loop instead of per-vehicle setInterval
   private activeVehicles: Set<string> = new Set();
   private gameLoopInterval: NodeJS.Timeout | null = null;
   private gameLoopIntervalMs: number = config.updateInterval;
+  private lastClockTick: number = Date.now();
 
   // Task 2: Edge → vehicle spatial index for O(1) lookups
   private vehiclesByEdge: Map<string, Set<string>> = new Map();
@@ -140,7 +144,7 @@ export class VehicleManager extends EventEmitter {
 
     // Phase 2: Synchronous swap — no await below this point, so no
     // event-loop yield. The map swap is atomic w.r.t. concurrent readers.
-    this.fleetManager.reset();
+    this.clock.reset();
     this.vehicles = new Map();
     this.visitedEdges = new Map();
     this.routes = new Map();
@@ -320,6 +324,12 @@ export class VehicleManager extends EventEmitter {
    */
   private gameLoopTick(): void {
     const now = Date.now();
+
+    // Tick simulation clock once per game loop
+    const clockDelta = now - this.lastClockTick;
+    this.lastClockTick = now;
+    this.clock.tick(clockDelta);
+
     for (const vehicleId of this.activeVehicles) {
       const vehicle = this.vehicles.get(vehicleId);
       if (!vehicle) continue;
@@ -479,13 +489,21 @@ export class VehicleManager extends EventEmitter {
 
   private updateSpeed(vehicle: Vehicle, deltaMs: number): void {
     const edgeMaxSpeed = vehicle.currentEdge.maxSpeed;
+
+    // Time-based speed adjustment: night bonus on highways, no change otherwise
+    const hour = this.clock.getHour();
+    const isHighway = vehicle.currentEdge.highway === "trunk" || vehicle.currentEdge.highway === "primary";
+    const timeSpeedModifier = (hour >= 22 || hour < 5) && isHighway ? 1.1 : 1.0;
+    const adjustedEdgeMaxSpeed = edgeMaxSpeed * timeSpeedModifier;
+
     const isInHeatZone = this.network.isPositionInHeatZone(vehicle.position);
     const speedFactor = isInHeatZone ? this.options.heatZoneSpeedFactor : 1;
     const congestion = this.traffic.getCongestionFactor(
       vehicle.currentEdge.id,
-      vehicle.currentEdge.distance
+      vehicle.currentEdge.distance,
+      vehicle.currentEdge.highway
     );
-    const effectiveMax = Math.min(this.options.maxSpeed, edgeMaxSpeed) * speedFactor * congestion;
+    const effectiveMax = Math.min(this.options.maxSpeed, adjustedEdgeMaxSpeed) * speedFactor * congestion;
 
     // Refresh target speed occasionally (roughly every 5 seconds)
     if (!vehicle.targetSpeed || Math.random() < deltaMs / 5000) {
@@ -1090,5 +1108,13 @@ export class VehicleManager extends EventEmitter {
    */
   public getNetwork(): RoadNetwork {
     return this.network;
+  }
+
+  public getTrafficProfile(): TrafficProfile {
+    return this.traffic.getProfile();
+  }
+
+  public setTrafficProfile(profile: TrafficProfile): void {
+    this.traffic.setProfile(profile);
   }
 }
