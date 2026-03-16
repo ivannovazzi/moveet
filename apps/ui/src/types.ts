@@ -27,9 +27,12 @@ export interface Fleet {
   vehicleIds: string[];
 }
 
+export type VehicleType = "car" | "truck" | "motorcycle" | "ambulance" | "bus";
+
 export interface VehicleDTO {
   id: string;
   name: string;
+  type: VehicleType;
   position: Position;
   speed: number;
   heading: number;

@@ -15,6 +15,7 @@ export function createVehicleDTO(overrides: Partial<VehicleDTO> = {}): VehicleDT
   return {
     id: "vehicle-1",
     name: "Test Vehicle",
+    type: "car",
     position: [-1.2921, 36.8219] as Position,
     speed: 50,
     heading: 90,
