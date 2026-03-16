@@ -5,8 +5,7 @@ import { useVehicles } from "./useVehicles";
 import { useDirections } from "./useDirections";
 import { createVehicleDTO } from "@/test/mocks/types";
 import type { DirectionMap } from "@/data/context";
-import { ClientDataContext } from "@/data/context";
-import { DEFAULT_START_OPTIONS } from "@/data/constants";
+import { DirectionContext } from "@/data/context";
 import type { VehicleDTO, VehicleDirection, Route } from "@/types";
 import type { ResetPayload } from "@/utils/wsTypes";
 import client from "@/utils/client";
@@ -48,24 +47,14 @@ function createDirectionsWrapper() {
   return function Wrapper({ children }: { children: React.ReactNode }) {
     const [directions, setDirections] = useState<DirectionMap>(new Map());
     return React.createElement(
-      ClientDataContext.Provider,
+      DirectionContext.Provider,
       {
         value: {
-          options: DEFAULT_START_OPTIONS,
-          roads: [],
-          pois: [],
           directions,
-          heatzones: [],
-          network: { type: "FeatureCollection" as const, features: [] },
-          setOptions: () => {},
-          setRoads: () => {},
-          setPOIs: () => {},
           setDirections,
-          setHeatzones: () => {},
-          setNetwork: () => {},
         },
       },
-      children
+      children,
     );
   };
 }
@@ -211,7 +200,9 @@ describe("reset WS event: full directions replacement", () => {
     // Add a direction via delta
     const staleRoute = createRoute({ distance: 100 });
     act(() => {
-      directionHandlers.forEach((h) => h({ vehicleId: "stale-dir", route: staleRoute, eta: 0 }));
+      directionHandlers.forEach((h) =>
+        h({ vehicleId: "stale-dir", route: staleRoute, eta: 0 }),
+      );
     });
     expect(result.current.get("stale-dir")).toBeDefined();
 

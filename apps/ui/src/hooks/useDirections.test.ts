@@ -3,8 +3,7 @@ import { renderHook, act } from "@testing-library/react";
 import React, { useState } from "react";
 import { useDirections } from "./useDirections";
 import type { DirectionMap } from "@/data/context";
-import { ClientDataContext } from "@/data/context";
-import { DEFAULT_START_OPTIONS } from "@/data/constants";
+import { DirectionContext } from "@/data/context";
 import type { Route, VehicleDirection } from "@/types";
 import client from "@/utils/client";
 
@@ -31,24 +30,14 @@ function createWrapper() {
   return function Wrapper({ children }: { children: React.ReactNode }) {
     const [directions, setDirections] = useState<DirectionMap>(new Map());
     return React.createElement(
-      ClientDataContext.Provider,
+      DirectionContext.Provider,
       {
         value: {
-          options: DEFAULT_START_OPTIONS,
-          roads: [],
-          pois: [],
           directions,
-          heatzones: [],
-          network: { type: "FeatureCollection" as const, features: [] },
-          setOptions: () => {},
-          setRoads: () => {},
-          setPOIs: () => {},
           setDirections,
-          setHeatzones: () => {},
-          setNetwork: () => {},
         },
       },
-      children
+      children,
     );
   };
 }

@@ -3,8 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import React from "react";
 import { usePois } from "./usePois";
 import client from "@/utils/client";
-import { ClientDataContext } from "@/data/context";
-import { DEFAULT_START_OPTIONS } from "@/data/constants";
+import { POIContext } from "@/data/context";
 import { createPOI } from "@/test/mocks/types";
 import type { POI } from "@/types";
 
@@ -16,20 +15,10 @@ vi.mock("@/utils/client", () => ({
 
 function createWrapper(setPOIs: React.Dispatch<React.SetStateAction<POI[]>> = vi.fn()) {
   return ({ children }: { children: React.ReactNode }) =>
-    React.createElement(ClientDataContext.Provider, {
+    React.createElement(POIContext.Provider, {
       value: {
-        options: DEFAULT_START_OPTIONS,
-        roads: [],
         pois: [],
-        directions: new Map(),
-        heatzones: [],
-        network: { type: "FeatureCollection", features: [] },
-        setOptions: vi.fn(),
-        setRoads: vi.fn(),
         setPOIs,
-        setDirections: vi.fn(),
-        setHeatzones: vi.fn(),
-        setNetwork: vi.fn(),
       },
       children,
     });

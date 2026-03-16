@@ -2,8 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import React from "react";
 import { useHeatzones } from "./useHeatzones";
-import { ClientDataContext } from "@/data/context";
-import { DEFAULT_START_OPTIONS } from "@/data/constants";
+import { HeatZoneContext } from "@/data/context";
 import { createHeatzone } from "@/test/mocks/types";
 import client from "@/utils/client";
 import type { Heatzone } from "@/types";
@@ -17,23 +16,13 @@ vi.mock("@/utils/client", () => ({
 
 function createWrapper(
   heatzones: Heatzone[],
-  setHeatzones: React.Dispatch<React.SetStateAction<Heatzone[]>>
+  setHeatzones: React.Dispatch<React.SetStateAction<Heatzone[]>>,
 ) {
   return function Wrapper({ children }: { children: React.ReactNode }) {
-    return React.createElement(ClientDataContext.Provider, {
+    return React.createElement(HeatZoneContext.Provider, {
       value: {
-        options: DEFAULT_START_OPTIONS,
-        roads: [],
-        pois: [],
-        directions: new Map(),
         heatzones,
-        network: { type: "FeatureCollection", features: [] },
-        setOptions: () => {},
-        setRoads: () => {},
-        setPOIs: () => {},
-        setDirections: () => {},
         setHeatzones,
-        setNetwork: () => {},
       },
       children,
     });
@@ -87,7 +76,12 @@ describe("useHeatzones", () => {
 
     const handler = onHeatzonesMock.mock.calls[0][0];
     const wsHeatzone = createHeatzone({
-      properties: { id: "ws-hz-1", intensity: 0.9, timestamp: "2026-02-01T00:00:00Z", radius: 400 },
+      properties: {
+        id: "ws-hz-1",
+        intensity: 0.9,
+        timestamp: "2026-02-01T00:00:00Z",
+        radius: 400,
+      },
     });
 
     act(() => {

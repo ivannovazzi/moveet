@@ -1,10 +1,10 @@
-import useData from "@/data/useData";
+import { useOptionsContext } from "@/data/useData";
 import type { StartOptions } from "@/types";
 import client from "@/utils/client";
 import { useRef, useEffect } from "react";
 
 export function useOptions(timeout: number) {
-  const { options, setOptions } = useData();
+  const { options, setOptions } = useOptionsContext();
   const timer = useRef<NodeJS.Timeout | undefined>(undefined);
 
   useEffect(() => {

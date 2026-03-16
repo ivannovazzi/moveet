@@ -1,4 +1,4 @@
-import useData from "@/data/useData";
+import { useDirectionContext } from "@/data/useData";
 import type { Route, VehicleDirection } from "@/types";
 import client from "@/utils/client";
 import { useCallback, useEffect } from "react";
@@ -22,7 +22,7 @@ function buildDirectionMap(directions: VehicleDirection[]): Map<string, Directio
 }
 
 export function useDirections() {
-  const { directions, setDirections } = useData();
+  const { directions, setDirections } = useDirectionContext();
 
   const fetchDirections = useCallback(() => {
     client

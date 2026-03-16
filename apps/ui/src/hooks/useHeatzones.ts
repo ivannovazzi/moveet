@@ -1,9 +1,9 @@
-import useData from "@/data/useData";
+import { useHeatZoneContext } from "@/data/useData";
 import client from "@/utils/client";
 import { useEffect } from "react";
 
 export function useHeatzones() {
-  const { heatzones, setHeatzones } = useData();
+  const { heatzones, setHeatzones } = useHeatZoneContext();
 
   useEffect(() => {
     client
