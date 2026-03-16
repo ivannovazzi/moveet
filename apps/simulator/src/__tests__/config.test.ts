@@ -178,15 +178,17 @@ describe("verifyConfig", () => {
 });
 
 describe(".env.example completeness", () => {
-  // Extract env var names referenced by process.env.* in config.ts
+  // Extract env var names referenced in config.ts (process.env.* or zod schema keys)
   function getConfigEnvVars(): string[] {
     const configPath = path.resolve(__dirname, "../utils/config.ts");
     const source = fs.readFileSync(configPath, "utf-8");
-    const matches = source.matchAll(/process\.env\.(\w+)/g);
-    return [...new Set([...matches].map((m) => m[1]))].filter(
-      // NODE_ENV is a runtime-only variable, not a project config variable
-      (v) => v !== "NODE_ENV"
-    );
+    const vars = new Set<string>();
+    // Match process.env.VAR_NAME
+    for (const m of source.matchAll(/process\.env\.(\w+)/g)) vars.add(m[1]);
+    // Match zod schema field names (e.g. PORT: z.coerce, GEOJSON_PATH: z.string)
+    for (const m of source.matchAll(/^\s+([A-Z][A-Z0-9_]+)\s*:\s*z\./gm)) vars.add(m[1]);
+    vars.delete("NODE_ENV");
+    return [...vars];
   }
 
   // Parse .env.example for defined variable names (including commented-out ones)
