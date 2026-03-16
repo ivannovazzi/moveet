@@ -42,6 +42,7 @@ import useContextMenu from "./hooks/useContextMenu";
 import ContextMenu from "./components/ContextMenu";
 import MapContextMenu from "./components/MapContextMenu";
 import { isRoad } from "./utils/typeGuards";
+import ErrorBoundary, { SectionErrorFallback } from "./components/ErrorBoundary";
 
 export default function App() {
   const [onContextClick, ref, xy, closeContextMenu] = useContextMenu();
@@ -363,147 +364,151 @@ export default function App() {
           onPanelChange={setActivePanel}
           incidentCount={incidents.incidents.length}
         />
-        <aside
-          className={classNames(styles.panelRail, styles.leftPanel, {
-            [styles.leftPanelOpen]: activePanel !== null,
-          })}
-          aria-hidden={activePanel === null}
-        >
-          <div className={styles.panelInner}>
-            {activePanel === "vehicles" && (
-              <>
-                <button
-                  type="button"
-                  className={classNames(styles.dispatchToggle, {
-                    [styles.dispatchToggleActive]: dispatchMode,
-                  })}
-                  onClick={() => {
-                    setDispatchMode((prev) => {
-                      if (prev) {
-                        setSelectedForDispatch([]);
-                        setAssignments([]);
-                        setResults([]);
-                        setDispatching(false);
-                      }
-                      return !prev;
-                    });
-                  }}
-                >
-                  {dispatchMode ? "Exit Dispatch" : "Dispatch"}
-                </button>
-                <Vehicles
-                  filter={filters.filter}
-                  onFilterChange={onFilterChange}
-                  vehicles={vehicles}
-                  onSelectVehicle={onSelectVehicle}
-                  onHoverVehicle={onHoverVehicle}
-                  onUnhoverVehicle={onUnhoverVehicle}
-                  maxSpeed={maxSpeedRef.current}
-                  fleets={fleets}
-                  dispatchState={dispatchState}
-                  selectedForDispatch={selectedForDispatch}
-                  onToggleVehicleForDispatch={onToggleVehicleForDispatch}
-                  assignments={assignments}
-                  results={results}
+        <ErrorBoundary fallback={<SectionErrorFallback section="Controls" />}>
+          <aside
+            className={classNames(styles.panelRail, styles.leftPanel, {
+              [styles.leftPanelOpen]: activePanel !== null,
+            })}
+            aria-hidden={activePanel === null}
+          >
+            <div className={styles.panelInner}>
+              {activePanel === "vehicles" && (
+                <>
+                  <button
+                    type="button"
+                    className={classNames(styles.dispatchToggle, {
+                      [styles.dispatchToggleActive]: dispatchMode,
+                    })}
+                    onClick={() => {
+                      setDispatchMode((prev) => {
+                        if (prev) {
+                          setSelectedForDispatch([]);
+                          setAssignments([]);
+                          setResults([]);
+                          setDispatching(false);
+                        }
+                        return !prev;
+                      });
+                    }}
+                  >
+                    {dispatchMode ? "Exit Dispatch" : "Dispatch"}
+                  </button>
+                  <Vehicles
+                    filter={filters.filter}
+                    onFilterChange={onFilterChange}
+                    vehicles={vehicles}
+                    onSelectVehicle={onSelectVehicle}
+                    onHoverVehicle={onHoverVehicle}
+                    onUnhoverVehicle={onUnhoverVehicle}
+                    maxSpeed={maxSpeedRef.current}
+                    fleets={fleets}
+                    dispatchState={dispatchState}
+                    selectedForDispatch={selectedForDispatch}
+                    onToggleVehicleForDispatch={onToggleVehicleForDispatch}
+                    assignments={assignments}
+                    results={results}
+                  />
+                  <DispatchFooter
+                    state={dispatchState}
+                    selectedCount={selectedForDispatch.length}
+                    assignments={assignments}
+                    results={results}
+                    onDispatch={handleDispatch}
+                    onClear={handleDone}
+                    onDone={handleDone}
+                    onRetryFailed={handleRetryFailed}
+                    dispatching={dispatching}
+                  />
+                </>
+              )}
+              {activePanel === "fleets" && (
+                <Fleets fleets={fleets} onCreateFleet={createFleet} onDeleteFleet={deleteFleet} />
+              )}
+              {activePanel === "incidents" && (
+                <Incidents
+                  incidents={incidents.incidents}
+                  createRandom={incidents.createRandom}
+                  remove={incidents.remove}
                 />
-                <DispatchFooter
-                  state={dispatchState}
-                  selectedCount={selectedForDispatch.length}
-                  assignments={assignments}
-                  results={results}
-                  onDispatch={handleDispatch}
-                  onClear={handleDone}
-                  onDone={handleDone}
-                  onRetryFailed={handleRetryFailed}
-                  dispatching={dispatching}
+              )}
+              {activePanel === "recordings" && (
+                <RecordReplay
+                  recording={recording}
+                  replayStatus={replay.replayStatus}
+                  onStartReplay={replay.startReplay}
                 />
-              </>
-            )}
-            {activePanel === "fleets" && (
-              <Fleets fleets={fleets} onCreateFleet={createFleet} onDeleteFleet={deleteFleet} />
-            )}
-            {activePanel === "incidents" && (
-              <Incidents
-                incidents={incidents.incidents}
-                createRandom={incidents.createRandom}
-                remove={incidents.remove}
-              />
-            )}
-            {activePanel === "recordings" && (
-              <RecordReplay
-                recording={recording}
-                replayStatus={replay.replayStatus}
-                onStartReplay={replay.startReplay}
-              />
-            )}
-            {activePanel === "toggles" && (
-              <TogglesPanel modifiers={modifiers} onChangeModifiers={onChangeModifiers} />
-            )}
-            {activePanel === "speed" && <SpeedPanel maxSpeedRef={maxSpeedRef} />}
-            {activePanel === "clock" && <ClockPanel />}
-            {activePanel === "adapter" && (
-              <AdapterDrawer
-                isOpen={true}
-                health={adapter.health}
-                config={adapter.config}
-                loading={adapter.loading}
-                error={adapter.error}
-                onClose={() => setActivePanel(null)}
-                onSetSource={adapter.setSource}
-                onAddSink={adapter.addSink}
-                onRemoveSink={adapter.removeSink}
-              />
-            )}
-          </div>
-        </aside>
-        <div className={styles.map}>
-          {!connected && (
-            <div className={styles.disconnectedBanner} role="alert">
-              Disconnected — attempting to reconnect...
+              )}
+              {activePanel === "toggles" && (
+                <TogglesPanel modifiers={modifiers} onChangeModifiers={onChangeModifiers} />
+              )}
+              {activePanel === "speed" && <SpeedPanel maxSpeedRef={maxSpeedRef} />}
+              {activePanel === "clock" && <ClockPanel />}
+              {activePanel === "adapter" && (
+                <AdapterDrawer
+                  isOpen={true}
+                  health={adapter.health}
+                  config={adapter.config}
+                  loading={adapter.loading}
+                  error={adapter.error}
+                  onClose={() => setActivePanel(null)}
+                  onSetSource={adapter.setSource}
+                  onAddSink={adapter.addSink}
+                  onRemoveSink={adapter.removeSink}
+                />
+              )}
             </div>
-          )}
-          <MapView
-            vehicles={vehicles}
-            filters={filters}
-            modifiers={modifiers}
-            selectedItem={selectedItem}
-            onClick={onSelectVehicle}
-            onMapClick={onMapClick}
-            onMapContextClick={onMapContextClick}
-            onPOIClick={(poi) => setSelectedItem(poi)}
-            vehicleFleetMap={vehicleFleetMap}
-            hiddenFleetIds={hiddenFleetIds}
-            dispatchState={dispatchState}
-            assignments={assignments}
-            incidents={incidents.incidents}
-          />
-          <SearchBar
-            selectedItem={selectedItem}
-            onDestinationClick={onDestinationClick}
-            onItemSelect={(item) => setSelectedItem(item)}
-            onItemUnselect={() => setSelectedItem(null)}
-          />
-          <Zoom />
-          <FleetLegend
-            fleets={fleets}
-            hiddenFleetIds={hiddenFleetIds}
-            onToggle={toggleFleetVisibility}
-          />
-          <BottomDock
-            status={status}
-            connected={connected}
-            vehicleCount={vehicles.length}
-            replayStatus={replay.replayStatus}
-            onPauseReplay={replay.pauseReplay}
-            onResumeReplay={replay.resumeReplay}
-            onStopReplay={replay.stopReplay}
-            onSeekReplay={replay.seekReplay}
-            onSetReplaySpeed={replay.setReplaySpeed}
-            isRecording={recording.isRecording}
-            onStartRecording={recording.startRecording}
-            onStopRecording={recording.stopRecording}
-          />
-        </div>
+          </aside>
+        </ErrorBoundary>
+        <ErrorBoundary fallback={<SectionErrorFallback section="Map" />}>
+          <div className={styles.map}>
+            {!connected && (
+              <div className={styles.disconnectedBanner} role="alert">
+                Disconnected — attempting to reconnect...
+              </div>
+            )}
+            <MapView
+              vehicles={vehicles}
+              filters={filters}
+              modifiers={modifiers}
+              selectedItem={selectedItem}
+              onClick={onSelectVehicle}
+              onMapClick={onMapClick}
+              onMapContextClick={onMapContextClick}
+              onPOIClick={(poi) => setSelectedItem(poi)}
+              vehicleFleetMap={vehicleFleetMap}
+              hiddenFleetIds={hiddenFleetIds}
+              dispatchState={dispatchState}
+              assignments={assignments}
+              incidents={incidents.incidents}
+            />
+            <SearchBar
+              selectedItem={selectedItem}
+              onDestinationClick={onDestinationClick}
+              onItemSelect={(item) => setSelectedItem(item)}
+              onItemUnselect={() => setSelectedItem(null)}
+            />
+            <Zoom />
+            <FleetLegend
+              fleets={fleets}
+              hiddenFleetIds={hiddenFleetIds}
+              onToggle={toggleFleetVisibility}
+            />
+            <BottomDock
+              status={status}
+              connected={connected}
+              vehicleCount={vehicles.length}
+              replayStatus={replay.replayStatus}
+              onPauseReplay={replay.pauseReplay}
+              onResumeReplay={replay.resumeReplay}
+              onStopReplay={replay.stopReplay}
+              onSeekReplay={replay.seekReplay}
+              onSetReplaySpeed={replay.setReplaySpeed}
+              isRecording={recording.isRecording}
+              onStartRecording={recording.startRecording}
+              onStopRecording={recording.stopRecording}
+            />
+          </div>
+        </ErrorBoundary>
       </div>
       {xy && (
         <ContextMenu position={xy}>
