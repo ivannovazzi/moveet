@@ -1,6 +1,6 @@
 import type { ConfigField, DataSink, HealthCheckResult, PluginConfig, SinkPublishResult } from "../types";
 import type { VehicleUpdate } from "../../types";
-import { fetchWithTimeout } from "../utils";
+import { httpFetch } from "../../utils/httpClient";
 
 export class RestSink implements DataSink {
   readonly type = "rest";
@@ -51,7 +51,7 @@ export class RestSink implements DataSink {
     };
 
     if (this.batchMode) {
-      await fetchWithTimeout(this.url, {
+      await httpFetch(this.url, {
         ...fetchOptions,
         body: JSON.stringify({ vehicles: updates }),
       });
@@ -61,7 +61,7 @@ export class RestSink implements DataSink {
     // Non-batch mode: send individual requests per vehicle with partial failure handling
     const results = await Promise.allSettled(
       updates.map((update) =>
-        fetchWithTimeout(this.url!, {
+        httpFetch(this.url!, {
           ...fetchOptions,
           body: JSON.stringify(update),
         })
@@ -100,11 +100,8 @@ export class RestSink implements DataSink {
   async healthCheck(): Promise<HealthCheckResult> {
     if (!this.url) return { healthy: false, message: "not connected" };
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 3000);
-      const res = await fetch(this.url, { method: "HEAD", signal: controller.signal });
-      clearTimeout(timeout);
-      return res.ok ? { healthy: true } : { healthy: false, message: `HTTP ${res.status}` };
+      await httpFetch(this.url, { method: "HEAD" }, { timeoutMs: 3000, maxRetries: 1 });
+      return { healthy: true };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return { healthy: false, message };

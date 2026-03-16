@@ -1,6 +1,7 @@
 import type { ConfigField, DataSource, HealthCheckResult, PluginConfig } from "../types";
 import type { ExportVehicle } from "../../types";
-import { getNestedValue, fetchWithTimeout } from "../utils";
+import { getNestedValue } from "../utils";
+import { httpFetch } from "../../utils/httpClient";
 
 interface FieldMap {
   id: string;
@@ -79,10 +80,7 @@ export class RestSource implements DataSource {
       fetchOptions.body = JSON.stringify(this.body);
     }
 
-    const response = await fetchWithTimeout(this.url, fetchOptions);
-    if (!response.ok) {
-      throw new Error(`REST source fetch failed: ${response.status} ${response.statusText}`);
-    }
+    const response = await httpFetch(this.url, fetchOptions);
 
     const json = await response.json();
     const items = getNestedValue(json, this.vehiclePath);
@@ -116,11 +114,8 @@ export class RestSource implements DataSource {
   async healthCheck(): Promise<HealthCheckResult> {
     if (!this.url) return { healthy: false, message: "not connected" };
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 3000);
-      const res = await fetch(this.url, { method: "HEAD", signal: controller.signal });
-      clearTimeout(timeout);
-      return res.ok ? { healthy: true } : { healthy: false, message: `HTTP ${res.status}` };
+      await httpFetch(this.url, { method: "HEAD" }, { timeoutMs: 3000, maxRetries: 1 });
+      return { healthy: true };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return { healthy: false, message };

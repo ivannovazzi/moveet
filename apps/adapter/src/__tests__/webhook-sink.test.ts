@@ -1,12 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { WebhookSink } from "../plugins/sinks/webhook";
 
-describe("WebhookSink", () => {
-  const mockFetch = vi.fn().mockResolvedValue({ ok: true });
+vi.mock("../utils/httpClient", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../utils/httpClient")>();
+  return {
+    ...actual,
+    httpFetch: vi.fn(),
+  };
+});
 
+import { httpFetch } from "../utils/httpClient";
+const mockHttpFetch = vi.mocked(httpFetch);
+
+describe("WebhookSink", () => {
   beforeEach(() => {
-    mockFetch.mockClear();
-    vi.stubGlobal("fetch", mockFetch);
+    mockHttpFetch.mockReset();
+    mockHttpFetch.mockResolvedValue(new Response("", { status: 200 }));
   });
 
   it("has correct type and name", () => {
@@ -25,7 +34,7 @@ describe("WebhookSink", () => {
     await sink.connect({ url: "https://example.com/webhook" });
     await sink.publishUpdates([{ id: "v1", latitude: -1.3, longitude: 36.8 }]);
 
-    expect(mockFetch).toHaveBeenCalledWith(
+    expect(mockHttpFetch).toHaveBeenCalledWith(
       "https://example.com/webhook",
       expect.objectContaining({
         method: "POST",
@@ -40,7 +49,7 @@ describe("WebhookSink", () => {
     await sink.connect({ url: "https://example.com/webhook", headers: { "X-Api-Key": "secret" } });
     await sink.publishUpdates([{ id: "v1", latitude: -1.3, longitude: 36.8 }]);
 
-    expect(mockFetch).toHaveBeenCalledWith(
+    expect(mockHttpFetch).toHaveBeenCalledWith(
       "https://example.com/webhook",
       expect.objectContaining({
         headers: expect.objectContaining({ "X-Api-Key": "secret" }),
@@ -53,14 +62,17 @@ describe("WebhookSink", () => {
     await sink.connect({ url: "https://example.com/webhook" });
     await sink.disconnect();
     await sink.publishUpdates([{ id: "v1", latitude: -1.3, longitude: 36.8 }]);
-    expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockHttpFetch).not.toHaveBeenCalled();
   });
 
   it("health check reflects connection state", async () => {
     const sink = new WebhookSink();
     expect((await sink.healthCheck()).healthy).toBe(false);
+
+    mockHttpFetch.mockResolvedValue(new Response("", { status: 200 }));
     await sink.connect({ url: "https://example.com/webhook" });
     expect((await sink.healthCheck()).healthy).toBe(true);
+
     await sink.disconnect();
     expect((await sink.healthCheck()).healthy).toBe(false);
   });

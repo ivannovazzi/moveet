@@ -1,12 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { RestSink } from "../plugins/sinks/rest";
 
-describe("RestSink", () => {
-  const mockFetch = vi.fn().mockResolvedValue({ ok: true });
+vi.mock("../utils/httpClient", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../utils/httpClient")>();
+  return {
+    ...actual,
+    httpFetch: vi.fn(),
+  };
+});
 
+import { httpFetch } from "../utils/httpClient";
+const mockHttpFetch = vi.mocked(httpFetch);
+
+describe("RestSink", () => {
   beforeEach(() => {
-    mockFetch.mockClear();
-    vi.stubGlobal("fetch", mockFetch);
+    mockHttpFetch.mockReset();
+    mockHttpFetch.mockResolvedValue(new Response("", { status: 200 }));
   });
 
   it("has correct type and name", () => {
@@ -28,8 +37,9 @@ describe("RestSink", () => {
       { id: "v2", latitude: -1.2, longitude: 36.7 },
     ]);
 
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(mockHttpFetch).toHaveBeenCalledTimes(1);
+    const callArgs = mockHttpFetch.mock.calls[0];
+    const body = JSON.parse(callArgs[1]!.body as string);
     expect(body.vehicles).toHaveLength(2);
   });
 
@@ -41,7 +51,7 @@ describe("RestSink", () => {
       { id: "v2", latitude: -1.2, longitude: 36.7 },
     ]);
 
-    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockHttpFetch).toHaveBeenCalledTimes(2);
   });
 
   it("uses configured HTTP method", async () => {
@@ -49,14 +59,14 @@ describe("RestSink", () => {
     await sink.connect({ url: "https://api.example.com/sync", method: "PUT" });
     await sink.publishUpdates([{ id: "v1", latitude: -1.3, longitude: 36.8 }]);
 
-    expect(mockFetch.mock.calls[0][1].method).toBe("PUT");
+    expect(mockHttpFetch.mock.calls[0][1]!.method).toBe("PUT");
   });
 
   it("skips empty updates", async () => {
     const sink = new RestSink();
     await sink.connect({ url: "https://api.example.com/sync" });
     await sink.publishUpdates([]);
-    expect(mockFetch).not.toHaveBeenCalled();
+    expect(mockHttpFetch).not.toHaveBeenCalled();
   });
 
   it("has config schema", () => {
