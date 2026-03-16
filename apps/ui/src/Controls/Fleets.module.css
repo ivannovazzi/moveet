@@ -1,40 +1,11 @@
-.section {
-  padding: var(--space-4);
-  border-bottom: var(--surface-border);
-}
-
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--space-4);
-}
-
-.title {
-  font-size: var(--text-sm);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: var(--color-gray);
+.body {
+  gap: var(--space-3);
 }
 
 .addButton {
-  background: none;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: var(--color-gray-light);
+  height: var(--control-sm);
+  padding: 0 var(--space-4);
   font-size: var(--text-sm);
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-family: inherit;
-  transition:
-    background var(--transition-fast),
-    color var(--transition-fast);
-}
-
-.addButton:hover {
-  background: var(--surface-bg-hover);
-  color: var(--color-white);
 }
 
 .fleetList {
@@ -49,13 +20,16 @@
   gap: var(--space-3);
   padding: var(--space-3);
   border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--surface-bg);
   border: var(--surface-border);
-  transition: background var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
 }
 
 .fleet:hover {
   background: var(--surface-bg-hover);
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 .colorDot {
@@ -67,12 +41,12 @@
 
 .fleetName {
   flex: 1;
-  font-size: var(--text-base);
-  color: var(--color-gray-lightest);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: var(--text-base);
+  color: var(--color-gray-lightest);
 }
 
 .fleetCount {
@@ -81,52 +55,43 @@
   font-variant-numeric: tabular-nums;
 }
 
-.lockIcon {
-  font-size: var(--text-xs);
-  color: var(--color-gray);
-  font-style: italic;
+.externalBadge {
+  text-transform: uppercase;
 }
 
 .deleteButton {
-  background: none;
-  border: none;
-  color: var(--color-gray);
-  cursor: pointer;
-  padding: var(--space-1);
-  font-size: var(--text-sm);
-  line-height: 1;
-  border-radius: var(--radius-xs);
-  transition:
-    color var(--transition-fast),
-    background var(--transition-fast);
-}
-
-.deleteButton:hover {
-  color: #f44;
-  background: rgba(255, 68, 68, 0.1);
+  flex-shrink: 0;
 }
 
 .newFleetInput {
   width: 100%;
   box-sizing: border-box;
-  padding: var(--space-3);
+  padding: 0 var(--space-4);
+  height: var(--control);
   font-size: var(--text-base);
   color: var(--color-gray-lightest);
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(57, 153, 255, 0.4);
+  background: var(--surface-bg);
+  border: var(--surface-border);
   border-radius: var(--radius-sm);
   outline: none;
   font-family: inherit;
-  margin-top: var(--space-2);
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
 .newFleetInput::placeholder {
   color: var(--color-gray);
 }
 
-.empty {
-  font-size: var(--text-sm);
-  color: var(--color-gray);
-  padding: var(--space-3);
-  text-align: center;
+.newFleetInput:hover {
+  background: var(--surface-bg-hover);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.newFleetInput:focus {
+  border-color: var(--focus-border);
+  box-shadow: var(--focus-ring);
+  background: var(--focus-bg);
 }

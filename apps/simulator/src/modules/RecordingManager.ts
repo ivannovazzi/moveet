@@ -54,11 +54,7 @@ export class RecordingManager extends EventEmitter {
    * @param vehicleCount - Number of vehicles at recording start
    * @param filePath - Optional explicit file path; auto-generated if omitted
    */
-  startRecording(
-    options: StartOptions,
-    vehicleCount: number,
-    filePath?: string
-  ): string {
+  startRecording(options: StartOptions, vehicleCount: number, filePath?: string): string {
     if (this.recording) {
       throw new Error("Recording already in progress");
     }

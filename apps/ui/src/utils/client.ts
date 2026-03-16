@@ -277,7 +277,11 @@ class SimulationService {
     this.ws.on("vehicle:rerouted", handler);
   }
 
-  async createIncidentAtPosition(lat: number, lng: number, type: IncidentType): Promise<ApiResponse<IncidentDTO>> {
+  async createIncidentAtPosition(
+    lat: number,
+    lng: number,
+    type: IncidentType
+  ): Promise<ApiResponse<IncidentDTO>> {
     return this.http.post("/incidents/at-position", { lat, lng, type });
   }
 
@@ -313,6 +317,10 @@ class SimulationService {
 
   async seekReplay(timestamp: number): Promise<ApiResponse<void>> {
     return this.http.post("/replay/seek", { timestamp });
+  }
+
+  async setReplaySpeed(speed: number): Promise<ApiResponse<void>> {
+    return this.http.post("/replay/speed", { speed });
   }
 
   async getReplayStatus(): Promise<ApiResponse<ReplayStatus>> {

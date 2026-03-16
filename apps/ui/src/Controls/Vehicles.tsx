@@ -2,6 +2,7 @@ import classNames from "classnames";
 import type { Fleet, Vehicle, DispatchAssignment, DirectionResult } from "@/types";
 import { DispatchState } from "@/hooks/useDispatchState";
 import useData from "@/data/useData";
+import { PanelBadge, PanelBody, PanelEmptyState, PanelHeader } from "./PanelPrimitives";
 import styles from "./Vehicles.module.css";
 import { Search } from "@/components/Icons";
 
@@ -20,8 +21,6 @@ interface VehicleListProps {
   onHoverVehicle: (id: string) => void;
   onUnhoverVehicle: () => void;
   fleets: Fleet[];
-  onAssignVehicle: (fleetId: string, vehicleId: string) => Promise<void>;
-  onUnassignVehicle: (fleetId: string, vehicleId: string) => Promise<void>;
   dispatchState?: DispatchState;
   selectedForDispatch?: string[];
   onToggleVehicleForDispatch?: (id: string) => void;
@@ -83,8 +82,6 @@ export default function VehicleList({
   onHoverVehicle,
   onUnhoverVehicle,
   fleets,
-  onAssignVehicle,
-  onUnassignVehicle,
   dispatchState,
   selectedForDispatch,
   onToggleVehicleForDispatch,
@@ -99,22 +96,18 @@ export default function VehicleList({
   const isDispatch = dispatchState === DispatchState.DISPATCH;
   const isResults = dispatchState === DispatchState.RESULTS;
   const showCheckbox = isSelectOrRoute || isDispatch;
-  const hideFleetDropdown = isSelectOrRoute || isDispatch || isResults;
 
   return (
     <>
-      <div className={styles.sidebarHeader}>
-        <div className={styles.panelEyebrow}>Fleet overview</div>
-        <div className={styles.panelHeading}>
-          <h2 className={styles.panelTitle}>Vehicles</h2>
-          <span className={styles.panelBadge}>{visibleVehicles.length}</span>
-          <p className={styles.panelSubtitle}>
-            {filter
-              ? `Showing ${visibleVehicles.length} of ${vehicles.length} matching "${filter}"`
-              : `${vehicles.length} tracked units`}
-          </p>
-        </div>
-
+      <PanelHeader
+        title="Vehicles"
+        subtitle={
+          filter
+            ? `Showing ${visibleVehicles.length} of ${vehicles.length} matching "${filter}"`
+            : `${vehicles.length} tracked units`
+        }
+        badge={<PanelBadge>{visibleVehicles.length}</PanelBadge>}
+      >
         <div className={styles.filterInputWrapper}>
           <Search className={styles.filterIcon} aria-hidden="true" />
           <input
@@ -124,7 +117,7 @@ export default function VehicleList({
             placeholder="Search vehicles…"
             className={styles.filterInput}
           />
-          {filter && (
+          {filter ? (
             <button
               className={styles.filterClear}
               onClick={() => onFilterChange("")}
@@ -133,15 +126,18 @@ export default function VehicleList({
             >
               ×
             </button>
-          )}
+          ) : null}
         </div>
-      </div>
+      </PanelHeader>
 
-      <div className={classNames(styles.vehicles, { [styles.dimmed]: isDispatch })}>
+      <PanelBody
+        padded={false}
+        className={classNames(styles.vehicles, { [styles.dimmed]: isDispatch })}
+      >
         {visibleVehicles.length === 0 ? (
-          <div className={styles.empty}>
+          <PanelEmptyState>
             {filter ? `No vehicles match "${filter}"` : "No vehicles"}
-          </div>
+          </PanelEmptyState>
         ) : (
           visibleVehicles.map((vehicle) => {
             const routeDistance = directions.get(vehicle.id)?.route.distance;
@@ -205,33 +201,13 @@ export default function VehicleList({
                 </span>
                 <span className={styles.routeRow}>
                   <span className={styles.routeDistance}>{formatRouteDistance(routeDistance)}</span>
-                  {!hideFleetDropdown && (
-                    <select
-                      className={styles.fleetSelect}
-                      value={vehicleFleet?.id ?? ""}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        const val = e.target.value;
-                        if (!val && vehicleFleet) onUnassignVehicle(vehicleFleet.id, vehicle.id);
-                        else if (val) onAssignVehicle(val, vehicle.id);
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <option value="">No fleet</option>
-                      {fleets.map((f) => (
-                        <option key={f.id} value={f.id}>
-                          {f.name}
-                        </option>
-                      ))}
-                    </select>
-                  )}
                 </span>
                 <SpeedBar speed={vehicle.speed} maxSpeed={maxSpeed} />
               </button>
             );
           })
         )}
-      </div>
+      </PanelBody>
     </>
   );
 }

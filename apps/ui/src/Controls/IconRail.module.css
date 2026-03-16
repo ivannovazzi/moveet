@@ -1,0 +1,52 @@
+.rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 56px;
+  flex-shrink: 0;
+  padding: var(--space-3) 0;
+  gap: var(--space-2);
+  background: var(--panel-surface);
+  border-right: var(--panel-border);
+  z-index: 31;
+}
+
+.railButton {
+  position: relative;
+}
+
+.railButton[aria-pressed="true"]::before {
+  content: "";
+  position: absolute;
+  left: -7px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 999px;
+  background: var(--color-accent);
+}
+
+.railIcon {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+}
+
+.badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: var(--radius-full);
+  background: #f44336;
+  color: var(--color-white);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 14px;
+  text-align: center;
+}
+
+.spacer {
+  flex: 1;
+}

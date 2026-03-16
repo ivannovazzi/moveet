@@ -11,6 +11,8 @@
   --color-gray-lightest: #eee;
   --color-white: #fff;
   --color-text: rgba(255, 255, 255, 0.87);
+  --color-text-primary: rgba(255, 255, 255, 0.92);
+  --color-text-secondary: rgba(255, 255, 255, 0.55);
 
   /* Overlays */
   --color-overlay-1: rgba(255, 255, 255, 0.1);
@@ -53,10 +55,21 @@
   --space-7: 24px;
   --space-8: 32px;
 
-  /* Interactive element heights */
-  --control-height-sm: 28px;
-  --control-height: 32px;
-  --control-height-lg: 36px;
+  /* Interactive element heights — unified scale */
+  --control-sm: 28px;
+  --control: 32px;
+  --control-lg: 40px;
+  --control-xl: 56px;
+
+  /* Legacy aliases (deprecated — migrate to new names) */
+  --control-height-sm: var(--control-sm);
+  --control-height: var(--control);
+  --control-height-lg: var(--control-lg);
+
+  /* Icon sizes */
+  --icon-sm: 14px;
+  --icon: 16px;
+  --icon-lg: 18px;
 
   /* Border Radius */
   --radius-xs: 3px;
@@ -67,13 +80,42 @@
   --radius-full: 50%;
 
   /* Font Sizes */
-  --text-xs: 9px;
-  --text-sm: 11px;
-  --text-base: 12px;
-  --text-md: 13px;
-  --text-lg: 14px;
-  --text-xl: 16px;
-  --text-2xl: 20px;
+  --text-xs: 10px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-lg: 15px;
+  --text-xl: 17px;
+  --text-2xl: 21px;
+
+  /* Glass surfaces */
+  --glass-bg: rgba(7, 9, 13, 0.88);
+  --glass-blur: blur(16px);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+
+  /* Panel surfaces */
+  --panel-surface: rgba(7, 9, 13, 0.74);
+  --panel-surface-strong: rgba(7, 9, 13, 0.88);
+  --panel-border: 1px solid var(--color-overlay-1);
+  --panel-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  --panel-header-bg:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0)),
+    var(--panel-surface-strong);
+
+  /* Status colors */
+  --color-success-bg: rgba(68, 204, 68, 0.12);
+  --color-success-bg-hover: rgba(68, 204, 68, 0.2);
+  --color-success: #4c4;
+  --color-danger-bg: rgba(244, 67, 54, 0.12);
+  --color-danger-bg-hover: rgba(244, 67, 54, 0.18);
+  --color-danger: #f44;
+  --color-active-bg: rgba(57, 153, 255, 0.14);
+  --color-active-border: rgba(57, 153, 255, 0.22);
+
+  /* Focus states */
+  --focus-border: rgba(57, 153, 255, 0.5);
+  --focus-ring: 0 0 0 2px rgba(57, 153, 255, 0.1);
+  --focus-bg: rgba(57, 153, 255, 0.06);
 
   /* Surfaces — reusable bg/border for interactive elements */
   --surface-bg: rgba(255, 255, 255, 0.05);

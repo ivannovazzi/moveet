@@ -2,7 +2,7 @@ import type { POI, Road } from "@/types";
 import { Directions, POI as POIIcon, Road as RoadIcon } from "@/components/Icons";
 import { useRoads } from "@/hooks/useRoads";
 import { usePois } from "@/hooks/usePois";
-import { SquaredButton, Typeahead } from "@/components/Inputs";
+import { Typeahead } from "@/components/Inputs";
 import styles from "./SearchBar.module.css";
 import { isRoad } from "@/utils/typeGuards";
 import { useCallback } from "react";
@@ -48,12 +48,15 @@ export default function SearchBar({
         placeholder="Search..."
       />
 
-      <SquaredButton
+      <button
+        type="button"
         onClick={onDestinationClick}
-        icon={<Directions />}
         disabled={!selectedItem}
         className={styles.destinationButton}
-      />
+        aria-label="Get directions"
+      >
+        <Directions />
+      </button>
     </div>
   );
 }

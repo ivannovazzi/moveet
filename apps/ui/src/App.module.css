@@ -6,10 +6,6 @@
   overflow: hidden;
 }
 
-.controls {
-  flex: 0;
-}
-
 .content {
   display: flex;
   flex: 1 1 0;
@@ -44,15 +40,15 @@
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
-  background: rgba(7, 9, 13, 0.74);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  background: var(--panel-surface);
+  box-shadow: var(--panel-shadow);
   transition:
     background 220ms ease,
     box-shadow 280ms ease;
 }
 
 .leftPanel {
-  left: 0;
+  left: 56px;
   width: clamp(248px, 22vw, 304px);
   transform: translateX(calc(-100% - 20px));
 }
@@ -65,26 +61,8 @@
   transition-delay: 0s;
 }
 
-.rightPanel {
-  right: 0;
-  width: clamp(340px, 30vw, 420px);
-  transform: translateX(calc(100% + 20px));
-}
-
-.rightPanelOpen {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-  transform: translateX(0);
-  transition-delay: 0s;
-}
-
 .leftPanel .panelInner {
-  border-right: 1px solid var(--color-overlay-1);
-}
-
-.rightPanel .panelInner {
-  border-left: 1px solid var(--color-overlay-1);
+  border-right: var(--panel-border);
 }
 
 .map {

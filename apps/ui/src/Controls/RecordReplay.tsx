@@ -1,7 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import classNames from "classnames";
-import type { RecordingFile } from "@/types";
+import type { RecordingFile, ReplayStatus } from "@/types";
 import { Stop, Record } from "@/components/Icons";
+import {
+  PanelBadge,
+  PanelBody,
+  PanelEmptyState,
+  PanelHeader,
+  PanelSectionLabel,
+} from "./PanelPrimitives";
 import styles from "./RecordReplay.module.css";
 
 interface RecordingHook {
@@ -14,8 +21,12 @@ interface RecordingHook {
 
 interface RecordReplayProps {
   recording: RecordingHook;
+  replayStatus: ReplayStatus;
   onStartReplay: (file: string, speed?: number) => Promise<void>;
 }
+
+/** Recordings smaller than this are header-only (no events). */
+const MIN_PLAYABLE_SIZE = 300;
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -31,14 +42,40 @@ function formatFileSize(bytes: number): string {
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
-export default function RecordReplay({ recording, onStartReplay }: RecordReplayProps) {
+/** Extract vehicle count from filename like "moveet-...-20v.ndjson" */
+function parseVehicleCount(fileName: string): number | null {
+  const match = fileName.match(/(\d+)v\.ndjson$/);
+  return match ? Number(match[1]) : null;
+}
+
+function formatLabel(file: RecordingFile): string {
+  const count = parseVehicleCount(file.fileName);
+  const date = formatDate(file.modifiedAt);
+  return count ? `${count} vehicles \u2014 ${date}` : date;
+}
+
+export default function RecordReplay({
+  recording,
+  replayStatus,
+  onStartReplay,
+}: RecordReplayProps) {
   const { isRecording, recordings, startRecording, stopRecording } = recording;
 
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const isReplayMode = replayStatus.mode === "replay";
+  const isPaused = replayStatus.paused ?? false;
+  // Server returns path like "recordings/file.ndjson", recordings list has just "file.ndjson"
+  const activeFile = replayStatus.file?.replace(/^recordings\//, "") ?? null;
 
   // Elapsed timer for recording
   useEffect(() => {
@@ -69,77 +106,98 @@ export default function RecordReplay({ recording, onStartReplay }: RecordReplayP
 
   const handleFileClick = useCallback(
     async (file: RecordingFile) => {
+      if (file.fileSize < MIN_PLAYABLE_SIZE) return;
       await onStartReplay(file.fileName, 1);
     },
     [onStartReplay]
   );
 
+  const playableRecordings = recordings.filter((f) => f.fileSize >= MIN_PLAYABLE_SIZE);
+
   return (
-    <div className={styles.section}>
-      {/* ── Recording ── */}
-      <div className={styles.sectionHeader}>
-        <span className={styles.title}>Record</span>
-      </div>
+    <>
+      <PanelHeader
+        title="Recordings"
+        subtitle={
+          playableRecordings.length === 0
+            ? "Capture and replay simulator sessions."
+            : `${playableRecordings.length} saved capture${playableRecordings.length === 1 ? "" : "s"} ready to replay`
+        }
+        badge={<PanelBadge>{playableRecordings.length}</PanelBadge>}
+      />
 
-      <div className={styles.recordRow}>
-        <button
-          type="button"
-          className={classNames(styles.recordButton, {
-            [styles.recordButtonActive]: isRecording,
-          })}
-          onClick={handleRecordToggle}
-          aria-label={isRecording ? "Stop recording" : "Start recording"}
-        >
-          {isRecording ? (
-            <>
-              <span className={classNames(styles.recordDot, styles.recordDotActive)} />
-              <Stop className={styles.recordIcon} />
-              Stop
-            </>
-          ) : (
-            <>
-              <span className={styles.recordDot} />
-              <Record className={styles.recordIcon} />
-              Record
-            </>
-          )}
-        </button>
-        {isRecording && <span className={styles.elapsed}>{formatTime(elapsed)}</span>}
-      </div>
-
-      {/* ── Recordings list ── */}
-      <div className={styles.sectionHeader} style={{ marginTop: "var(--space-5)" }}>
-        <span className={styles.title}>Recordings</span>
-      </div>
-
-      {recordings.length === 0 ? (
-        <div className={styles.empty}>No recordings yet</div>
-      ) : (
-        <div className={styles.recordingList}>
-          {recordings.map((file) => (
-            <div
-              key={file.fileName}
-              className={styles.recordingItem}
-              onClick={() => handleFileClick(file)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") handleFileClick(file);
-              }}
-            >
-              <div className={styles.recordingInfo}>
-                <div className={styles.recordingName} title={file.fileName}>
-                  {file.fileName}
-                </div>
-                <div className={styles.recordingMeta}>
-                  <span>{formatFileSize(file.fileSize)}</span>
-                  <span>{formatDate(file.modifiedAt)}</span>
-                </div>
-              </div>
-            </div>
-          ))}
+      <PanelBody className={styles.body}>
+        <div className={styles.recordRow}>
+          <button
+            type="button"
+            className={classNames(styles.recordButton, {
+              [styles.recordButtonActive]: isRecording,
+            })}
+            onClick={handleRecordToggle}
+            aria-label={isRecording ? "Stop recording" : "Start recording"}
+          >
+            {isRecording ? (
+              <>
+                <span className={classNames(styles.recordDot, styles.recordDotActive)} />
+                <Stop className={styles.recordIcon} />
+                Stop
+              </>
+            ) : (
+              <>
+                <span className={styles.recordDot} />
+                <Record className={styles.recordIcon} />
+                Record
+              </>
+            )}
+          </button>
+          {isRecording && <span className={styles.elapsed}>{formatTime(elapsed)}</span>}
         </div>
-      )}
-    </div>
+
+        <div className={styles.listHeader}>
+          <PanelSectionLabel>Saved</PanelSectionLabel>
+        </div>
+
+        {playableRecordings.length === 0 ? (
+          <PanelEmptyState>No recordings yet</PanelEmptyState>
+        ) : (
+          <div className={styles.recordingList}>
+            {playableRecordings.map((file) => {
+              const isActive = isReplayMode && activeFile === file.fileName;
+
+              return (
+                <div
+                  key={file.fileName}
+                  className={classNames(styles.recordingItem, {
+                    [styles.recordingItemActive]: isActive,
+                  })}
+                  onClick={() => !isActive && handleFileClick(file)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      if (!isActive) handleFileClick(file);
+                    }
+                  }}
+                >
+                  <div className={styles.recordingInfo}>
+                    <div className={styles.recordingName} title={file.fileName}>
+                      {formatLabel(file)}
+                    </div>
+                    <div className={styles.recordingMeta}>
+                      <span>{formatFileSize(file.fileSize)}</span>
+                      {isActive && (
+                        <span className={styles.playingLabel}>
+                          {isPaused ? "Paused" : "Playing"}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </PanelBody>
+    </>
   );
 }

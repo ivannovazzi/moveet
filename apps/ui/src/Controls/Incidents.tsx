@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { IncidentDTO, IncidentType } from "@/types";
-import { Switch } from "@/components/Inputs";
+import { Switch, SquaredButton } from "@/components/Inputs";
+import { PanelBadge, PanelBody, PanelEmptyState, PanelHeader } from "./PanelPrimitives";
 import styles from "./Incidents.module.css";
 
 interface IncidentsProps {
@@ -33,7 +34,6 @@ export default function Incidents({ incidents, createRandom, remove }: Incidents
 
   const toggleAutoGenerate = useCallback(() => setAutoGenerate((prev) => !prev), []);
 
-  // Re-render every second to update countdown timers
   useEffect(() => {
     if (incidents.length === 0) return;
     const interval = setInterval(() => {
@@ -44,67 +44,87 @@ export default function Incidents({ incidents, createRandom, remove }: Incidents
 
   useEffect(() => {
     if (!autoGenerate) return;
-    createRandom(); // immediate first
-    const interval = setInterval(() => {
-      createRandom();
-    }, 15000 + Math.random() * 15000);
+    createRandom();
+    const interval = setInterval(
+      () => {
+        createRandom();
+      },
+      15000 + Math.random() * 15000
+    );
     return () => clearInterval(interval);
   }, [autoGenerate, createRandom]);
 
   return (
-    <div className={styles.section}>
-      <div className={styles.header}>
-        <span className={styles.title}>Incidents</span>
-        <label className={styles.autoLabel}>
-          <Switch
-            checked={autoGenerate}
-            onChange={toggleAutoGenerate}
-            aria-label="Auto-generate incidents"
-          />
-          <span className={styles.autoText}>Auto</span>
-        </label>
-        <button className={styles.addButton} onClick={createRandom} type="button">
-          +
-        </button>
-      </div>
-
-      {incidents.length === 0 && <div className={styles.empty}>No active incidents</div>}
-
-      <div className={styles.list}>
-        {incidents.map((incident) => (
-          <div key={incident.id} className={styles.incident}>
-            <span
-              className={styles.indicator}
-              style={{ backgroundColor: INCIDENT_COLORS[incident.type] }}
+    <>
+      <PanelHeader
+        title="Incidents"
+        subtitle={
+          incidents.length === 0
+            ? "Monitor closures, accidents, and construction events."
+            : `${incidents.length} active disruptions on the network`
+        }
+        badge={<PanelBadge>{incidents.length}</PanelBadge>}
+        actions={
+          <>
+            <label className={styles.autoLabel}>
+              <Switch
+                checked={autoGenerate}
+                onChange={toggleAutoGenerate}
+                aria-label="Auto-generate incidents"
+              />
+              <span className={styles.autoText}>Auto</span>
+            </label>
+            <SquaredButton
+              icon={<span aria-hidden="true">+</span>}
+              variant="surface"
+              aria-label="Create incident"
+              title="Create incident"
+              onClick={createRandom}
             />
-            <div className={styles.info}>
-              <span className={styles.typeLabel}>{incident.type}</span>
-              <div className={styles.meta}>
-                <div className={styles.severityBar}>
-                  <div
-                    className={styles.severityFill}
-                    style={{
-                      width: `${incident.severity * 100}%`,
-                      backgroundColor: INCIDENT_COLORS[incident.type],
-                    }}
-                  />
+          </>
+        }
+      />
+
+      <PanelBody className={styles.body}>
+        {incidents.length === 0 ? <PanelEmptyState>No active incidents</PanelEmptyState> : null}
+
+        <div className={styles.list}>
+          {incidents.map((incident) => (
+            <div key={incident.id} className={styles.incident}>
+              <span
+                className={styles.indicator}
+                style={{ backgroundColor: INCIDENT_COLORS[incident.type] }}
+              />
+              <div className={styles.info}>
+                <span className={styles.typeLabel}>{incident.type}</span>
+                <div className={styles.meta}>
+                  <div className={styles.severityBar}>
+                    <div
+                      className={styles.severityFill}
+                      style={{
+                        width: `${incident.severity * 100}%`,
+                        backgroundColor: INCIDENT_COLORS[incident.type],
+                      }}
+                    />
+                  </div>
+                  <span className={styles.timeRemaining}>
+                    {formatTimeRemaining(incident.expiresAt)}
+                  </span>
                 </div>
-                <span className={styles.timeRemaining}>
-                  {formatTimeRemaining(incident.expiresAt)}
-                </span>
               </div>
+              <SquaredButton
+                className={styles.removeButton}
+                icon={<span aria-hidden="true">×</span>}
+                variant="ghost"
+                tone="danger"
+                aria-label="Remove incident"
+                title="Remove incident"
+                onClick={() => remove(incident.id)}
+              />
             </div>
-            <button
-              className={styles.removeButton}
-              onClick={() => remove(incident.id)}
-              title="Remove incident"
-              type="button"
-            >
-              x
-            </button>
-          </div>
-        ))}
-      </div>
-    </div>
+          ))}
+        </div>
+      </PanelBody>
+    </>
   );
 }

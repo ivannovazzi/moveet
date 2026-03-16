@@ -1,9 +1,9 @@
 .searchBar {
-  background: rgba(17, 17, 17, 0.88);
+  background: var(--glass-bg);
   left: 50%;
   transform: translateX(-50%);
   width: min(640px, calc(100% - 56px));
-  height: 48px;
+  height: var(--control-xl);
   position: absolute;
   top: var(--space-4);
   display: flex;
@@ -19,7 +19,7 @@
 }
 
 .searchBar:focus-within {
-  border-color: rgba(57, 153, 255, 0.35);
+  border-color: var(--focus-border);
 }
 
 .searchBar label {
@@ -35,8 +35,8 @@
 .typeahead:focus {
   height: 100%;
   width: 100%;
-  padding: 0 18px;
-  font-size: calc(var(--text-base) + 1px);
+  padding: 0 var(--space-6);
+  font-size: var(--text-md);
   border-radius: var(--radius-lg) 0 0 var(--radius-lg);
   margin-right: 0;
   background: transparent;

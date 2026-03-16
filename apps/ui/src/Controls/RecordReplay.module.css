@@ -1,23 +1,10 @@
-/* ── Section wrapper ── */
-
-.section {
-  padding: var(--space-4);
-  border-bottom: var(--surface-border);
+.body {
+  gap: var(--space-4);
 }
 
-.sectionHeader {
+.listHeader {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--space-4);
-}
-
-.title {
-  font-size: var(--text-sm);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: var(--color-gray);
 }
 
 /* ── Record button ── */
@@ -77,8 +64,13 @@
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
 }
 
 .recordIcon {
@@ -104,6 +96,7 @@
 
 .recordingItem {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3);
@@ -119,6 +112,17 @@
 .recordingItem:hover {
   background: var(--surface-bg-hover);
   border-color: rgba(255, 255, 255, 0.14);
+}
+
+.recordingItemActive {
+  background: rgba(57, 153, 255, 0.08);
+  border-color: rgba(57, 153, 255, 0.25);
+  cursor: default;
+}
+
+.recordingItemActive:hover {
+  background: rgba(57, 153, 255, 0.08);
+  border-color: rgba(57, 153, 255, 0.25);
 }
 
 .recordingInfo {
@@ -142,10 +146,7 @@
   margin-top: var(--space-1);
 }
 
-.empty {
-  font-size: var(--text-sm);
-  color: var(--color-gray);
-  padding: var(--space-3);
-  text-align: center;
+.playingLabel {
+  color: var(--color-accent, #39f);
+  font-weight: 500;
 }
-
