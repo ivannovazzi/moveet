@@ -52,9 +52,7 @@ export class TrafficManager {
    * Returns a snapshot of all edges with congestion data.
    * congestionFactor: 1.0 = free flow, 0.2 = completely jammed.
    */
-  getTrafficSnapshot(
-    getEdge: (id: string) => Edge | undefined
-  ): Array<{
+  getTrafficSnapshot(getEdge: (id: string) => Edge | undefined): Array<{
     edgeId: string;
     congestion: number;
     coordinates: [number, number][];
@@ -72,11 +70,7 @@ export class TrafficManager {
       if (count <= 0) continue;
       const edge = getEdge(edgeId);
       if (!edge) continue;
-      const congestion = this.getCongestionFactor(
-        edgeId,
-        edge.distance,
-        edge.highway
-      );
+      const congestion = this.getCongestionFactor(edgeId, edge.distance, edge.highway);
       result.push({
         edgeId,
         congestion,

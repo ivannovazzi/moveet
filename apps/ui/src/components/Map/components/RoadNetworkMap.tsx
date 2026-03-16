@@ -48,7 +48,10 @@ export const RoadNetworkMap: React.FC<RoadNetworkMapProps> = ({
     const pathGen = geoPath().projection(proj);
     setProjection(() => proj);
 
-    const roadsGroup = svg.insert("g", ":first-child").attr("class", "roads").attr("opacity", strokeOpacity);
+    const roadsGroup = svg
+      .insert("g", ":first-child")
+      .attr("class", "roads")
+      .attr("opacity", strokeOpacity);
 
     // Filter and cache long main roads first
     const mainRoads = data.features.filter((d) => {
