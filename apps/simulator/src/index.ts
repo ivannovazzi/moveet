@@ -2,6 +2,8 @@ import type { Request, Response, NextFunction } from "express";
 import express from "express";
 import compression from "compression";
 import cors from "cors";
+import path from "path";
+import fs from "fs";
 import { RoadNetwork } from "./modules/RoadNetwork";
 import { VehicleManager } from "./modules/VehicleManager";
 import { FleetManager } from "./modules/FleetManager";
@@ -76,6 +78,17 @@ app.use(createIncidentRoutes(ctx));
 app.use(createRecordingRoutes(ctx));
 app.use(createReplayRoutes(ctx));
 app.use(createFleetRoutes(ctx));
+
+// ─── API documentation ──────────────────────────────────────────────
+
+app.get("/api-docs", (_req, res) => {
+  const specPath = path.join(__dirname, "..", "openapi.yaml");
+  if (!fs.existsSync(specPath)) {
+    res.status(404).json({ error: "OpenAPI spec not found" });
+    return;
+  }
+  res.type("text/yaml").send(fs.readFileSync(specPath, "utf-8"));
+});
 
 // Global error handler
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
