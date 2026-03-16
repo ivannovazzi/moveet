@@ -79,8 +79,8 @@ export class TrafficManager {
         edgeId,
         congestion,
         coordinates: [
-          [edge.start.coordinates[0], edge.start.coordinates[1]],
-          [edge.end.coordinates[0], edge.end.coordinates[1]],
+          [edge.start.coordinates[1], edge.start.coordinates[0]],
+          [edge.end.coordinates[1], edge.end.coordinates[0]],
         ],
         highway: edge.highway,
       });
