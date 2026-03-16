@@ -10,7 +10,7 @@ import { FleetManager } from "./modules/FleetManager";
 import { IncidentManager } from "./modules/IncidentManager";
 import { RecordingManager } from "./modules/RecordingManager";
 import { SimulationController } from "./modules/SimulationController";
-import { config, verifyConfig } from "./utils/config";
+import { config, verifyConfig, logConfig } from "./utils/config";
 import { generalRateLimiter } from "./middleware/rateLimiter";
 import logger from "./utils/logger";
 import {
@@ -26,6 +26,7 @@ import type { RouteContext } from "./routes";
 import { setupWebSocket, wireEvents, registerGracefulShutdown } from "./setup";
 
 verifyConfig();
+logConfig();
 
 const app = express();
 app.use(cors({ origin: true }));

@@ -1,8 +1,6 @@
-const BASE_URL = import.meta.env.VITE_ADAPTER_URL ?? "http://localhost:5011";
+import { config } from "@/utils/config";
 
-if (!import.meta.env.VITE_ADAPTER_URL && import.meta.env.PROD) {
-  console.warn("VITE_ADAPTER_URL is not set — adapter requests will use http://localhost:5011");
-}
+const BASE_URL = config.adapterUrl;
 
 export interface ConfigField {
   name: string;

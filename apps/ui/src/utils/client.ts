@@ -380,12 +380,11 @@ class SimulationService {
   }
 }
 
-const host = import.meta.env.VITE_API_URL || "http://localhost:5010";
-const wsHost = import.meta.env.VITE_WS_URL || "ws://localhost:5010";
+import { config as appConfig } from "./config";
 
 export default new SimulationService(
-  new HttpClient(host),
-  new WebSocketClient(wsHost, {
+  new HttpClient(appConfig.apiUrl),
+  new WebSocketClient(appConfig.wsUrl, {
     autoReconnect: !import.meta.env.VITEST,
     logReconnects: !import.meta.env.VITEST,
   })
