@@ -2,6 +2,7 @@ import type { PoolConfig } from "pg";
 import { Pool } from "pg";
 import type { ConfigField, DataSource, HealthCheckResult, PluginConfig } from "../types";
 import type { ExportVehicle } from "../../types";
+import { validateSqlQuery } from "./sql-validation";
 
 interface PostgresFieldMap {
   id?: string;
@@ -38,7 +39,14 @@ export class PostgresSource implements DataSource {
     { name: "user", label: "User", type: "string" },
     { name: "password", label: "Password", type: "password" },
     { name: "database", label: "Database", type: "string" },
-    { name: "query", label: "Query", type: "string", default: DEFAULT_QUERY },
+    {
+      name: "query",
+      label: "Query",
+      type: "string",
+      default: DEFAULT_QUERY,
+      placeholder:
+        "Read-only SELECT only. DDL/DML keywords, comments, and multi-statement queries are blocked.",
+    },
     { name: "fieldMap", label: "Field Map", type: "json" },
   ];
   private pool: Pool | null = null;
@@ -53,7 +61,12 @@ export class PostgresSource implements DataSource {
   async connect(config: PluginConfig): Promise<void> {
     const cfg = config as PostgresConfig;
 
-    this.query = cfg.query || DEFAULT_QUERY;
+    const rawQuery = cfg.query || DEFAULT_QUERY;
+    const validation = validateSqlQuery(rawQuery);
+    if (!validation.valid) {
+      throw new Error(`PostgresSource: invalid query — ${validation.reason}`);
+    }
+    this.query = rawQuery;
 
     if (cfg.fieldMap) {
       this.fieldMap = { ...this.fieldMap, ...cfg.fieldMap };

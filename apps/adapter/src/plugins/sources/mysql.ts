@@ -2,6 +2,7 @@ import type { Pool, PoolOptions } from "mysql2/promise";
 import mysql from "mysql2/promise";
 import type { ConfigField, DataSource, HealthCheckResult, PluginConfig } from "../types";
 import type { ExportVehicle } from "../../types";
+import { validateSqlQuery } from "./sql-validation";
 
 interface MySQLFieldMap {
   id?: string;
@@ -31,7 +32,14 @@ export class MySQLSource implements DataSource {
     { name: "user", label: "User", type: "string", required: true },
     { name: "password", label: "Password", type: "password", required: true },
     { name: "database", label: "Database", type: "string", required: true },
-    { name: "query", label: "Query", type: "string", default: DEFAULT_QUERY },
+    {
+      name: "query",
+      label: "Query",
+      type: "string",
+      default: DEFAULT_QUERY,
+      placeholder:
+        "Read-only SELECT only. DDL/DML keywords, comments, and multi-statement queries are blocked.",
+    },
     { name: "fieldMap", label: "Field Map", type: "json" },
   ];
   private pool: Pool | null = null;
@@ -46,7 +54,12 @@ export class MySQLSource implements DataSource {
   async connect(config: PluginConfig): Promise<void> {
     const cfg = config as MySQLConfig;
 
-    this.query = cfg.query || DEFAULT_QUERY;
+    const rawQuery = cfg.query || DEFAULT_QUERY;
+    const validation = validateSqlQuery(rawQuery);
+    if (!validation.valid) {
+      throw new Error(`MySQLSource: invalid query — ${validation.reason}`);
+    }
+    this.query = rawQuery;
 
     if (cfg.fieldMap) {
       this.fieldMap = { ...this.fieldMap, ...cfg.fieldMap };
