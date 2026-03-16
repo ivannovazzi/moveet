@@ -7,6 +7,7 @@ interface PolylineProps {
   coordinates: Position[];
   color?: string;
   width?: number;
+  opacity?: number;
   onClick?: () => void;
 }
 
@@ -14,6 +15,7 @@ export const Polyline = memo<PolylineProps>(function Polyline({
   coordinates,
   color = "#4488ff",
   width = 1,
+  opacity,
   onClick,
 }) {
   const { projection } = useMapContext();
@@ -36,6 +38,7 @@ export const Polyline = memo<PolylineProps>(function Polyline({
       ref={pathRef}
       stroke={color}
       strokeWidth={width}
+      strokeOpacity={opacity ?? 1}
       fill="none"
       strokeLinejoin="round"
       strokeLinecap="round"

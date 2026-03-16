@@ -3,11 +3,11 @@ import { useClock } from "@/hooks/useClock";
 import { PanelBody, PanelHeader } from "./PanelPrimitives";
 import styles from "./ClockPanel.module.css";
 
-const TIME_OF_DAY_META: Record<TimeOfDay, { label: string; emoji: string }> = {
-  morning_rush: { label: "Morning Rush", emoji: "🌅" },
-  midday: { label: "Midday", emoji: "☀️" },
-  evening_rush: { label: "Evening Rush", emoji: "🌆" },
-  night: { label: "Night", emoji: "🌙" },
+const TIME_OF_DAY_LABELS: Record<TimeOfDay, string> = {
+  morning_rush: "Morning Rush",
+  midday: "Midday",
+  evening_rush: "Evening Rush",
+  night: "Night",
 };
 
 const SPEED_PRESETS = [
@@ -32,11 +32,10 @@ function sliderToMultiplier(slider: number): number {
 
 function speedDescription(multiplier: number): string {
   if (multiplier === 1) return "real-time";
-  if (multiplier < 60) return `${multiplier}× speed`;
-  if (multiplier === 60) return "1 sim-min / real-sec";
-  if (multiplier === 3600) return "1 sim-hr / real-sec";
-  if (multiplier % 3600 === 0) return `${multiplier / 3600} sim-hr / real-sec`;
-  if (multiplier % 60 === 0) return `${multiplier / 60} sim-min / real-sec`;
+  if (multiplier === 60) return "1 sim-min per second";
+  if (multiplier === 3600) return "1 sim-hour per second";
+  if (multiplier % 3600 === 0) return `${multiplier / 3600} sim-hours per second`;
+  if (multiplier % 60 === 0) return `${multiplier / 60} sim-mins per second`;
   return `${multiplier}× speed`;
 }
 
@@ -49,8 +48,8 @@ export default function ClockPanel() {
     hour12: false,
   });
 
-  const meta = TIME_OF_DAY_META[clock.timeOfDay];
   const sliderValue = multiplierToSlider(clock.speedMultiplier);
+  const isRealTime = clock.speedMultiplier === 1;
 
   function handleSliderChange(e: React.ChangeEvent<HTMLInputElement>) {
     setSpeedMultiplier(sliderToMultiplier(Number(e.target.value)));
@@ -58,20 +57,18 @@ export default function ClockPanel() {
 
   return (
     <>
-      <PanelHeader title="Simulation Clock" subtitle="Current simulation time and speed controls." />
-      <PanelBody className={styles.body}>
-        <div className={styles.timeDisplay}>
-          <span className={styles.timeValue}>{timeStr}</span>
-          <span className={`${styles.badge} ${styles[`badge_${clock.timeOfDay}`]}`}>
-            {meta.emoji} {meta.label}
+      <PanelHeader
+        eyebrow={
+          <span className={styles[`eyebrow_${clock.timeOfDay}`]}>
+            {TIME_OF_DAY_LABELS[clock.timeOfDay].toUpperCase()}
           </span>
-        </div>
-
+        }
+        title={<span className={styles.timeValue}>{timeStr}</span>}
+        subtitle="Nairobi Fleet Simulation"
+      />
+      <PanelBody className={styles.body}>
         <div className={styles.speedSection}>
-          <div className={styles.speedHeader}>
-            <span className={styles.speedLabel}>Simulation Speed</span>
-            <span className={styles.speedValue}>{clock.speedMultiplier}×</span>
-          </div>
+          <span className={styles.sectionLabel}>SIMULATION SPEED</span>
           <input
             type="range"
             className={styles.slider}
@@ -81,7 +78,13 @@ export default function ClockPanel() {
             onChange={handleSliderChange}
             aria-label="Speed multiplier"
           />
-          <span className={styles.speedDesc}>{speedDescription(clock.speedMultiplier)}</span>
+          <span className={styles.speedSummary}>
+            <span className={isRealTime ? styles.speedValueNeutral : styles.speedValueAccent}>
+              {clock.speedMultiplier}×
+            </span>
+            <span className={styles.speedDot}>·</span>
+            <span className={styles.speedDesc}>{speedDescription(clock.speedMultiplier)}</span>
+          </span>
         </div>
 
         <div className={styles.presets}>
