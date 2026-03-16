@@ -1,6 +1,6 @@
 import type { TimeOfDay } from "@/types";
 import { useClock } from "@/hooks/useClock";
-import { PanelBody, PanelHeader } from "./PanelPrimitives";
+import { PanelBody } from "./PanelPrimitives";
 import styles from "./ClockPanel.module.css";
 
 const TIME_OF_DAY_LABELS: Record<TimeOfDay, string> = {
@@ -57,15 +57,13 @@ export default function ClockPanel() {
 
   return (
     <>
-      <PanelHeader
-        eyebrow={
-          <span className={styles[`eyebrow_${clock.timeOfDay}`]}>
-            {TIME_OF_DAY_LABELS[clock.timeOfDay].toUpperCase()}
-          </span>
-        }
-        title={<span className={styles.timeValue}>{timeStr}</span>}
-        subtitle="Nairobi Fleet Simulation"
-      />
+      <div className={styles.clockHeader}>
+        <span className={styles[`eyebrow_${clock.timeOfDay}`]}>
+          {TIME_OF_DAY_LABELS[clock.timeOfDay]}
+        </span>
+        <div className={styles.timeValue}>{timeStr}</div>
+        <p className={styles.subtitle}>Nairobi Fleet Simulation</p>
+      </div>
       <PanelBody className={styles.body}>
         <div className={styles.speedSection}>
           <span className={styles.sectionLabel}>SIMULATION SPEED</span>
@@ -78,13 +76,13 @@ export default function ClockPanel() {
             onChange={handleSliderChange}
             aria-label="Speed multiplier"
           />
-          <span className={styles.speedSummary}>
+          <div className={styles.speedSummary}>
             <span className={isRealTime ? styles.speedValueNeutral : styles.speedValueAccent}>
               {clock.speedMultiplier}×
             </span>
             <span className={styles.speedDot}>·</span>
             <span className={styles.speedDesc}>{speedDescription(clock.speedMultiplier)}</span>
-          </span>
+          </div>
         </div>
 
         <div className={styles.presets}>

@@ -59,6 +59,7 @@
   height: 100%;
   width: 56px;
   flex: 0 0 56px;
+  color: var(--color-text-primary);
   align-self: stretch;
   border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
   background: rgba(255, 255, 255, 0.02);
