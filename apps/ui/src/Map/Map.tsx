@@ -92,7 +92,7 @@ export default function Map({
             <TrafficZones visible={modifiers.showHeatzones} />
           </Suspense>
         )}
-        {modifiers.showDirections && (
+        {modifiers.showTrafficOverlay && (
           <Suspense fallback={null}>
             <TrafficOverlay visible={true} />
           </Suspense>

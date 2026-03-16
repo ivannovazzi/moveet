@@ -16,6 +16,7 @@ export interface Modifiers {
   showHeatmap: boolean;
   showVehicles: boolean;
   showPOIs: boolean;
+  showTrafficOverlay: boolean;
 }
 
 export interface Fleet {

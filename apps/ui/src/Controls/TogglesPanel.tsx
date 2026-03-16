@@ -11,6 +11,7 @@ interface TogglesPanelProps {
 
 const toggles: { key: keyof Modifiers; label: string }[] = [
   { key: "showDirections", label: "Network" },
+  { key: "showTrafficOverlay", label: "Traffic Colours" },
   { key: "showVehicles", label: "Vehicles" },
   { key: "showHeatmap", label: "Heatmap" },
   { key: "showHeatzones", label: "Zones" },

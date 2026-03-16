@@ -134,6 +134,7 @@ export function useVehicles(): UseVehicle {
     showHeatmap: false,
     showVehicles: true,
     showPOIs: false,
+    showTrafficOverlay: true,
   });
 
   const lowerCaseFilter = useMemo(() => filters.filter.toLowerCase(), [filters.filter]);
