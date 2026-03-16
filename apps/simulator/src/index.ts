@@ -18,6 +18,7 @@ import { HEAT_ZONE_DEFAULTS } from "./constants";
 import { VEHICLE_PROFILES } from "./utils/vehicleProfiles";
 import { generalRateLimiter, expensiveRateLimiter } from "./middleware/rateLimiter";
 import logger from "./utils/logger";
+import { MetricsCollector } from "./modules/MetricsCollector";
 
 verifyConfig();
 
@@ -88,6 +89,16 @@ app.get("/api-docs", (_req, res) => {
     return;
   }
   res.type("text/yaml").send(fs.readFileSync(specPath, "utf-8"));
+});
+
+app.get("/metrics", (_req, res) => {
+  const metrics = MetricsCollector.getInstance();
+  const accept = _req.headers.accept ?? "";
+  if (accept.includes("text/plain") || accept.includes("text/plain; version=0.0.4")) {
+    res.type("text/plain; version=0.0.4; charset=utf-8").send(metrics.toPrometheus());
+  } else {
+    res.json(metrics.toJSON());
+  }
 });
 
 app.get("/status", (_req, res) => {

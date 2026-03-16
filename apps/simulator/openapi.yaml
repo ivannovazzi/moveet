@@ -56,6 +56,59 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /metrics:
+    get:
+      operationId: getMetrics
+      summary: Get simulation performance metrics
+      description: |
+        Returns performance metrics (histograms, counters, gauges) in JSON format by default.
+        Send Accept: text/plain to receive Prometheus text exposition format.
+      tags: [Simulation]
+      responses:
+        "200":
+          description: Performance metrics snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  histograms:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        count:
+                          type: number
+                        sum:
+                          type: number
+                        avg:
+                          type: number
+                        min:
+                          type: number
+                        max:
+                          type: number
+                        p50:
+                          type: number
+                        p95:
+                          type: number
+                        p99:
+                          type: number
+                  counters:
+                    type: object
+                    additionalProperties:
+                      type: number
+                  gauges:
+                    type: object
+                    additionalProperties:
+                      type: number
+                  timestamp:
+                    type: string
+                    format: date-time
+            text/plain:
+              schema:
+                type: string
+                description: Prometheus text exposition format
+
   # ─── Simulation ──────────────────────────────────────────────────────
   /status:
     get:

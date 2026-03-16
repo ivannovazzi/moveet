@@ -12,6 +12,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import logger from "../utils/logger";
+import { MetricsCollector } from "./MetricsCollector";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -85,9 +86,22 @@ export class PathfindingPool {
       return Promise.resolve(null);
     }
 
+    const metrics = MetricsCollector.getInstance();
+    metrics.incrementCounter("pathfinding.requests_total");
+    const startTime = performance.now();
+
     return new Promise<PathfindingResult | null>((resolve, reject) => {
       const id = this.nextId++;
-      this.pending.set(id, { resolve, reject });
+      this.pending.set(id, {
+        resolve: (value) => {
+          metrics.observeHistogram("pathfinding.latency_ms", performance.now() - startTime);
+          resolve(value);
+        },
+        reject: (reason) => {
+          metrics.observeHistogram("pathfinding.latency_ms", performance.now() - startTime);
+          reject(reason);
+        },
+      });
 
       const worker = this.workers[this.nextWorker % this.workers.length];
       this.nextWorker++;

@@ -1,5 +1,6 @@
 import type { WebSocketServer, WebSocket } from "ws";
 import type { VehicleDTO } from "../types";
+import { MetricsCollector } from "./MetricsCollector";
 
 /** Backpressure threshold in bytes. Clients with bufferedAmount above this are skipped. */
 export const BACKPRESSURE_THRESHOLD = 64 * 1024; // 64 KB
@@ -82,6 +83,7 @@ export class WebSocketBroadcaster {
    * Sends a non-vehicle message immediately to all connected clients.
    */
   broadcast<T>(type: string, data: T): void {
+    const broadcastStart = performance.now();
     if (this.wss.clients.size === 0) return;
     const message = JSON.stringify({ type, data });
     for (const client of this.wss.clients) {
@@ -89,6 +91,9 @@ export class WebSocketBroadcaster {
         client.send(message);
       }
     }
+    const metrics = MetricsCollector.getInstance();
+    metrics.observeHistogram("ws.broadcast_duration_ms", performance.now() - broadcastStart);
+    metrics.setGauge("ws.connected_clients", this.wss.clients.size);
   }
 
   /**
@@ -132,6 +137,7 @@ export class WebSocketBroadcaster {
    * backpressure checks and delta filtering per client.
    */
   private flush(): void {
+    const flushStart = performance.now();
     if (this.vehicleBuffer.size === 0) return;
 
     const vehicles = Array.from(this.vehicleBuffer.values());
@@ -167,6 +173,10 @@ export class WebSocketBroadcaster {
       }
       state.droppedFlushes = 0;
     }
+
+    const metrics = MetricsCollector.getInstance();
+    metrics.observeHistogram("ws.flush_duration_ms", performance.now() - flushStart);
+    metrics.setGauge("ws.connected_clients", this.wss.clients.size);
   }
 
   /**

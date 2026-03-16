@@ -26,6 +26,7 @@ import { TrafficManager } from "./TrafficManager";
 import { FleetManager } from "./FleetManager";
 import Adapter from "./Adapter";
 import logger from "../utils/logger";
+import { MetricsCollector } from "./MetricsCollector";
 import { getProfile, FOLLOWING_DISTANCE_BY_SIZE, VEHICLE_PROFILES } from "../utils/vehicleProfiles";
 
 export class VehicleManager extends EventEmitter {
@@ -340,6 +341,7 @@ export class VehicleManager extends EventEmitter {
    * Single game loop tick: updates all active vehicles.
    */
   private gameLoopTick(): void {
+    const tickStart = performance.now();
     const now = Date.now();
 
     // Tick simulation clock once per game loop
@@ -362,6 +364,10 @@ export class VehicleManager extends EventEmitter {
         serializeVehicle(vehicle, this.fleetManager.getVehicleFleetId(vehicleId))
       );
     }
+
+    const metrics = MetricsCollector.getInstance();
+    metrics.observeHistogram("gameloop.tick_duration_ms", performance.now() - tickStart);
+    metrics.setGauge("vehicles.active_count", this.activeVehicles.size);
   }
 
   /**
