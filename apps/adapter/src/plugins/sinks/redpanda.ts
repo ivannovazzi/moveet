@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Producer } from "kafkajs";
 import { Kafka } from "kafkajs";
 import type { ConfigField, DataSink, HealthCheckResult, PluginConfig } from "../types";
@@ -17,15 +18,28 @@ export class RedpandaSink implements DataSink {
     },
     { name: "topic", label: "Topic", type: "string", default: "dispatch.vehicle.positions" },
     { name: "batchSize", label: "Batch Size", type: "number", default: 500 },
+    {
+      name: "acks",
+      label: "Acks",
+      type: "select",
+      default: 1,
+      options: [
+        { label: "None (0)", value: "0" },
+        { label: "Leader (1)", value: "1" },
+        { label: "All (-1)", value: "-1" },
+      ],
+    },
   ];
   private producer: Producer | null = null;
   private topic = "dispatch.vehicle.positions";
   private batchSize = 500;
+  private acks: number = 1;
 
   async connect(config: PluginConfig): Promise<void> {
     const brokers = ((config.brokers as string) || "localhost:19092").split(",");
     this.topic = (config.topic as string) || "dispatch.vehicle.positions";
     this.batchSize = (config.batchSize as number) || 500;
+    this.acks = config.acks != null ? Number(config.acks) : 1;
 
     const kafka = new Kafka({
       clientId: "moveet-adapter",
@@ -51,7 +65,7 @@ export class RedpandaSink implements DataSink {
       key: update.id,
       value: JSON.stringify({
         eventType: "vehicle.position",
-        eventId: `vehicle.position-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        eventId: randomUUID(),
         occurredOn: now,
         vehicleId: update.id,
         vehicleType: update.type,
@@ -62,14 +76,14 @@ export class RedpandaSink implements DataSink {
     }));
 
     if (messages.length <= this.batchSize) {
-      await this.producer.send({ topic: this.topic, messages, acks: 1 });
+      await this.producer.send({ topic: this.topic, messages, acks: this.acks });
     } else {
       const chunks: (typeof messages)[] = [];
       for (let i = 0; i < messages.length; i += this.batchSize) {
         chunks.push(messages.slice(i, i + this.batchSize));
       }
       await Promise.all(
-        chunks.map((chunk) => this.producer!.send({ topic: this.topic, messages: chunk, acks: 1 }))
+        chunks.map((chunk) => this.producer!.send({ topic: this.topic, messages: chunk, acks: this.acks }))
       );
     }
   }
