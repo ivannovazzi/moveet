@@ -17,6 +17,7 @@ const defaultVariablesTransform: VariablesTransformFn = (updates) => ({
       latitude: v.latitude,
       longitude: v.longitude,
       id: v.id,
+      type: v.type,
       positionReceivedAt: new Date().toISOString(),
     })),
   },

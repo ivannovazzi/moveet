@@ -423,6 +423,7 @@ export class VehicleManager extends EventEmitter {
           vehicles: vehicles.map((v) => ({
             id: v.id,
             name: v.name,
+            type: v.type,
             latitude: v.position[0],
             longitude: v.position[1],
           })),
