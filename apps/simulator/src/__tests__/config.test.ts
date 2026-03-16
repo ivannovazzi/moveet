@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import fs from "fs";
+import path from "path";
 
 // We test verifyConfig in isolation by controlling both the `config` values
 // (via vi.mock) and the filesystem (vi.spyOn on fs.existsSync).
@@ -185,5 +186,47 @@ describe("verifyConfig", () => {
       vi.spyOn(fs, "existsSync").mockReturnValue(true);
       withConfig({ vehicleCount: 1 }, () => expect(() => verifyConfig()).not.toThrow());
     });
+  });
+});
+
+describe(".env.example completeness", () => {
+  // Extract env var names referenced by process.env.* in config.ts
+  function getConfigEnvVars(): string[] {
+    const configPath = path.resolve(__dirname, "../utils/config.ts");
+    const source = fs.readFileSync(configPath, "utf-8");
+    const matches = source.matchAll(/process\.env\.(\w+)/g);
+    return [...new Set([...matches].map((m) => m[1]))].filter(
+      // NODE_ENV is a runtime-only variable, not a project config variable
+      (v) => v !== "NODE_ENV"
+    );
+  }
+
+  // Parse .env.example for defined variable names (including commented-out ones)
+  function getEnvExampleVars(): string[] {
+    const envExamplePath = path.resolve(__dirname, "../../.env.example");
+    const content = fs.readFileSync(envExamplePath, "utf-8");
+    const matches = content.matchAll(/^#?\s*([A-Z][A-Z0-9_]+)\s*=/gm);
+    return [...new Set([...matches].map((m) => m[1]))];
+  }
+
+  it("should document every env var used in config.ts", () => {
+    const configVars = getConfigEnvVars();
+    const exampleVars = getEnvExampleVars();
+
+    const missing = configVars.filter((v) => !exampleVars.includes(v));
+    expect(missing, `Missing from .env.example: ${missing.join(", ")}`).toEqual(
+      []
+    );
+  });
+
+  it("should not document env vars that are not used in config.ts", () => {
+    const configVars = getConfigEnvVars();
+    const exampleVars = getEnvExampleVars();
+
+    const extra = exampleVars.filter((v) => !configVars.includes(v));
+    expect(
+      extra,
+      `Extra vars in .env.example not used in config.ts: ${extra.join(", ")}`
+    ).toEqual([]);
   });
 });
