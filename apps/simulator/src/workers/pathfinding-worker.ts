@@ -24,6 +24,7 @@ interface WorkerEdge {
   distance: number;
   maxSpeed: number;
   surface: string;
+  highway: string;
 }
 
 interface WorkerNode {
@@ -131,6 +132,7 @@ function buildGraph(geojsonPath: string): Map<string, WorkerNode> {
         distance,
         maxSpeed,
         surface,
+        highway,
       });
 
       if (!isOneway) {
@@ -141,6 +143,7 @@ function buildGraph(geojsonPath: string): Map<string, WorkerNode> {
           distance,
           maxSpeed,
           surface,
+          highway,
         });
       }
     }
@@ -157,7 +160,8 @@ function findRoute(
   nodes: Map<string, WorkerNode>,
   startId: string,
   endId: string,
-  incidentEdges?: Record<string, number>
+  incidentEdges?: Record<string, number>,
+  restrictedHighways?: string[]
 ): { edgeIds: string[]; distance: number } | null {
   const startNode = nodes.get(startId);
   const endNode = nodes.get(endId);
@@ -234,6 +238,11 @@ function findRoute(
     for (const edge of currentNode.edges) {
       if (closedSet.has(edge.endNodeId)) continue;
 
+      // Skip edges on restricted road types for this vehicle
+      if (restrictedHighways && restrictedHighways.length > 0 && restrictedHighways.includes(edge.highway)) {
+        continue;
+      }
+
       // Apply incident-based edge cost penalties
       const incidentFactor = incidentEdges?.[edge.id];
       if (incidentFactor !== undefined && incidentFactor === 0) continue; // closure — skip edge
@@ -278,9 +287,14 @@ if (parentPort) {
       startId: string;
       endId: string;
       incidentEdges?: Record<string, number>;
+      restrictedHighways?: string[];
     }) => {
       if (msg.type === "findRoute") {
-        const route = findRoute(nodes, msg.startId, msg.endId, msg.incidentEdges);
+        let route = findRoute(nodes, msg.startId, msg.endId, msg.incidentEdges, msg.restrictedHighways);
+        // Fallback: if no route found with restrictions, retry without
+        if (!route && msg.restrictedHighways && msg.restrictedHighways.length > 0) {
+          route = findRoute(nodes, msg.startId, msg.endId, msg.incidentEdges);
+        }
         parentPort!.postMessage({ type: "result", id: msg.id, route });
       }
     }

@@ -20,6 +20,20 @@ export type HighwayType =
   | "tertiary"
   | "residential";
 
+export type VehicleType = "car" | "truck" | "motorcycle" | "ambulance" | "bus";
+export type VehicleSize = "small" | "medium" | "large";
+
+export interface VehicleProfile {
+  type: VehicleType;
+  minSpeed: number;
+  maxSpeed: number;
+  acceleration: number;
+  deceleration: number;
+  restrictedHighways: HighwayType[];
+  ignoreHeatZones: boolean;
+  size: VehicleSize;
+}
+
 export interface Node {
   id: string;
   coordinates: [number, number];
@@ -43,6 +57,7 @@ export interface Edge {
 export interface Vehicle {
   id: string;
   name: string;
+  type: VehicleType;
   currentEdge: Edge;
   position: [number, number];
   speed: number;
@@ -59,6 +74,7 @@ export interface Vehicle {
 export interface VehicleDTO {
   id: string;
   name: string;
+  type: VehicleType;
   position: [number, number];
   speed: number;
   heading: number;
@@ -281,6 +297,7 @@ export interface RecordingMetadata {
 
 export interface VehicleSnapshot {
   id: string;
+  type?: VehicleType;
   position: [number, number];
   speed: number;
   heading: number;

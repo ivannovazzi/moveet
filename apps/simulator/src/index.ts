@@ -15,6 +15,7 @@ import { WebSocketBroadcaster } from "./modules/WebSocketBroadcaster";
 import type { IncidentType } from "./types";
 import { config, verifyConfig } from "./utils/config";
 import { HEAT_ZONE_DEFAULTS } from "./constants";
+import { VEHICLE_PROFILES } from "./utils/vehicleProfiles";
 import { generalRateLimiter, expensiveRateLimiter } from "./middleware/rateLimiter";
 import logger from "./utils/logger";
 
@@ -89,6 +90,10 @@ app.get("/status", (_req, res) => {
   }
 });
 
+app.get("/vehicle-types", (_req, res) => {
+  res.json(VEHICLE_PROFILES);
+});
+
 app.post(
   "/reset",
   asyncHandler(async (_req, res) => {
@@ -101,7 +106,7 @@ app.post(
   "/start",
   asyncHandler(async (req, res) => {
     await simulationController.start(req.body);
-    res.json({ status: "started" });
+    res.json({ status: "started", vehicleTypes: req.body.vehicleTypes ?? null });
   })
 );
 

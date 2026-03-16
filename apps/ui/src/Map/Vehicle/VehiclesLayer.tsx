@@ -7,6 +7,25 @@ import { vehicleStore } from "../../hooks/vehicleStore";
 const AX = [0, 2.5, 0, -2.5];
 const AY = [-4, 3, 1.5, 3];
 
+// Vehicle type → shape definitions (polygon points as [x,y] arrays, normalized)
+const VEHICLE_SHAPES: Record<string, { x: number[]; y: number[] }> = {
+  car:         { x: AX,                                                          y: AY },
+  truck:       { x: [0, 3, 3, -3, -3],                                          y: [-5, -1, 4, 4, -1] },
+  motorcycle:  { x: [0, 1.5, 0, -1.5],                                          y: [-5, 2, 0, 2] },
+  ambulance:   { x: [0, 2, 2, 0.8, 0.8, 2, 2, 0, -2, -2, -0.8, -0.8, -2, -2],
+                 y: [-4, -4, -0.8, -0.8, 0.8, 0.8, 4, 4, 4, 0.8, 0.8, -0.8, -0.8, -4] },
+  bus:         { x: [0, 3.5, 3.5, -3.5, -3.5],                                  y: [-5, -2, 5, 5, -2] },
+};
+
+// Type-specific default colors (used when no fleet color)
+const VEHICLE_TYPE_COLORS: Record<string, string> = {
+  car: "#dcdcdc",
+  truck: "#f59e0b",
+  motorcycle: "#8b5cf6",
+  ambulance: "#ef4444",
+  bus: "#3b82f6",
+};
+
 /** Default fallback colors matching CSS variables in tokens.css */
 const DEFAULT_FILL = "#dcdcdc";
 const DEFAULT_STROKE = "rgba(0,0,0,0.5)";
@@ -77,26 +96,28 @@ function resolveCSSColor(color: string): string {
 }
 
 /**
- * Draw an arrow (vehicle marker) on a 2D canvas context.
+ * Draw a vehicle shape on a 2D canvas context based on vehicle type.
  */
-function drawArrow(
+function drawShape(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
   heading: number,
   s: number,
+  vehicleType: string,
   fillColor: string,
   strokeColor: string,
   strokeWidth: number
 ) {
+  const shape = VEHICLE_SHAPES[vehicleType] || VEHICLE_SHAPES.car;
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(heading);
   ctx.beginPath();
-  ctx.moveTo(AX[0] * s, AY[0] * s);
-  ctx.lineTo(AX[1] * s, AY[1] * s);
-  ctx.lineTo(AX[2] * s, AY[2] * s);
-  ctx.lineTo(AX[3] * s, AY[3] * s);
+  ctx.moveTo(shape.x[0] * s, shape.y[0] * s);
+  for (let i = 1; i < shape.x.length; i++) {
+    ctx.lineTo(shape.x[i] * s, shape.y[i] * s);
+  }
   ctx.closePath();
   ctx.fillStyle = fillColor;
   ctx.fill();
@@ -107,14 +128,15 @@ function drawArrow(
 }
 
 /**
- * Draw a glow effect behind an arrow for selected/hovered vehicles.
+ * Draw a glow effect behind a vehicle shape for selected/hovered vehicles.
  */
-function drawGlowArrow(
+function drawGlowShape(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
   heading: number,
   s: number,
+  vehicleType: string,
   fillColor: string,
   glowColor: string,
   glowRadius: number
@@ -124,7 +146,7 @@ function drawGlowArrow(
   ctx.shadowBlur = glowRadius;
   ctx.shadowOffsetX = 0;
   ctx.shadowOffsetY = 0;
-  drawArrow(ctx, x, y, heading, s, fillColor, glowColor, 0.8);
+  drawShape(ctx, x, y, heading, s, vehicleType, fillColor, glowColor, 0.8);
   ctx.restore();
 }
 
@@ -357,10 +379,10 @@ export default function VehiclesLayer({
       // Collect vehicles for rendering
       const projected: ProjectedVehicle[] = [];
 
-      let selectedVehicle: { x: number; y: number; heading: number; color: string } | null = null;
-      let hoveredVehicle: { x: number; y: number; heading: number; color: string } | null = null;
+      let selectedVehicle: { x: number; y: number; heading: number; color: string; type: string } | null = null;
+      let hoveredVehicle: { x: number; y: number; heading: number; color: string; type: string } | null = null;
 
-      const colorBatches = new Map<string, Array<{ x: number; y: number; heading: number }>>();
+      const colorBatches = new Map<string, Array<{ x: number; y: number; heading: number; type: string }>>();
 
       for (const [, v] of store) {
         if (v.position[0] === 0 && v.position[1] === 0) continue;
@@ -393,41 +415,35 @@ export default function VehiclesLayer({
         projected.push({ id: v.id, x, y });
 
         if (v.id === currentSelectedId) {
-          selectedVehicle = { x, y, heading, color: fleet?.color ?? DEFAULT_FILL };
+          const vehicleType = v.type || "car";
+          const defaultColor = VEHICLE_TYPE_COLORS[vehicleType] || DEFAULT_FILL;
+          selectedVehicle = { x, y, heading, color: fleet?.color ?? defaultColor, type: vehicleType };
         } else if (v.id === currentHoveredId) {
-          hoveredVehicle = { x, y, heading, color: fleet?.color ?? DEFAULT_FILL };
+          const vehicleType = v.type || "car";
+          const defaultColor = VEHICLE_TYPE_COLORS[vehicleType] || DEFAULT_FILL;
+          hoveredVehicle = { x, y, heading, color: fleet?.color ?? defaultColor, type: vehicleType };
         } else {
-          const color = resolveCSSColor(fleet?.color ?? DEFAULT_FILL);
-          let batch = colorBatches.get(color);
+          const vehicleType = v.type || "car";
+          const defaultColor = VEHICLE_TYPE_COLORS[vehicleType] || DEFAULT_FILL;
+          const color = resolveCSSColor(fleet?.color ?? defaultColor);
+          const batchKey = `${color}|${vehicleType}`;
+          let batch = colorBatches.get(batchKey);
           if (!batch) {
             batch = [];
-            colorBatches.set(color, batch);
+            colorBatches.set(batchKey, batch);
           }
-          batch.push({ x, y, heading });
+          batch.push({ x, y, heading, type: vehicleType });
         }
       }
 
       projectedRef.current = projected;
 
-      // Draw regular vehicles grouped by color
-      for (const [color, vehicles] of colorBatches) {
-        ctx.fillStyle = color;
-        ctx.strokeStyle = DEFAULT_STROKE;
-        ctx.lineWidth = 0.5;
+      // Draw regular vehicles grouped by color and type
+      for (const [key, vehicles] of colorBatches) {
+        const [color, batchType] = key.split("|");
 
         for (const v of vehicles) {
-          ctx.save();
-          ctx.translate(v.x, v.y);
-          ctx.rotate(v.heading);
-          ctx.beginPath();
-          ctx.moveTo(AX[0] * s, AY[0] * s);
-          ctx.lineTo(AX[1] * s, AY[1] * s);
-          ctx.lineTo(AX[2] * s, AY[2] * s);
-          ctx.lineTo(AX[3] * s, AY[3] * s);
-          ctx.closePath();
-          ctx.fill();
-          ctx.stroke();
-          ctx.restore();
+          drawShape(ctx, v.x, v.y, v.heading, s, batchType, color, DEFAULT_STROKE, 0.5);
         }
       }
 
@@ -436,12 +452,13 @@ export default function VehiclesLayer({
       }
 
       if (hoveredVehicle) {
-        drawGlowArrow(
+        drawGlowShape(
           ctx,
           hoveredVehicle.x,
           hoveredVehicle.y,
           hoveredVehicle.heading,
           s,
+          hoveredVehicle.type,
           resolveCSSColor(hoveredVehicle.color),
           HOVER_STROKE,
           3
@@ -449,12 +466,13 @@ export default function VehiclesLayer({
       }
 
       if (selectedVehicle) {
-        drawGlowArrow(
+        drawGlowShape(
           ctx,
           selectedVehicle.x,
           selectedVehicle.y,
           selectedVehicle.heading,
           s,
+          selectedVehicle.type,
           resolveCSSColor(selectedVehicle.color),
           SELECTED_STROKE,
           4

@@ -1,5 +1,5 @@
 import type { ConfigField, DataSource, HealthCheckResult, PluginConfig } from "../types";
-import type { ExportVehicle, Fleet } from "../../types";
+import type { ExportVehicle, Fleet, VehicleType } from "../../types";
 
 export class StaticSource implements DataSource {
   readonly type = "static";
@@ -12,10 +12,12 @@ export class StaticSource implements DataSource {
 
   async connect(config: PluginConfig): Promise<void> {
     const count = (config.count as number) || 10;
+    const vehicleTypes: VehicleType[] = ["car", "truck", "motorcycle", "ambulance", "bus"];
     this.vehicles = Array.from({ length: count }, (_, i) => ({
       id: `static-${i}`,
       name: `Test Vehicle ${i + 1}`,
       position: [-1.28 + Math.random() * 0.1, 36.8 + Math.random() * 0.1] as [number, number],
+      type: vehicleTypes[i % vehicleTypes.length],
     }));
 
     const half = Math.ceil(count / 2);

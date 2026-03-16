@@ -54,6 +54,7 @@ export class RedpandaSink implements DataSink {
         eventId: `vehicle.position-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
         occurredOn: now,
         vehicleId: update.id,
+        vehicleType: update.type,
         latitude: update.latitude,
         longitude: update.longitude,
         timestamp: now,

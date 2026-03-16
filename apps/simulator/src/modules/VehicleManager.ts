@@ -12,6 +12,7 @@ import type {
   Waypoint,
   MultiStopRoute,
   TrafficProfile,
+  VehicleType,
 } from "../types";
 import { SimulationClock } from "./SimulationClock";
 import { VEHICLE_CONSTANTS } from "../constants";
@@ -25,6 +26,7 @@ import { TrafficManager } from "./TrafficManager";
 import { FleetManager } from "./FleetManager";
 import Adapter from "./Adapter";
 import logger from "../utils/logger";
+import { getProfile, FOLLOWING_DISTANCE_BY_SIZE, VEHICLE_PROFILES } from "../utils/vehicleProfiles";
 
 export class VehicleManager extends EventEmitter {
   private vehicles: Map<string, Vehicle> = new Map();
@@ -49,6 +51,8 @@ export class VehicleManager extends EventEmitter {
   // Task 2: Edge → vehicle spatial index for O(1) lookups
   private vehiclesByEdge: Map<string, Set<string>> = new Map();
 
+  private pendingVehicleTypes?: Partial<Record<VehicleType, number>>;
+
   private options: StartOptions = {
     updateInterval: config.updateInterval,
     minSpeed: config.minSpeed,
@@ -70,7 +74,7 @@ export class VehicleManager extends EventEmitter {
 
   private init(): void {
     if (!config.adapterURL) {
-      this.loadFromData();
+      this.loadFromData(this.pendingVehicleTypes);
     }
     // When adapterURL is set, vehicles are loaded via initFromAdapter()
   }
@@ -100,9 +104,19 @@ export class VehicleManager extends EventEmitter {
     }
   }
 
-  private loadFromData(): void {
-    for (let i = 0; i < config.vehicleCount; i++) {
-      this.addVehicle(i.toString(), `V${i}`);
+  private loadFromData(vehicleTypes?: Partial<Record<VehicleType, number>>): void {
+    if (vehicleTypes && Object.keys(vehicleTypes).length > 0) {
+      let idx = 0;
+      for (const [type, count] of Object.entries(vehicleTypes)) {
+        for (let i = 0; i < (count as number); i++) {
+          this.addVehicle(idx.toString(), `V${idx}`, undefined, type as VehicleType);
+          idx++;
+        }
+      }
+    } else {
+      for (let i = 0; i < config.vehicleCount; i++) {
+        this.addVehicle(i.toString(), `V${i}`);
+      }
     }
   }
 
@@ -157,7 +171,7 @@ export class VehicleManager extends EventEmitter {
         this.addVehicle(v.id, v.name, v.position);
       });
     } else {
-      this.loadFromData();
+      this.loadFromData(this.pendingVehicleTypes);
     }
 
     // Clean up game loop and active vehicles
@@ -176,7 +190,7 @@ export class VehicleManager extends EventEmitter {
    * When seedPosition is provided, finds the nearest node and uses one of
    * its connected edges as the starting edge instead of a random one.
    */
-  private addVehicle(id: string, name: string, seedPosition?: [number, number]): void {
+  private addVehicle(id: string, name: string, seedPosition?: [number, number], vehicleType: VehicleType = "car"): void {
     let startEdge: Edge;
 
     if (seedPosition) {
@@ -190,12 +204,14 @@ export class VehicleManager extends EventEmitter {
       startEdge = this.network.getRandomEdge();
     }
 
+    const profile = getProfile(vehicleType);
     this.vehicles.set(id, {
       id,
       name,
+      type: vehicleType,
       currentEdge: startEdge,
       position: startEdge.start.coordinates,
-      speed: this.options.minSpeed,
+      speed: profile.minSpeed,
       bearing: startEdge.bearing,
       progress: 0,
     });
@@ -262,8 +278,9 @@ export class VehicleManager extends EventEmitter {
 
     // Fire-and-forget async pathfinding via worker pool.
     // The vehicle continues random movement until the route resolves.
+    const profile = getProfile(vehicle.type);
     this.network
-      .findRouteAsync(startNode, destination)
+      .findRouteAsync(startNode, destination, profile.restrictedHighways)
       .then((route) => {
         // Vehicle may have been removed while we were pathfinding
         if (!this.vehicles.has(vehicleId)) return;
@@ -406,6 +423,7 @@ export class VehicleManager extends EventEmitter {
           vehicles: vehicles.map((v) => ({
             id: v.id,
             name: v.name,
+            type: v.type,
             latitude: v.position[0],
             longitude: v.position[1],
           })),
@@ -437,19 +455,24 @@ export class VehicleManager extends EventEmitter {
    * @example
    * vehicleManager.setOptions({ maxSpeed: 80, heatZoneSpeedFactor: 0.6 });
    */
-  public setOptions(options: Partial<StartOptions>): void {
+  public setOptions(options: Partial<StartOptions & { vehicleTypes?: Partial<Record<VehicleType, number>> }>): void {
+    const { vehicleTypes, ...startOptions } = options;
+    if (vehicleTypes) {
+      this.pendingVehicleTypes = vehicleTypes;
+    }
     const prevInterval = this.options.updateInterval;
-    this.options = { ...this.options, ...options };
+    this.options = { ...this.options, ...startOptions };
 
     // Restart game loop if updateInterval changed and vehicles are running
     if (
-      options.updateInterval &&
-      options.updateInterval !== prevInterval &&
+      startOptions.updateInterval &&
+      startOptions.updateInterval !== prevInterval &&
       this.activeVehicles.size > 0
     ) {
-      this.restartGameLoop(options.updateInterval);
+      this.restartGameLoop(startOptions.updateInterval);
     }
 
+    this.gameLoopIntervalMs = this.options.updateInterval;
     this.emit("options", this.options);
   }
 
@@ -460,6 +483,10 @@ export class VehicleManager extends EventEmitter {
    */
   public getOptions(): StartOptions {
     return this.options;
+  }
+
+  public getVehicleProfiles() {
+    return VEHICLE_PROFILES;
   }
 
   private updateVehicle(vehicle: Vehicle, deltaMs: number): void {
@@ -488,6 +515,7 @@ export class VehicleManager extends EventEmitter {
   }
 
   private updateSpeed(vehicle: Vehicle, deltaMs: number): void {
+    const profile = getProfile(vehicle.type);
     const edgeMaxSpeed = vehicle.currentEdge.maxSpeed;
 
     // Time-based speed adjustment: night bonus on highways, no change otherwise
@@ -498,21 +526,21 @@ export class VehicleManager extends EventEmitter {
     const adjustedEdgeMaxSpeed = edgeMaxSpeed * timeSpeedModifier;
 
     const isInHeatZone = this.network.isPositionInHeatZone(vehicle.position);
-    const speedFactor = isInHeatZone ? this.options.heatZoneSpeedFactor : 1;
+    const speedFactor = isInHeatZone && !profile.ignoreHeatZones ? this.options.heatZoneSpeedFactor : 1;
     const congestion = this.traffic.getCongestionFactor(
       vehicle.currentEdge.id,
       vehicle.currentEdge.distance,
       vehicle.currentEdge.highway
     );
     const effectiveMax =
-      Math.min(this.options.maxSpeed, adjustedEdgeMaxSpeed) * speedFactor * congestion;
+      Math.min(profile.maxSpeed, adjustedEdgeMaxSpeed) * speedFactor * congestion;
 
     // Refresh target speed occasionally (roughly every 5 seconds)
     if (!vehicle.targetSpeed || Math.random() < deltaMs / 5000) {
       const variation = 1 + (Math.random() * 2 - 1) * this.options.speedVariation;
       vehicle.targetSpeed = Math.min(
         effectiveMax,
-        Math.max(this.options.minSpeed, effectiveMax * variation)
+        Math.max(profile.minSpeed, effectiveMax * variation)
       );
     }
 
@@ -524,7 +552,7 @@ export class VehicleManager extends EventEmitter {
       if (bearingDiff > this.options.turnThreshold) {
         // Scale deceleration by turn sharpness
         const sharpness = Math.min(bearingDiff / 180, 1);
-        vehicle.targetSpeed = Math.max(this.options.minSpeed, effectiveMax * (1 - sharpness * 0.6));
+        vehicle.targetSpeed = Math.max(profile.minSpeed, effectiveMax * (1 - sharpness * 0.6));
       }
     }
 
@@ -533,8 +561,8 @@ export class VehicleManager extends EventEmitter {
 
     if (ahead) {
       const gap = (ahead.progress - vehicle.progress) * vehicle.currentEdge.distance;
-      const MIN_GAP_KM = 0.02; // 20 meters
-      if (gap < MIN_GAP_KM) {
+      const minGap = FOLLOWING_DISTANCE_BY_SIZE[profile.size];
+      if (gap < minGap) {
         vehicle.targetSpeed = Math.min(vehicle.targetSpeed, ahead.speed * 0.9);
       }
     }
@@ -542,11 +570,11 @@ export class VehicleManager extends EventEmitter {
     // Smoothly interpolate toward target (accel/decel rates are in km/h per second)
     const deltaSec = deltaMs / 1000;
     const accelRate =
-      vehicle.speed < vehicle.targetSpeed ? this.options.acceleration : this.options.deceleration;
+      vehicle.speed < vehicle.targetSpeed ? profile.acceleration : profile.deceleration;
     const diff = vehicle.targetSpeed - vehicle.speed;
     const maxChange = accelRate * deltaSec;
     vehicle.speed = vehicle.speed + Math.sign(diff) * Math.min(Math.abs(diff), maxChange);
-    vehicle.speed = Math.min(effectiveMax, Math.max(this.options.minSpeed, vehicle.speed));
+    vehicle.speed = Math.min(effectiveMax, Math.max(profile.minSpeed, vehicle.speed));
   }
 
   /**
@@ -812,7 +840,8 @@ export class VehicleManager extends EventEmitter {
       };
     }
 
-    const route = await this.network.findRouteAsync(startNode, endNode);
+    const profile = getProfile(vehicle.type);
+    const route = await this.network.findRouteAsync(startNode, endNode, profile.restrictedHighways);
     if (!route || route.edges.length === 0) {
       logger.error("No route found to destination");
       return {
@@ -876,6 +905,7 @@ export class VehicleManager extends EventEmitter {
     const legResults: { start: [number, number]; end: [number, number]; distance: number }[] = [];
 
     // Compute A* for each consecutive pair
+    const waypointProfile = getProfile(vehicle.type);
     for (let i = 0; i < positions.length - 1; i++) {
       const startNode = this.network.findNearestNode(positions[i]);
       const endNode = this.network.findNearestNode(positions[i + 1]);
@@ -889,7 +919,7 @@ export class VehicleManager extends EventEmitter {
         };
       }
 
-      const route = await this.network.findRouteAsync(startNode, endNode);
+      const route = await this.network.findRouteAsync(startNode, endNode, waypointProfile.restrictedHighways);
       if (!route || route.edges.length === 0) {
         return {
           vehicleId,
@@ -1063,9 +1093,10 @@ export class VehicleManager extends EventEmitter {
       const startNode = vehicle.currentEdge.end;
       const lastEdge = route.edges[route.edges.length - 1];
       const destinationNode = lastEdge.end;
+      const rerouteProfile = getProfile(vehicle.type);
 
       this.network
-        .findRouteAsync(startNode, destinationNode)
+        .findRouteAsync(startNode, destinationNode, rerouteProfile.restrictedHighways)
         .then((newRoute) => {
           // Vehicle may have been removed or route cleared while pathfinding
           if (!this.vehicles.has(vehicleId)) return;

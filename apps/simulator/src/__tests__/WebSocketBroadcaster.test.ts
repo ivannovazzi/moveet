@@ -42,6 +42,7 @@ function makeVehicle(id: string, overrides: Partial<VehicleDTO> = {}): VehicleDT
   return {
     id,
     name: `Vehicle ${id}`,
+    type: "car",
     position: [-1.286, 36.817],
     speed: 40,
     heading: 90,

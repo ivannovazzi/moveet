@@ -40,6 +40,7 @@ function makeVehicle(
   return {
     id,
     name: `Vehicle ${id}`,
+    type: "car",
     position: [lat, lng],
     speed: 45,
     heading: 90,
