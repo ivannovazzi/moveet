@@ -114,7 +114,7 @@ describe("RestSource", () => {
   });
 
   it("returns [] on successful fetch with no vehicles", async () => {
-    mockFetch.mockResolvedValue({
+    mockHttpFetch.mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ vehicles: [] }),
     });
@@ -126,7 +126,7 @@ describe("RestSource", () => {
   });
 
   it("throws on network error during getVehicles", async () => {
-    mockFetch.mockRejectedValue(new Error("ECONNREFUSED"));
+    mockHttpFetch.mockRejectedValue(new Error("ECONNREFUSED"));
 
     const source = new RestSource();
     await source.connect({ url: "https://api.example.com" });

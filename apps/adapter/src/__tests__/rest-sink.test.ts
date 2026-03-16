@@ -98,7 +98,7 @@ describe("RestSink", () => {
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
       // v1 succeeds, v2 fails, v3 succeeds
-      mockFetch
+      mockHttpFetch
         .mockResolvedValueOnce({ ok: true })
         .mockRejectedValueOnce(new Error("connection refused"))
         .mockResolvedValueOnce({ ok: true });
@@ -132,7 +132,7 @@ describe("RestSink", () => {
     it("throws when all individual requests fail", async () => {
       vi.spyOn(console, "error").mockImplementation(() => {});
 
-      mockFetch
+      mockHttpFetch
         .mockRejectedValueOnce(new Error("timeout"))
         .mockRejectedValueOnce(new Error("timeout"));
 
@@ -151,7 +151,7 @@ describe("RestSink", () => {
       const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       vi.spyOn(console, "warn").mockImplementation(() => {});
 
-      mockFetch
+      mockHttpFetch
         .mockResolvedValueOnce({ ok: true })
         .mockRejectedValueOnce(new Error("err-a"))
         .mockRejectedValueOnce(new Error("err-b"))
