@@ -8,6 +8,7 @@
     "dev": "tsx watch src/index.ts",
     "start": "NODE_ENV=production node ./dist/index.js",
     "build": "tsc",
+    "type-check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest watch",
     "lint": "tsc --noEmit && eslint .",
