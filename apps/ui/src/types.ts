@@ -47,6 +47,16 @@ export interface SimulationStatus {
   interval: number;
   running: boolean;
   ready: boolean;
+  clock?: ClockState;
+}
+
+export type TimeOfDay = "morning_rush" | "midday" | "evening_rush" | "night";
+
+export interface ClockState {
+  currentTime: string; // ISO date string
+  speedMultiplier: number;
+  hour: number;
+  timeOfDay: TimeOfDay;
 }
 
 export interface StartOptions {

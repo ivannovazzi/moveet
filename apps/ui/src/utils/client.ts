@@ -18,6 +18,7 @@ import type {
   RecordingFile,
   RecordingMetadata,
   ReplayStatus,
+  ClockState,
 } from "@/types";
 import type {
   ResetPayload,
@@ -86,6 +87,10 @@ class SimulationService {
     this.getReplayStatus = this.getReplayStatus.bind(this);
     this.onReplayStatus = this.onReplayStatus.bind(this);
     this.createIncidentAtPosition = this.createIncidentAtPosition.bind(this);
+    // clock
+    this.getClock = this.getClock.bind(this);
+    this.setClock = this.setClock.bind(this);
+    this.onClock = this.onClock.bind(this);
   }
 
   connectWebSocket(): void {
@@ -329,6 +334,20 @@ class SimulationService {
 
   onReplayStatus(handler: (data: ReplayStatus) => void): void {
     this.ws.on("replayStatus", handler);
+  }
+
+  // ─── Simulation Clock ──────────────────────────────────────────
+
+  async getClock(): Promise<ApiResponse<ClockState>> {
+    return this.http.get<ClockState>("/clock");
+  }
+
+  async setClock(params: { speedMultiplier?: number; setTime?: string }): Promise<ApiResponse<ClockState>> {
+    return this.http.post<typeof params, ClockState>("/clock", params);
+  }
+
+  onClock(handler: (state: ClockState) => void): void {
+    this.ws.on("clock", handler);
   }
 }
 
