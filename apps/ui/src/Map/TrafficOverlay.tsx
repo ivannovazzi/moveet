@@ -24,22 +24,13 @@ function congestionColor(factor: number): string {
   return "#ef4444"; // red — jammed
 }
 
-function congestionOpacity(factor: number): number {
-  if (factor >= 0.85) return 0.45; // free flow — subtle
-  if (factor >= 0.7) return 0.6;
-  if (factor >= 0.55) return 0.75;
-  return 0.85; // congested — bold
-}
-
 // Build a spatial index: "lon,lat" → worst congestion factor
 function buildCongestionIndex(edges: TrafficEdge[]): Map<string, number> {
   const index = new Map<string, number>();
   for (const edge of edges) {
     for (const [lon, lat] of edge.coordinates) {
-      // Round to ~10m precision for fuzzy matching
       const key = `${lon.toFixed(4)},${lat.toFixed(4)}`;
       const existing = index.get(key);
-      // Keep the worst (lowest) congestion factor per location
       if (existing === undefined || edge.congestion < existing) {
         index.set(key, edge.congestion);
       }
@@ -61,14 +52,16 @@ export default function TrafficOverlay({ visible }: { visible: boolean }) {
 
   const congestionIndex = useMemo(() => buildCongestionIndex(trafficEdges), [trafficEdges]);
 
-  // Look up worst congestion along a road feature's coordinates
+  // Returns congestion or null if no traffic data touches this road
   const getRoadCongestion = useCallback(
-    (coordinates: [number, number][]): number => {
-      let worst = 1.0;
+    (coordinates: [number, number][]): number | null => {
+      let worst: number | null = null;
       for (const [lon, lat] of coordinates) {
         const key = `${lon.toFixed(4)},${lat.toFixed(4)}`;
         const val = congestionIndex.get(key);
-        if (val !== undefined && val < worst) worst = val;
+        if (val !== undefined) {
+          if (worst === null || val < worst) worst = val;
+        }
       }
       return worst;
     },
@@ -80,22 +73,24 @@ export default function TrafficOverlay({ visible }: { visible: boolean }) {
     const pathGen = geoPath().projection(projection);
     const g = select(gRef.current);
 
+    // Only render roads that have traffic data
+    const roadsWithTraffic = roads.filter(
+      (d) => getRoadCongestion(d.geometry.coordinates) !== null
+    );
+
     g.selectAll("path")
-      .data(roads)
+      .data(roadsWithTraffic, (_d, i) => i)
       .join("path")
       .attr("d", (d) => pathGen(d as Parameters<typeof pathGen>[0]) ?? "")
       .attr("fill", "none")
       .attr("stroke-linejoin", "round")
       .attr("stroke-linecap", "round")
-      .attr("stroke-width", (d) => HIGHWAY_WIDTH[d.properties.highway ?? ""] ?? 1)
+      .attr("stroke-width", (d) => (HIGHWAY_WIDTH[d.properties.highway ?? ""] ?? 1) + 1)
       .attr("stroke", (d) => {
-        const c = getRoadCongestion(d.geometry.coordinates);
+        const c = getRoadCongestion(d.geometry.coordinates)!;
         return congestionColor(c);
       })
-      .attr("stroke-opacity", (d) => {
-        const c = getRoadCongestion(d.geometry.coordinates);
-        return congestionOpacity(c);
-      });
+      .attr("stroke-opacity", 0.85);
   }, [roads, projection, getRoadCongestion]);
 
   if (!visible) return null;
