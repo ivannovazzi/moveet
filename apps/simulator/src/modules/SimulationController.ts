@@ -49,6 +49,11 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
   private _mode: "live" | "replay" = "live";
   private replayManager?: ReplayManager;
 
+  // Bound listener references for proper cleanup on stop/reset
+  private _onIncidentCreated?: (incident: Incident) => void;
+  private _onIncidentCleared?: () => void;
+  private _onClockHourChanged?: (hour: number, timeOfDay: string) => void;
+
   constructor(
     private vehicleManager: VehicleManager,
     incidentManager?: IncidentManager
@@ -168,13 +173,15 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
     // Start incident cleanup and wire event listeners
     if (this.incidentManager) {
       this.incidentManager.startCleanup();
-      this.incidentManager.on("incident:created", (incident: Incident) => {
+      this._onIncidentCreated = (incident: Incident) => {
         this.rebuildIncidentEdges();
         this.vehicleManager.handleIncidentCreated(incident);
-      });
-      this.incidentManager.on("incident:cleared", () => {
+      };
+      this._onIncidentCleared = () => {
         this.rebuildIncidentEdges();
-      });
+      };
+      this.incidentManager.on("incident:created", this._onIncidentCreated);
+      this.incidentManager.on("incident:cleared", this._onIncidentCleared);
     }
 
     // Automatically regenerate heat zones every 5 minutes
@@ -187,11 +194,10 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
     }
 
     // Wire clock hour:changed to broadcast clock events
-    this.vehicleManager.clock.on("hour:changed", (hour: number, timeOfDay: string) => {
-      void hour;
-      void timeOfDay; // used via getStatus()
+    this._onClockHourChanged = (_hour: number, _timeOfDay: string) => {
       this.emit("clock", this.getStatus().clock);
-    });
+    };
+    this.vehicleManager.clock.on("hour:changed", this._onClockHourChanged);
 
     this.emit("updateStatus", this.getStatus());
   }
@@ -263,9 +269,23 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
    * console.log('Simulation stopped');
    */
   public stop(): void {
-    // Stop incident cleanup
+    // Remove event listeners registered by start() to prevent accumulation
     if (this.incidentManager) {
       this.incidentManager.stopCleanup();
+      if (this._onIncidentCreated) {
+        this.incidentManager.removeListener("incident:created", this._onIncidentCreated);
+        this._onIncidentCreated = undefined;
+      }
+      if (this._onIncidentCleared) {
+        this.incidentManager.removeListener("incident:cleared", this._onIncidentCleared);
+        this._onIncidentCleared = undefined;
+      }
+    }
+
+    // Remove clock listener registered by start()
+    if (this._onClockHourChanged) {
+      this.vehicleManager.clock.removeListener("hour:changed", this._onClockHourChanged);
+      this._onClockHourChanged = undefined;
     }
 
     // Stop all vehicle updates
