@@ -217,6 +217,8 @@ export default function VehiclesLayer({
     containerRef.current = container;
 
     const canvas = document.createElement("canvas");
+    canvas.setAttribute("role", "img");
+    canvas.setAttribute("aria-label", "Vehicle fleet map");
     canvas.style.position = "absolute";
     canvas.style.top = "0";
     canvas.style.left = "0";

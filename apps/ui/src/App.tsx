@@ -395,7 +395,7 @@ export default function App() {
         </ErrorBoundary>
       </div>
       {xy && (
-        <ContextMenu position={xy}>
+        <ContextMenu position={xy} onClose={closeContextMenu}>
           <div ref={ref} className={styles.contextMenu}>
             <MapContextMenu
               state={dispatch.dispatchState}

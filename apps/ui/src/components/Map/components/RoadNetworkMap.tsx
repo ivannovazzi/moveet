@@ -144,6 +144,38 @@ export const RoadNetworkMap: React.FC<RoadNetworkMapProps> = ({
     [projection, transform, svgRef, onContextClick]
   );
 
+  const onSvgKeyDown = useCallback(
+    (evt: React.KeyboardEvent<SVGSVGElement>) => {
+      // Shift+F10 or the ContextMenu key opens the context menu
+      const isShiftF10 = evt.key === "F10" && evt.shiftKey;
+      const isContextMenuKey = evt.key === "ContextMenu";
+      if (!isShiftF10 && !isContextMenuKey) return;
+      if (!projection || !transform || !svgRef) return;
+
+      evt.preventDefault();
+
+      // Use the center of the SVG as the context position
+      const rect = svgRef.getBoundingClientRect();
+      const cx = rect.width / 2;
+      const cy = rect.height / 2;
+      const [mx, my] = transform.invert([cx, cy]);
+      const coords = projection.invert?.([mx, my]);
+      if (!coords) return;
+
+      // Create a synthetic mouse event for the context menu handler
+      const syntheticEvent = {
+        ...evt,
+        clientX: rect.left + cx,
+        clientY: rect.top + cy,
+        preventDefault: () => evt.preventDefault(),
+        stopPropagation: () => evt.stopPropagation(),
+      } as unknown as React.MouseEvent;
+
+      onContextClick?.(syntheticEvent, coords);
+    },
+    [projection, transform, svgRef, onContextClick]
+  );
+
   return (
     <MapContextProvider
       map={svgRef}
@@ -168,8 +200,11 @@ export const RoadNetworkMap: React.FC<RoadNetworkMapProps> = ({
                 display: "block",
                 cursor,
               }}
+              tabIndex={0}
+              aria-label="Road network map"
               onClick={onSvgClick}
               onContextMenu={onSvgContextClick}
+              onKeyDown={onSvgKeyDown}
             >
               <g className="markers">{children}</g>
             </svg>
