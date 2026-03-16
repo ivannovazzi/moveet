@@ -8,6 +8,7 @@ import { vehicleStore } from "./vehicleStore";
 vi.mock("@/utils/client", () => ({
   default: {
     onVehicle: vi.fn(),
+    offVehicle: vi.fn(),
   },
 }));
 

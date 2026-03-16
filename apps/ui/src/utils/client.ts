@@ -120,6 +120,11 @@ class SimulationService {
     });
   }
 
+  offVehicle(): void {
+    this.ws.off("vehicle");
+    this.ws.off("vehicles");
+  }
+
   onStatus(handler: (status: SimulationStatus) => void): void {
     this.ws.on("status", handler);
   }

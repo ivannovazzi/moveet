@@ -223,10 +223,15 @@ export default function App() {
       };
     });
 
-    const response = await client.batchDirection(body);
-    setDispatching(false);
-    if (response.data?.results) {
-      setResults(response.data.results);
+    try {
+      const response = await client.batchDirection(body);
+      if (response.data?.results) {
+        setResults(response.data.results);
+      }
+    } catch (error) {
+      console.error("Dispatch failed:", error);
+    } finally {
+      setDispatching(false);
     }
   }, [assignments]);
 

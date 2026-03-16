@@ -230,7 +230,9 @@ export default function VehiclesLayer({
     canvasRef.current = canvas;
 
     // Size the canvas backing buffer to match the container
+    let disposed = false;
     const resizeObserver = new ResizeObserver((entries) => {
+      if (disposed) return;
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
         const dpr = window.devicePixelRatio || 1;
@@ -241,6 +243,7 @@ export default function VehiclesLayer({
     resizeObserver.observe(container);
 
     return () => {
+      disposed = true;
       resizeObserver.disconnect();
       canvas.remove();
       canvasRef.current = null;

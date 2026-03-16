@@ -25,6 +25,7 @@ let directionHandlers: DirectionHandler[] = [];
 vi.mock("@/utils/client", () => ({
   default: {
     onVehicle: vi.fn(),
+    offVehicle: vi.fn(),
     onConnect: vi.fn((h: ConnectHandler) => {
       connectHandlers.push(h);
     }),
