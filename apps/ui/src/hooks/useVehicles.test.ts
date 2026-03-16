@@ -38,6 +38,7 @@ describe("useVehicles", () => {
       showHeatmap: false,
       showVehicles: true,
       showPOIs: false,
+      showTrafficOverlay: true,
     });
   });
 
@@ -117,6 +118,7 @@ describe("useVehicles", () => {
       showHeatmap: true,
       showVehicles: true,
       showPOIs: true,
+      showTrafficOverlay: true,
     });
   });
 });
