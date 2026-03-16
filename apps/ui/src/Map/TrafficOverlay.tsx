@@ -85,7 +85,7 @@ export default function TrafficOverlay({ visible }: { visible: boolean }) {
       .attr("fill", "none")
       .attr("stroke-linejoin", "round")
       .attr("stroke-linecap", "round")
-      .attr("stroke-width", (d) => (HIGHWAY_WIDTH[d.properties.highway ?? ""] ?? 1) + 1)
+      .attr("stroke-width", (d) => HIGHWAY_WIDTH[d.properties.highway ?? ""] ?? 1)
       .attr("stroke", (d) => {
         const c = getRoadCongestion(d.geometry.coordinates)!;
         return congestionColor(c);
