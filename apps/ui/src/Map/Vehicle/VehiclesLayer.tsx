@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from "react";
 import type { Fleet, Position } from "@/types";
+import { toMapPosition } from "@/utils/coordinates";
 import { useMapContext } from "../../components/Map/hooks";
 import { vehicleStore } from "../../hooks/vehicleStore";
 
@@ -410,8 +411,8 @@ export default function VehiclesLayer({
           heading = ((v.heading ?? 0) * Math.PI) / 180;
         }
 
-        // Projection expects [lng, lat]
-        const pos = projectPosition([lng, lat]);
+        // Projection expects [lng, lat] — toMapPosition swaps from [lat, lng]
+        const pos = projectPosition(toMapPosition([lat, lng]));
         if (!pos) continue;
 
         const [x, y] = pos;

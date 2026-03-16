@@ -45,6 +45,7 @@ import ConnectionStatus from "./components/ConnectionStatus";
 import { useConnectionState } from "./hooks/useConnectionState";
 import { isRoad } from "./utils/typeGuards";
 import ErrorBoundary, { SectionErrorFallback } from "./components/ErrorBoundary";
+import { toLatLng } from "./utils/coordinates";
 
 export default function App() {
   const [onContextClick, ref, xy, closeContextMenu] = useContextMenu();
@@ -123,7 +124,7 @@ export default function App() {
   const onMapClick = useCallback(
     (_event?: React.MouseEvent, position?: Position) => {
       if (dispatchState === DispatchState.ROUTE && position && selectedForDispatch.length > 0) {
-        const newWaypoint: Waypoint = { position: [position[1], position[0]] };
+        const newWaypoint: Waypoint = { position: toLatLng(position) };
 
         setAssignments((prev) => {
           // Append waypoint to existing assignments for selected vehicles
@@ -156,7 +157,7 @@ export default function App() {
   );
 
   const onAddWaypoint = useCallback((vehicleId: string, position: Position) => {
-    const newWaypoint: Waypoint = { position: [position[1], position[0]] };
+    const newWaypoint: Waypoint = { position: toLatLng(position) };
     setAssignments((prev) =>
       prev.map((a) => {
         if (a.vehicleId !== vehicleId) return a;
@@ -179,7 +180,7 @@ export default function App() {
       .filter((id) => !assignedIds.has(id))
       .map((id) => {
         const vehicle = vehicles.find((v) => v.id === id);
-        const newWaypoint: Waypoint = { position: [destination[1], destination[0]] };
+        const newWaypoint: Waypoint = { position: toLatLng(destination) };
         return {
           vehicleId: id,
           vehicleName: vehicle?.name ?? id,
@@ -197,7 +198,8 @@ export default function App() {
   const onCreateIncident = useCallback(
     (type: IncidentType) => {
       if (!destination) return;
-      incidents.createAtPosition(destination[1], destination[0], type);
+      const [lat, lng] = toLatLng(destination);
+      incidents.createAtPosition(lat, lng, type);
       closeContextMenu();
     },
     [destination, incidents, closeContextMenu]
@@ -273,7 +275,7 @@ export default function App() {
       const getOne = (arr: Position[]) => arr[Math.floor(Math.random() * arr.length)];
       coordinates = getOne(selectedItem.streets.flat());
     } else {
-      coordinates = [selectedItem.coordinates[1], selectedItem.coordinates[0]];
+      coordinates = toLatLng(selectedItem.coordinates);
     }
     await setFinalDestination(
       coordinates,
