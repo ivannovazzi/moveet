@@ -17,6 +17,7 @@ export function setupWebSocket(server: Server): WebSocketSetupResult {
   broadcaster.start();
 
   wss.on("connection", (ws) => {
+    broadcaster.trackClient(ws);
     logger.info(`Client connected (total: ${broadcaster.clientCount})`);
 
     ws.on("close", () => {

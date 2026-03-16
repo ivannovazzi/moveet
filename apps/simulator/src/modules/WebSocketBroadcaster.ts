@@ -10,19 +10,33 @@ export const MAX_DROPPED_FLUSHES = 50;
 /** Minimum position change (in degrees) to trigger a delta update for a vehicle. ~1.1 meters. */
 export const POSITION_DELTA_THRESHOLD = 0.00001;
 
+/** Default interval between ping frames sent to each client (ms). */
+export const DEFAULT_PING_INTERVAL_MS = 30_000;
+
+/** Time to wait for a pong response before considering a connection dead (ms). */
+export const DEFAULT_PONG_TIMEOUT_MS = 10_000;
+
 export interface BroadcasterOptions {
   /** Flush interval in milliseconds. Defaults to 100. */
   flushIntervalMs?: number;
+  /** Interval between ping frames in milliseconds. Defaults to 30 000. Set to 0 to disable. */
+  pingIntervalMs?: number;
+  /** Time to wait for pong before closing the connection (ms). Defaults to 10 000. */
+  pongTimeoutMs?: number;
 }
 
 /**
- * Per-client tracking state for backpressure and delta updates.
+ * Per-client tracking state for backpressure, delta updates, and heartbeat.
  */
 interface ClientState {
   /** Last sent position per vehicle id. */
   lastSent: Map<string, [number, number]>;
   /** Number of consecutive flushes this client was skipped due to backpressure. */
   droppedFlushes: number;
+  /** Timestamp (ms) of the last pong received from this client. */
+  lastPong: number;
+  /** Timestamp (ms) of the last ping sent to this client. 0 means no ping sent yet. */
+  lastPingSent: number;
 }
 
 /**
@@ -41,32 +55,58 @@ interface ClientState {
 export class WebSocketBroadcaster {
   private readonly wss: WebSocketServer;
   private readonly flushIntervalMs: number;
+  private readonly pingIntervalMs: number;
+  private readonly pongTimeoutMs: number;
   private readonly vehicleBuffer: Map<string, VehicleDTO> = new Map();
   private flushTimer: NodeJS.Timeout | null = null;
+  private heartbeatTimer: NodeJS.Timeout | null = null;
   private readonly clientStates: WeakMap<WebSocket, ClientState> = new WeakMap();
 
   constructor(wss: WebSocketServer, options: BroadcasterOptions = {}) {
     this.wss = wss;
     this.flushIntervalMs = options.flushIntervalMs ?? 100;
+    this.pingIntervalMs = options.pingIntervalMs ?? DEFAULT_PING_INTERVAL_MS;
+    this.pongTimeoutMs = options.pongTimeoutMs ?? DEFAULT_PONG_TIMEOUT_MS;
   }
 
   /**
-   * Starts the periodic flush timer. Must be called after construction.
+   * Starts the periodic flush timer and heartbeat. Must be called after construction.
    */
   start(): void {
     if (this.flushTimer) return;
     this.flushTimer = setInterval(() => this.flush(), this.flushIntervalMs);
+    if (this.pingIntervalMs > 0) {
+      this.heartbeatTimer = setInterval(() => this.heartbeat(), this.pingIntervalMs);
+    }
   }
 
   /**
-   * Stops the flush timer and clears the buffer.
+   * Stops the flush timer, heartbeat timer, and clears the buffer.
    */
   stop(): void {
     if (this.flushTimer) {
       clearInterval(this.flushTimer);
       this.flushTimer = null;
     }
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
     this.vehicleBuffer.clear();
+  }
+
+  /**
+   * Registers a new client for heartbeat tracking. Call this when a client connects.
+   */
+  trackClient(client: WebSocket): void {
+    const state = this.getClientState(client);
+    state.lastPong = Date.now();
+    client.on("pong", () => {
+      const s = this.clientStates.get(client);
+      if (s) {
+        s.lastPong = Date.now();
+      }
+    });
   }
 
   /**
@@ -106,7 +146,7 @@ export class WebSocketBroadcaster {
   private getClientState(client: WebSocket): ClientState {
     let state = this.clientStates.get(client);
     if (!state) {
-      state = { lastSent: new Map(), droppedFlushes: 0 };
+      state = { lastSent: new Map(), droppedFlushes: 0, lastPong: 0, lastPingSent: 0 };
       this.clientStates.set(client, state);
     }
     return state;
@@ -125,6 +165,46 @@ export class WebSocketBroadcaster {
     const dlat = vehicle.position[0] - prev[0];
     const dlng = vehicle.position[1] - prev[1];
     return Math.abs(dlat) >= POSITION_DELTA_THRESHOLD || Math.abs(dlng) >= POSITION_DELTA_THRESHOLD;
+  }
+
+  /**
+   * Sends a ping to every connected client and terminates those that have not
+   * responded with a pong since the last ping within the configured timeout.
+   *
+   * Logic per client:
+   * 1. If we previously sent a ping (`lastPingSent > 0`) and the client has not
+   *    responded with a pong since that ping (`lastPong < lastPingSent`), and the
+   *    elapsed time since the ping exceeds `pongTimeoutMs` — terminate.
+   * 2. Otherwise, send a new ping and record the timestamp.
+   */
+  private heartbeat(): void {
+    const now = Date.now();
+
+    for (const client of this.wss.clients) {
+      if (client.readyState !== WebSocketReadyState.OPEN) continue;
+
+      const state = this.getClientState(client);
+
+      // If we never tracked this client via trackClient(), initialize lastPong now
+      // so the client is not immediately considered unresponsive.
+      if (state.lastPong === 0) {
+        state.lastPong = now;
+      }
+
+      // Check if a previously sent ping went unanswered past the timeout
+      if (
+        state.lastPingSent > 0 &&
+        state.lastPong < state.lastPingSent &&
+        now - state.lastPingSent >= this.pongTimeoutMs
+      ) {
+        client.terminate();
+        continue;
+      }
+
+      // Send a new ping and record when we sent it
+      client.ping();
+      state.lastPingSent = now;
+    }
   }
 
   /**
