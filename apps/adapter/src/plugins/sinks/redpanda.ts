@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Admin, Producer } from "kafkajs";
 import { Kafka } from "kafkajs";
-import type { ConfigField, DataSink, HealthCheckResult, PluginConfig } from "../types";
+import type { ConfigField, DataSink, HealthCheckResult, PluginConfig, SinkPublishResult } from "../types";
 import type { VehicleUpdate } from "../../types";
 
 /** Default timeout for health check broker probe (ms). Overridable via `healthCheckTimeoutMs` config. */
@@ -65,7 +65,7 @@ export class RedpandaSink implements DataSink {
     this.kafka = null;
   }
 
-  async publishUpdates(updates: VehicleUpdate[]): Promise<void> {
+  async publishUpdates(updates: VehicleUpdate[]): Promise<SinkPublishResult | void> {
     if (!this.producer) return;
 
     const now = new Date().toISOString();
@@ -85,15 +85,56 @@ export class RedpandaSink implements DataSink {
 
     if (messages.length <= this.batchSize) {
       await this.producer.send({ topic: this.topic, messages, acks: this.acks });
-    } else {
-      const chunks: (typeof messages)[] = [];
-      for (let i = 0; i < messages.length; i += this.batchSize) {
-        chunks.push(messages.slice(i, i + this.batchSize));
-      }
-      await Promise.all(
-        chunks.map((chunk) => this.producer!.send({ topic: this.topic, messages: chunk, acks: this.acks }))
+      return;
+    }
+
+    // Chunked publishing with partial failure handling
+    const chunks: (typeof messages)[] = [];
+    for (let i = 0; i < messages.length; i += this.batchSize) {
+      chunks.push(messages.slice(i, i + this.batchSize));
+    }
+
+    const results = await Promise.allSettled(
+      chunks.map((chunk) =>
+        this.producer!.send({ topic: this.topic, messages: chunk, acks: this.acks })
+      )
+    );
+
+    const failures = results
+      .map((result, i) => ({ result, chunkIndex: i }))
+      .filter(
+        (entry): entry is { result: PromiseRejectedResult; chunkIndex: number } =>
+          entry.result.status === "rejected"
+      )
+      .map(({ result, chunkIndex }) => {
+        const error = result.reason instanceof Error ? result.reason.message : String(result.reason);
+        const startIdx = chunkIndex * this.batchSize;
+        const chunkSize = chunks[chunkIndex].length;
+        console.error(
+          `[RedpandaSink] Chunk ${chunkIndex} failed (messages ${startIdx}–${startIdx + chunkSize - 1}): ${error}`
+        );
+        return { itemId: `chunk-${chunkIndex}`, error };
+      });
+
+    const failedMessageCount = failures.reduce((sum, f) => {
+      const chunkIndex = Number.parseInt(f.itemId.replace("chunk-", ""), 10);
+      return sum + chunks[chunkIndex].length;
+    }, 0);
+    const succeeded = messages.length - failedMessageCount;
+
+    if (failures.length > 0 && succeeded === 0) {
+      throw new Error(
+        `All ${chunks.length} chunks failed to publish. First error: ${failures[0].error}`
       );
     }
+
+    if (failures.length > 0) {
+      console.warn(
+        `[RedpandaSink] Partial failure: ${chunks.length - failures.length}/${chunks.length} chunks succeeded (${succeeded}/${messages.length} messages)`
+      );
+    }
+
+    return { attempted: messages.length, succeeded, failures };
   }
 
   async healthCheck(): Promise<HealthCheckResult> {

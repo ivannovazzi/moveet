@@ -136,4 +136,102 @@ describe("RedpandaSink", () => {
       expect(call[0].topic).toBe("test-topic");
     }
   });
+
+  describe("partial failure handling (chunked publishing)", () => {
+    it("returns success result when all chunks succeed", async () => {
+      const sink = new RedpandaSink();
+      await sink.connect({ brokers: "localhost:9092", topic: "test-topic", batchSize: 500 });
+
+      const updates = Array.from({ length: 1200 }, (_, i) => ({
+        id: `v${i}`,
+        latitude: -1.3 + i * 0.0001,
+        longitude: 36.8 + i * 0.0001,
+      }));
+
+      const result = await sink.publishUpdates(updates);
+
+      expect(result).toEqual({
+        attempted: 1200,
+        succeeded: 1200,
+        failures: [],
+      });
+    });
+
+    it("returns partial success with details when some chunks fail", async () => {
+      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      // Chunk 0 succeeds, chunk 1 fails, chunk 2 succeeds
+      mockSend
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error("broker unavailable"))
+        .mockResolvedValueOnce(undefined);
+
+      const sink = new RedpandaSink();
+      await sink.connect({ brokers: "localhost:9092", topic: "test-topic", batchSize: 500 });
+
+      const updates = Array.from({ length: 1200 }, (_, i) => ({
+        id: `v${i}`,
+        latitude: -1.3 + i * 0.0001,
+        longitude: 36.8 + i * 0.0001,
+      }));
+
+      const result = await sink.publishUpdates(updates);
+
+      expect(result).toEqual({
+        attempted: 1200,
+        succeeded: 700,
+        failures: [{ itemId: "chunk-1", error: "broker unavailable" }],
+      });
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Chunk 1 failed")
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("2/3 chunks succeeded")
+      );
+
+      consoleSpy.mockRestore();
+      warnSpy.mockRestore();
+    });
+
+    it("throws when all chunks fail", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+
+      mockSend
+        .mockRejectedValueOnce(new Error("broker down"))
+        .mockRejectedValueOnce(new Error("broker down"))
+        .mockRejectedValueOnce(new Error("broker down"));
+
+      const sink = new RedpandaSink();
+      await sink.connect({ brokers: "localhost:9092", topic: "test-topic", batchSize: 500 });
+
+      const updates = Array.from({ length: 1200 }, (_, i) => ({
+        id: `v${i}`,
+        latitude: -1.3 + i * 0.0001,
+        longitude: 36.8 + i * 0.0001,
+      }));
+
+      await expect(sink.publishUpdates(updates)).rejects.toThrow(
+        "All 3 chunks failed to publish"
+      );
+    });
+
+    it("does not use chunked path for messages under batchSize (no partial failure)", async () => {
+      const sink = new RedpandaSink();
+      await sink.connect({ brokers: "localhost:9092", topic: "test-topic", batchSize: 500 });
+
+      const updates = Array.from({ length: 100 }, (_, i) => ({
+        id: `v${i}`,
+        latitude: -1.3 + i * 0.001,
+        longitude: 36.8 + i * 0.001,
+      }));
+
+      const result = await sink.publishUpdates(updates);
+
+      // Single send path returns void (no chunking)
+      expect(result).toBeUndefined();
+      expect(mockSend).toHaveBeenCalledTimes(1);
+    });
+  });
 });

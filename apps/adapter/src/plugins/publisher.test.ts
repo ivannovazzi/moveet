@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { Publisher } from "./publisher";
-import type { DataSink } from "./types";
+import type { DataSink, SinkPublishResult } from "./types";
 import type { VehicleUpdate } from "../types";
 
 function createMockSink(overrides?: Partial<DataSink>): DataSink {
@@ -172,6 +172,106 @@ describe("Publisher", () => {
       const result = await publisher.publishUpdates(sampleUpdates, sinks);
 
       expect(result.sinks[0].error).toBe("42");
+    });
+  });
+
+  describe("sink partial-failure metadata", () => {
+    it("marks sink as failed when it returns partial failures and includes details", async () => {
+      const partialResult: SinkPublishResult = {
+        attempted: 3,
+        succeeded: 2,
+        failures: [{ itemId: "v2", error: "connection refused" }],
+      };
+      const sinks = new Map<string, DataSink>([
+        [
+          "rest",
+          createMockSink({
+            publishUpdates: vi.fn().mockResolvedValue(partialResult),
+          }),
+        ],
+      ]);
+
+      const result = await publisher.publishUpdates(sampleUpdates, sinks);
+
+      expect(result.status).toBe("failure");
+      expect(result.sinks[0]).toEqual({
+        type: "rest",
+        success: false,
+        error: "1 of 3 items failed",
+        failures: [{ itemId: "v2", error: "connection refused" }],
+        attempted: 3,
+        succeeded: 2,
+      });
+    });
+
+    it("marks sink as successful when it returns metadata with no failures", async () => {
+      const fullSuccess: SinkPublishResult = {
+        attempted: 3,
+        succeeded: 3,
+        failures: [],
+      };
+      const sinks = new Map<string, DataSink>([
+        [
+          "rest",
+          createMockSink({
+            publishUpdates: vi.fn().mockResolvedValue(fullSuccess),
+          }),
+        ],
+      ]);
+
+      const result = await publisher.publishUpdates(sampleUpdates, sinks);
+
+      expect(result.status).toBe("success");
+      expect(result.sinks[0]).toEqual({
+        type: "rest",
+        success: true,
+        attempted: 3,
+        succeeded: 3,
+      });
+    });
+
+    it("reports partial at publisher level when one sink has item failures and another succeeds", async () => {
+      const partialResult: SinkPublishResult = {
+        attempted: 2,
+        succeeded: 1,
+        failures: [{ itemId: "v1", error: "timeout" }],
+      };
+
+      const sinks = new Map<string, DataSink>([
+        [
+          "rest",
+          createMockSink({
+            publishUpdates: vi.fn().mockResolvedValue(partialResult),
+          }),
+        ],
+        ["console", createMockSink()],
+      ]);
+
+      const result = await publisher.publishUpdates(sampleUpdates, sinks);
+
+      expect(result.status).toBe("partial");
+      const restSink = result.sinks.find((s) => s.type === "rest")!;
+      expect(restSink.success).toBe(false);
+      expect(restSink.failures).toHaveLength(1);
+
+      const consoleSink = result.sinks.find((s) => s.type === "console")!;
+      expect(consoleSink.success).toBe(true);
+    });
+
+    it("treats sink returning void (no metadata) as success", async () => {
+      const sinks = new Map<string, DataSink>([
+        [
+          "console",
+          createMockSink({
+            publishUpdates: vi.fn().mockResolvedValue(undefined),
+          }),
+        ],
+      ]);
+
+      const result = await publisher.publishUpdates(sampleUpdates, sinks);
+
+      expect(result.status).toBe("success");
+      expect(result.sinks[0]).toEqual({ type: "console", success: true });
     });
   });
 });

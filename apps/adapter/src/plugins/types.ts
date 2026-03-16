@@ -20,10 +20,30 @@ export interface HealthCheckResult {
   latencyMs?: number;
 }
 
+/** Outcome of publishing a single item (vehicle update, chunk, etc.) within a sink. */
+export interface SinkItemFailure {
+  /** Identifier for the failed item (e.g. vehicle ID or chunk index). */
+  itemId: string;
+  error: string;
+}
+
 export interface SinkResult {
   type: string;
   success: boolean;
   error?: string;
+  /** Per-item failures when the sink supports partial-failure reporting. */
+  failures?: SinkItemFailure[];
+  /** Total items attempted. */
+  attempted?: number;
+  /** Total items that succeeded. */
+  succeeded?: number;
+}
+
+/** Result returned by sinks that support partial-failure reporting. */
+export interface SinkPublishResult {
+  attempted: number;
+  succeeded: number;
+  failures: SinkItemFailure[];
 }
 
 export interface PublishResult {
@@ -72,7 +92,7 @@ export interface DataSink {
   readonly configSchema: ConfigField[];
   connect(config: PluginConfig): Promise<void>;
   disconnect(): Promise<void>;
-  publishUpdates(updates: VehicleUpdate[]): Promise<void>;
+  publishUpdates(updates: VehicleUpdate[]): Promise<SinkPublishResult | void>;
   healthCheck(): Promise<HealthCheckResult>;
 }
 
