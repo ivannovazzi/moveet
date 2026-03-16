@@ -99,15 +99,47 @@ export class PostgresSource implements DataSource {
     }
 
     const result = await this.pool.query(this.query);
+    const records = result.rows as Record<string, unknown>[];
 
-    return result.rows.map((row: Record<string, unknown>) => ({
-      id: String(row[this.fieldMap.id]),
-      name: String(row[this.fieldMap.name]),
-      position: [Number(row[this.fieldMap.lat]), Number(row[this.fieldMap.lng])] as [
-        number,
-        number,
-      ],
-    }));
+    if (records.length > 0) {
+      const firstRow = records[0];
+      const columns = Object.keys(firstRow);
+      for (const [field, column] of Object.entries(this.fieldMap)) {
+        if (!columns.includes(column)) {
+          console.warn(
+            `PostgresSource: fieldMap.${field} references column "${column}" which does not exist in query results. Available columns: ${columns.join(", ")}`
+          );
+        }
+      }
+    }
+
+    return records.flatMap((row, index) => {
+      const idVal = row[this.fieldMap.id];
+      const latVal = row[this.fieldMap.lat];
+      const lngVal = row[this.fieldMap.lng];
+
+      if (idVal === undefined || latVal === undefined || lngVal === undefined) {
+        console.warn(
+          `PostgresSource: skipping row ${index}: missing critical field(s) —` +
+            ` id=${idVal}, lat=${latVal}, lng=${lngVal}`
+        );
+        return [];
+      }
+
+      const id = String(idVal);
+      const name = String(row[this.fieldMap.name] ?? id);
+      const lat = Number(latVal);
+      const lng = Number(lngVal);
+
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        console.warn(
+          `PostgresSource: skipping vehicle "${id}": invalid coordinates (lat=${lat}, lng=${lng})`
+        );
+        return [];
+      }
+
+      return [{ id, name, position: [lat, lng] as [number, number] }];
+    });
   }
 
   async healthCheck(): Promise<HealthCheckResult> {
