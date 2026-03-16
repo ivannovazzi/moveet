@@ -1,10 +1,10 @@
-import { useMemo } from "react";
+import { useEffect, useRef, useMemo } from "react";
+import { select, geoPath } from "d3";
 import { useClock } from "@/hooks/useClock";
 import { useNetwork } from "@/hooks/useNetwork";
-import { Polyline } from "@/components/Map/components/Polyline";
+import { useMapContext } from "@/components/Map/hooks";
 import type { TimeOfDay } from "@/types";
 
-// Per-time-of-day base colour
 const TIME_COLORS: Record<TimeOfDay, string> = {
   morning_rush: "#fb923c",
   midday: "#4ade80",
@@ -12,7 +12,6 @@ const TIME_COLORS: Record<TimeOfDay, string> = {
   night: "#818cf8",
 };
 
-// Road class → width and opacity weight (major roads are bolder)
 const ROAD_TIERS: Record<string, { width: number; opacityScale: number }> = {
   motorway: { width: 3.5, opacityScale: 1.0 },
   trunk: { width: 3.0, opacityScale: 0.95 },
@@ -21,7 +20,6 @@ const ROAD_TIERS: Record<string, { width: number; opacityScale: number }> = {
   tertiary: { width: 1.2, opacityScale: 0.35 },
 };
 
-// Base opacity per time-of-day (scaled by road tier)
 const TIME_OPACITY: Record<TimeOfDay, number> = {
   morning_rush: 0.65,
   midday: 0.35,
@@ -34,31 +32,43 @@ const HIGHWAY_TYPES = new Set(Object.keys(ROAD_TIERS));
 export default function TrafficOverlay({ visible }: { visible: boolean }) {
   const { clock } = useClock();
   const network = useNetwork();
+  const { projection } = useMapContext();
+  const gRef = useRef<SVGGElement>(null);
 
   const roads = useMemo(
     () => network.features.filter((f) => HIGHWAY_TYPES.has(f.properties.highway ?? "")),
     [network]
   );
 
+  // Build paths once when roads/projection change
+  useEffect(() => {
+    if (!gRef.current || !projection || roads.length === 0) return;
+    const pathGen = geoPath().projection(projection);
+    const g = select(gRef.current);
+
+    g.selectAll("path")
+      .data(roads)
+      .join("path")
+      .attr("d", (d) => pathGen(d as Parameters<typeof pathGen>[0]) ?? "")
+      .attr("fill", "none")
+      .attr("stroke-linejoin", "round")
+      .attr("stroke-linecap", "round")
+      .attr("stroke-width", (d) => (ROAD_TIERS[d.properties.highway ?? ""] ?? ROAD_TIERS.tertiary).width);
+  }, [roads, projection]);
+
+  // Update colour/opacity cheaply on every timeOfDay change
+  useEffect(() => {
+    if (!gRef.current) return;
+    const color = TIME_COLORS[clock.timeOfDay];
+    const baseOpacity = TIME_OPACITY[clock.timeOfDay];
+
+    select(gRef.current)
+      .selectAll<SVGPathElement, (typeof roads)[number]>("path")
+      .attr("stroke", color)
+      .attr("stroke-opacity", (d) => baseOpacity * (ROAD_TIERS[d.properties.highway ?? ""] ?? ROAD_TIERS.tertiary).opacityScale);
+  }, [clock.timeOfDay]);
+
   if (!visible) return null;
 
-  const color = TIME_COLORS[clock.timeOfDay];
-  const baseOpacity = TIME_OPACITY[clock.timeOfDay];
-
-  return (
-    <>
-      {roads.map((feature, i) => {
-        const tier = ROAD_TIERS[feature.properties.highway ?? ""] ?? ROAD_TIERS.tertiary;
-        return (
-          <Polyline
-            key={`traffic-${i}`}
-            coordinates={feature.geometry.coordinates}
-            color={color}
-            width={tier.width}
-            opacity={baseOpacity * tier.opacityScale}
-          />
-        );
-      })}
-    </>
-  );
+  return <g ref={gRef} />;
 }
