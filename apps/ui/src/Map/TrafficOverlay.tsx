@@ -3,11 +3,11 @@ import { useNetwork } from "@/hooks/useNetwork";
 import { Polyline } from "@/components/Map/components/Polyline";
 import type { TimeOfDay } from "@/types";
 
-const TRAFFIC_STYLES: Partial<Record<TimeOfDay, { color: string; opacity: number }>> = {
+const TRAFFIC_STYLES: Record<TimeOfDay, { color: string; opacity: number }> = {
   morning_rush: { color: "#fb923c", opacity: 0.55 },
-  evening_rush: { color: "#ef4444", opacity: 0.7 },
-  night: { color: "#818cf8", opacity: 0.35 },
-  // midday: no overlay
+  midday:        { color: "#4ade80", opacity: 0.3  },
+  evening_rush: { color: "#ef4444", opacity: 0.7  },
+  night:         { color: "#818cf8", opacity: 0.35 },
 };
 
 export default function TrafficOverlay({ visible }: { visible: boolean }) {
@@ -17,7 +17,6 @@ export default function TrafficOverlay({ visible }: { visible: boolean }) {
   if (!visible) return null;
 
   const style = TRAFFIC_STYLES[clock.timeOfDay];
-  if (!style) return null;
 
   const affectedRoads = network.features.filter(
     (f) => f.properties.highway === "trunk" || f.properties.highway === "primary"
