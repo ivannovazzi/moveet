@@ -48,7 +48,11 @@ async function startup(): Promise<void> {
   }
 
   const app = express();
-  app.use(cors());
+  app.use(
+    cors({
+      origin: config.corsOrigins === "*" ? "*" : config.corsOrigins,
+    }),
+  );
   app.use(compression());
   app.use(express.json());
 

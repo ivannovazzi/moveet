@@ -4,6 +4,7 @@ dotenv.config();
 
 export interface StartupConfig {
   port: number;
+  corsOrigins: string[] | "*";
   source: { type: string; config: Record<string, unknown> };
   sinks: Array<{ type: string; config: Record<string, unknown> }>;
 }
@@ -16,6 +17,17 @@ function parseJSON(value: string | undefined): Record<string, unknown> {
     console.warn(`Failed to parse JSON config: ${value}`);
     return {};
   }
+}
+
+const DEFAULT_CORS_ORIGINS = "http://localhost:5010,http://localhost:5012";
+
+function parseCorsOrigins(): string[] | "*" {
+  const raw = process.env.CORS_ORIGINS || DEFAULT_CORS_ORIGINS;
+  if (raw.trim() === "*") return "*";
+  return raw
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
 }
 
 function parseSinks(): Array<{ type: string; config: Record<string, unknown> }> {
@@ -47,6 +59,7 @@ export function loadConfig(): StartupConfig {
 
   return {
     port: Number(process.env.PORT) || 5011,
+    corsOrigins: parseCorsOrigins(),
     source: { type: sourceType, config: sourceConfig },
     sinks,
   };
