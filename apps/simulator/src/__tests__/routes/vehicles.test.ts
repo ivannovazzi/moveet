@@ -50,16 +50,14 @@ function createMockContext(): RouteContext {
     incidentManager: {} as RouteContext["incidentManager"],
     recordingManager: {} as RouteContext["recordingManager"],
     simulationController: {
-      setDirections: vi
-        .fn()
-        .mockResolvedValue([
-          {
-            vehicleId: "v1",
-            status: "ok",
-            route: { start: [0, 0], end: [1, 1], distance: 100 },
-            eta: 60,
-          },
-        ]),
+      setDirections: vi.fn().mockResolvedValue([
+        {
+          vehicleId: "v1",
+          status: "ok",
+          route: { start: [0, 0], end: [1, 1], distance: 100 },
+          eta: 60,
+        },
+      ]),
     } as unknown as RouteContext["simulationController"],
   };
 }
