@@ -26,13 +26,13 @@ A React/TypeScript dashboard for the [Moveet](../simulator/) vehicle simulator. 
 ### Prerequisites
 
 - Node.js (LTS recommended)
-- Yarn package manager
+- npm (ships with Node.js)
 - The [simulator](../simulator/) running on port 5010
 
 ### Install
 
 ```bash
-yarn install
+npm install
 ```
 
 ### Environment
@@ -47,7 +47,7 @@ Create a `.env` file or rely on the defaults:
 ### Run
 
 ```bash
-yarn dev
+npm run dev
 ```
 
 The dev server starts on [http://localhost:5012](http://localhost:5012) with hot module replacement.
@@ -56,14 +56,14 @@ The dev server starts on [http://localhost:5012](http://localhost:5012) with hot
 
 | Command | Description |
 |---|---|
-| `yarn dev` | Start Vite dev server with HMR |
-| `yarn build` | Type-check (`tsc -b`) and produce a production build |
-| `yarn test` | Run tests in watch mode (Vitest) |
-| `yarn test:coverage` | Run tests with v8 coverage report |
-| `yarn lint` | Run ESLint |
-| `yarn lint:fix` | Run ESLint with auto-fix |
-| `yarn format` | Format files with Prettier |
-| `yarn format:check` | Check formatting (useful in CI) |
+| `npm run dev` | Start Vite dev server with HMR |
+| `npm run build` | Type-check (`tsc -b`) and produce a production build |
+| `npm test` | Run tests in watch mode (Vitest) |
+| `npm run test:coverage` | Run tests with v8 coverage report |
+| `npm run lint` | Run ESLint |
+| `npm run lint:fix` | Run ESLint with auto-fix |
+| `npm run format` | Format files with Prettier |
+| `npm run format:check` | Check formatting (useful in CI) |
 
 ## Architecture Overview
 

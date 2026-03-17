@@ -319,7 +319,7 @@ Tests use [Vitest](https://vitest.dev/) across all three projects (~445 tests to
 ```bash
 npm test                          # all projects via Turborepo
 cd apps/simulator && npm test     # simulator (~290 tests)
-cd apps/ui && yarn test           # UI (~75 tests)
+cd apps/ui && npm test            # UI (~75 tests)
 cd apps/adapter && npm test       # adapter (~80 tests)
 ```
 
