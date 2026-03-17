@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import { z } from "zod";
+import type { z } from "zod";
 
 /**
  * Formats a ZodError into an array of human-readable strings.

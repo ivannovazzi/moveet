@@ -270,14 +270,14 @@ describe("validateSqlQuery", () => {
 
   describe("edge cases", () => {
     it("null-ish input", () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       expect(validateSqlQuery(null as any).valid).toBe(false);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       expect(validateSqlQuery(undefined as any).valid).toBe(false);
     });
 
     it("non-string input", () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       expect(validateSqlQuery(123 as any).valid).toBe(false);
     });
 
