@@ -1,9 +1,34 @@
+// ─── Re-exports from shared types ───────────────────────────────────
+// These re-exports ensure all existing imports continue to work.
+export type {
+  Position,
+  VehicleType,
+  VehicleDTO,
+  Fleet,
+  TimeOfDay,
+  ClockState,
+  SimulationStatus,
+  StartOptions,
+  Node,
+  Edge,
+  Route,
+  Waypoint,
+  DirectionResult,
+  POI,
+  IncidentType,
+  IncidentDTO,
+  RecordingMetadata,
+  ReplayStatus,
+} from "@moveet/shared-types";
+
+// ─── UI-specific types ──────────────────────────────────────────────
+
+import type { Position, VehicleDTO, Route, Waypoint } from "@moveet/shared-types";
+
 export interface ApiResponse<T> {
   data: T | undefined;
   error?: string;
 }
-
-export type Position = [number, number];
 
 export type LatLng = {
   lat: number;
@@ -19,26 +44,6 @@ export interface Modifiers {
   showTrafficOverlay: boolean;
 }
 
-export interface Fleet {
-  id: string;
-  name: string;
-  color: string;
-  source: "local" | "external";
-  vehicleIds: string[];
-}
-
-export type VehicleType = "car" | "truck" | "motorcycle" | "ambulance" | "bus";
-
-export interface VehicleDTO {
-  id: string;
-  name: string;
-  type: VehicleType;
-  position: Position;
-  speed: number;
-  heading: number;
-  fleetId?: string;
-}
-
 interface VehicleUIFlags {
   visible: boolean;
   selected: boolean;
@@ -46,33 +51,6 @@ interface VehicleUIFlags {
 }
 
 export type Vehicle = VehicleDTO & VehicleUIFlags;
-
-export interface SimulationStatus {
-  interval: number;
-  running: boolean;
-  ready: boolean;
-  clock?: ClockState;
-}
-
-export type TimeOfDay = "morning_rush" | "midday" | "evening_rush" | "night";
-
-export interface ClockState {
-  currentTime: string; // ISO date string
-  speedMultiplier: number;
-  hour: number;
-  timeOfDay: TimeOfDay;
-}
-
-export interface StartOptions {
-  minSpeed: number;
-  maxSpeed: number;
-  speedVariation: number;
-  acceleration: number;
-  deceleration: number;
-  turnThreshold: number;
-  updateInterval: number;
-  heatZoneSpeedFactor: number;
-}
 
 interface RoadFeature {
   type: "Feature";
@@ -94,31 +72,6 @@ export interface RoadNetwork {
   type: "FeatureCollection";
   features: RoadFeature[];
 }
-export interface Route {
-  edges: Edge[];
-  distance: number;
-}
-
-export interface Node {
-  id: string;
-  coordinates: Position;
-  connections: Edge[];
-}
-
-export interface Edge {
-  id: string;
-  streetId: string;
-  start: Node;
-  end: Node;
-  distance: number;
-  bearing: number;
-}
-
-export interface Waypoint {
-  position: [number, number]; // [lat, lng]
-  label?: string;
-  dwellTime?: number;
-}
 
 export interface VehicleDirection {
   vehicleId: string;
@@ -132,13 +85,6 @@ export interface Road {
   name: string;
   nodeIds: Set<string>;
   streets: Position[][];
-}
-
-export interface POI {
-  id: string;
-  name: string | null;
-  coordinates: Position;
-  type: string;
 }
 
 export interface Heatzone {
@@ -155,43 +101,15 @@ export interface Heatzone {
   };
 }
 
-export interface DirectionResult {
-  vehicleId: string;
-  status: "ok" | "error";
-  error?: string;
-  route?: { start: [number, number]; end: [number, number]; distance: number };
-  eta?: number;
-  snappedTo?: [number, number];
-  waypointCount?: number;
-  legs?: { start: [number, number]; end: [number, number]; distance: number }[];
-}
-
 export interface DirectionResponse {
   status: string;
-  results: DirectionResult[];
+  results: import("@moveet/shared-types").DirectionResult[];
 }
 
 export interface DispatchAssignment {
   vehicleId: string;
   vehicleName: string;
   waypoints: Waypoint[];
-}
-
-// ─── Incidents ──────────────────────────────────────────────────────
-
-export type IncidentType = "accident" | "closure" | "construction";
-
-export interface IncidentDTO {
-  id: string;
-  edgeIds: string[];
-  type: IncidentType;
-  severity: number;
-  speedFactor: number;
-  startTime: number;
-  duration: number;
-  expiresAt: number;
-  autoClears: boolean;
-  position: [number, number];
 }
 
 // ─── Traffic ────────────────────────────────────────────────────────
@@ -210,23 +128,4 @@ export interface RecordingFile {
   fileName: string;
   fileSize: number;
   modifiedAt: string;
-}
-
-export interface RecordingMetadata {
-  filePath: string;
-  startTime: string;
-  duration: number;
-  eventCount: number;
-  fileSize: number;
-  vehicleCount: number;
-}
-
-export interface ReplayStatus {
-  mode: "live" | "replay";
-  file?: string;
-  progress?: number;
-  duration?: number;
-  currentTime?: number;
-  speed?: number;
-  paused?: boolean;
 }

@@ -9,26 +9,9 @@ vi.mock("../utils/logger", () => ({
   default: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
 }));
 
-import { config, verifyConfig, parseEnv, envSchema } from "../utils/config";
+import { verifyConfig, parseEnv } from "../utils/config";
 
 // ─── Helpers ────────────────────────────────────────────────────────
-
-/** Mutate the readonly `config` object for a single test. */
-function withConfig(overrides: Partial<typeof config>, fn: () => void): void {
-  const mutable = config as unknown as Record<string, unknown>;
-  const saved: Record<string, unknown> = {};
-  for (const k of Object.keys(overrides) as (keyof typeof config)[]) {
-    saved[k] = mutable[k];
-    mutable[k] = overrides[k];
-  }
-  try {
-    fn();
-  } finally {
-    for (const k of Object.keys(saved)) {
-      mutable[k] = saved[k];
-    }
-  }
-}
 
 /** Build a valid env object with all defaults, then apply overrides. */
 function validEnv(overrides: Record<string, string> = {}): Record<string, string> {

@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, vi, beforeEach } from "vitest";
 import { PathfindingPool } from "../modules/PathfindingPool";
 import { EventEmitter } from "events";
 import path from "path";

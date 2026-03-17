@@ -476,7 +476,7 @@ describe("Integration: SimulationController Lifecycle", () => {
     expect(incidents.getActiveIncidents()).toHaveLength(1);
 
     // Record vehicle IDs before reset
-    const vehiclesBefore = controller.getVehicles().map((v) => v.id);
+    controller.getVehicles().map((v) => v.id);
 
     // Reset
     await controller.reset();

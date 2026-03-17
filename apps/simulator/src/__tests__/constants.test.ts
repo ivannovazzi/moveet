@@ -44,7 +44,7 @@ describe("constants", () => {
   describe("shared SPATIAL_GRID.CELL_SIZE is used by HeatZoneManager and RoadNetwork", () => {
     it("HeatZoneManager GRID_CELL_SIZE matches SPATIAL_GRID.CELL_SIZE", async () => {
       const { HeatZoneManager } = await import("../modules/HeatZoneManager");
-      const manager = new HeatZoneManager();
+      new HeatZoneManager();
       // Access the private static via the class
       const cellSize = (HeatZoneManager as unknown as { GRID_CELL_SIZE: number }).GRID_CELL_SIZE;
       expect(cellSize).toBe(SPATIAL_GRID.CELL_SIZE);

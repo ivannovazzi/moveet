@@ -33,7 +33,7 @@ export function createFleetRoutes(ctx: RouteContext): Router {
   router.post("/fleets/:id/assign", validateBody(fleetAssignSchema), (req, res) => {
     const { vehicleIds } = req.body;
     try {
-      fleetManager.assignVehicles(req.params.id, vehicleIds);
+      fleetManager.assignVehicles(req.params.id as string, vehicleIds);
       res.json({ status: "assigned" });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -44,7 +44,7 @@ export function createFleetRoutes(ctx: RouteContext): Router {
   router.post("/fleets/:id/unassign", validateBody(fleetAssignSchema), (req, res) => {
     const { vehicleIds } = req.body;
     try {
-      fleetManager.unassignVehicles(req.params.id, vehicleIds);
+      fleetManager.unassignVehicles(req.params.id as string, vehicleIds);
       res.json({ status: "unassigned" });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

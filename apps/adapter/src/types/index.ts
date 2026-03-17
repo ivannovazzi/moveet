@@ -1,3 +1,14 @@
+// ─── Re-exports from shared types ───────────────────────────────────
+// These re-exports ensure all existing imports continue to work.
+export type {
+  VehicleType,
+  ExportVehicle,
+  VehicleUpdate,
+  Fleet,
+} from "@moveet/shared-types";
+
+// ─── Adapter-specific types ─────────────────────────────────────────
+
 export enum MedicalType {
   ALS = "ALS",
   BLS = "BLS",
@@ -24,27 +35,4 @@ export interface Vehicle {
   vehicleTypeRef: { value: string };
   latitude: number;
   longitude: number;
-}
-export type VehicleType = "car" | "truck" | "motorcycle" | "ambulance" | "bus";
-
-export interface ExportVehicle {
-  id: string;
-  name: string;
-  position: [number, number];
-  type?: VehicleType;
-}
-
-export interface VehicleUpdate {
-  latitude: number;
-  longitude: number;
-  id: string;
-  type?: VehicleType;
-}
-
-export interface Fleet {
-  id: string;
-  name: string;
-  color: string;
-  source: "local" | "external";
-  vehicleIds: string[];
 }

@@ -1015,7 +1015,7 @@ describe("RoadNetwork", () => {
       network.setIncidentEdges(penalties);
 
       // Route with incident
-      const incidentRoute = network.findRoute(start, end);
+      network.findRoute(start, end);
 
       // Clear incidents
       network.clearIncidentEdges();
@@ -1039,7 +1039,7 @@ describe("RoadNetwork", () => {
       expect(route1).not.toBeNull();
 
       // Verify cache hit
-      const route2 = network.findRoute(start, end);
+      network.findRoute(start, end);
       expect(network.routeCacheStats().hits).toBe(1);
 
       // Block all edges on this route

@@ -232,7 +232,7 @@ describe("Plugin flow integration tests", () => {
       expect(vehicles[0].id).toBe("b1");
 
       // Old source should be disconnected
-      expect(sourceA.connected).toBe(false);
+      expect((sourceA as any).connected).toBe(false);
 
       // Config should reflect the new source
       const config = manager.getConfig();

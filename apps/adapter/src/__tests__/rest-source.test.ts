@@ -117,7 +117,7 @@ describe("RestSource", () => {
     mockHttpFetch.mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ vehicles: [] }),
-    });
+    } as unknown as Response);
 
     const source = new RestSource();
     await source.connect({ url: "https://api.example.com" });

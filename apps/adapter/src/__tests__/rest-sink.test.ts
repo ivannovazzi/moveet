@@ -99,9 +99,9 @@ describe("RestSink", () => {
 
       // v1 succeeds, v2 fails, v3 succeeds
       mockHttpFetch
-        .mockResolvedValueOnce({ ok: true })
+        .mockResolvedValueOnce({ ok: true } as Response)
         .mockRejectedValueOnce(new Error("connection refused"))
-        .mockResolvedValueOnce({ ok: true });
+        .mockResolvedValueOnce({ ok: true } as Response);
 
       const sink = new RestSink();
       await sink.connect({ url: "https://api.example.com/sync", batchMode: false });
@@ -152,10 +152,10 @@ describe("RestSink", () => {
       vi.spyOn(console, "warn").mockImplementation(() => {});
 
       mockHttpFetch
-        .mockResolvedValueOnce({ ok: true })
+        .mockResolvedValueOnce({ ok: true } as Response)
         .mockRejectedValueOnce(new Error("err-a"))
         .mockRejectedValueOnce(new Error("err-b"))
-        .mockResolvedValueOnce({ ok: true });
+        .mockResolvedValueOnce({ ok: true } as Response);
 
       const sink = new RestSink();
       await sink.connect({ url: "https://api.example.com/sync", batchMode: false });
