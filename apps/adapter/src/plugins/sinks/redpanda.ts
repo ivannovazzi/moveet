@@ -9,6 +9,9 @@ import type {
   SinkPublishResult,
 } from "../types";
 import type { VehicleUpdate } from "../../types";
+import { createLogger } from "../../utils/logger";
+
+const logger = createLogger("RedpandaSink");
 
 /** Default timeout for health check broker probe (ms). Overridable via `healthCheckTimeoutMs` config. */
 const DEFAULT_HEALTH_CHECK_TIMEOUT_MS = 5000;
@@ -117,8 +120,9 @@ export class RedpandaSink implements DataSink {
           result.reason instanceof Error ? result.reason.message : String(result.reason);
         const startIdx = chunkIndex * this.batchSize;
         const chunkSize = chunks[chunkIndex].length;
-        console.error(
-          `[RedpandaSink] Chunk ${chunkIndex} failed (messages ${startIdx}–${startIdx + chunkSize - 1}): ${error}`
+        logger.error(
+          { chunkIndex, start: startIdx, end: startIdx + chunkSize - 1, error },
+          `Chunk ${chunkIndex} failed (messages ${startIdx}–${startIdx + chunkSize - 1})`
         );
         return { itemId: `chunk-${chunkIndex}`, error };
       });
@@ -136,8 +140,14 @@ export class RedpandaSink implements DataSink {
     }
 
     if (failures.length > 0) {
-      console.warn(
-        `[RedpandaSink] Partial failure: ${chunks.length - failures.length}/${chunks.length} chunks succeeded (${succeeded}/${messages.length} messages)`
+      logger.warn(
+        {
+          chunksSucceeded: chunks.length - failures.length,
+          chunksTotal: chunks.length,
+          messagesSucceeded: succeeded,
+          messagesTotal: messages.length,
+        },
+        `Partial failure: ${chunks.length - failures.length}/${chunks.length} chunks succeeded (${succeeded}/${messages.length} messages)`
       );
     }
 

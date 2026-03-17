@@ -4,6 +4,10 @@ import cors from "cors";
 import type { VehicleUpdate } from "./types";
 import { PluginManager } from "./plugins/manager";
 import { loadConfig, logConfig } from "./utils/config";
+import { createLogger } from "./utils/logger";
+import { correlationIdMiddleware } from "./middleware/correlationId";
+
+const logger = createLogger("index");
 
 // Source plugins
 import { GraphQLSource } from "./plugins/sources/graphql";
@@ -41,11 +45,11 @@ async function startup(): Promise<void> {
   logConfig(config);
 
   await pluginManager.setSource(config.source.type, config.source.config);
-  console.log(`Source: ${config.source.type}`);
+  logger.info({ source: config.source.type }, "Source configured");
 
   for (const sink of config.sinks) {
     await pluginManager.addSink(sink.type, sink.config);
-    console.log(`Sink: ${sink.type}`);
+    logger.info({ sink: sink.type }, "Sink configured");
   }
 
   const app = express();
@@ -56,6 +60,7 @@ async function startup(): Promise<void> {
   );
   app.use(compression());
   app.use(express.json());
+  app.use(correlationIdMiddleware);
 
   // === Data Endpoints ===
 
@@ -64,7 +69,7 @@ async function startup(): Promise<void> {
       const vehicles = await pluginManager.getVehicles();
       res.json(vehicles);
     } catch (error) {
-      console.error("Error fetching vehicles:", error);
+      res.locals.logger.error({ err: error }, "Error fetching vehicles");
       res.status(500).json({ error: "Failed to fetch vehicles" });
     }
   });
@@ -97,7 +102,7 @@ async function startup(): Promise<void> {
         .status(httpStatus)
         .json({ status: result.status, count: vehicles.length, sinks: result.sinks });
     } catch (error) {
-      console.error("Error publishing updates:", error);
+      res.locals.logger.error({ err: error }, "Error publishing updates");
       res.status(500).json({ error: "Failed to publish updates" });
     }
   });
@@ -158,17 +163,17 @@ async function startup(): Promise<void> {
   });
 
   process.on("SIGTERM", async () => {
-    console.log("SIGTERM signal received: shutting down");
+    logger.info("SIGTERM signal received: shutting down");
     await pluginManager.shutdown();
     process.exit(0);
   });
 
   app.listen(config.port, () => {
-    console.log(`Adapter listening on http://localhost:${config.port}`);
+    logger.info({ port: config.port }, `Adapter listening on http://localhost:${config.port}`);
   });
 }
 
 startup().catch((err) => {
-  console.error("Failed to start adapter:", err);
+  logger.error({ err }, "Failed to start adapter");
   process.exit(1);
 });

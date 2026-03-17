@@ -1,5 +1,8 @@
 import type { VehicleUpdate } from "../types";
 import type { DataSink, PublishResult, SinkResult } from "./types";
+import { createLogger } from "../utils/logger";
+
+const logger = createLogger("Publisher");
 
 /**
  * Publisher — coordinates publishing vehicle updates across active sinks.
@@ -44,7 +47,7 @@ export class Publisher {
       }
       const err = outcome.reason;
       const error = err instanceof Error ? err.message : String(err);
-      console.error(`Sink ${sinkEntries[i][0]} error:`, err);
+      logger.error({ err, sink: sinkEntries[i][0] }, `Sink ${sinkEntries[i][0]} error`);
       return { type: sinkEntries[i][0], success: false, error };
     });
 

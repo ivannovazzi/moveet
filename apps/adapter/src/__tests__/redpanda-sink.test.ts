@@ -158,9 +158,6 @@ describe("RedpandaSink", () => {
     });
 
     it("returns partial success with details when some chunks fail", async () => {
-      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
       // Chunk 0 succeeds, chunk 1 fails, chunk 2 succeeds
       mockSend
         .mockResolvedValueOnce(undefined)
@@ -183,16 +180,9 @@ describe("RedpandaSink", () => {
         succeeded: 700,
         failures: [{ itemId: "chunk-1", error: "broker unavailable" }],
       });
-
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Chunk 1 failed"));
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("2/3 chunks succeeded"));
-
-      consoleSpy.mockRestore();
-      warnSpy.mockRestore();
     });
 
     it("throws when all chunks fail", async () => {
-      vi.spyOn(console, "error").mockImplementation(() => {});
 
       mockSend
         .mockRejectedValueOnce(new Error("broker down"))
