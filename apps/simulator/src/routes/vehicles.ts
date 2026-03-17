@@ -2,11 +2,7 @@ import { Router } from "express";
 import type { RouteContext } from "./types";
 import { asyncHandler } from "./helpers";
 import { validateBody } from "../middleware/validate";
-import {
-  directionSchema,
-  coordinatesSchema,
-  searchSchema,
-} from "../middleware/schemas";
+import { directionSchema, coordinatesSchema, searchSchema } from "../middleware/schemas";
 import { expensiveRateLimiter } from "../middleware/rateLimiter";
 import { VEHICLE_PROFILES } from "../utils/vehicleProfiles";
 import logger from "../utils/logger";

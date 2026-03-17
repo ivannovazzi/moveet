@@ -160,7 +160,7 @@ describe("SimulationController listener lifecycle", () => {
 
   it("should still fire incident listeners correctly after restart", async () => {
     const im = incidentManager as unknown as EventEmitter;
-    const handleSpy = (vehicleManager.handleIncidentCreated as ReturnType<typeof vi.fn>);
+    const handleSpy = vehicleManager.handleIncidentCreated as ReturnType<typeof vi.fn>;
 
     // First cycle
     await controller.start({});

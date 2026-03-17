@@ -55,7 +55,9 @@ function parseCorsOrigins(raw: string): string[] | "*" {
     .filter(Boolean);
 }
 
-function parseSinks(env: Record<string, string | undefined>): Array<{ type: string; config: Record<string, unknown> }> {
+function parseSinks(
+  env: Record<string, string | undefined>
+): Array<{ type: string; config: Record<string, unknown> }> {
   const types = env.SINK_TYPES;
   if (!types) return [];
   return types

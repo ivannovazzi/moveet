@@ -64,10 +64,7 @@ export class AdapterSyncManager {
   /**
    * Starts periodic synchronization of vehicle locations to external adapter.
    */
-  startLocationUpdates(
-    intervalMs: number,
-    getVehicles: () => IterableIterator<Vehicle>
-  ): void {
+  startLocationUpdates(intervalMs: number, getVehicles: () => IterableIterator<Vehicle>): void {
     if (this.locationInterval) {
       clearInterval(this.locationInterval);
     }

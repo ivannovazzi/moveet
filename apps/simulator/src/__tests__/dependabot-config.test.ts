@@ -5,10 +5,7 @@ import { fileURLToPath } from "url";
 import { parse as parseYaml } from "yaml";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DEPENDABOT_PATH = path.resolve(
-  __dirname,
-  "../../../../.github/dependabot.yml",
-);
+const DEPENDABOT_PATH = path.resolve(__dirname, "../../../../.github/dependabot.yml");
 
 describe("dependabot.yml", () => {
   it("exists at .github/dependabot.yml", () => {
@@ -46,9 +43,7 @@ describe("dependabot.yml", () => {
         directory: string;
       }>;
 
-      const npmEntries = updates.filter(
-        (u) => u["package-ecosystem"] === "npm",
-      );
+      const npmEntries = updates.filter((u) => u["package-ecosystem"] === "npm");
       const directories = npmEntries.map((u) => u.directory);
 
       expect(directories).toContain("/");
@@ -63,9 +58,7 @@ describe("dependabot.yml", () => {
         "package-ecosystem": string;
       }>;
 
-      const actionsEntries = updates.filter(
-        (u) => u["package-ecosystem"] === "github-actions",
-      );
+      const actionsEntries = updates.filter((u) => u["package-ecosystem"] === "github-actions");
       expect(actionsEntries.length).toBeGreaterThanOrEqual(1);
     });
 
@@ -77,9 +70,7 @@ describe("dependabot.yml", () => {
 
       for (const entry of updates) {
         expect(entry.schedule).toBeDefined();
-        expect(
-          ["daily", "weekly", "monthly"].includes(entry.schedule.interval),
-        ).toBe(true);
+        expect(["daily", "weekly", "monthly"].includes(entry.schedule.interval)).toBe(true);
       }
     });
 

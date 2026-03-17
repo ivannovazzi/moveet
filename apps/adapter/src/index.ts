@@ -52,7 +52,7 @@ async function startup(): Promise<void> {
   app.use(
     cors({
       origin: config.corsOrigins === "*" ? "*" : config.corsOrigins,
-    }),
+    })
   );
   app.use(compression());
   app.use(express.json());

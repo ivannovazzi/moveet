@@ -39,15 +39,11 @@ describe("parseEnv", () => {
   });
 
   it("rejects PORT=abc (non-numeric)", () => {
-    expect(() => parseEnv(validEnv({ PORT: "abc" }))).toThrow(
-      /Invalid environment configuration/
-    );
+    expect(() => parseEnv(validEnv({ PORT: "abc" }))).toThrow(/Invalid environment configuration/);
   });
 
   it("rejects PORT=0 (below min)", () => {
-    expect(() => parseEnv(validEnv({ PORT: "0" }))).toThrow(
-      /Invalid environment configuration/
-    );
+    expect(() => parseEnv(validEnv({ PORT: "0" }))).toThrow(/Invalid environment configuration/);
   });
 
   it("rejects PORT=99999 (above max)", () => {

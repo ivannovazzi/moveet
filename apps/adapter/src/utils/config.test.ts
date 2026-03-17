@@ -83,20 +83,14 @@ describe("loadConfig", () => {
 
   it("returns default CORS origins when CORS_ORIGINS is not set", () => {
     const cfg = loadConfig();
-    expect(cfg.corsOrigins).toEqual([
-      "http://localhost:5010",
-      "http://localhost:5012",
-    ]);
+    expect(cfg.corsOrigins).toEqual(["http://localhost:5010", "http://localhost:5012"]);
   });
 
   it("parses custom CORS_ORIGINS from env", () => {
     process.env.CORS_ORIGINS = "https://app.example.com,https://admin.example.com";
 
     const cfg = loadConfig();
-    expect(cfg.corsOrigins).toEqual([
-      "https://app.example.com",
-      "https://admin.example.com",
-    ]);
+    expect(cfg.corsOrigins).toEqual(["https://app.example.com", "https://admin.example.com"]);
   });
 
   it("returns wildcard string when CORS_ORIGINS is *", () => {

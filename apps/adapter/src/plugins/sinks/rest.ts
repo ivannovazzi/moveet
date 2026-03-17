@@ -1,4 +1,10 @@
-import type { ConfigField, DataSink, HealthCheckResult, PluginConfig, SinkPublishResult } from "../types";
+import type {
+  ConfigField,
+  DataSink,
+  HealthCheckResult,
+  PluginConfig,
+  SinkPublishResult,
+} from "../types";
 import type { VehicleUpdate } from "../../types";
 import { httpFetch } from "../../utils/httpClient";
 
@@ -75,7 +81,8 @@ export class RestSink implements DataSink {
           entry.result.status === "rejected"
       )
       .map(({ result, update }) => {
-        const error = result.reason instanceof Error ? result.reason.message : String(result.reason);
+        const error =
+          result.reason instanceof Error ? result.reason.message : String(result.reason);
         console.error(`[RestSink] Failed to publish update for vehicle ${update.id}: ${error}`);
         return { itemId: update.id, error };
       });

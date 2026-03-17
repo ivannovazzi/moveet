@@ -58,9 +58,7 @@ describe("constants", () => {
     it("should define glow radii as positive integers", () => {
       expect(VEHICLE_RENDER.HOVER_GLOW_RADIUS).toBe(3);
       expect(VEHICLE_RENDER.SELECTED_GLOW_RADIUS).toBe(4);
-      expect(VEHICLE_RENDER.SELECTED_GLOW_RADIUS).toBeGreaterThan(
-        VEHICLE_RENDER.HOVER_GLOW_RADIUS
-      );
+      expect(VEHICLE_RENDER.SELECTED_GLOW_RADIUS).toBeGreaterThan(VEHICLE_RENDER.HOVER_GLOW_RADIUS);
     });
   });
 
@@ -72,9 +70,7 @@ describe("constants", () => {
 
     it("should define MIN_LERP_MS less than DEFAULT_LERP_MS", () => {
       expect(VEHICLE_INTERPOLATION.MIN_LERP_MS).toBe(30);
-      expect(VEHICLE_INTERPOLATION.MIN_LERP_MS).toBeLessThan(
-        VEHICLE_INTERPOLATION.DEFAULT_LERP_MS
-      );
+      expect(VEHICLE_INTERPOLATION.MIN_LERP_MS).toBeLessThan(VEHICLE_INTERPOLATION.DEFAULT_LERP_MS);
     });
 
     it("should define MAX_T slightly above 1 for extrapolation", () => {

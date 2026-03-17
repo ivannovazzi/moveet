@@ -112,9 +112,7 @@ describe("GraphQLSource", () => {
 
     const source = new GraphQLSource();
     await source.connect({ url: "https://api.example.com/graphql" });
-    await expect(source.getVehicles()).rejects.toThrow(
-      'expected array at path "vehicles.nodes"'
-    );
+    await expect(source.getVehicles()).rejects.toThrow('expected array at path "vehicles.nodes"');
   });
 
   it("returns [] on successful query with empty result set", async () => {

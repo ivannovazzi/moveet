@@ -9,9 +9,11 @@ function createMockContext(): RouteContext {
     network: {} as RouteContext["network"],
     vehicleManager: {} as RouteContext["vehicleManager"],
     fleetManager: {
-      getFleets: vi.fn().mockReturnValue([
-        { id: "f1", name: "Fleet A", color: "#e6194b", source: "local", vehicleIds: ["v1"] },
-      ]),
+      getFleets: vi
+        .fn()
+        .mockReturnValue([
+          { id: "f1", name: "Fleet A", color: "#e6194b", source: "local", vehicleIds: ["v1"] },
+        ]),
       createFleet: vi.fn().mockReturnValue({
         id: "f2",
         name: "Fleet B",
@@ -95,7 +97,9 @@ describe("Fleet routes", () => {
 
   describe("POST /fleets/:id/assign", () => {
     it("should assign vehicles to a fleet", async () => {
-      const res = await request(app).post("/fleets/f1/assign").send({ vehicleIds: ["v1", "v2"] });
+      const res = await request(app)
+        .post("/fleets/f1/assign")
+        .send({ vehicleIds: ["v1", "v2"] });
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ status: "assigned" });
       expect(ctx.fleetManager.assignVehicles).toHaveBeenCalledWith("f1", ["v1", "v2"]);
@@ -112,7 +116,9 @@ describe("Fleet routes", () => {
       (ctx.fleetManager.assignVehicles as ReturnType<typeof vi.fn>).mockImplementation(() => {
         throw new Error("Fleet not found");
       });
-      const res = await request(app).post("/fleets/f1/assign").send({ vehicleIds: ["v1"] });
+      const res = await request(app)
+        .post("/fleets/f1/assign")
+        .send({ vehicleIds: ["v1"] });
       expect(res.status).toBe(400);
     });
   });
@@ -135,7 +141,9 @@ describe("Fleet routes", () => {
       (ctx.fleetManager.unassignVehicles as ReturnType<typeof vi.fn>).mockImplementation(() => {
         throw new Error("Fleet not found");
       });
-      const res = await request(app).post("/fleets/f1/unassign").send({ vehicleIds: ["v1"] });
+      const res = await request(app)
+        .post("/fleets/f1/unassign")
+        .send({ vehicleIds: ["v1"] });
       expect(res.status).toBe(400);
     });
   });

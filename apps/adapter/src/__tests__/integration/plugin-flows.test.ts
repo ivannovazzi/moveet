@@ -93,7 +93,7 @@ class RecordingSink implements DataSink {
 
 const sampleUpdates: VehicleUpdate[] = [
   { id: "v1", latitude: -1.28, longitude: 36.8, type: "car" },
-  { id: "v2", latitude: -1.30, longitude: 36.82, type: "truck" },
+  { id: "v2", latitude: -1.3, longitude: 36.82, type: "truck" },
   { id: "v3", latitude: -1.29, longitude: 36.81, type: "motorcycle" },
 ];
 
@@ -213,7 +213,7 @@ describe("Plugin flow integration tests", () => {
 
       const sourceB = new ControllableSource();
       sourceB.vehicles = [
-        { id: "b1", name: "B1", position: [-1.30, 36.82], type: "truck" },
+        { id: "b1", name: "B1", position: [-1.3, 36.82], type: "truck" },
         { id: "b2", name: "B2", position: [-1.31, 36.83], type: "bus" },
       ];
 

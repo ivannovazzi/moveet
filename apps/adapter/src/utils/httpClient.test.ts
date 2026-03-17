@@ -17,9 +17,9 @@ describe("httpClient", () => {
 
   /** Helper: mock fetch to return a successful response. */
   function mockOk(body: unknown = { ok: true }) {
-    const mockFn = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify(body), { status: 200, statusText: "OK" })
-    );
+    const mockFn = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify(body), { status: 200, statusText: "OK" }));
     globalThis.fetch = mockFn;
     return mockFn;
   }
@@ -119,10 +119,14 @@ describe("httpClient", () => {
         .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
       globalThis.fetch = mockFn;
 
-      const res = await httpFetch("http://example.com/api", {}, {
-        maxRetries: 3,
-        sleep: instantSleep,
-      });
+      const res = await httpFetch(
+        "http://example.com/api",
+        {},
+        {
+          maxRetries: 3,
+          sleep: instantSleep,
+        }
+      );
 
       expect(res.ok).toBe(true);
       expect(mockFn).toHaveBeenCalledTimes(3);
@@ -136,10 +140,14 @@ describe("httpClient", () => {
         .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
       globalThis.fetch = mockFn;
 
-      const res = await httpFetch("http://example.com/api", {}, {
-        maxRetries: 3,
-        sleep: instantSleep,
-      });
+      const res = await httpFetch(
+        "http://example.com/api",
+        {},
+        {
+          maxRetries: 3,
+          sleep: instantSleep,
+        }
+      );
 
       expect(res.ok).toBe(true);
       expect(mockFn).toHaveBeenCalledTimes(2);
@@ -152,17 +160,25 @@ describe("httpClient", () => {
 
       const mockFn = vi
         .fn()
-        .mockResolvedValueOnce(new Response("", { status: 500, statusText: "Internal Server Error" }))
-        .mockResolvedValueOnce(new Response("", { status: 500, statusText: "Internal Server Error" }))
+        .mockResolvedValueOnce(
+          new Response("", { status: 500, statusText: "Internal Server Error" })
+        )
+        .mockResolvedValueOnce(
+          new Response("", { status: 500, statusText: "Internal Server Error" })
+        )
         .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
       globalThis.fetch = mockFn;
 
-      await httpFetch("http://example.com/api", {}, {
-        maxRetries: 3,
-        baseDelayMs: 100,
-        maxDelayMs: 10000,
-        sleep: sleepFn,
-      });
+      await httpFetch(
+        "http://example.com/api",
+        {},
+        {
+          maxRetries: 3,
+          baseDelayMs: 100,
+          maxDelayMs: 10000,
+          sleep: sleepFn,
+        }
+      );
 
       // attempt 1 retry: delay = random(1) * min(10000, 100 * 2^0) = 100
       // attempt 2 retry: delay = random(1) * min(10000, 100 * 2^1) = 200
@@ -172,9 +188,9 @@ describe("httpClient", () => {
     });
 
     it("does not retry on non-retryable status codes (e.g. 404)", async () => {
-      const mockFn = vi.fn().mockResolvedValue(
-        new Response("", { status: 404, statusText: "Not Found" })
-      );
+      const mockFn = vi
+        .fn()
+        .mockResolvedValue(new Response("", { status: 404, statusText: "Not Found" }));
       globalThis.fetch = mockFn;
 
       await expect(
@@ -207,9 +223,9 @@ describe("httpClient", () => {
 
   describe("max retries exceeded", () => {
     it("throws HttpClientError after exhausting all retries on 503", async () => {
-      const mockFn = vi.fn().mockResolvedValue(
-        new Response("", { status: 503, statusText: "Service Unavailable" })
-      );
+      const mockFn = vi
+        .fn()
+        .mockResolvedValue(new Response("", { status: 503, statusText: "Service Unavailable" }));
       globalThis.fetch = mockFn;
 
       await expect(
@@ -220,9 +236,9 @@ describe("httpClient", () => {
     });
 
     it("thrown error contains status code", async () => {
-      globalThis.fetch = vi.fn().mockResolvedValue(
-        new Response("", { status: 502, statusText: "Bad Gateway" })
-      );
+      globalThis.fetch = vi
+        .fn()
+        .mockResolvedValue(new Response("", { status: 502, statusText: "Bad Gateway" }));
 
       try {
         await httpFetch("http://example.com/api", {}, { maxRetries: 2, sleep: instantSleep });
@@ -245,9 +261,9 @@ describe("httpClient", () => {
     });
 
     it("maxRetries=1 means no retry", async () => {
-      const mockFn = vi.fn().mockResolvedValue(
-        new Response("", { status: 500, statusText: "Internal Server Error" })
-      );
+      const mockFn = vi
+        .fn()
+        .mockResolvedValue(new Response("", { status: 500, statusText: "Internal Server Error" }));
       globalThis.fetch = mockFn;
 
       await expect(

@@ -1,11 +1,6 @@
 // ─── Re-exports from shared types ───────────────────────────────────
 // These re-exports ensure all existing imports continue to work.
-export type {
-  VehicleType,
-  ExportVehicle,
-  VehicleUpdate,
-  Fleet,
-} from "@moveet/shared-types";
+export type { VehicleType, ExportVehicle, VehicleUpdate, Fleet } from "@moveet/shared-types";
 
 // ─── Adapter-specific types ─────────────────────────────────────────
 

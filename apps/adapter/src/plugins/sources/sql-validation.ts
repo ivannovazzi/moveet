@@ -38,10 +38,7 @@ const DANGEROUS_KEYWORDS = [
   "INTO\\s+DUMPFILE",
 ] as const;
 
-const DANGEROUS_RE = new RegExp(
-  `\\b(?:${DANGEROUS_KEYWORDS.join("|")})\\b`,
-  "i",
-);
+const DANGEROUS_RE = new RegExp(`\\b(?:${DANGEROUS_KEYWORDS.join("|")})\\b`, "i");
 
 /**
  * Patterns that indicate multiple statements or comment-based obfuscation.

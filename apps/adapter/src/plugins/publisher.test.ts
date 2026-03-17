@@ -18,7 +18,7 @@ function createMockSink(overrides?: Partial<DataSink>): DataSink {
 
 const sampleUpdates: VehicleUpdate[] = [
   { id: "v1", latitude: -1.28, longitude: 36.8 },
-  { id: "v2", latitude: -1.30, longitude: 36.82 },
+  { id: "v2", latitude: -1.3, longitude: 36.82 },
 ];
 
 describe("Publisher", () => {

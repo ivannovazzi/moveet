@@ -239,7 +239,11 @@ function findRoute(
       if (closedSet.has(edge.endNodeId)) continue;
 
       // Skip edges on restricted road types for this vehicle
-      if (restrictedHighways && restrictedHighways.length > 0 && restrictedHighways.includes(edge.highway)) {
+      if (
+        restrictedHighways &&
+        restrictedHighways.length > 0 &&
+        restrictedHighways.includes(edge.highway)
+      ) {
         continue;
       }
 
@@ -290,7 +294,13 @@ if (parentPort) {
       restrictedHighways?: string[];
     }) => {
       if (msg.type === "findRoute") {
-        let route = findRoute(nodes, msg.startId, msg.endId, msg.incidentEdges, msg.restrictedHighways);
+        let route = findRoute(
+          nodes,
+          msg.startId,
+          msg.endId,
+          msg.incidentEdges,
+          msg.restrictedHighways
+        );
         // Fallback: if no route found with restrictions, retry without
         if (!route && msg.restrictedHighways && msg.restrictedHighways.length > 0) {
           route = findRoute(nodes, msg.startId, msg.endId, msg.incidentEdges);

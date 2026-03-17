@@ -28,9 +28,7 @@ describe("RoadsContext", () => {
   function createWrapper() {
     return function Wrapper({ children }: { children: React.ReactNode }) {
       const [roads, setRoads] = useState<Road[]>([]);
-      return (
-        <RoadsContext.Provider value={{ roads, setRoads }}>{children}</RoadsContext.Provider>
-      );
+      return <RoadsContext.Provider value={{ roads, setRoads }}>{children}</RoadsContext.Provider>;
     };
   }
 
@@ -141,9 +139,7 @@ describe("DirectionContext", () => {
   it("does not include roads, POIs, or other unrelated data", () => {
     const { result } = renderHook(() => useDirectionCtx(), { wrapper: createWrapper() });
     const value = result.current as DirectionContextValue;
-    expect(Object.keys(value)).toEqual(
-      expect.arrayContaining(["directions", "setDirections"]),
-    );
+    expect(Object.keys(value)).toEqual(expect.arrayContaining(["directions", "setDirections"]));
     expect(Object.keys(value)).toHaveLength(2);
   });
 });
@@ -188,9 +184,7 @@ describe("HeatZoneContext", () => {
   it("does not include roads or other unrelated data", () => {
     const { result } = renderHook(() => useHeatZoneCtx(), { wrapper: createWrapper() });
     const value = result.current as HeatZoneContextValue;
-    expect(Object.keys(value)).toEqual(
-      expect.arrayContaining(["heatzones", "setHeatzones"]),
-    );
+    expect(Object.keys(value)).toEqual(expect.arrayContaining(["heatzones", "setHeatzones"]));
     expect(Object.keys(value)).toHaveLength(2);
   });
 });
@@ -308,7 +302,7 @@ describe("DataProvider composes all contexts", () => {
         roads: React.useContext(RoadsContext),
         pois: React.useContext(POIContext),
       }),
-      { wrapper: Wrapper },
+      { wrapper: Wrapper }
     );
 
     expect(result.current.roads.roads).toHaveLength(1);

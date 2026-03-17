@@ -71,7 +71,9 @@ describe("envSchema / parseEnv", () => {
   });
 
   it("rejects PORT=99999 (above max)", () => {
-    expect(() => parseEnv(validEnv({ PORT: "99999" }))).toThrow(/Invalid environment configuration/);
+    expect(() => parseEnv(validEnv({ PORT: "99999" }))).toThrow(
+      /Invalid environment configuration/
+    );
   });
 
   it("rejects VEHICLE_COUNT=0 (below min 1)", () => {
@@ -187,9 +189,7 @@ describe(".env.example completeness", () => {
     const exampleVars = getEnvExampleVars();
 
     const missing = configVars.filter((v) => !exampleVars.includes(v));
-    expect(missing, `Missing from .env.example: ${missing.join(", ")}`).toEqual(
-      []
-    );
+    expect(missing, `Missing from .env.example: ${missing.join(", ")}`).toEqual([]);
   });
 
   it("should not document env vars that are not used in config.ts", () => {
@@ -197,9 +197,8 @@ describe(".env.example completeness", () => {
     const exampleVars = getEnvExampleVars();
 
     const extra = exampleVars.filter((v) => !configVars.includes(v));
-    expect(
-      extra,
-      `Extra vars in .env.example not used in config.ts: ${extra.join(", ")}`
-    ).toEqual([]);
+    expect(extra, `Extra vars in .env.example not used in config.ts: ${extra.join(", ")}`).toEqual(
+      []
+    );
   });
 });

@@ -98,9 +98,7 @@ describe("AdapterSyncManager", () => {
       syncManager = new AdapterSyncManager();
 
       const adapter = (syncManager as any).adapter;
-      const mockVehicles = [
-        { id: "v1", name: "Vehicle 1", position: [1.0, 36.0] },
-      ];
+      const mockVehicles = [{ id: "v1", name: "Vehicle 1", position: [1.0, 36.0] }];
       vi.spyOn(adapter, "get").mockResolvedValue(mockVehicles);
 
       const result = await syncManager.fetchAdapterVehicles();

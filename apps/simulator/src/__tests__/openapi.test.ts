@@ -26,7 +26,13 @@ function extractRoutesFromSource(): Set<string> {
   const routesDir = path.resolve(__dirname, "../routes");
   if (fs.existsSync(routesDir)) {
     for (const file of fs.readdirSync(routesDir)) {
-      if (!file.endsWith(".ts") || file === "index.ts" || file === "types.ts" || file === "helpers.ts") continue;
+      if (
+        !file.endsWith(".ts") ||
+        file === "index.ts" ||
+        file === "types.ts" ||
+        file === "helpers.ts"
+      )
+        continue;
       const source = fs.readFileSync(path.join(routesDir, file), "utf-8");
       let match: RegExpExecArray | null;
       while ((match = routeRegex.exec(source)) !== null) {
@@ -49,13 +55,8 @@ function extractRoutesFromSource(): Set<string> {
 /**
  * Extracts all "METHOD /path" strings from the OpenAPI spec paths.
  */
-function extractRoutesFromSpec(
-  spec: Record<string, unknown>
-): Set<string> {
-  const paths = spec.paths as Record<
-    string,
-    Record<string, unknown>
-  >;
+function extractRoutesFromSpec(spec: Record<string, unknown>): Set<string> {
+  const paths = spec.paths as Record<string, Record<string, unknown>>;
   const routes = new Set<string>();
   for (const [pathStr, methods] of Object.entries(paths)) {
     for (const method of Object.keys(methods)) {

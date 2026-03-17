@@ -12,8 +12,7 @@ function requireUrl(value: string | undefined, name: string, fallback: string): 
     new URL(resolved);
   } catch {
     throw new Error(
-      `Invalid URL for ${name}: "${resolved}". ` +
-        `Provide a valid URL (e.g. "${fallback}").`
+      `Invalid URL for ${name}: "${resolved}". ` + `Provide a valid URL (e.g. "${fallback}").`
     );
   }
   return resolved;
@@ -22,18 +21,10 @@ function requireUrl(value: string | undefined, name: string, fallback: string): 
 /** Validated, immutable app config derived from Vite env vars. */
 export const config = Object.freeze({
   /** Base URL for the simulator REST API */
-  apiUrl: requireUrl(
-    import.meta.env.VITE_API_URL,
-    "VITE_API_URL",
-    "http://localhost:5010"
-  ),
+  apiUrl: requireUrl(import.meta.env.VITE_API_URL, "VITE_API_URL", "http://localhost:5010"),
 
   /** WebSocket URL for real-time simulator updates */
-  wsUrl: requireUrl(
-    import.meta.env.VITE_WS_URL,
-    "VITE_WS_URL",
-    "ws://localhost:5010"
-  ),
+  wsUrl: requireUrl(import.meta.env.VITE_WS_URL, "VITE_WS_URL", "ws://localhost:5010"),
 
   /** Base URL for the adapter REST API */
   adapterUrl: requireUrl(

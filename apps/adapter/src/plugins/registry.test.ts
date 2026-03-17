@@ -77,18 +77,14 @@ describe("PluginRegistry", () => {
   describe("metadata caching", () => {
     it("caches source metadata from an instance", () => {
       const registry = new PluginRegistry();
-      const schema: ConfigField[] = [
-        { name: "url", label: "URL", type: "string", required: true },
-      ];
+      const schema: ConfigField[] = [{ name: "url", label: "URL", type: "string", required: true }];
       const source = createMockSource({ name: "My Source", configSchema: schema });
 
       registry.registerSource("test", () => source);
       registry.cacheSourceMeta("test", source);
 
       const infos = registry.getSourceInfos();
-      expect(infos).toEqual([
-        { type: "test", name: "My Source", configSchema: schema },
-      ]);
+      expect(infos).toEqual([{ type: "test", name: "My Source", configSchema: schema }]);
     });
 
     it("caches sink metadata from an instance", () => {
@@ -102,9 +98,7 @@ describe("PluginRegistry", () => {
       registry.cacheSinkMeta("test", sink);
 
       const infos = registry.getSinkInfos();
-      expect(infos).toEqual([
-        { type: "test", name: "My Sink", configSchema: schema },
-      ]);
+      expect(infos).toEqual([{ type: "test", name: "My Sink", configSchema: schema }]);
     });
 
     it("does not overwrite already cached metadata", () => {
@@ -139,20 +133,14 @@ describe("PluginRegistry", () => {
   describe("lazy metadata fallback", () => {
     it("instantiates factory to get metadata if not cached", () => {
       const registry = new PluginRegistry();
-      const schema: ConfigField[] = [
-        { name: "url", label: "URL", type: "string" },
-      ];
-      const factory = vi.fn(() =>
-        createMockSource({ name: "Lazy Source", configSchema: schema })
-      );
+      const schema: ConfigField[] = [{ name: "url", label: "URL", type: "string" }];
+      const factory = vi.fn(() => createMockSource({ name: "Lazy Source", configSchema: schema }));
 
       registry.registerSource("lazy", factory);
 
       // No cacheSourceMeta called — metadata should be lazily fetched
       const infos = registry.getSourceInfos();
-      expect(infos).toEqual([
-        { type: "lazy", name: "Lazy Source", configSchema: schema },
-      ]);
+      expect(infos).toEqual([{ type: "lazy", name: "Lazy Source", configSchema: schema }]);
       expect(factory).toHaveBeenCalledTimes(1);
 
       // Second call should not instantiate again (metadata is now cached)
@@ -162,9 +150,7 @@ describe("PluginRegistry", () => {
 
     it("lazily instantiates sink factory for metadata", () => {
       const registry = new PluginRegistry();
-      const factory = vi.fn(() =>
-        createMockSink({ name: "Lazy Sink" })
-      );
+      const factory = vi.fn(() => createMockSink({ name: "Lazy Sink" }));
 
       registry.registerSink("lazy", factory);
 
@@ -204,9 +190,7 @@ describe("PluginRegistry", () => {
   describe("schema retrieval", () => {
     it("returns source schema by type", () => {
       const registry = new PluginRegistry();
-      const schema: ConfigField[] = [
-        { name: "url", label: "URL", type: "string", required: true },
-      ];
+      const schema: ConfigField[] = [{ name: "url", label: "URL", type: "string", required: true }];
       registry.registerSource("test", () => createMockSource({ configSchema: schema }));
       registry.cacheSourceMeta("test", createMockSource({ configSchema: schema }));
 
@@ -220,9 +204,7 @@ describe("PluginRegistry", () => {
 
     it("returns sink schema by type", () => {
       const registry = new PluginRegistry();
-      const schema: ConfigField[] = [
-        { name: "topic", label: "Topic", type: "string" },
-      ];
+      const schema: ConfigField[] = [{ name: "topic", label: "Topic", type: "string" }];
       registry.registerSink("test", () => createMockSink({ configSchema: schema }));
       registry.cacheSinkMeta("test", createMockSink({ configSchema: schema }));
 
@@ -242,13 +224,8 @@ describe("PluginRegistry", () => {
         { name: "url", label: "URL", type: "string" },
         { name: "token", label: "Token", type: "password" },
       ];
-      registry.registerSource("graphql", () =>
-        createMockSource({ configSchema: schema })
-      );
-      registry.cacheSourceMeta(
-        "graphql",
-        createMockSource({ configSchema: schema })
-      );
+      registry.registerSource("graphql", () => createMockSource({ configSchema: schema }));
+      registry.cacheSourceMeta("graphql", createMockSource({ configSchema: schema }));
 
       const result = registry.redactSourceConfig({
         graphql: { url: "http://api.com", token: "secret-123" },
@@ -264,9 +241,7 @@ describe("PluginRegistry", () => {
         { name: "brokers", label: "Brokers", type: "string" },
         { name: "password", label: "Password", type: "password" },
       ];
-      registry.registerSink("kafka", () =>
-        createMockSink({ configSchema: schema })
-      );
+      registry.registerSink("kafka", () => createMockSink({ configSchema: schema }));
       registry.cacheSinkMeta("kafka", createMockSink({ configSchema: schema }));
 
       const result = registry.redactSinkConfig({

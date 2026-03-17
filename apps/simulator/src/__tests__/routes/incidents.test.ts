@@ -15,8 +15,14 @@ vi.mock("../../utils/logger", () => ({
 
 // Mock rate limiter to be a passthrough
 vi.mock("../../middleware/rateLimiter", () => ({
-  generalRateLimiter: { middleware: () => (_req: unknown, _res: unknown, next: () => void) => next(), cleanup: vi.fn() },
-  expensiveRateLimiter: { middleware: () => (_req: unknown, _res: unknown, next: () => void) => next(), cleanup: vi.fn() },
+  generalRateLimiter: {
+    middleware: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+    cleanup: vi.fn(),
+  },
+  expensiveRateLimiter: {
+    middleware: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+    cleanup: vi.fn(),
+  },
 }));
 
 const mockIncidentDTO = {
@@ -95,9 +101,11 @@ describe("Incident routes", () => {
     });
 
     it("should return 500 if getActiveIncidents throws", async () => {
-      (ctx.incidentManager.getActiveIncidents as ReturnType<typeof vi.fn>).mockImplementation(() => {
-        throw new Error("boom");
-      });
+      (ctx.incidentManager.getActiveIncidents as ReturnType<typeof vi.fn>).mockImplementation(
+        () => {
+          throw new Error("boom");
+        }
+      );
       const res = await request(app).get("/incidents");
       expect(res.status).toBe(500);
     });
@@ -105,12 +113,14 @@ describe("Incident routes", () => {
 
   describe("POST /incidents", () => {
     it("should create an incident with valid data", async () => {
-      const res = await request(app).post("/incidents").send({
-        edgeIds: ["e1"],
-        type: "accident",
-        duration: 60000,
-        severity: 0.5,
-      });
+      const res = await request(app)
+        .post("/incidents")
+        .send({
+          edgeIds: ["e1"],
+          type: "accident",
+          duration: 60000,
+          severity: 0.5,
+        });
       expect(res.status).toBe(201);
       expect(ctx.incidentManager.createIncident).toHaveBeenCalled();
     });
@@ -126,42 +136,50 @@ describe("Incident routes", () => {
     });
 
     it("should reject invalid type", async () => {
-      const res = await request(app).post("/incidents").send({
-        edgeIds: ["e1"],
-        type: "invalid",
-        duration: 60000,
-      });
+      const res = await request(app)
+        .post("/incidents")
+        .send({
+          edgeIds: ["e1"],
+          type: "invalid",
+          duration: 60000,
+        });
       expect(res.status).toBe(400);
       expect(res.body.details.some((d: string) => d.includes("type must be one of"))).toBe(true);
     });
 
     it("should reject invalid duration", async () => {
-      const res = await request(app).post("/incidents").send({
-        edgeIds: ["e1"],
-        type: "accident",
-        duration: -1,
-      });
+      const res = await request(app)
+        .post("/incidents")
+        .send({
+          edgeIds: ["e1"],
+          type: "accident",
+          duration: -1,
+        });
       expect(res.status).toBe(400);
       expect(res.body.details.some((d: string) => d.includes("duration"))).toBe(true);
     });
 
     it("should reject severity out of range", async () => {
-      const res = await request(app).post("/incidents").send({
-        edgeIds: ["e1"],
-        type: "accident",
-        duration: 60000,
-        severity: 1.5,
-      });
+      const res = await request(app)
+        .post("/incidents")
+        .send({
+          edgeIds: ["e1"],
+          type: "accident",
+          duration: 60000,
+          severity: 1.5,
+        });
       expect(res.status).toBe(400);
       expect(res.body.details.some((d: string) => d.includes("severity"))).toBe(true);
     });
 
     it("should accept missing severity (optional)", async () => {
-      const res = await request(app).post("/incidents").send({
-        edgeIds: ["e1"],
-        type: "accident",
-        duration: 60000,
-      });
+      const res = await request(app)
+        .post("/incidents")
+        .send({
+          edgeIds: ["e1"],
+          type: "accident",
+          duration: 60000,
+        });
       expect(res.status).toBe(201);
     });
   });
@@ -204,7 +222,9 @@ describe("Incident routes", () => {
       });
       expect(res.status).toBe(400);
       expect(res.body.error).toBe("Validation failed");
-      expect(res.body.details.some((d: string) => d.includes("lat") || d.includes("lng"))).toBe(true);
+      expect(res.body.details.some((d: string) => d.includes("lat") || d.includes("lng"))).toBe(
+        true
+      );
     });
 
     it("should reject invalid type", async () => {

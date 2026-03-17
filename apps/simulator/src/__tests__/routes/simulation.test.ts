@@ -89,7 +89,9 @@ describe("Simulation routes", () => {
 
   describe("POST /start", () => {
     it("should start simulation with body", async () => {
-      const res = await request(app).post("/start").send({ vehicleTypes: { car: 5 } });
+      const res = await request(app)
+        .post("/start")
+        .send({ vehicleTypes: { car: 5 } });
       expect(res.status).toBe(200);
       expect(res.body.status).toBe("started");
       expect(res.body.vehicleTypes).toEqual({ car: 5 });

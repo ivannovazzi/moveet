@@ -21,9 +21,7 @@ export class HealthAggregator {
     };
   }
 
-  private async checkSource(
-    source: DataSource | null
-  ): Promise<AdapterStatus["source"]> {
+  private async checkSource(source: DataSource | null): Promise<AdapterStatus["source"]> {
     if (!source) return null;
 
     try {
@@ -39,9 +37,7 @@ export class HealthAggregator {
     }
   }
 
-  private async checkSinks(
-    sinks: Map<string, DataSink>
-  ): Promise<AdapterStatus["sinks"]> {
+  private async checkSinks(sinks: Map<string, DataSink>): Promise<AdapterStatus["sinks"]> {
     return Promise.all(
       Array.from(sinks.entries()).map(async ([type, sink]) => {
         try {

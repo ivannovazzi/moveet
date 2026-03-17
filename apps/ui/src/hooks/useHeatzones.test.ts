@@ -16,7 +16,7 @@ vi.mock("@/utils/client", () => ({
 
 function createWrapper(
   heatzones: Heatzone[],
-  setHeatzones: React.Dispatch<React.SetStateAction<Heatzone[]>>,
+  setHeatzones: React.Dispatch<React.SetStateAction<Heatzone[]>>
 ) {
   return function Wrapper({ children }: { children: React.ReactNode }) {
     return React.createElement(HeatZoneContext.Provider, {

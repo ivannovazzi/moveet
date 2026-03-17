@@ -54,7 +54,7 @@ function createDirectionsWrapper() {
           setDirections,
         },
       },
-      children,
+      children
     );
   };
 }
@@ -200,9 +200,7 @@ describe("reset WS event: full directions replacement", () => {
     // Add a direction via delta
     const staleRoute = createRoute({ distance: 100 });
     act(() => {
-      directionHandlers.forEach((h) =>
-        h({ vehicleId: "stale-dir", route: staleRoute, eta: 0 }),
-      );
+      directionHandlers.forEach((h) => h({ vehicleId: "stale-dir", route: staleRoute, eta: 0 }));
     });
     expect(result.current.get("stale-dir")).toBeDefined();
 

@@ -3,24 +3,14 @@ import { VehicleManager } from "../modules/VehicleManager";
 import { FleetManager } from "../modules/FleetManager";
 import { RoadNetwork } from "../modules/RoadNetwork";
 import { config } from "../utils/config";
-import {
-  VEHICLE_PROFILES,
-  FOLLOWING_DISTANCE_BY_SIZE,
-  getProfile,
-} from "../utils/vehicleProfiles";
+import { VEHICLE_PROFILES, FOLLOWING_DISTANCE_BY_SIZE, getProfile } from "../utils/vehicleProfiles";
 import { serializeVehicle } from "../utils/serializer";
 import { buildGraph, findRoute } from "../workers/pathfinding-worker";
 import type { Vehicle, VehicleType } from "../types";
 import path from "path";
 
 const FIXTURE_PATH = path.join(__dirname, "fixtures", "test-network.geojson");
-const ALL_TYPES: VehicleType[] = [
-  "car",
-  "truck",
-  "motorcycle",
-  "ambulance",
-  "bus",
-];
+const ALL_TYPES: VehicleType[] = ["car", "truck", "motorcycle", "ambulance", "bus"];
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
@@ -172,15 +162,11 @@ describe("Vehicle Types", () => {
     });
 
     it("truck has lower maxSpeed than car", () => {
-      expect(VEHICLE_PROFILES.truck.maxSpeed).toBeLessThan(
-        VEHICLE_PROFILES.car.maxSpeed
-      );
+      expect(VEHICLE_PROFILES.truck.maxSpeed).toBeLessThan(VEHICLE_PROFILES.car.maxSpeed);
     });
 
     it("motorcycle has higher maxSpeed than car", () => {
-      expect(VEHICLE_PROFILES.motorcycle.maxSpeed).toBeGreaterThan(
-        VEHICLE_PROFILES.car.maxSpeed
-      );
+      expect(VEHICLE_PROFILES.motorcycle.maxSpeed).toBeGreaterThan(VEHICLE_PROFILES.car.maxSpeed);
     });
 
     it("vehicles of different types start at their own profile minSpeed", () => {
@@ -207,9 +193,7 @@ describe("Vehicle Types", () => {
       manager = createManager(network, { ambulance: 1, car: 1 });
 
       const vehicles = getInternalVehicles(manager);
-      const ambulance = [...vehicles.values()].find(
-        (v) => v.type === "ambulance"
-      )!;
+      const ambulance = [...vehicles.values()].find((v) => v.type === "ambulance")!;
       const car = [...vehicles.values()].find((v) => v.type === "car")!;
 
       // Place both on the same edge so edge maxSpeed is identical
@@ -258,9 +242,7 @@ describe("Vehicle Types", () => {
       updateSpeed(car, 1000);
 
       const heatZoneFactor = (manager as any).options.heatZoneSpeedFactor;
-      const effectiveMax =
-        Math.min(carProfile.maxSpeed, car.currentEdge.maxSpeed) *
-        heatZoneFactor;
+      const effectiveMax = Math.min(carProfile.maxSpeed, car.currentEdge.maxSpeed) * heatZoneFactor;
       // Car speed must be clamped to heat-zone-adjusted max
       expect(car.speed).toBeLessThanOrEqual(effectiveMax + 0.01);
     });
@@ -289,12 +271,8 @@ describe("Vehicle Types", () => {
     });
 
     it("following distances increase with vehicle size", () => {
-      expect(FOLLOWING_DISTANCE_BY_SIZE.small).toBeLessThan(
-        FOLLOWING_DISTANCE_BY_SIZE.medium
-      );
-      expect(FOLLOWING_DISTANCE_BY_SIZE.medium).toBeLessThan(
-        FOLLOWING_DISTANCE_BY_SIZE.large
-      );
+      expect(FOLLOWING_DISTANCE_BY_SIZE.small).toBeLessThan(FOLLOWING_DISTANCE_BY_SIZE.medium);
+      expect(FOLLOWING_DISTANCE_BY_SIZE.medium).toBeLessThan(FOLLOWING_DISTANCE_BY_SIZE.large);
     });
   });
 
@@ -425,9 +403,7 @@ describe("Vehicle Types", () => {
       const startId = "45.5017,-73.5673";
       const endId = "45.5029,-73.5661";
       // "residential" doesn't exist in test network, so restriction has no effect
-      const route = findRoute(nodes, startId, endId, undefined, [
-        "residential",
-      ]);
+      const route = findRoute(nodes, startId, endId, undefined, ["residential"]);
       expect(route).not.toBeNull();
       expect(route!.edgeIds.length).toBeGreaterThan(0);
     });
@@ -439,9 +415,7 @@ describe("Vehicle Types", () => {
       const endId = "45.5029,-73.5661";
 
       // With primary restricted, the start node's only forward edge is blocked (oneway primary)
-      const restricted = findRoute(nodes, startId, endId, undefined, [
-        "primary",
-      ]);
+      const restricted = findRoute(nodes, startId, endId, undefined, ["primary"]);
       // Either null or uses a different path
       if (restricted === null) {
         // Fallback: without restrictions, route exists
@@ -459,13 +433,7 @@ describe("Vehicle Types", () => {
       const endId = "45.5029,-73.5661";
       const heavyRestrictions = ["primary", "secondary", "tertiary"];
 
-      let route = findRoute(
-        nodes,
-        startId,
-        endId,
-        undefined,
-        heavyRestrictions
-      );
+      let route = findRoute(nodes, startId, endId, undefined, heavyRestrictions);
 
       // Mimic worker fallback: if no route with restrictions, retry without
       if (!route && heavyRestrictions.length > 0) {

@@ -67,7 +67,13 @@ export function createIncidentRoutes(ctx: RouteContext): Router {
         (edge.start.coordinates[1] + edge.end.coordinates[1]) / 2,
       ];
 
-      const incident = incidentManager.createIncident([edge.id], type, duration, severity, position);
+      const incident = incidentManager.createIncident(
+        [edge.id],
+        type,
+        duration,
+        severity,
+        position
+      );
       res.status(201).json(incidentManager.toDTO(incident));
     })
   );
@@ -92,7 +98,13 @@ export function createIncidentRoutes(ctx: RouteContext): Router {
         (edge.start.coordinates[1] + edge.end.coordinates[1]) / 2,
       ];
 
-      const incident = incidentManager.createIncident([edge.id], type, duration, severity, position);
+      const incident = incidentManager.createIncident(
+        [edge.id],
+        type,
+        duration,
+        severity,
+        position
+      );
       res.status(201).json(incidentManager.toDTO(incident));
     })
   );

@@ -29,13 +29,9 @@ vi.mock("../utils/logger", () => ({
 function makeApp(schema: Parameters<typeof validateBody>[0]) {
   const app = express();
   app.use(express.json());
-  app.post(
-    "/test",
-    validateBody(schema),
-    (req: Request, res: Response) => {
-      res.json({ ok: true, body: req.body });
-    }
-  );
+  app.post("/test", validateBody(schema), (req: Request, res: Response) => {
+    res.json({ ok: true, body: req.body });
+  });
   // Error handler so Express doesn't swallow unexpected errors
   app.use((_err: Error, _req: Request, res: Response, _next: NextFunction) => {
     res.status(500).json({ error: "internal" });
@@ -48,9 +44,7 @@ function makeApp(schema: Parameters<typeof validateBody>[0]) {
 describe("validateBody middleware", () => {
   it("should call next() when body is valid", async () => {
     const app = makeApp(searchSchema);
-    const res = await request(app)
-      .post("/test")
-      .send({ query: "hello" });
+    const res = await request(app).post("/test").send({ query: "hello" });
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(res.body.body.query).toBe("hello");
@@ -58,9 +52,7 @@ describe("validateBody middleware", () => {
 
   it("should return 400 with details when body is invalid", async () => {
     const app = makeApp(searchSchema);
-    const res = await request(app)
-      .post("/test")
-      .send({});
+    const res = await request(app).post("/test").send({});
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("Validation failed");
     expect(Array.isArray(res.body.details)).toBe(true);
@@ -84,13 +76,9 @@ describe("validateQuery middleware", () => {
     app.use(express.json());
     const { z } = await import("zod");
     const querySchema = z.object({ page: z.string() });
-    app.get(
-      "/test",
-      validateQuery(querySchema),
-      (req: Request, res: Response) => {
-        res.json({ ok: true, query: req.query });
-      }
-    );
+    app.get("/test", validateQuery(querySchema), (req: Request, res: Response) => {
+      res.json({ ok: true, query: req.query });
+    });
 
     const res = await request(app).get("/test?page=1");
     expect(res.status).toBe(200);
@@ -120,13 +108,9 @@ describe("validateParams middleware", () => {
     app.use(express.json());
     const { z } = await import("zod");
     const paramSchema = z.object({ id: z.string().min(1) });
-    app.get(
-      "/test/:id",
-      validateParams(paramSchema),
-      (req: Request, res: Response) => {
-        res.json({ ok: true, id: req.params.id });
-      }
-    );
+    app.get("/test/:id", validateParams(paramSchema), (req: Request, res: Response) => {
+      res.json({ ok: true, id: req.params.id });
+    });
 
     const res = await request(app).get("/test/abc");
     expect(res.status).toBe(200);
@@ -155,9 +139,11 @@ describe("startSchema", () => {
   });
 
   it("accepts vehicleTypes map", async () => {
-    const res = await request(app).post("/test").send({
-      vehicleTypes: { car: 5, truck: 3 },
-    });
+    const res = await request(app)
+      .post("/test")
+      .send({
+        vehicleTypes: { car: 5, truck: 3 },
+      });
     expect(res.status).toBe(200);
     expect(res.body.body.vehicleTypes).toEqual({ car: 5, truck: 3 });
   });
@@ -233,22 +219,24 @@ describe("directionSchema", () => {
   const app = makeApp(directionSchema);
 
   it("accepts valid single-destination direction", async () => {
-    const res = await request(app).post("/test").send([
-      { id: "v1", lat: 45.5, lng: -73.5 },
-    ]);
+    const res = await request(app)
+      .post("/test")
+      .send([{ id: "v1", lat: 45.5, lng: -73.5 }]);
     expect(res.status).toBe(200);
   });
 
   it("accepts valid multi-waypoint direction", async () => {
-    const res = await request(app).post("/test").send([
-      {
-        id: "v1",
-        waypoints: [
-          { lat: 45.5, lng: -73.5 },
-          { lat: 45.6, lng: -73.4, dwellTime: 30, label: "Stop A" },
-        ],
-      },
-    ]);
+    const res = await request(app)
+      .post("/test")
+      .send([
+        {
+          id: "v1",
+          waypoints: [
+            { lat: 45.5, lng: -73.5 },
+            { lat: 45.6, lng: -73.4, dwellTime: 30, label: "Stop A" },
+          ],
+        },
+      ]);
     expect(res.status).toBe(200);
   });
 
@@ -264,27 +252,29 @@ describe("directionSchema", () => {
   });
 
   it("rejects item with empty id", async () => {
-    const res = await request(app).post("/test").send([
-      { id: "", lat: 45.5, lng: -73.5 },
-    ]);
+    const res = await request(app)
+      .post("/test")
+      .send([{ id: "", lat: 45.5, lng: -73.5 }]);
     expect(res.status).toBe(400);
     expect(res.body.details.some((d: string) => d.includes("id"))).toBe(true);
   });
 
   it("rejects item with missing id", async () => {
-    const res = await request(app).post("/test").send([
-      { lat: 45.5, lng: -73.5 },
-    ]);
+    const res = await request(app)
+      .post("/test")
+      .send([{ lat: 45.5, lng: -73.5 }]);
     expect(res.status).toBe(400);
   });
 
   it("rejects waypoint with non-numeric lat", async () => {
-    const res = await request(app).post("/test").send([
-      {
-        id: "v1",
-        waypoints: [{ lat: "bad", lng: -73.5 }],
-      },
-    ]);
+    const res = await request(app)
+      .post("/test")
+      .send([
+        {
+          id: "v1",
+          waypoints: [{ lat: "bad", lng: -73.5 }],
+        },
+      ]);
     expect(res.status).toBe(400);
   });
 });
@@ -295,9 +285,7 @@ describe("coordinatesSchema", () => {
   const app = makeApp(coordinatesSchema);
 
   it("accepts valid [lon, lat] tuple", async () => {
-    const res = await request(app)
-      .post("/test")
-      .send([-73.5, 45.5]);
+    const res = await request(app).post("/test").send([-73.5, 45.5]);
     expect(res.status).toBe(200);
   });
 
@@ -307,16 +295,12 @@ describe("coordinatesSchema", () => {
   });
 
   it("rejects array with wrong length", async () => {
-    const res = await request(app)
-      .post("/test")
-      .send([1, 2, 3]);
+    const res = await request(app).post("/test").send([1, 2, 3]);
     expect(res.status).toBe(400);
   });
 
   it("rejects array with non-numbers", async () => {
-    const res = await request(app)
-      .post("/test")
-      .send(["a", "b"]);
+    const res = await request(app).post("/test").send(["a", "b"]);
     expect(res.status).toBe(400);
   });
 });
@@ -354,21 +338,25 @@ describe("createIncidentSchema", () => {
   const app = makeApp(createIncidentSchema);
 
   it("accepts valid incident without severity", async () => {
-    const res = await request(app).post("/test").send({
-      edgeIds: ["e1", "e2"],
-      type: "accident",
-      duration: 60000,
-    });
+    const res = await request(app)
+      .post("/test")
+      .send({
+        edgeIds: ["e1", "e2"],
+        type: "accident",
+        duration: 60000,
+      });
     expect(res.status).toBe(200);
   });
 
   it("accepts valid incident with severity", async () => {
-    const res = await request(app).post("/test").send({
-      edgeIds: ["e1"],
-      type: "closure",
-      duration: 30000,
-      severity: 0.8,
-    });
+    const res = await request(app)
+      .post("/test")
+      .send({
+        edgeIds: ["e1"],
+        type: "closure",
+        duration: 30000,
+        severity: 0.8,
+      });
     expect(res.status).toBe(200);
   });
 
@@ -383,52 +371,62 @@ describe("createIncidentSchema", () => {
   });
 
   it("rejects invalid incident type", async () => {
-    const res = await request(app).post("/test").send({
-      edgeIds: ["e1"],
-      type: "fire",
-      duration: 60000,
-    });
+    const res = await request(app)
+      .post("/test")
+      .send({
+        edgeIds: ["e1"],
+        type: "fire",
+        duration: 60000,
+      });
     expect(res.status).toBe(400);
     expect(res.body.details.some((d: string) => d.includes("type"))).toBe(true);
   });
 
   it("rejects non-positive duration", async () => {
-    const res = await request(app).post("/test").send({
-      edgeIds: ["e1"],
-      type: "accident",
-      duration: 0,
-    });
+    const res = await request(app)
+      .post("/test")
+      .send({
+        edgeIds: ["e1"],
+        type: "accident",
+        duration: 0,
+      });
     expect(res.status).toBe(400);
     expect(res.body.details.some((d: string) => d.includes("duration"))).toBe(true);
   });
 
   it("rejects negative duration", async () => {
-    const res = await request(app).post("/test").send({
-      edgeIds: ["e1"],
-      type: "accident",
-      duration: -100,
-    });
+    const res = await request(app)
+      .post("/test")
+      .send({
+        edgeIds: ["e1"],
+        type: "accident",
+        duration: -100,
+      });
     expect(res.status).toBe(400);
   });
 
   it("rejects severity > 1", async () => {
-    const res = await request(app).post("/test").send({
-      edgeIds: ["e1"],
-      type: "accident",
-      duration: 5000,
-      severity: 1.5,
-    });
+    const res = await request(app)
+      .post("/test")
+      .send({
+        edgeIds: ["e1"],
+        type: "accident",
+        duration: 5000,
+        severity: 1.5,
+      });
     expect(res.status).toBe(400);
     expect(res.body.details.some((d: string) => d.includes("severity"))).toBe(true);
   });
 
   it("rejects severity < 0", async () => {
-    const res = await request(app).post("/test").send({
-      edgeIds: ["e1"],
-      type: "accident",
-      duration: 5000,
-      severity: -0.1,
-    });
+    const res = await request(app)
+      .post("/test")
+      .send({
+        edgeIds: ["e1"],
+        type: "accident",
+        duration: 5000,
+        severity: -0.1,
+      });
     expect(res.status).toBe(400);
   });
 
@@ -441,28 +439,34 @@ describe("createIncidentSchema", () => {
   });
 
   it("rejects missing type", async () => {
-    const res = await request(app).post("/test").send({
-      edgeIds: ["e1"],
-      duration: 5000,
-    });
+    const res = await request(app)
+      .post("/test")
+      .send({
+        edgeIds: ["e1"],
+        duration: 5000,
+      });
     expect(res.status).toBe(400);
   });
 
   it("rejects missing duration", async () => {
-    const res = await request(app).post("/test").send({
-      edgeIds: ["e1"],
-      type: "accident",
-    });
+    const res = await request(app)
+      .post("/test")
+      .send({
+        edgeIds: ["e1"],
+        type: "accident",
+      });
     expect(res.status).toBe(400);
   });
 
   it("accepts all three valid incident types", async () => {
     for (const type of ["accident", "closure", "construction"]) {
-      const res = await request(app).post("/test").send({
-        edgeIds: ["e1"],
-        type,
-        duration: 5000,
-      });
+      const res = await request(app)
+        .post("/test")
+        .send({
+          edgeIds: ["e1"],
+          type,
+          duration: 5000,
+        });
       expect(res.status).toBe(200);
     }
   });
@@ -654,17 +658,19 @@ describe("trafficProfileSchema", () => {
   const app = makeApp(trafficProfileSchema);
 
   it("accepts valid traffic profile", async () => {
-    const res = await request(app).post("/test").send({
-      name: "rush-hour",
-      timeRanges: [
-        {
-          start: 7,
-          end: 9,
-          demandMultiplier: 1.5,
-          affectedHighways: ["primary", "secondary"],
-        },
-      ],
-    });
+    const res = await request(app)
+      .post("/test")
+      .send({
+        name: "rush-hour",
+        timeRanges: [
+          {
+            start: 7,
+            end: 9,
+            demandMultiplier: 1.5,
+            affectedHighways: ["primary", "secondary"],
+          },
+        ],
+      });
     expect(res.status).toBe(200);
   });
 
@@ -748,9 +754,11 @@ describe("fleetAssignSchema", () => {
   const app = makeApp(fleetAssignSchema);
 
   it("accepts valid vehicleIds array", async () => {
-    const res = await request(app).post("/test").send({
-      vehicleIds: ["v1", "v2"],
-    });
+    const res = await request(app)
+      .post("/test")
+      .send({
+        vehicleIds: ["v1", "v2"],
+      });
     expect(res.status).toBe(200);
   });
 
@@ -775,9 +783,11 @@ describe("fleetAssignSchema", () => {
   });
 
   it("rejects vehicleIds with non-string elements", async () => {
-    const res = await request(app).post("/test").send({
-      vehicleIds: [1, 2, 3],
-    });
+    const res = await request(app)
+      .post("/test")
+      .send({
+        vehicleIds: [1, 2, 3],
+      });
     expect(res.status).toBe(400);
   });
 });
@@ -787,11 +797,13 @@ describe("fleetAssignSchema", () => {
 describe("error message quality", () => {
   it("includes path in error details for nested fields", async () => {
     const app = makeApp(createIncidentSchema);
-    const res = await request(app).post("/test").send({
-      edgeIds: [123], // should be strings
-      type: "accident",
-      duration: 5000,
-    });
+    const res = await request(app)
+      .post("/test")
+      .send({
+        edgeIds: [123], // should be strings
+        type: "accident",
+        duration: 5000,
+      });
     expect(res.status).toBe(400);
     // Should include a path reference to edgeIds
     expect(res.body.details.some((d: string) => d.includes("edgeIds"))).toBe(true);

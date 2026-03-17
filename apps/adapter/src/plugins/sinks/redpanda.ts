@@ -1,7 +1,13 @@
 import { randomUUID } from "node:crypto";
 import type { Admin, Producer } from "kafkajs";
 import { Kafka } from "kafkajs";
-import type { ConfigField, DataSink, HealthCheckResult, PluginConfig, SinkPublishResult } from "../types";
+import type {
+  ConfigField,
+  DataSink,
+  HealthCheckResult,
+  PluginConfig,
+  SinkPublishResult,
+} from "../types";
 import type { VehicleUpdate } from "../../types";
 
 /** Default timeout for health check broker probe (ms). Overridable via `healthCheckTimeoutMs` config. */
@@ -107,7 +113,8 @@ export class RedpandaSink implements DataSink {
           entry.result.status === "rejected"
       )
       .map(({ result, chunkIndex }) => {
-        const error = result.reason instanceof Error ? result.reason.message : String(result.reason);
+        const error =
+          result.reason instanceof Error ? result.reason.message : String(result.reason);
         const startIdx = chunkIndex * this.batchSize;
         const chunkSize = chunks[chunkIndex].length;
         console.error(

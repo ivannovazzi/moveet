@@ -17,7 +17,7 @@ vi.mock("@/utils/client", () => ({
 
 function createWrapper(
   options: StartOptions,
-  setOptions: React.Dispatch<React.SetStateAction<StartOptions>>,
+  setOptions: React.Dispatch<React.SetStateAction<StartOptions>>
 ) {
   return function Wrapper({ children }: { children: React.ReactNode }) {
     return React.createElement(OptionsContext.Provider, {

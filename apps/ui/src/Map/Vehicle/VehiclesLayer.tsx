@@ -11,12 +11,14 @@ const AY = [-4, 3, 1.5, 3];
 
 // Vehicle type → shape definitions (polygon points as [x,y] arrays, normalized)
 const VEHICLE_SHAPES: Record<string, { x: number[]; y: number[] }> = {
-  car:         { x: AX,                                                          y: AY },
-  truck:       { x: [0, 3, 3, -3, -3],                                          y: [-5, -1, 4, 4, -1] },
-  motorcycle:  { x: [0, 1.5, 0, -1.5],                                          y: [-5, 2, 0, 2] },
-  ambulance:   { x: [0, 2, 2, 0.8, 0.8, 2, 2, 0, -2, -2, -0.8, -0.8, -2, -2],
-                 y: [-4, -4, -0.8, -0.8, 0.8, 0.8, 4, 4, 4, 0.8, 0.8, -0.8, -0.8, -4] },
-  bus:         { x: [0, 3.5, 3.5, -3.5, -3.5],                                  y: [-5, -2, 5, 5, -2] },
+  car: { x: AX, y: AY },
+  truck: { x: [0, 3, 3, -3, -3], y: [-5, -1, 4, 4, -1] },
+  motorcycle: { x: [0, 1.5, 0, -1.5], y: [-5, 2, 0, 2] },
+  ambulance: {
+    x: [0, 2, 2, 0.8, 0.8, 2, 2, 0, -2, -2, -0.8, -0.8, -2, -2],
+    y: [-4, -4, -0.8, -0.8, 0.8, 0.8, 4, 4, 4, 0.8, 0.8, -0.8, -0.8, -4],
+  },
+  bus: { x: [0, 3.5, 3.5, -3.5, -3.5], y: [-5, -2, 5, 5, -2] },
 };
 
 // Type-specific default colors (used when no fleet color)
@@ -143,7 +145,17 @@ function drawGlowShape(
   ctx.shadowBlur = glowRadius;
   ctx.shadowOffsetX = 0;
   ctx.shadowOffsetY = 0;
-  drawShape(ctx, x, y, heading, s, vehicleType, fillColor, glowColor, VEHICLE_RENDER.GLOW_STROKE_WIDTH);
+  drawShape(
+    ctx,
+    x,
+    y,
+    heading,
+    s,
+    vehicleType,
+    fillColor,
+    glowColor,
+    VEHICLE_RENDER.GLOW_STROKE_WIDTH
+  );
   ctx.restore();
 }
 
@@ -381,10 +393,25 @@ export default function VehiclesLayer({
       // Collect vehicles for rendering
       const projected: ProjectedVehicle[] = [];
 
-      let selectedVehicle: { x: number; y: number; heading: number; color: string; type: string } | null = null;
-      let hoveredVehicle: { x: number; y: number; heading: number; color: string; type: string } | null = null;
+      let selectedVehicle: {
+        x: number;
+        y: number;
+        heading: number;
+        color: string;
+        type: string;
+      } | null = null;
+      let hoveredVehicle: {
+        x: number;
+        y: number;
+        heading: number;
+        color: string;
+        type: string;
+      } | null = null;
 
-      const colorBatches = new Map<string, Array<{ x: number; y: number; heading: number; type: string }>>();
+      const colorBatches = new Map<
+        string,
+        Array<{ x: number; y: number; heading: number; type: string }>
+      >();
 
       for (const [, v] of store) {
         if (v.position[0] === 0 && v.position[1] === 0) continue;
@@ -419,11 +446,23 @@ export default function VehiclesLayer({
         if (v.id === currentSelectedId) {
           const vehicleType = v.type || "car";
           const defaultColor = VEHICLE_TYPE_COLORS[vehicleType] || DEFAULT_FILL;
-          selectedVehicle = { x, y, heading, color: fleet?.color ?? defaultColor, type: vehicleType };
+          selectedVehicle = {
+            x,
+            y,
+            heading,
+            color: fleet?.color ?? defaultColor,
+            type: vehicleType,
+          };
         } else if (v.id === currentHoveredId) {
           const vehicleType = v.type || "car";
           const defaultColor = VEHICLE_TYPE_COLORS[vehicleType] || DEFAULT_FILL;
-          hoveredVehicle = { x, y, heading, color: fleet?.color ?? defaultColor, type: vehicleType };
+          hoveredVehicle = {
+            x,
+            y,
+            heading,
+            color: fleet?.color ?? defaultColor,
+            type: vehicleType,
+          };
         } else {
           const vehicleType = v.type || "car";
           const defaultColor = VEHICLE_TYPE_COLORS[vehicleType] || DEFAULT_FILL;
@@ -445,7 +484,17 @@ export default function VehiclesLayer({
         const [color, batchType] = key.split("|");
 
         for (const v of vehicles) {
-          drawShape(ctx, v.x, v.y, v.heading, s, batchType, color, DEFAULT_STROKE, VEHICLE_RENDER.STROKE_WIDTH);
+          drawShape(
+            ctx,
+            v.x,
+            v.y,
+            v.heading,
+            s,
+            batchType,
+            color,
+            DEFAULT_STROKE,
+            VEHICLE_RENDER.STROKE_WIDTH
+          );
         }
       }
 

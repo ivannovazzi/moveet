@@ -116,11 +116,11 @@ describe("useDispatchFlow", () => {
 
     // Position is [lng, lat] from map, toLatLng converts to [lat, lng]
     act(() => {
-      result.current.onAddWaypoint("v1", [36.83, -1.30]);
+      result.current.onAddWaypoint("v1", [36.83, -1.3]);
     });
 
     expect(result.current.assignments[0].waypoints).toHaveLength(2);
-    expect(result.current.assignments[0].waypoints[1].position).toEqual([-1.30, 36.83]);
+    expect(result.current.assignments[0].waypoints[1].position).toEqual([-1.3, 36.83]);
   });
 
   it("onAddWaypoint does not modify assignments for other vehicles", () => {
@@ -134,7 +134,7 @@ describe("useDispatchFlow", () => {
     });
 
     act(() => {
-      result.current.onAddWaypoint("v1", [36.83, -1.30]);
+      result.current.onAddWaypoint("v1", [36.83, -1.3]);
     });
 
     expect(result.current.assignments[0].waypoints).toHaveLength(2);
@@ -166,7 +166,7 @@ describe("useDispatchFlow", () => {
 
     // Add waypoint for selected (both v1 and v2)
     act(() => {
-      result.current.addWaypointForSelected([36.83, -1.30], vehicles);
+      result.current.addWaypointForSelected([36.83, -1.3], vehicles);
     });
 
     expect(result.current.assignments).toHaveLength(2);
@@ -200,9 +200,7 @@ describe("useDispatchFlow", () => {
       await result.current.handleDispatch();
     });
 
-    expect(client.batchDirection).toHaveBeenCalledWith([
-      { id: "v1", lat: -1.29, lng: 36.82 },
-    ]);
+    expect(client.batchDirection).toHaveBeenCalledWith([{ id: "v1", lat: -1.29, lng: 36.82 }]);
     expect(result.current.results).toEqual(mockResults);
     expect(result.current.dispatching).toBe(false);
     expect(result.current.dispatchState).toBe(DispatchState.RESULTS);
@@ -321,7 +319,7 @@ describe("useDispatchFlow", () => {
           vehicleName: "Truck",
           waypoints: [
             { position: [-1.29, 36.82], label: "Stop A" },
-            { position: [-1.30, 36.83], dwellTime: 60 },
+            { position: [-1.3, 36.83], dwellTime: 60 },
           ],
         },
       ]);
@@ -334,11 +332,11 @@ describe("useDispatchFlow", () => {
     expect(client.batchDirection).toHaveBeenCalledWith([
       {
         id: "v1",
-        lat: -1.30,
+        lat: -1.3,
         lng: 36.83,
         waypoints: [
           { lat: -1.29, lng: 36.82, label: "Stop A" },
-          { lat: -1.30, lng: 36.83, dwellTime: 60 },
+          { lat: -1.3, lng: 36.83, dwellTime: 60 },
         ],
       },
     ]);

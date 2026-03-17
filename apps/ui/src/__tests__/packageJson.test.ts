@@ -15,9 +15,7 @@ describe("package.json", () => {
   it("should not have any scripts referencing yarn", () => {
     const scripts = pkg.scripts ?? {};
     for (const [name, cmd] of Object.entries(scripts)) {
-      expect(cmd, `script "${name}" should not reference yarn`).not.toMatch(
-        /\byarn\b/,
-      );
+      expect(cmd, `script "${name}" should not reference yarn`).not.toMatch(/\byarn\b/);
     }
   });
 

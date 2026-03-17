@@ -114,7 +114,7 @@ export class PluginManager {
       this.activeSource,
       this.activeSinks,
       this.registry.getSourceInfos(),
-      this.registry.getSinkInfos(),
+      this.registry.getSinkInfos()
     );
   }
 

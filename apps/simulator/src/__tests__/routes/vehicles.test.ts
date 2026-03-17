@@ -15,8 +15,14 @@ vi.mock("../../utils/logger", () => ({
 
 // Mock rate limiter to be a passthrough
 vi.mock("../../middleware/rateLimiter", () => ({
-  generalRateLimiter: { middleware: () => (_req: unknown, _res: unknown, next: () => void) => next(), cleanup: vi.fn() },
-  expensiveRateLimiter: { middleware: () => (_req: unknown, _res: unknown, next: () => void) => next(), cleanup: vi.fn() },
+  generalRateLimiter: {
+    middleware: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+    cleanup: vi.fn(),
+  },
+  expensiveRateLimiter: {
+    middleware: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+    cleanup: vi.fn(),
+  },
 }));
 
 function createMockContext(): RouteContext {
@@ -32,9 +38,11 @@ function createMockContext(): RouteContext {
       searchByName: vi.fn().mockResolvedValue([{ name: "Main Street", id: "road-1" }]),
     } as unknown as RouteContext["network"],
     vehicleManager: {
-      getVehicles: vi.fn().mockResolvedValue([
-        { id: "v1", name: "Car 1", position: [-1.3, 36.8], speed: 40, heading: 90 },
-      ]),
+      getVehicles: vi
+        .fn()
+        .mockResolvedValue([
+          { id: "v1", name: "Car 1", position: [-1.3, 36.8], speed: 40, heading: 90 },
+        ]),
       getDirections: vi.fn().mockReturnValue([]),
       hasVehicle: vi.fn().mockReturnValue(true),
     } as unknown as RouteContext["vehicleManager"],
@@ -42,9 +50,16 @@ function createMockContext(): RouteContext {
     incidentManager: {} as RouteContext["incidentManager"],
     recordingManager: {} as RouteContext["recordingManager"],
     simulationController: {
-      setDirections: vi.fn().mockResolvedValue([
-        { vehicleId: "v1", status: "ok", route: { start: [0, 0], end: [1, 1], distance: 100 }, eta: 60 },
-      ]),
+      setDirections: vi
+        .fn()
+        .mockResolvedValue([
+          {
+            vehicleId: "v1",
+            status: "ok",
+            route: { start: [0, 0], end: [1, 1], distance: 100 },
+            eta: 60,
+          },
+        ]),
     } as unknown as RouteContext["simulationController"],
   };
 }

@@ -133,14 +133,14 @@ describe("Integration: Vehicle Lifecycle", () => {
     const vehicle = internalVehicles(manager).values().next().value!;
 
     // Place vehicle at a known position: bottom-left corner of the grid
-    const startNode = network.findNearestNode([45.5000, -73.5700]);
+    const startNode = network.findNearestNode([45.5, -73.57]);
     const startEdge = startNode.connections[0];
     vehicle.currentEdge = startEdge;
     vehicle.position = startEdge.start.coordinates;
     vehicle.progress = 0;
 
     // Dispatch to top-right corner
-    const result = await manager.findAndSetRoutes(vehicle.id, [45.5040, -73.5640]);
+    const result = await manager.findAndSetRoutes(vehicle.id, [45.504, -73.564]);
     expect(result.status).toBe("ok");
     expect(result.route).toBeDefined();
     expect(result.route!.distance).toBeGreaterThan(0);
@@ -150,7 +150,9 @@ describe("Integration: Vehicle Lifecycle", () => {
     expect(routes.has(vehicle.id)).toBe(true);
 
     // Simulate multiple ticks to move the vehicle along the route
-    const updateVehicle = (manager as unknown as { updateVehicle: (v: Vehicle, dt: number) => void }).updateVehicle.bind(manager);
+    const updateVehicle = (
+      manager as unknown as { updateVehicle: (v: Vehicle, dt: number) => void }
+    ).updateVehicle.bind(manager);
     for (let i = 0; i < 50; i++) {
       updateVehicle(vehicle, 500);
     }
@@ -158,7 +160,7 @@ describe("Integration: Vehicle Lifecycle", () => {
     // Vehicle should have made progress (position should differ from start)
     expect(
       vehicle.position[0] !== startEdge.start.coordinates[0] ||
-      vehicle.position[1] !== startEdge.start.coordinates[1]
+        vehicle.position[1] !== startEdge.start.coordinates[1]
     ).toBe(true);
   });
 
@@ -171,7 +173,9 @@ describe("Integration: Vehicle Lifecycle", () => {
 
     // Use the position-update method directly to bypass speed clamping.
     // updatePosition uses vehicle.speed directly for distance calculation.
-    const updatePosition = (manager as unknown as { updatePosition: (v: Vehicle, dt: number) => void }).updatePosition.bind(manager);
+    const updatePosition = (
+      manager as unknown as { updatePosition: (v: Vehicle, dt: number) => void }
+    ).updatePosition.bind(manager);
 
     // Set a realistic high speed (km/h). The grid cell edges are ~0.22 km,
     // so 60 km/h for 20 seconds of sim time should traverse several edges.
@@ -192,7 +196,7 @@ describe("Integration: Vehicle Lifecycle", () => {
     const vehicle = internalVehicles(manager).values().next().value!;
 
     // Place on a well-connected node
-    const startNode = network.findNearestNode([45.5020, -73.5680]);
+    const startNode = network.findNearestNode([45.502, -73.568]);
     const startEdge = startNode.connections[0];
     vehicle.currentEdge = startEdge;
     vehicle.position = startEdge.start.coordinates;
@@ -201,10 +205,14 @@ describe("Integration: Vehicle Lifecycle", () => {
     const directionEvents: unknown[] = [];
     manager.on("direction", (data) => directionEvents.push(data));
 
-    await manager.findAndSetRoutes(vehicle.id, [45.5040, -73.5640]);
+    await manager.findAndSetRoutes(vehicle.id, [45.504, -73.564]);
 
     expect(directionEvents.length).toBeGreaterThanOrEqual(1);
-    const event = directionEvents[0] as { vehicleId: string; route: { edges: unknown[] }; eta: number };
+    const event = directionEvents[0] as {
+      vehicleId: string;
+      route: { edges: unknown[] };
+      eta: number;
+    };
     expect(event.vehicleId).toBe(vehicle.id);
     expect(event.route.edges.length).toBeGreaterThan(0);
     expect(event.eta).toBeGreaterThan(0);
@@ -226,7 +234,9 @@ describe("Integration: Vehicle Lifecycle", () => {
     manager.on("update", (data) => updateEvents.push(data));
 
     // Manually trigger a game loop tick
-    const gameLoopTick = (manager as unknown as { gameLoopTick: () => void }).gameLoopTick.bind(manager);
+    const gameLoopTick = (manager as unknown as { gameLoopTick: () => void }).gameLoopTick.bind(
+      manager
+    );
     gameLoopTick();
 
     expect(updateEvents.length).toBeGreaterThanOrEqual(1);
@@ -265,16 +275,17 @@ describe("Integration: Incident Rerouting", () => {
     const vehicle = internalVehicles(manager).values().next().value!;
 
     // Place vehicle at bottom-left and route to top-right
-    const startNode = network.findNearestNode([45.5000, -73.5700]);
+    const startNode = network.findNearestNode([45.5, -73.57]);
     const startEdge = startNode.connections[0];
     vehicle.currentEdge = startEdge;
     vehicle.position = startEdge.start.coordinates;
     vehicle.progress = 0;
 
-    const result = await manager.findAndSetRoutes(vehicle.id, [45.5040, -73.5640]);
+    const result = await manager.findAndSetRoutes(vehicle.id, [45.504, -73.564]);
     if (result.status !== "ok") return; // skip if no route on this tiny network
 
-    const routes = (manager as unknown as { routes: Map<string, { edges: { id: string }[] }> }).routes;
+    const routes = (manager as unknown as { routes: Map<string, { edges: { id: string }[] }> })
+      .routes;
     const route = routes.get(vehicle.id);
     if (!route || route.edges.length < 2) return;
 
@@ -297,13 +308,15 @@ describe("Integration: Incident Rerouting", () => {
     edgeSpeedFactors.set(aheadEdge.id, 0);
     network.setIncidentEdges(edgeSpeedFactors);
 
-    const reroutePromise = new Promise<{ vehicleId: string; incidentId: string }>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error("reroute timeout")), 5000);
-      manager.on("vehicle:rerouted", (data) => {
-        clearTimeout(timeout);
-        resolve(data as { vehicleId: string; incidentId: string });
-      });
-    });
+    const reroutePromise = new Promise<{ vehicleId: string; incidentId: string }>(
+      (resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error("reroute timeout")), 5000);
+        manager.on("vehicle:rerouted", (data) => {
+          clearTimeout(timeout);
+          resolve(data as { vehicleId: string; incidentId: string });
+        });
+      }
+    );
 
     manager.handleIncidentCreated(incident);
 
@@ -323,11 +336,11 @@ describe("Integration: Incident Rerouting", () => {
     const vehicle = vehicles[0];
 
     // Give this vehicle a route
-    const startNode = network.findNearestNode([45.5000, -73.5700]);
+    const startNode = network.findNearestNode([45.5, -73.57]);
     vehicle.currentEdge = startNode.connections[0];
     vehicle.position = startNode.connections[0].start.coordinates;
     vehicle.progress = 0;
-    await manager.findAndSetRoutes(vehicle.id, [45.5040, -73.5640]);
+    await manager.findAndSetRoutes(vehicle.id, [45.504, -73.564]);
 
     const rerouteHandler = vi.fn();
     manager.on("vehicle:rerouted", rerouteHandler);
@@ -358,15 +371,16 @@ describe("Integration: Incident Rerouting", () => {
     const vehicle = internalVehicles(manager).values().next().value!;
 
     // Place and route the vehicle
-    const startNode = network.findNearestNode([45.5000, -73.5680]);
+    const startNode = network.findNearestNode([45.5, -73.568]);
     vehicle.currentEdge = startNode.connections[0];
     vehicle.position = startNode.connections[0].start.coordinates;
     vehicle.progress = 0;
 
-    const result = await manager.findAndSetRoutes(vehicle.id, [45.5040, -73.5660]);
+    const result = await manager.findAndSetRoutes(vehicle.id, [45.504, -73.566]);
     if (result.status !== "ok") return;
 
-    const routes = (manager as unknown as { routes: Map<string, { edges: { id: string }[] }> }).routes;
+    const routes = (manager as unknown as { routes: Map<string, { edges: { id: string }[] }> })
+      .routes;
     const route = routes.get(vehicle.id);
     if (!route || route.edges.length < 2) return;
 
@@ -571,7 +585,9 @@ describe("Integration: Event Emission", () => {
     manager.on("update", (data: { id: string }) => updateIds.push(data.id));
 
     // Trigger the game loop
-    const gameLoopTick = (manager as unknown as { gameLoopTick: () => void }).gameLoopTick.bind(manager);
+    const gameLoopTick = (manager as unknown as { gameLoopTick: () => void }).gameLoopTick.bind(
+      manager
+    );
     gameLoopTick();
 
     // Should have emitted an update for each active vehicle

@@ -37,7 +37,7 @@ function createWrapper() {
           setDirections,
         },
       },
-      children,
+      children
     );
   };
 }

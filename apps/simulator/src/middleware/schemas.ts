@@ -66,13 +66,13 @@ export const searchSchema = z.object({
 // ─── Incidents ──────────────────────────────────────────────────────
 
 export const createIncidentSchema = z.object({
-  edgeIds: z
-    .array(z.string())
-    .nonempty("edgeIds must be a non-empty array of strings"),
+  edgeIds: z.array(z.string()).nonempty("edgeIds must be a non-empty array of strings"),
   type: z.enum(["accident", "closure", "construction"], {
     message: "type must be one of: accident, closure, construction",
   }),
-  duration: z.number({ message: "duration must be a positive number" }).positive("duration must be a positive number"),
+  duration: z
+    .number({ message: "duration must be a positive number" })
+    .positive("duration must be a positive number"),
   severity: z.number().min(0).max(1, "severity must be a number between 0 and 1").optional(),
 });
 
@@ -121,12 +121,14 @@ export const clockSchema = z
 
 export const trafficProfileSchema = z.object({
   name: z.string({ message: "name is required" }),
-  timeRanges: z.array(z.object({
-    start: z.number(),
-    end: z.number(),
-    demandMultiplier: z.number(),
-    affectedHighways: z.array(z.string()),
-  })),
+  timeRanges: z.array(
+    z.object({
+      start: z.number(),
+      end: z.number(),
+      demandMultiplier: z.number(),
+      affectedHighways: z.array(z.string()),
+    })
+  ),
 });
 
 // ─── Fleets ─────────────────────────────────────────────────────────

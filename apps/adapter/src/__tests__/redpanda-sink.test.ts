@@ -184,12 +184,8 @@ describe("RedpandaSink", () => {
         failures: [{ itemId: "chunk-1", error: "broker unavailable" }],
       });
 
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Chunk 1 failed")
-      );
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("2/3 chunks succeeded")
-      );
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Chunk 1 failed"));
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("2/3 chunks succeeded"));
 
       consoleSpy.mockRestore();
       warnSpy.mockRestore();
@@ -212,9 +208,7 @@ describe("RedpandaSink", () => {
         longitude: 36.8 + i * 0.0001,
       }));
 
-      await expect(sink.publishUpdates(updates)).rejects.toThrow(
-        "All 3 chunks failed to publish"
-      );
+      await expect(sink.publishUpdates(updates)).rejects.toThrow("All 3 chunks failed to publish");
     });
 
     it("does not use chunked path for messages under batchSize (no partial failure)", async () => {

@@ -110,7 +110,15 @@ class MockWorker extends EventEmitter {
  */
 interface PoolInternals {
   workers: MockWorker[];
-  pending: Map<number, { resolve: (value: unknown) => void; reject: (reason: unknown) => void; workerIndex: number; timer: ReturnType<typeof setTimeout> }>;
+  pending: Map<
+    number,
+    {
+      resolve: (value: unknown) => void;
+      reject: (reason: unknown) => void;
+      workerIndex: number;
+      timer: ReturnType<typeof setTimeout>;
+    }
+  >;
   nextId: number;
   nextWorker: number;
   shutdownFlag: boolean;
@@ -176,7 +184,11 @@ describe("PathfindingPool - worker crash handling", () => {
 
       worker.on("exit", (code: number) => {
         if (!p.shutdownFlag && code !== 0) {
-          p.rejectPendingForWorker.call(pool, i, `Pathfinding worker ${i} exited with code ${code}`);
+          p.rejectPendingForWorker.call(
+            pool,
+            i,
+            `Pathfinding worker ${i} exited with code ${code}`
+          );
         }
       });
     }
@@ -220,7 +232,11 @@ describe("PathfindingPool - worker crash handling", () => {
 
     // Worker 1 requests should still be pending (not rejected yet)
     // Resolve them normally via a message event
-    mockWorkers[1].emit("message", { type: "result", id: 1, route: { edgeIds: ["x"], distance: 1 } });
+    mockWorkers[1].emit("message", {
+      type: "result",
+      id: 1,
+      route: { edgeIds: ["x"], distance: 1 },
+    });
     mockWorkers[1].emit("message", { type: "result", id: 3, route: null });
 
     const result1 = await promise1;

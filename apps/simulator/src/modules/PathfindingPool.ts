@@ -128,7 +128,9 @@ export class PathfindingPool {
         const req = this.pending.get(id);
         if (req) {
           this.pending.delete(id);
-          req.reject(new Error(`Pathfinding request ${id} timed out after ${this.requestTimeoutMs}ms`));
+          req.reject(
+            new Error(`Pathfinding request ${id} timed out after ${this.requestTimeoutMs}ms`)
+          );
         }
       }, this.requestTimeoutMs);
 

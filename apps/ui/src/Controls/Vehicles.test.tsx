@@ -111,7 +111,7 @@ describe("VehicleList", () => {
         }}
       >
         <VehicleList {...defaultProps} />
-      </DirectionContext.Provider>,
+      </DirectionContext.Provider>
     );
 
     expect(screen.getByText("Route 12.4 km")).toBeInTheDocument();

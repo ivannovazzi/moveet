@@ -54,11 +54,7 @@ function isRetryable(error: unknown): boolean {
  * Compute backoff delay with full jitter.
  * Formula: random(0, min(maxDelay, baseDelay * 2^attempt))
  */
-function computeBackoff(
-  attempt: number,
-  baseDelayMs: number,
-  maxDelayMs: number
-): number {
+function computeBackoff(attempt: number, baseDelayMs: number, maxDelayMs: number): number {
   const exponentialDelay = baseDelayMs * Math.pow(2, attempt);
   const capped = Math.min(exponentialDelay, maxDelayMs);
   return Math.random() * capped;

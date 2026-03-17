@@ -53,11 +53,8 @@ describe("constants", () => {
 
   describe("WS_BROADCASTER constants are used by WebSocketBroadcaster", () => {
     it("re-exported constants match centralized values", async () => {
-      const {
-        BACKPRESSURE_THRESHOLD,
-        MAX_DROPPED_FLUSHES,
-        POSITION_DELTA_THRESHOLD,
-      } = await import("../modules/WebSocketBroadcaster");
+      const { BACKPRESSURE_THRESHOLD, MAX_DROPPED_FLUSHES, POSITION_DELTA_THRESHOLD } =
+        await import("../modules/WebSocketBroadcaster");
 
       expect(BACKPRESSURE_THRESHOLD).toBe(WS_BROADCASTER.BACKPRESSURE_THRESHOLD);
       expect(MAX_DROPPED_FLUSHES).toBe(WS_BROADCASTER.MAX_DROPPED_FLUSHES);

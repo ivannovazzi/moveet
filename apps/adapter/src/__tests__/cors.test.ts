@@ -16,9 +16,7 @@ describe("CORS middleware", () => {
   it("allows requests from a listed origin", async () => {
     const app = createAppWithCors(["http://localhost:5010", "http://localhost:5012"]);
 
-    const res = await request(app)
-      .get("/test")
-      .set("Origin", "http://localhost:5010");
+    const res = await request(app).get("/test").set("Origin", "http://localhost:5010");
 
     expect(res.status).toBe(200);
     expect(res.headers["access-control-allow-origin"]).toBe("http://localhost:5010");
@@ -27,9 +25,7 @@ describe("CORS middleware", () => {
   it("does not set allow-origin header for unlisted origins", async () => {
     const app = createAppWithCors(["http://localhost:5010"]);
 
-    const res = await request(app)
-      .get("/test")
-      .set("Origin", "http://evil.com");
+    const res = await request(app).get("/test").set("Origin", "http://evil.com");
 
     expect(res.status).toBe(200);
     expect(res.headers["access-control-allow-origin"]).toBeUndefined();
@@ -38,9 +34,7 @@ describe("CORS middleware", () => {
   it("allows any origin when wildcard is configured", async () => {
     const app = createAppWithCors("*");
 
-    const res = await request(app)
-      .get("/test")
-      .set("Origin", "http://anything.example.com");
+    const res = await request(app).get("/test").set("Origin", "http://anything.example.com");
 
     expect(res.status).toBe(200);
     expect(res.headers["access-control-allow-origin"]).toBe("*");

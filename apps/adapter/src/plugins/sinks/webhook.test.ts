@@ -56,9 +56,7 @@ describe("WebhookSink publishUpdates timeout", () => {
   });
 
   it("propagates timeout errors from httpFetch", async () => {
-    mockHttpFetch.mockRejectedValue(
-      new HttpTimeoutError("http://slow.example.com/hook", 10000)
-    );
+    mockHttpFetch.mockRejectedValue(new HttpTimeoutError("http://slow.example.com/hook", 10000));
 
     await sink.connect({ url: "http://slow.example.com/hook" });
     await expect(

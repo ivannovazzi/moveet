@@ -51,9 +51,7 @@ describe("RedpandaSink", () => {
 
     it("generates valid UUID v4 event IDs", async () => {
       await sink.connect({ brokers: "localhost:9092" });
-      await sink.publishUpdates([
-        { id: "v1", latitude: -1.28, longitude: 36.8 },
-      ]);
+      await sink.publishUpdates([{ id: "v1", latitude: -1.28, longitude: 36.8 }]);
 
       expect(mockSend).toHaveBeenCalledTimes(1);
       const sentMessages = mockSend.mock.calls[0][0].messages;
@@ -67,13 +65,11 @@ describe("RedpandaSink", () => {
       await sink.publishUpdates([
         { id: "v1", latitude: -1.28, longitude: 36.8 },
         { id: "v2", latitude: -1.29, longitude: 36.81 },
-        { id: "v3", latitude: -1.30, longitude: 36.82 },
+        { id: "v3", latitude: -1.3, longitude: 36.82 },
       ]);
 
       const sentMessages = mockSend.mock.calls[0][0].messages;
-      const eventIds = sentMessages.map(
-        (m: { value: string }) => JSON.parse(m.value).eventId
-      );
+      const eventIds = sentMessages.map((m: { value: string }) => JSON.parse(m.value).eventId);
 
       // All should be valid UUIDs
       for (const id of eventIds) {
@@ -89,46 +85,30 @@ describe("RedpandaSink", () => {
   describe("acks configuration", () => {
     it("defaults acks to 1 when not configured", async () => {
       await sink.connect({ brokers: "localhost:9092" });
-      await sink.publishUpdates([
-        { id: "v1", latitude: -1.28, longitude: 36.8 },
-      ]);
+      await sink.publishUpdates([{ id: "v1", latitude: -1.28, longitude: 36.8 }]);
 
-      expect(mockSend).toHaveBeenCalledWith(
-        expect.objectContaining({ acks: 1 })
-      );
+      expect(mockSend).toHaveBeenCalledWith(expect.objectContaining({ acks: 1 }));
     });
 
     it("respects acks: -1 for full ISR acknowledgement", async () => {
       await sink.connect({ brokers: "localhost:9092", acks: -1 });
-      await sink.publishUpdates([
-        { id: "v1", latitude: -1.28, longitude: 36.8 },
-      ]);
+      await sink.publishUpdates([{ id: "v1", latitude: -1.28, longitude: 36.8 }]);
 
-      expect(mockSend).toHaveBeenCalledWith(
-        expect.objectContaining({ acks: -1 })
-      );
+      expect(mockSend).toHaveBeenCalledWith(expect.objectContaining({ acks: -1 }));
     });
 
     it("respects acks: 0 for fire-and-forget", async () => {
       await sink.connect({ brokers: "localhost:9092", acks: 0 });
-      await sink.publishUpdates([
-        { id: "v1", latitude: -1.28, longitude: 36.8 },
-      ]);
+      await sink.publishUpdates([{ id: "v1", latitude: -1.28, longitude: 36.8 }]);
 
-      expect(mockSend).toHaveBeenCalledWith(
-        expect.objectContaining({ acks: 0 })
-      );
+      expect(mockSend).toHaveBeenCalledWith(expect.objectContaining({ acks: 0 }));
     });
 
     it("handles string acks values from select config field", async () => {
       await sink.connect({ brokers: "localhost:9092", acks: "-1" });
-      await sink.publishUpdates([
-        { id: "v1", latitude: -1.28, longitude: 36.8 },
-      ]);
+      await sink.publishUpdates([{ id: "v1", latitude: -1.28, longitude: 36.8 }]);
 
-      expect(mockSend).toHaveBeenCalledWith(
-        expect.objectContaining({ acks: -1 })
-      );
+      expect(mockSend).toHaveBeenCalledWith(expect.objectContaining({ acks: -1 }));
     });
 
     it("applies configured acks to chunked batches", async () => {

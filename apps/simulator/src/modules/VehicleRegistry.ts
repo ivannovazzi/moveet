@@ -1,9 +1,4 @@
-import type {
-  Vehicle,
-  VehicleDTO,
-  Edge,
-  VehicleType,
-} from "../types";
+import type { Vehicle, VehicleDTO, Edge, VehicleType } from "../types";
 import { VEHICLE_CONSTANTS } from "../constants";
 import type { RoadNetwork } from "./RoadNetwork";
 import { config } from "../utils/config";
@@ -87,7 +82,13 @@ export class VehicleRegistry {
       let idx = 0;
       for (const [type, count] of Object.entries(vehicleTypes)) {
         for (let i = 0; i < (count as number); i++) {
-          this.addVehicle(idx.toString(), `V${idx}`, undefined, type as VehicleType, onVehicleAdded);
+          this.addVehicle(
+            idx.toString(),
+            `V${idx}`,
+            undefined,
+            type as VehicleType,
+            onVehicleAdded
+          );
           idx++;
         }
       }

@@ -229,7 +229,12 @@ export class RouteManager extends EventEmitter {
   /**
    * Unified position update logic for both random and route-based movement.
    */
-  updatePositionCore(vehicle: Vehicle, deltaMs: number, options: StartOptions, route?: Route): void {
+  updatePositionCore(
+    vehicle: Vehicle,
+    deltaMs: number,
+    options: StartOptions,
+    route?: Route
+  ): void {
     let remainingDistance = (vehicle.speed / 3600) * (deltaMs / 1000);
 
     while (remainingDistance > 0) {
@@ -464,7 +469,11 @@ export class RouteManager extends EventEmitter {
         };
       }
 
-      const route = await this.network.findRouteAsync(startNode, endNode, waypointProfile.restrictedHighways);
+      const route = await this.network.findRouteAsync(
+        startNode,
+        endNode,
+        waypointProfile.restrictedHighways
+      );
       if (!route || route.edges.length === 0) {
         return {
           vehicleId,

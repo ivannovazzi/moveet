@@ -44,7 +44,9 @@ const originalGetContext = HTMLCanvasElement.prototype.getContext;
 // ---------------------------------------------------------------------------
 // Mock the map context for VehiclesLayer
 // ---------------------------------------------------------------------------
-const mockProjection = vi.fn((pos: [number, number]) => [pos[0] * 10, pos[1] * 10] as [number, number]);
+const mockProjection = vi.fn(
+  (pos: [number, number]) => [pos[0] * 10, pos[1] * 10] as [number, number]
+);
 (mockProjection as unknown as { invert: unknown }).invert = vi.fn();
 
 const mockTransform = { k: 1, x: 0, y: 0 };
@@ -156,10 +158,7 @@ describe("VehicleList accessibility", () => {
     const vehicleButtons = buttons.filter((b) => b.getAttribute("aria-label")?.includes("km/h"));
 
     expect(vehicleButtons).toHaveLength(2);
-    expect(vehicleButtons[0]).toHaveAttribute(
-      "aria-label",
-      expect.stringContaining("Truck Alpha")
-    );
+    expect(vehicleButtons[0]).toHaveAttribute("aria-label", expect.stringContaining("Truck Alpha"));
     expect(vehicleButtons[0]).toHaveAttribute("aria-label", expect.stringContaining("45 km/h"));
     expect(vehicleButtons[1]).toHaveAttribute("aria-label", expect.stringContaining("Van Beta"));
     expect(vehicleButtons[1]).toHaveAttribute("aria-label", expect.stringContaining("60 km/h"));

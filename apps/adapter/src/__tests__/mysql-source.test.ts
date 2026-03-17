@@ -123,7 +123,12 @@ describe("MySQLSource", () => {
       ]);
 
       const source = new MySQLSource();
-      await source.connect({ host: "localhost", user: "root", password: "pass", database: "fleet" });
+      await source.connect({
+        host: "localhost",
+        user: "root",
+        password: "pass",
+        database: "fleet",
+      });
       const vehicles = await source.getVehicles();
 
       expect(vehicles).toHaveLength(1);
@@ -148,7 +153,12 @@ describe("MySQLSource", () => {
       ]);
 
       const source = new MySQLSource();
-      await source.connect({ host: "localhost", user: "root", password: "pass", database: "fleet" });
+      await source.connect({
+        host: "localhost",
+        user: "root",
+        password: "pass",
+        database: "fleet",
+      });
       const vehicles = await source.getVehicles();
 
       expect(vehicles).toHaveLength(0);
@@ -165,7 +175,12 @@ describe("MySQLSource", () => {
       ]);
 
       const source = new MySQLSource();
-      await source.connect({ host: "localhost", user: "root", password: "pass", database: "fleet" });
+      await source.connect({
+        host: "localhost",
+        user: "root",
+        password: "pass",
+        database: "fleet",
+      });
       const vehicles = await source.getVehicles();
 
       expect(vehicles).toHaveLength(2);
@@ -176,9 +191,7 @@ describe("MySQLSource", () => {
   describe("column existence validation", () => {
     it("warns when fieldMap references non-existent columns", async () => {
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-      mockExecute.mockResolvedValue([
-        [{ vehicle_id: "v1", label: "Bus", lat: -1.3, lon: 36.8 }],
-      ]);
+      mockExecute.mockResolvedValue([[{ vehicle_id: "v1", label: "Bus", lat: -1.3, lon: 36.8 }]]);
 
       const source = new MySQLSource();
       await source.connect({
@@ -211,7 +224,12 @@ describe("MySQLSource", () => {
       ]);
 
       const source = new MySQLSource();
-      await source.connect({ host: "localhost", user: "root", password: "pass", database: "fleet" });
+      await source.connect({
+        host: "localhost",
+        user: "root",
+        password: "pass",
+        database: "fleet",
+      });
       const vehicles = await source.getVehicles();
 
       expect(vehicles).toHaveLength(1);
@@ -226,9 +244,7 @@ describe("MySQLSource", () => {
     });
 
     it("uses id as name fallback when name column is missing", async () => {
-      mockExecute.mockResolvedValue([
-        [{ id: "v1", latitude: -1.3, longitude: 36.8 }],
-      ]);
+      mockExecute.mockResolvedValue([[{ id: "v1", latitude: -1.3, longitude: 36.8 }]]);
 
       const source = new MySQLSource();
       await source.connect({
@@ -261,7 +277,12 @@ describe("MySQLSource", () => {
       ]);
 
       const source = new MySQLSource();
-      await source.connect({ host: "localhost", user: "root", password: "pass", database: "fleet" });
+      await source.connect({
+        host: "localhost",
+        user: "root",
+        password: "pass",
+        database: "fleet",
+      });
       const vehicles = await source.getVehicles();
 
       expect(vehicles).toHaveLength(3);
@@ -275,7 +296,12 @@ describe("MySQLSource", () => {
       mockExecute.mockResolvedValue([[]]);
 
       const source = new MySQLSource();
-      await source.connect({ host: "localhost", user: "root", password: "pass", database: "fleet" });
+      await source.connect({
+        host: "localhost",
+        user: "root",
+        password: "pass",
+        database: "fleet",
+      });
       const vehicles = await source.getVehicles();
 
       expect(vehicles).toEqual([]);

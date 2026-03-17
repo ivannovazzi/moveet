@@ -140,9 +140,7 @@ describe("HealthAggregator", () => {
 
       const status = await aggregator.getStatus(null, sinks, emptyInfos, emptyInfos);
 
-      expect(status.sinks).toEqual([
-        { type: "broken", healthy: false, message: "ECONNREFUSED" },
-      ]);
+      expect(status.sinks).toEqual([{ type: "broken", healthy: false, message: "ECONNREFUSED" }]);
     });
 
     it("handles non-Error thrown from sink health check", async () => {
@@ -157,9 +155,7 @@ describe("HealthAggregator", () => {
 
       const status = await aggregator.getStatus(null, sinks, emptyInfos, emptyInfos);
 
-      expect(status.sinks).toEqual([
-        { type: "broken", healthy: false, message: "42" },
-      ]);
+      expect(status.sinks).toEqual([{ type: "broken", healthy: false, message: "42" }]);
     });
   });
 
@@ -173,12 +169,7 @@ describe("HealthAggregator", () => {
         { type: "console", name: "Console Sink", configSchema: [] },
       ];
 
-      const status = await aggregator.getStatus(
-        null,
-        new Map(),
-        availableSources,
-        availableSinks
-      );
+      const status = await aggregator.getStatus(null, new Map(), availableSources, availableSinks);
 
       expect(status.availableSources).toBe(availableSources);
       expect(status.availableSinks).toBe(availableSinks);
@@ -201,16 +192,9 @@ describe("HealthAggregator", () => {
       const availableSources: PluginInfo[] = [
         { type: "graphql", name: "GraphQL", configSchema: [] },
       ];
-      const availableSinks: PluginInfo[] = [
-        { type: "console", name: "Console", configSchema: [] },
-      ];
+      const availableSinks: PluginInfo[] = [{ type: "console", name: "Console", configSchema: [] }];
 
-      const status = await aggregator.getStatus(
-        source,
-        sinks,
-        availableSources,
-        availableSinks
-      );
+      const status = await aggregator.getStatus(source, sinks, availableSources, availableSinks);
 
       expect(status.source).toBeTruthy();
       expect(status.source!.healthy).toBe(true);

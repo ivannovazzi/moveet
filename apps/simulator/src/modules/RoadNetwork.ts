@@ -589,7 +589,11 @@ export class RoadNetwork extends EventEmitter {
    *
    * Falls back to synchronous findRoute if the worker pool is unavailable.
    */
-  public async findRouteAsync(start: Node, end: Node, restrictedHighways?: string[]): Promise<Route | null> {
+  public async findRouteAsync(
+    start: Node,
+    end: Node,
+    restrictedHighways?: string[]
+  ): Promise<Route | null> {
     // Lazy-init the pool on first async call
     if (!this.pathfindingPool) {
       this.pathfindingPool = new PathfindingPool(this.geojsonPath);
