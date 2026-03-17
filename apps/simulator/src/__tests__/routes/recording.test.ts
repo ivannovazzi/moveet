@@ -21,7 +21,7 @@ vi.mock("../../middleware/rateLimiter", () => ({
 
 // Mock fs for recordings list
 vi.mock("fs", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("fs")>();
+  const actual: typeof import("fs") = await importOriginal();
   return {
     ...actual,
     default: {

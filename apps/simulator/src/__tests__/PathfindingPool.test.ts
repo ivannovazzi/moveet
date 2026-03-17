@@ -110,7 +110,7 @@ class MockWorker extends EventEmitter {
  */
 interface PoolInternals {
   workers: MockWorker[];
-  pending: Map<number, { resolve: Function; reject: Function; workerIndex: number; timer: ReturnType<typeof setTimeout> }>;
+  pending: Map<number, { resolve: (value: unknown) => void; reject: (reason: unknown) => void; workerIndex: number; timer: ReturnType<typeof setTimeout> }>;
   nextId: number;
   nextWorker: number;
   shutdownFlag: boolean;
