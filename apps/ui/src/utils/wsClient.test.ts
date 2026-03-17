@@ -28,7 +28,6 @@ beforeEach(() => {
   mockInstances = [];
   vi.useFakeTimers();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (globalThis as any).WebSocket = class extends MockWebSocket {
     constructor(_url: string) {
       super();
@@ -39,7 +38,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   delete (globalThis as any).WebSocket;
 });
 

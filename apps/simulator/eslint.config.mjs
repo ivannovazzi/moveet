@@ -1,35 +1,12 @@
-import js from "@eslint/js";
-import globals from "globals";
-import tseslint from "typescript-eslint";
-import prettierConfig from "eslint-config-prettier";
+import { base, testOverrides, tseslint } from "@moveet/eslint-config";
 
 export default tseslint.config(
-  { ignores: ["dist"] },
+  ...base,
+  ...testOverrides,
   {
-    extends: [js.configs.recommended, ...tseslint.configs.recommended, prettierConfig],
     files: ["**/*.ts"],
-    languageOptions: {
-      ecmaVersion: 2020,
-      globals: globals.node,
-    },
     rules: {
-      "no-console": ["warn", { allow: ["info", "log", "error", "warn"] }],
-      "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-require-imports": "off",
-      "@typescript-eslint/consistent-type-imports": "warn",
-      "@typescript-eslint/no-unused-vars": [
-        "warn",
-        {
-          argsIgnorePattern: "^_",
-          varsIgnorePattern: "^_",
-        },
-      ],
-    },
-  },
-  {
-    files: ["**/__tests__/**/*.ts", "**/*.test.ts"],
-    rules: {
-      "@typescript-eslint/no-explicit-any": "off",
     },
   }
 );

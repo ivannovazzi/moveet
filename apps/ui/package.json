@@ -33,6 +33,7 @@
     "the-new-css-reset": "^1.11.3"
   },
   "devDependencies": {
+    "@moveet/eslint-config": "*",
     "@eslint/js": "^9.27.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",

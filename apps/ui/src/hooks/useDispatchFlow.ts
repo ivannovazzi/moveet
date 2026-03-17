@@ -1,7 +1,8 @@
 import { useCallback, useState } from "react";
 import client from "@/utils/client";
 import type { DirectionResult, DispatchAssignment, Position, Vehicle, Waypoint } from "@/types";
-import { DispatchState, useDispatchState } from "./useDispatchState";
+import type { DispatchState } from "./useDispatchState";
+import { useDispatchState } from "./useDispatchState";
 import { toLatLng } from "@/utils/coordinates";
 
 export interface DispatchFlow {
