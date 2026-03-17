@@ -11,7 +11,14 @@ const DEFAULT_QUERY = `query { vehicles { nodes { id callsign isOnline _currentS
 const DEFAULT_VEHICLE_PATH = "vehicles.nodes";
 const DEFAULT_FIELD_MAP = { id: "id", name: "callsign", lat: "latitude", lng: "longitude" };
 
+const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+function isSafePath(path: string): boolean {
+  return !path.split(".").some((key) => FORBIDDEN_KEYS.has(key));
+}
+
 function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
+  if (!isSafePath(path)) return undefined;
   return path.split(".").reduce<unknown>((acc, key) => {
     if (acc && typeof acc === "object" && key in (acc as Record<string, unknown>)) {
       return (acc as Record<string, unknown>)[key];
@@ -72,9 +79,18 @@ export class GraphQLSource implements DataSource {
     if (config.maxVehicles) this.maxVehicles = config.maxVehicles as number;
 
     if (config.fieldMap && typeof config.fieldMap === "object") {
+      const fm = config.fieldMap as Partial<typeof DEFAULT_FIELD_MAP>;
+      const unsafePaths = Object.entries(fm).filter(
+        ([, v]) => typeof v === "string" && !isSafePath(v)
+      );
+      if (unsafePaths.length > 0) {
+        throw new Error(
+          `GraphQL source: unsafe field map paths: ${unsafePaths.map(([k]) => k).join(", ")}`
+        );
+      }
       this.fieldMap = {
         ...DEFAULT_FIELD_MAP,
-        ...(config.fieldMap as Partial<typeof DEFAULT_FIELD_MAP>),
+        ...fm,
       };
     }
 

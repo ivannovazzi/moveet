@@ -153,8 +153,13 @@ export class RouteManager extends EventEmitter {
     route?: Route
   ): { edge: Edge; edgeIndex?: number } | null {
     if (route) {
-      const edgeIndex =
-        vehicle.edgeIndex ?? route.edges.findIndex((e) => e.id === vehicle.currentEdge.id);
+      let edgeIndex: number;
+      if (vehicle.edgeIndex !== undefined && vehicle.edgeIndex >= 0) {
+        edgeIndex = vehicle.edgeIndex;
+      } else {
+        edgeIndex = route.edges.findIndex((e) => e.id === vehicle.currentEdge.id);
+        vehicle.edgeIndex = edgeIndex;
+      }
 
       if (edgeIndex < route.edges.length - 1) {
         return {
@@ -189,7 +194,7 @@ export class RouteManager extends EventEmitter {
       });
 
       if (wpIndex < vehicle.waypoints.length - 1) {
-        const dwellSeconds = waypoint?.dwellTime ?? 10 + Math.random() * 50;
+        const dwellSeconds = waypoint?.dwellTime ?? (10 + Math.random() * 50);
         vehicle.dwellUntil = Date.now() + dwellSeconds * 1000;
         vehicle.speed = 0; // Will be set by caller via options.minSpeed
 
@@ -203,7 +208,7 @@ export class RouteManager extends EventEmitter {
       } else {
         this.emit("route:completed", { vehicleId: vehicle.id });
         this.clearWaypointState(vehicle);
-        const dwellSeconds = waypoint?.dwellTime ?? 10 + Math.random() * 50;
+        const dwellSeconds = waypoint?.dwellTime ?? (10 + Math.random() * 50);
         vehicle.dwellUntil = Date.now() + dwellSeconds * 1000;
         vehicle.speed = 0; // Will be set by caller via options.minSpeed
         this.routes.delete(vehicle.id);

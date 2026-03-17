@@ -56,6 +56,33 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /health:
+    get:
+      operationId: getHealth
+      summary: Health check for liveness/readiness probes
+      tags: [Simulation]
+      responses:
+        "200":
+          description: Service health status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  uptime:
+                    type: integer
+                    description: Seconds since server start
+                  subsystems:
+                    type: object
+                    properties:
+                      roadNetwork:
+                        type: boolean
+                      simulation:
+                        type: boolean
+
   # ─── Simulation ──────────────────────────────────────────────────────
   /status:
     get:

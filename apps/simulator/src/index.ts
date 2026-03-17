@@ -50,6 +50,8 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
+const serverStartTime = Date.now();
+
 // ─── Domain modules ──────────────────────────────────────────────────
 
 const network = new RoadNetwork(config.geojsonPath);
@@ -69,6 +71,19 @@ const ctx: RouteContext = {
   recordingManager,
   simulationController,
 };
+
+// ─── Health endpoint ─────────────────────────────────────────────────
+
+app.get("/health", (_req, res) => {
+  res.json({
+    status: "ok",
+    uptime: Math.floor((Date.now() - serverStartTime) / 1000),
+    subsystems: {
+      roadNetwork: !!network,
+      simulation: simulationController.getStatus().ready,
+    },
+  });
+});
 
 // ─── Register routes ─────────────────────────────────────────────────
 

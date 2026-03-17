@@ -134,6 +134,19 @@ describe("SimulationController lifecycle", () => {
       await controller.start({});
       expect(spy).not.toHaveBeenCalled();
     });
+
+    it("does not accumulate clock listeners when called twice without stop", async () => {
+      const clock = manager.clock;
+      const before = clock.listenerCount("hour:changed");
+      await controller.start({});
+      const afterFirst = clock.listenerCount("hour:changed");
+      await controller.start({});
+      const afterSecond = clock.listenerCount("hour:changed");
+      // Each start() should add exactly one listener, but the second start()
+      // should clean up the first, so the count stays the same.
+      expect(afterFirst).toBe(before + 1);
+      expect(afterSecond).toBe(before + 1);
+    });
   });
 
   describe("stop", () => {
