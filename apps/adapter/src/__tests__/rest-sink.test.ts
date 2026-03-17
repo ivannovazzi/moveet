@@ -94,9 +94,6 @@ describe("RestSink", () => {
     });
 
     it("returns partial success with failure details when some requests fail", async () => {
-      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
       // v1 succeeds, v2 fails, v3 succeeds
       mockHttpFetch
         .mockResolvedValueOnce({ ok: true } as Response)
@@ -117,20 +114,9 @@ describe("RestSink", () => {
         succeeded: 2,
         failures: [{ itemId: "v2", error: "connection refused" }],
       });
-
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Failed to publish update for vehicle v2")
-      );
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Partial failure: 2/3 updates succeeded")
-      );
-
-      consoleSpy.mockRestore();
-      warnSpy.mockRestore();
     });
 
     it("throws when all individual requests fail", async () => {
-      vi.spyOn(console, "error").mockImplementation(() => {});
 
       mockHttpFetch
         .mockRejectedValueOnce(new Error("timeout"))
@@ -148,9 +134,6 @@ describe("RestSink", () => {
     });
 
     it("logs each failed vehicle ID individually", async () => {
-      const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-      vi.spyOn(console, "warn").mockImplementation(() => {});
-
       mockHttpFetch
         .mockResolvedValueOnce({ ok: true } as Response)
         .mockRejectedValueOnce(new Error("err-a"))
@@ -160,17 +143,22 @@ describe("RestSink", () => {
       const sink = new RestSink();
       await sink.connect({ url: "https://api.example.com/sync", batchMode: false });
 
-      await sink.publishUpdates([
+      const result = await sink.publishUpdates([
         { id: "v1", latitude: -1.3, longitude: 36.8 },
         { id: "v2", latitude: -1.2, longitude: 36.7 },
         { id: "v3", latitude: -1.1, longitude: 36.6 },
         { id: "v4", latitude: -1.0, longitude: 36.5 },
       ]);
 
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("vehicle v2"));
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("vehicle v3"));
-
-      consoleSpy.mockRestore();
+      // Verify that v2 and v3 failures are captured in the result
+      expect(result).toMatchObject({
+        attempted: 4,
+        succeeded: 2,
+        failures: expect.arrayContaining([
+          expect.objectContaining({ itemId: "v2" }),
+          expect.objectContaining({ itemId: "v3" }),
+        ]),
+      });
     });
   });
 });

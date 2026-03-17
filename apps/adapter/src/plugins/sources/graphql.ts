@@ -2,6 +2,9 @@ import { gql, GraphQLClient } from "graphql-request";
 import type { ConfigField, DataSource, HealthCheckResult, PluginConfig } from "../types";
 import type { ExportVehicle, Vehicle } from "../../types";
 import { MedicalType } from "../../types";
+import { createLogger } from "../../utils/logger";
+
+const logger = createLogger("GraphQLSource");
 
 function isMedical(vehicle: Vehicle): boolean {
   return Object.values(MedicalType).includes(vehicle.vehicleTypeRef?.value as MedicalType);
@@ -127,7 +130,7 @@ export class GraphQLSource implements DataSource {
           ] as [number, number],
         }));
     } catch (error) {
-      console.error("GraphQL source error:", error);
+      logger.error({ err: error }, "GraphQL source error");
       throw error;
     }
   }
