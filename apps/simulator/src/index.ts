@@ -12,6 +12,7 @@ import { RecordingManager } from "./modules/RecordingManager";
 import { SimulationController } from "./modules/SimulationController";
 import { config, verifyConfig, logConfig } from "./utils/config";
 import { generalRateLimiter } from "./middleware/rateLimiter";
+import { correlationIdMiddleware } from "./middleware/correlationId";
 import logger from "./utils/logger";
 import {
   createVehicleRoutes,
@@ -33,22 +34,11 @@ app.use(cors({ origin: true }));
 app.use(compression());
 app.use(express.json());
 
+// Correlation ID and request logging middleware
+app.use(correlationIdMiddleware);
+
 // Apply general rate limiting to all routes
 app.use(generalRateLimiter.middleware());
-
-// Request logging middleware
-app.use((req: Request, res: Response, next: NextFunction) => {
-  const startTime = Date.now();
-  const originalSend = res.send;
-
-  res.send = function (data): Response {
-    const duration = Date.now() - startTime;
-    logger.info(`${req.method} ${req.path} ${res.statusCode} - ${duration}ms`);
-    return originalSend.call(this, data);
-  };
-
-  next();
-});
 
 // ─── Domain modules ──────────────────────────────────────────────────
 

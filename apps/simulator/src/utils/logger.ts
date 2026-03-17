@@ -1,24 +1,14 @@
-function readableDate(): string {
-  // return in 'YYYY-MM-DD HH:mm:ss' format, no milliseconds
-  return new Date().toISOString().replace("T", " ").replace(/\..+/, "");
-}
+import pino from "pino";
 
-// Custom logger wrapper
-const logger = {
-  info: (message: string): void => {
-    console.log(`INFO @ ${readableDate()}: ${message}`);
-  },
-  error: (message: string): void => {
-    console.log(`ERROR @ ${readableDate()}: ${message}`);
-  },
-  warn: (message: string): void => {
-    console.log(`WARN @ ${readableDate()}: ${message}`);
-  },
-  debug: (message: string): void => {
-    if (process.env.NODE_ENV !== "production") {
-      console.log(`DEBUG @ ${readableDate()}: ${message}`);
-    }
-  },
-};
+const isDev = process.env.NODE_ENV !== "production";
+
+const logger = pino({
+  level: process.env.LOG_LEVEL ?? "info",
+  transport: isDev
+    ? { target: "pino-pretty", options: { colorize: true } }
+    : undefined,
+});
+
+export const createLogger = (module: string) => logger.child({ module });
 
 export default logger;
