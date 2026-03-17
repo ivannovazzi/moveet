@@ -1,5 +1,6 @@
 import { HttpClient } from "./httpClient";
 import { WebSocketClient } from "./wsClient";
+import type { ConnectionStateListener } from "./wsClient";
 import type {
   ApiResponse,
   StartOptions,
@@ -95,6 +96,8 @@ class SimulationService {
     // traffic
     this.getTraffic = this.getTraffic.bind(this);
     this.onTraffic = this.onTraffic.bind(this);
+    // connection state
+    this.onConnectionStateChange = this.onConnectionStateChange.bind(this);
   }
 
   connectWebSocket(): void {
@@ -113,11 +116,20 @@ class SimulationService {
     this.ws.on("disconnect", () => handler());
   }
 
+  onConnectionStateChange(listener: ConnectionStateListener): () => void {
+    return this.ws.onConnectionStateChange(listener);
+  }
+
   onVehicle(handler: (vehicle: VehicleDTO) => void): void {
     this.ws.on("vehicle", handler);
     this.ws.on<VehicleDTO[]>("vehicles", (vehicles) => {
       for (const v of vehicles) handler(v);
     });
+  }
+
+  offVehicle(): void {
+    this.ws.off("vehicle");
+    this.ws.off("vehicles");
   }
 
   onStatus(handler: (status: SimulationStatus) => void): void {
@@ -368,12 +380,11 @@ class SimulationService {
   }
 }
 
-const host = import.meta.env.VITE_API_URL || "http://localhost:5010";
-const wsHost = import.meta.env.VITE_WS_URL || "ws://localhost:5010";
+import { config as appConfig } from "./config";
 
 export default new SimulationService(
-  new HttpClient(host),
-  new WebSocketClient(wsHost, {
+  new HttpClient(appConfig.apiUrl),
+  new WebSocketClient(appConfig.wsUrl, {
     autoReconnect: !import.meta.env.VITEST,
     logReconnects: !import.meta.env.VITEST,
   })

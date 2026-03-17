@@ -1,7 +1,9 @@
 import { useEffect, useRef, useCallback } from "react";
 import type { Fleet, Position } from "@/types";
+import { toMapPosition } from "@/utils/coordinates";
 import { useMapContext } from "../../components/Map/hooks";
 import { vehicleStore } from "../../hooks/vehicleStore";
+import { VEHICLE_RENDER, VEHICLE_INTERPOLATION } from "../../data/constants";
 
 // Arrow shape vertices (same as original VehicleMarker polygon)
 const AX = [0, 2.5, 0, -2.5];
@@ -9,12 +11,14 @@ const AY = [-4, 3, 1.5, 3];
 
 // Vehicle type → shape definitions (polygon points as [x,y] arrays, normalized)
 const VEHICLE_SHAPES: Record<string, { x: number[]; y: number[] }> = {
-  car:         { x: AX,                                                          y: AY },
-  truck:       { x: [0, 3, 3, -3, -3],                                          y: [-5, -1, 4, 4, -1] },
-  motorcycle:  { x: [0, 1.5, 0, -1.5],                                          y: [-5, 2, 0, 2] },
-  ambulance:   { x: [0, 2, 2, 0.8, 0.8, 2, 2, 0, -2, -2, -0.8, -0.8, -2, -2],
-                 y: [-4, -4, -0.8, -0.8, 0.8, 0.8, 4, 4, 4, 0.8, 0.8, -0.8, -0.8, -4] },
-  bus:         { x: [0, 3.5, 3.5, -3.5, -3.5],                                  y: [-5, -2, 5, 5, -2] },
+  car: { x: AX, y: AY },
+  truck: { x: [0, 3, 3, -3, -3], y: [-5, -1, 4, 4, -1] },
+  motorcycle: { x: [0, 1.5, 0, -1.5], y: [-5, 2, 0, 2] },
+  ambulance: {
+    x: [0, 2, 2, 0.8, 0.8, 2, 2, 0, -2, -2, -0.8, -0.8, -2, -2],
+    y: [-4, -4, -0.8, -0.8, 0.8, 0.8, 4, 4, 4, 0.8, 0.8, -0.8, -0.8, -4],
+  },
+  bus: { x: [0, 3.5, 3.5, -3.5, -3.5], y: [-5, -2, 5, 5, -2] },
 };
 
 // Type-specific default colors (used when no fleet color)
@@ -62,12 +66,7 @@ interface VehicleInterp {
   lerpMs: number;
 }
 
-/** Fallback lerp duration before we have enough samples. */
-const DEFAULT_LERP_MS = 150;
-/** Minimum lerp duration to avoid jitter from timing noise. */
-const MIN_LERP_MS = 30;
-/** Allow interpolation to overshoot target by this factor to avoid pause at destination. */
-const MAX_T = 1.15;
+const { DEFAULT_LERP_MS, MIN_LERP_MS, MAX_T } = VEHICLE_INTERPOLATION;
 
 /** Lerp a single value from a to b by t ∈ [0, 1]. */
 function lerp(a: number, b: number, t: number): number {
@@ -146,7 +145,17 @@ function drawGlowShape(
   ctx.shadowBlur = glowRadius;
   ctx.shadowOffsetX = 0;
   ctx.shadowOffsetY = 0;
-  drawShape(ctx, x, y, heading, s, vehicleType, fillColor, glowColor, 0.8);
+  drawShape(
+    ctx,
+    x,
+    y,
+    heading,
+    s,
+    vehicleType,
+    fillColor,
+    glowColor,
+    VEHICLE_RENDER.GLOW_STROKE_WIDTH
+  );
   ctx.restore();
 }
 
@@ -156,11 +165,11 @@ function drawGlowShape(
 function drawSelectionRing(ctx: CanvasRenderingContext2D, x: number, y: number, s: number) {
   ctx.save();
   ctx.beginPath();
-  ctx.arc(x, y, 6 * s, 0, Math.PI * 2);
+  ctx.arc(x, y, VEHICLE_RENDER.SELECTION_RING_RADIUS * s, 0, Math.PI * 2);
   ctx.fillStyle = SELECTED_BG;
   ctx.fill();
   ctx.strokeStyle = SELECTED_STROKE;
-  ctx.lineWidth = 0.4 * s;
+  ctx.lineWidth = VEHICLE_RENDER.SELECTION_RING_STROKE_WIDTH * s;
   ctx.stroke();
   ctx.restore();
 }
@@ -220,6 +229,8 @@ export default function VehiclesLayer({
     containerRef.current = container;
 
     const canvas = document.createElement("canvas");
+    canvas.setAttribute("role", "img");
+    canvas.setAttribute("aria-label", "Vehicle fleet map");
     canvas.style.position = "absolute";
     canvas.style.top = "0";
     canvas.style.left = "0";
@@ -230,7 +241,9 @@ export default function VehiclesLayer({
     canvasRef.current = canvas;
 
     // Size the canvas backing buffer to match the container
+    let disposed = false;
     const resizeObserver = new ResizeObserver((entries) => {
+      if (disposed) return;
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
         const dpr = window.devicePixelRatio || 1;
@@ -241,6 +254,7 @@ export default function VehiclesLayer({
     resizeObserver.observe(container);
 
     return () => {
+      disposed = true;
       resizeObserver.disconnect();
       canvas.remove();
       canvasRef.current = null;
@@ -379,10 +393,25 @@ export default function VehiclesLayer({
       // Collect vehicles for rendering
       const projected: ProjectedVehicle[] = [];
 
-      let selectedVehicle: { x: number; y: number; heading: number; color: string; type: string } | null = null;
-      let hoveredVehicle: { x: number; y: number; heading: number; color: string; type: string } | null = null;
+      let selectedVehicle: {
+        x: number;
+        y: number;
+        heading: number;
+        color: string;
+        type: string;
+      } | null = null;
+      let hoveredVehicle: {
+        x: number;
+        y: number;
+        heading: number;
+        color: string;
+        type: string;
+      } | null = null;
 
-      const colorBatches = new Map<string, Array<{ x: number; y: number; heading: number; type: string }>>();
+      const colorBatches = new Map<
+        string,
+        Array<{ x: number; y: number; heading: number; type: string }>
+      >();
 
       for (const [, v] of store) {
         if (v.position[0] === 0 && v.position[1] === 0) continue;
@@ -407,8 +436,8 @@ export default function VehiclesLayer({
           heading = ((v.heading ?? 0) * Math.PI) / 180;
         }
 
-        // Projection expects [lng, lat]
-        const pos = projectPosition([lng, lat]);
+        // Projection expects [lng, lat] — toMapPosition swaps from [lat, lng]
+        const pos = projectPosition(toMapPosition([lat, lng]));
         if (!pos) continue;
 
         const [x, y] = pos;
@@ -417,11 +446,23 @@ export default function VehiclesLayer({
         if (v.id === currentSelectedId) {
           const vehicleType = v.type || "car";
           const defaultColor = VEHICLE_TYPE_COLORS[vehicleType] || DEFAULT_FILL;
-          selectedVehicle = { x, y, heading, color: fleet?.color ?? defaultColor, type: vehicleType };
+          selectedVehicle = {
+            x,
+            y,
+            heading,
+            color: fleet?.color ?? defaultColor,
+            type: vehicleType,
+          };
         } else if (v.id === currentHoveredId) {
           const vehicleType = v.type || "car";
           const defaultColor = VEHICLE_TYPE_COLORS[vehicleType] || DEFAULT_FILL;
-          hoveredVehicle = { x, y, heading, color: fleet?.color ?? defaultColor, type: vehicleType };
+          hoveredVehicle = {
+            x,
+            y,
+            heading,
+            color: fleet?.color ?? defaultColor,
+            type: vehicleType,
+          };
         } else {
           const vehicleType = v.type || "car";
           const defaultColor = VEHICLE_TYPE_COLORS[vehicleType] || DEFAULT_FILL;
@@ -443,7 +484,17 @@ export default function VehiclesLayer({
         const [color, batchType] = key.split("|");
 
         for (const v of vehicles) {
-          drawShape(ctx, v.x, v.y, v.heading, s, batchType, color, DEFAULT_STROKE, 0.5);
+          drawShape(
+            ctx,
+            v.x,
+            v.y,
+            v.heading,
+            s,
+            batchType,
+            color,
+            DEFAULT_STROKE,
+            VEHICLE_RENDER.STROKE_WIDTH
+          );
         }
       }
 
@@ -461,7 +512,7 @@ export default function VehiclesLayer({
           hoveredVehicle.type,
           resolveCSSColor(hoveredVehicle.color),
           HOVER_STROKE,
-          3
+          VEHICLE_RENDER.HOVER_GLOW_RADIUS
         );
       }
 
@@ -475,7 +526,7 @@ export default function VehiclesLayer({
           selectedVehicle.type,
           resolveCSSColor(selectedVehicle.color),
           SELECTED_STROKE,
-          4
+          VEHICLE_RENDER.SELECTED_GLOW_RADIUS
         );
       }
     };
@@ -506,7 +557,7 @@ export default function VehiclesLayer({
       const projX = (clientX - t.x) / k;
       const projY = (clientY - t.y) / k;
 
-      const hitRadius = (8 * scale) / Math.pow(k, 0.75);
+      const hitRadius = (VEHICLE_RENDER.HIT_TEST_RADIUS * scale) / Math.pow(k, 0.75);
       const hitRadiusSq = hitRadius * hitRadius;
 
       let closestId: string | null = null;

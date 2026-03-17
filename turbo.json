@@ -19,6 +19,9 @@
     "format:check": {},
     "test": {
       "cache": false
+    },
+    "type-check": {
+      "dependsOn": ["^type-check"]
     }
   }
 }

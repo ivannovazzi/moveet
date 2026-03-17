@@ -1,15 +1,20 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { RestSource } from "../plugins/sources/rest";
 
+vi.mock("../utils/httpClient", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../utils/httpClient")>();
+  return {
+    ...actual,
+    httpFetch: vi.fn(),
+  };
+});
+
+import { httpFetch, HttpClientError } from "../utils/httpClient";
+const mockHttpFetch = vi.mocked(httpFetch);
+
 describe("RestSource", () => {
-  const mockFetch = vi.fn();
-
   beforeEach(() => {
-    vi.stubGlobal("fetch", mockFetch);
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
+    mockHttpFetch.mockReset();
   });
 
   it("has correct type and name", () => {
@@ -24,16 +29,17 @@ describe("RestSource", () => {
   });
 
   it("fetches and maps vehicles with default field map", async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
+    mockHttpFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
           vehicles: [
             { id: "v1", name: "Bus 1", lat: -1.3, lng: 36.8 },
             { id: "v2", name: "Bus 2", lat: -1.2, lng: 36.7 },
           ],
         }),
-    });
+        { status: 200 }
+      )
+    );
 
     const source = new RestSource();
     await source.connect({ url: "https://api.example.com/vehicles" });
@@ -48,15 +54,16 @@ describe("RestSource", () => {
   });
 
   it("uses custom vehiclePath and fieldMap", async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
+    mockHttpFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
           data: {
             fleet: [{ vehicle_id: "a1", label: "Truck A", latitude: -1.3, longitude: 36.8 }],
           },
         }),
-    });
+        { status: 200 }
+      )
+    );
 
     const source = new RestSource();
     await source.connect({
@@ -72,10 +79,9 @@ describe("RestSource", () => {
   });
 
   it("uses POST method when configured", async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ vehicles: [] }),
-    });
+    mockHttpFetch.mockResolvedValue(
+      new Response(JSON.stringify({ vehicles: [] }), { status: 200 })
+    );
 
     const source = new RestSource();
     await source.connect({
@@ -85,7 +91,7 @@ describe("RestSource", () => {
     });
     await source.getVehicles();
 
-    expect(mockFetch).toHaveBeenCalledWith(
+    expect(mockHttpFetch).toHaveBeenCalledWith(
       "https://api.example.com",
       expect.objectContaining({
         method: "POST",
@@ -95,16 +101,43 @@ describe("RestSource", () => {
   });
 
   it("throws on non-ok response", async () => {
-    mockFetch.mockResolvedValue({ ok: false, status: 500, statusText: "Server Error" });
+    mockHttpFetch.mockRejectedValue(new HttpClientError("HTTP 500 Server Error", 500, true));
 
     const source = new RestSource();
     await source.connect({ url: "https://api.example.com" });
     await expect(source.getVehicles()).rejects.toThrow("500");
   });
 
-  it("returns empty when not connected", async () => {
+  it("throws when not connected", async () => {
     const source = new RestSource();
-    expect(await source.getVehicles()).toEqual([]);
+    await expect(source.getVehicles()).rejects.toThrow("RestSource: not connected");
+  });
+
+  it("returns [] on successful fetch with no vehicles", async () => {
+    mockHttpFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ vehicles: [] }),
+    } as unknown as Response);
+
+    const source = new RestSource();
+    await source.connect({ url: "https://api.example.com" });
+    const vehicles = await source.getVehicles();
+    expect(vehicles).toEqual([]);
+  });
+
+  it("throws on network error during getVehicles", async () => {
+    mockHttpFetch.mockRejectedValue(new Error("ECONNREFUSED"));
+
+    const source = new RestSource();
+    await source.connect({ url: "https://api.example.com" });
+    await expect(source.getVehicles()).rejects.toThrow("ECONNREFUSED");
+  });
+
+  it("throws after disconnect", async () => {
+    const source = new RestSource();
+    await source.connect({ url: "https://api.example.com" });
+    await source.disconnect();
+    await expect(source.getVehicles()).rejects.toThrow("RestSource: not connected");
   });
 
   it("has config schema", () => {

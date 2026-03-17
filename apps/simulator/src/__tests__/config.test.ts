@@ -1,44 +1,148 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import fs from "fs";
+import path from "path";
 
-// We test verifyConfig in isolation by controlling both the `config` values
-// (via vi.mock) and the filesystem (vi.spyOn on fs.existsSync).
-
-// Note: `config` is a `const` object built at module evaluation time, so we
-// cannot change it between tests via re-import.  Instead we spy on
-// `fs.existsSync` to simulate a missing file, and we import `verifyConfig`
-// directly — each call reads the live `config` object.  For range-validation
-// tests we temporarily write to the mutable cast of `config`.
+// dotenv.config() is called on import; stub it before importing config.
+vi.mock("dotenv", () => ({ default: { config: vi.fn() } }));
 
 vi.mock("../utils/logger", () => ({
   default: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
 }));
 
-// dotenv.config() is called on import; stub it before importing config.
-vi.mock("dotenv", () => ({ default: { config: vi.fn() } }));
-
-import { config, verifyConfig } from "../utils/config";
+import { verifyConfig, parseEnv } from "../utils/config";
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
-/** Mutate the readonly `config` object for a single test. */
-function withConfig(overrides: Partial<typeof config>, fn: () => void): void {
-  const mutable = config as unknown as Record<string, unknown>;
-  const saved: Record<string, unknown> = {};
-  for (const k of Object.keys(overrides) as (keyof typeof config)[]) {
-    saved[k] = mutable[k];
-    mutable[k] = overrides[k];
-  }
-  try {
-    fn();
-  } finally {
-    for (const k of Object.keys(saved)) {
-      mutable[k] = saved[k];
-    }
-  }
+/** Build a valid env object with all defaults, then apply overrides. */
+function validEnv(overrides: Record<string, string> = {}): Record<string, string> {
+  return {
+    PORT: "5010",
+    UPDATE_INTERVAL: "500",
+    MIN_SPEED: "20",
+    MAX_SPEED: "60",
+    ACCELERATION: "5",
+    DECELERATION: "7",
+    TURN_THRESHOLD: "30",
+    SPEED_VARIATION: "0.1",
+    HEATZONE_SPEED_FACTOR: "0.5",
+    SYNC_ADAPTER_TIMEOUT: "5000",
+    VEHICLE_COUNT: "70",
+    GEOJSON_PATH: "./export.geojson",
+    ADAPTER_URL: "",
+    ...overrides,
+  };
 }
 
-// ─── Tests ──────────────────────────────────────────────────────────
+// ─── Zod Schema Tests ───────────────────────────────────────────────
+
+describe("envSchema / parseEnv", () => {
+  it("parses a valid complete env", () => {
+    const cfg = parseEnv(validEnv());
+    expect(cfg.PORT).toBe(5010);
+    expect(cfg.MIN_SPEED).toBe(20);
+    expect(cfg.MAX_SPEED).toBe(60);
+    expect(cfg.VEHICLE_COUNT).toBe(70);
+    expect(cfg.SPEED_VARIATION).toBe(0.1);
+  });
+
+  it("applies defaults when env vars are missing", () => {
+    const cfg = parseEnv({});
+    expect(cfg.PORT).toBe(5010);
+    expect(cfg.UPDATE_INTERVAL).toBe(500);
+    expect(cfg.MIN_SPEED).toBe(20);
+    expect(cfg.MAX_SPEED).toBe(60);
+    expect(cfg.VEHICLE_COUNT).toBe(70);
+    expect(cfg.GEOJSON_PATH).toBe("./export.geojson");
+    expect(cfg.ADAPTER_URL).toBe("");
+  });
+
+  it("coerces string env values to numbers", () => {
+    const cfg = parseEnv(validEnv({ PORT: "3000", VEHICLE_COUNT: "10" }));
+    expect(cfg.PORT).toBe(3000);
+    expect(cfg.VEHICLE_COUNT).toBe(10);
+  });
+
+  it("rejects PORT=abc (non-numeric)", () => {
+    expect(() => parseEnv(validEnv({ PORT: "abc" }))).toThrow(/Invalid environment configuration/);
+  });
+
+  it("rejects PORT=0 (below min)", () => {
+    expect(() => parseEnv(validEnv({ PORT: "0" }))).toThrow(/Invalid environment configuration/);
+  });
+
+  it("rejects PORT=99999 (above max)", () => {
+    expect(() => parseEnv(validEnv({ PORT: "99999" }))).toThrow(
+      /Invalid environment configuration/
+    );
+  });
+
+  it("rejects VEHICLE_COUNT=0 (below min 1)", () => {
+    expect(() => parseEnv(validEnv({ VEHICLE_COUNT: "0" }))).toThrow(
+      /Invalid environment configuration/
+    );
+  });
+
+  it("rejects SPEED_VARIATION=2 (above max 1)", () => {
+    expect(() => parseEnv(validEnv({ SPEED_VARIATION: "2" }))).toThrow(
+      /Invalid environment configuration/
+    );
+  });
+
+  it("rejects SPEED_VARIATION=-0.5 (below min 0)", () => {
+    expect(() => parseEnv(validEnv({ SPEED_VARIATION: "-0.5" }))).toThrow(
+      /Invalid environment configuration/
+    );
+  });
+
+  it("rejects HEATZONE_SPEED_FACTOR=1.5 (above max 1)", () => {
+    expect(() => parseEnv(validEnv({ HEATZONE_SPEED_FACTOR: "1.5" }))).toThrow(
+      /Invalid environment configuration/
+    );
+  });
+
+  it("rejects UPDATE_INTERVAL=0 (below min 1)", () => {
+    expect(() => parseEnv(validEnv({ UPDATE_INTERVAL: "0" }))).toThrow(
+      /Invalid environment configuration/
+    );
+  });
+
+  it("rejects SYNC_ADAPTER_TIMEOUT=-1 (below min 0)", () => {
+    expect(() => parseEnv(validEnv({ SYNC_ADAPTER_TIMEOUT: "-1" }))).toThrow(
+      /Invalid environment configuration/
+    );
+  });
+
+  it("rejects when MAX_SPEED <= MIN_SPEED (refinement)", () => {
+    expect(() => parseEnv(validEnv({ MIN_SPEED: "60", MAX_SPEED: "60" }))).toThrow(
+      /MAX_SPEED must be greater than MIN_SPEED/
+    );
+    expect(() => parseEnv(validEnv({ MIN_SPEED: "70", MAX_SPEED: "60" }))).toThrow(
+      /MAX_SPEED must be greater than MIN_SPEED/
+    );
+  });
+
+  it("accepts boundary values", () => {
+    expect(() => parseEnv(validEnv({ PORT: "1" }))).not.toThrow();
+    expect(() => parseEnv(validEnv({ PORT: "65535" }))).not.toThrow();
+    expect(() => parseEnv(validEnv({ SPEED_VARIATION: "0" }))).not.toThrow();
+    expect(() => parseEnv(validEnv({ SPEED_VARIATION: "1" }))).not.toThrow();
+    expect(() => parseEnv(validEnv({ HEATZONE_SPEED_FACTOR: "0" }))).not.toThrow();
+    expect(() => parseEnv(validEnv({ HEATZONE_SPEED_FACTOR: "1" }))).not.toThrow();
+    expect(() => parseEnv(validEnv({ SYNC_ADAPTER_TIMEOUT: "0" }))).not.toThrow();
+    expect(() => parseEnv(validEnv({ VEHICLE_COUNT: "1" }))).not.toThrow();
+  });
+
+  it("includes field names in error messages", () => {
+    try {
+      parseEnv(validEnv({ PORT: "abc" }));
+      expect.unreachable("should have thrown");
+    } catch (e) {
+      expect((e as Error).message).toContain("PORT");
+    }
+  });
+});
+
+// ─── verifyConfig (runtime file checks) ─────────────────────────────
 
 describe("verifyConfig", () => {
   afterEach(() => {
@@ -56,134 +160,45 @@ describe("verifyConfig", () => {
       expect(() => verifyConfig()).not.toThrow();
     });
   });
+});
 
-  describe("port range", () => {
-    it("throws when port is 0", () => {
-      vi.spyOn(fs, "existsSync").mockReturnValue(true);
-      withConfig({ port: 0 }, () => {
-        expect(() => verifyConfig()).toThrow(/PORT must be between 1 and 65535/i);
-      });
-    });
+describe(".env.example completeness", () => {
+  // Extract env var names referenced in config.ts (process.env.* or zod schema keys)
+  function getConfigEnvVars(): string[] {
+    const configPath = path.resolve(__dirname, "../utils/config.ts");
+    const source = fs.readFileSync(configPath, "utf-8");
+    const vars = new Set<string>();
+    // Match process.env.VAR_NAME
+    for (const m of source.matchAll(/process\.env\.(\w+)/g)) vars.add(m[1]);
+    // Match zod schema field names (e.g. PORT: z.coerce, GEOJSON_PATH: z.string)
+    for (const m of source.matchAll(/^\s+([A-Z][A-Z0-9_]+)\s*:\s*z\./gm)) vars.add(m[1]);
+    vars.delete("NODE_ENV");
+    return [...vars];
+  }
 
-    it("throws when port exceeds 65535", () => {
-      vi.spyOn(fs, "existsSync").mockReturnValue(true);
-      withConfig({ port: 65536 }, () => {
-        expect(() => verifyConfig()).toThrow(/PORT must be between 1 and 65535/i);
-      });
-    });
+  // Parse .env.example for defined variable names (including commented-out ones)
+  function getEnvExampleVars(): string[] {
+    const envExamplePath = path.resolve(__dirname, "../../.env.example");
+    const content = fs.readFileSync(envExamplePath, "utf-8");
+    const matches = content.matchAll(/^#?\s*([A-Z][A-Z0-9_]+)\s*=/gm);
+    return [...new Set([...matches].map((m) => m[1]))];
+  }
 
-    it("accepts boundary values 1 and 65535", () => {
-      vi.spyOn(fs, "existsSync").mockReturnValue(true);
-      withConfig({ port: 1 }, () => expect(() => verifyConfig()).not.toThrow());
-      withConfig({ port: 65535 }, () => expect(() => verifyConfig()).not.toThrow());
-    });
+  it("should document every env var used in config.ts", () => {
+    const configVars = getConfigEnvVars();
+    const exampleVars = getEnvExampleVars();
+
+    const missing = configVars.filter((v) => !exampleVars.includes(v));
+    expect(missing, `Missing from .env.example: ${missing.join(", ")}`).toEqual([]);
   });
 
-  describe("updateInterval", () => {
-    it("throws when updateInterval is 0", () => {
-      vi.spyOn(fs, "existsSync").mockReturnValue(true);
-      withConfig({ updateInterval: 0 }, () => {
-        expect(() => verifyConfig()).toThrow(/UPDATE_INTERVAL must be positive/i);
-      });
-    });
+  it("should not document env vars that are not used in config.ts", () => {
+    const configVars = getConfigEnvVars();
+    const exampleVars = getEnvExampleVars();
 
-    it("accepts positive updateInterval", () => {
-      vi.spyOn(fs, "existsSync").mockReturnValue(true);
-      withConfig({ updateInterval: 1 }, () => expect(() => verifyConfig()).not.toThrow());
-    });
-  });
-
-  describe("speed ordering", () => {
-    it("throws when maxSpeed equals minSpeed", () => {
-      vi.spyOn(fs, "existsSync").mockReturnValue(true);
-      withConfig({ minSpeed: 40, maxSpeed: 40 }, () => {
-        expect(() => verifyConfig()).toThrow(/MAX_SPEED.*must be greater than MIN_SPEED/i);
-      });
-    });
-
-    it("throws when maxSpeed is less than minSpeed", () => {
-      vi.spyOn(fs, "existsSync").mockReturnValue(true);
-      withConfig({ minSpeed: 60, maxSpeed: 30 }, () => {
-        expect(() => verifyConfig()).toThrow(/MAX_SPEED.*must be greater than MIN_SPEED/i);
-      });
-    });
-
-    it("throws when minSpeed is negative", () => {
-      vi.spyOn(fs, "existsSync").mockReturnValue(true);
-      withConfig({ minSpeed: -1, maxSpeed: 60 }, () => {
-        expect(() => verifyConfig()).toThrow(/MIN_SPEED must be non-negative/i);
-      });
-    });
-
-    it("accepts minSpeed 0 with maxSpeed > 0", () => {
-      vi.spyOn(fs, "existsSync").mockReturnValue(true);
-      withConfig({ minSpeed: 0, maxSpeed: 1 }, () => expect(() => verifyConfig()).not.toThrow());
-    });
-  });
-
-  describe("speedVariation range [0, 1]", () => {
-    it("throws when speedVariation is negative", () => {
-      vi.spyOn(fs, "existsSync").mockReturnValue(true);
-      withConfig({ speedVariation: -0.1 }, () => {
-        expect(() => verifyConfig()).toThrow(/SPEED_VARIATION must be between 0 and 1/i);
-      });
-    });
-
-    it("throws when speedVariation exceeds 1", () => {
-      vi.spyOn(fs, "existsSync").mockReturnValue(true);
-      withConfig({ speedVariation: 1.01 }, () => {
-        expect(() => verifyConfig()).toThrow(/SPEED_VARIATION must be between 0 and 1/i);
-      });
-    });
-
-    it("accepts boundary values 0 and 1", () => {
-      vi.spyOn(fs, "existsSync").mockReturnValue(true);
-      withConfig({ speedVariation: 0 }, () => expect(() => verifyConfig()).not.toThrow());
-      withConfig({ speedVariation: 1 }, () => expect(() => verifyConfig()).not.toThrow());
-    });
-  });
-
-  describe("heatZoneSpeedFactor range [0, 1]", () => {
-    it("throws when heatZoneSpeedFactor is negative", () => {
-      vi.spyOn(fs, "existsSync").mockReturnValue(true);
-      withConfig({ heatZoneSpeedFactor: -0.1 }, () => {
-        expect(() => verifyConfig()).toThrow(/HEATZONE_SPEED_FACTOR must be between 0 and 1/i);
-      });
-    });
-
-    it("throws when heatZoneSpeedFactor exceeds 1", () => {
-      vi.spyOn(fs, "existsSync").mockReturnValue(true);
-      withConfig({ heatZoneSpeedFactor: 1.5 }, () => {
-        expect(() => verifyConfig()).toThrow(/HEATZONE_SPEED_FACTOR must be between 0 and 1/i);
-      });
-    });
-  });
-
-  describe("syncAdapterTimeout", () => {
-    it("throws when syncAdapterTimeout is negative", () => {
-      vi.spyOn(fs, "existsSync").mockReturnValue(true);
-      withConfig({ syncAdapterTimeout: -1 }, () => {
-        expect(() => verifyConfig()).toThrow(/SYNC_ADAPTER_TIMEOUT must be non-negative/i);
-      });
-    });
-
-    it("accepts 0 for syncAdapterTimeout", () => {
-      vi.spyOn(fs, "existsSync").mockReturnValue(true);
-      withConfig({ syncAdapterTimeout: 0 }, () => expect(() => verifyConfig()).not.toThrow());
-    });
-  });
-
-  describe("vehicleCount", () => {
-    it("throws when vehicleCount is 0", () => {
-      vi.spyOn(fs, "existsSync").mockReturnValue(true);
-      withConfig({ vehicleCount: 0 }, () => {
-        expect(() => verifyConfig()).toThrow(/VEHICLE_COUNT must be at least 1/i);
-      });
-    });
-
-    it("accepts vehicleCount of 1", () => {
-      vi.spyOn(fs, "existsSync").mockReturnValue(true);
-      withConfig({ vehicleCount: 1 }, () => expect(() => verifyConfig()).not.toThrow());
-    });
+    const extra = exampleVars.filter((v) => !configVars.includes(v));
+    expect(extra, `Extra vars in .env.example not used in config.ts: ${extra.join(", ")}`).toEqual(
+      []
+    );
   });
 });

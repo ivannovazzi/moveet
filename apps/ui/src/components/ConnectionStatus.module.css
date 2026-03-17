@@ -1,0 +1,33 @@
+.banner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  padding: var(--space-3) var(--space-6);
+  color: var(--color-white);
+  text-align: center;
+  font-size: var(--text-base);
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  animation: fadeIn 300ms ease-out;
+}
+
+.reconnecting {
+  background: rgba(255, 165, 0, 0.85);
+}
+
+.disconnected {
+  background: var(--color-danger, #f44);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

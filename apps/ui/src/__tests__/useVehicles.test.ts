@@ -8,12 +8,14 @@ import { vehicleStore } from "@/hooks/vehicleStore";
 // Mock the client module so the WebSocket listener can be driven manually
 // ---------------------------------------------------------------------------
 let vehicleHandler: ((v: VehicleDTO) => void) | undefined;
+const offVehicleMock = vi.fn();
 
 vi.mock("@/utils/client", () => ({
   default: {
     onVehicle: (handler: (v: VehicleDTO) => void) => {
       vehicleHandler = handler;
     },
+    offVehicle: (...args: unknown[]) => offVehicleMock(...args),
     connectWebSocket: vi.fn(),
     disconnect: vi.fn(),
   },
@@ -39,6 +41,7 @@ function makeDTO(overrides: Partial<VehicleDTO> = {}): VehicleDTO {
 beforeEach(() => {
   vi.useFakeTimers();
   vehicleHandler = undefined;
+  offVehicleMock.mockClear();
   vehicleStore.replace([]);
 });
 
@@ -172,5 +175,15 @@ describe("useVehicles — store-backed state", () => {
 
     expect(result.current.vehicles.find((v) => v.id === "v1")!.visible).toBe(true);
     expect(result.current.vehicles.find((v) => v.id === "v2")!.visible).toBe(false);
+  });
+
+  it("calls offVehicle on unmount to remove WS handler", () => {
+    const { unmount } = renderHook(() => useVehicles());
+
+    expect(offVehicleMock).not.toHaveBeenCalled();
+
+    unmount();
+
+    expect(offVehicleMock).toHaveBeenCalledTimes(1);
   });
 });

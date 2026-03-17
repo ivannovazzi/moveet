@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import React from "react";
 import { useOptions } from "./useOptions";
-import { ClientDataContext } from "@/data/context";
+import { OptionsContext } from "@/data/context";
 import { DEFAULT_START_OPTIONS } from "@/data/constants";
 import type { StartOptions } from "@/types";
 import client from "@/utils/client";
@@ -20,20 +20,10 @@ function createWrapper(
   setOptions: React.Dispatch<React.SetStateAction<StartOptions>>
 ) {
   return function Wrapper({ children }: { children: React.ReactNode }) {
-    return React.createElement(ClientDataContext.Provider, {
+    return React.createElement(OptionsContext.Provider, {
       value: {
         options,
-        roads: [],
-        pois: [],
-        directions: new Map(),
-        heatzones: [],
-        network: { type: "FeatureCollection", features: [] },
         setOptions,
-        setRoads: () => {},
-        setPOIs: () => {},
-        setDirections: () => {},
-        setHeatzones: () => {},
-        setNetwork: () => {},
       },
       children,
     });

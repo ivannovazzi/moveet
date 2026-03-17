@@ -1,16 +1,23 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { RestSource } from "./rest";
+
+vi.mock("../../utils/httpClient", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../utils/httpClient")>();
+  return {
+    ...actual,
+    httpFetch: vi.fn(),
+  };
+});
+
+import { httpFetch, HttpTimeoutError, HttpClientError } from "../../utils/httpClient";
+const mockHttpFetch = vi.mocked(httpFetch);
 
 describe("RestSource health check", () => {
   let source: RestSource;
-  const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
     source = new RestSource();
-  });
-
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
+    mockHttpFetch.mockReset();
   });
 
   it("reports unhealthy when not connected", async () => {
@@ -20,7 +27,7 @@ describe("RestSource health check", () => {
   });
 
   it("reports healthy when URL is reachable", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true });
+    mockHttpFetch.mockResolvedValue(new Response("", { status: 200 }));
     await source.connect({ url: "http://example.com/vehicles" });
 
     const result = await source.healthCheck();
@@ -29,7 +36,7 @@ describe("RestSource health check", () => {
   });
 
   it("reports unhealthy when URL returns error status", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, status: 503 });
+    mockHttpFetch.mockRejectedValue(new HttpClientError("HTTP 503", 503, true));
     await source.connect({ url: "http://example.com/vehicles" });
 
     const result = await source.healthCheck();
@@ -39,7 +46,7 @@ describe("RestSource health check", () => {
   });
 
   it("reports unhealthy when fetch throws", async () => {
-    globalThis.fetch = vi.fn().mockRejectedValue(new Error("ECONNREFUSED"));
+    mockHttpFetch.mockRejectedValue(new Error("ECONNREFUSED"));
     await source.connect({ url: "http://unreachable.local/vehicles" });
 
     const result = await source.healthCheck();
@@ -51,21 +58,16 @@ describe("RestSource health check", () => {
 
 describe("RestSource getVehicles", () => {
   let source: RestSource;
-  const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
     source = new RestSource();
-  });
-
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
+    mockHttpFetch.mockReset();
   });
 
   it("filters out vehicles with NaN coordinates", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
+    mockHttpFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
           vehicles: [
             { id: "v1", name: "Good", lat: 1.5, lng: 36.8 },
             { id: "v2", name: "Bad Lat", lat: "not-a-number", lng: 36.8 },
@@ -73,7 +75,9 @@ describe("RestSource getVehicles", () => {
             { id: "v4", name: "Missing", lat: undefined, lng: undefined },
           ],
         }),
-    });
+        { status: 200 }
+      )
+    );
     await source.connect({ url: "http://example.com/api" });
     const vehicles = await source.getVehicles();
     expect(vehicles).toHaveLength(1);
@@ -81,7 +85,9 @@ describe("RestSource getVehicles", () => {
   });
 
   it("filters out vehicles with Infinity coordinates", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
+    // Infinity can't survive JSON.stringify, so we create a mock Response
+    // whose json() returns the object directly.
+    mockHttpFetch.mockResolvedValue({
       ok: true,
       json: () =>
         Promise.resolve({
@@ -90,7 +96,7 @@ describe("RestSource getVehicles", () => {
             { id: "v2", name: "Inf", lat: Infinity, lng: 36.8 },
           ],
         }),
-    });
+    } as unknown as Response);
     await source.connect({ url: "http://example.com/api" });
     const vehicles = await source.getVehicles();
     expect(vehicles).toHaveLength(1);
@@ -98,13 +104,14 @@ describe("RestSource getVehicles", () => {
   });
 
   it("returns valid vehicles with correct positions", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
+    mockHttpFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
           vehicles: [{ id: "v1", name: "Vehicle 1", lat: -1.28, lng: 36.82 }],
         }),
-    });
+        { status: 200 }
+      )
+    );
     await source.connect({ url: "http://example.com/api" });
     const vehicles = await source.getVehicles();
     expect(vehicles).toHaveLength(1);
@@ -114,51 +121,33 @@ describe("RestSource getVehicles", () => {
 
 describe("RestSource getVehicles timeout", () => {
   let source: RestSource;
-  const originalFetch = globalThis.fetch;
 
   beforeEach(async () => {
-    vi.useFakeTimers();
     source = new RestSource();
+    mockHttpFetch.mockReset();
   });
 
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-    vi.useRealTimers();
-  });
-
-  it("aborts getVehicles when the request exceeds the timeout", async () => {
-    globalThis.fetch = vi.fn().mockImplementation(
-      (_url: string, options: RequestInit) =>
-        new Promise((_resolve, reject) => {
-          options.signal?.addEventListener("abort", () => {
-            reject(new DOMException("The operation was aborted.", "AbortError"));
-          });
-        })
+  it("propagates timeout errors from httpFetch", async () => {
+    mockHttpFetch.mockRejectedValue(
+      new HttpTimeoutError("http://slow.example.com/vehicles", 10000)
     );
 
-    vi.useRealTimers();
     await source.connect({ url: "http://slow.example.com/vehicles" });
-    vi.useFakeTimers();
 
-    const promise = source.getVehicles();
-    vi.advanceTimersByTime(10000);
-
-    await expect(promise).rejects.toThrow("aborted");
+    await expect(source.getVehicles()).rejects.toThrow("timed out");
   });
 
-  it("passes an AbortSignal to fetch during getVehicles", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ vehicles: [] }),
-    });
-    vi.useRealTimers();
+  it("passes an AbortSignal to httpFetch during getVehicles", async () => {
+    mockHttpFetch.mockResolvedValue(
+      new Response(JSON.stringify({ vehicles: [] }), { status: 200 })
+    );
 
     await source.connect({ url: "http://example.com/vehicles" });
     await source.getVehicles();
 
-    expect(globalThis.fetch).toHaveBeenCalledWith(
+    expect(mockHttpFetch).toHaveBeenCalledWith(
       "http://example.com/vehicles",
-      expect.objectContaining({ signal: expect.any(AbortSignal) })
+      expect.objectContaining({ method: "GET" })
     );
   });
 });

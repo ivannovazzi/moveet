@@ -54,9 +54,9 @@ export const VEHICLE_PROFILES: Record<VehicleType, VehicleProfile> = {
 };
 
 export const FOLLOWING_DISTANCE_BY_SIZE: Record<string, number> = {
-  small: 0.015,  // 15 meters in km
-  medium: 0.02,  // 20 meters in km
-  large: 0.03,   // 30 meters in km
+  small: 0.015, // 15 meters in km
+  medium: 0.02, // 20 meters in km
+  large: 0.03, // 30 meters in km
 };
 
 export function getProfile(type: VehicleType): VehicleProfile {

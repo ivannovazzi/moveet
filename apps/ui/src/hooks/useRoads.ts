@@ -1,9 +1,9 @@
-import useData from "@/data/useData";
+import { useRoadsContext } from "@/data/useData";
 import client from "@/utils/client";
 import { useEffect } from "react";
 
 export function useRoads() {
-  const { roads, setRoads } = useData();
+  const { roads, setRoads } = useRoadsContext();
 
   useEffect(() => {
     client

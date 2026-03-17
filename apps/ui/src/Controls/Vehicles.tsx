@@ -1,7 +1,7 @@
 import classNames from "classnames";
 import type { Fleet, Vehicle, DispatchAssignment, DirectionResult } from "@/types";
 import { DispatchState } from "@/hooks/useDispatchState";
-import useData from "@/data/useData";
+import { useDirectionContext } from "@/data/useData";
 import { PanelBadge, PanelBody, PanelEmptyState, PanelHeader } from "./PanelPrimitives";
 import styles from "./Vehicles.module.css";
 import { Search } from "@/components/Icons";
@@ -88,7 +88,7 @@ export default function VehicleList({
   assignments,
   results,
 }: VehicleListProps) {
-  const { directions } = useData();
+  const { directions } = useDirectionContext();
   const visibleVehicles = vehicles.filter((v) => v.visible);
 
   const isSelectOrRoute =
@@ -166,11 +166,15 @@ export default function VehicleList({
                 onMouseEnter={() => onHoverVehicle(vehicle.id)}
                 onMouseLeave={() => onUnhoverVehicle()}
                 aria-pressed={showCheckbox ? isChecked : vehicle.selected}
+                aria-label={`${vehicle.name}, ${Math.round(vehicle.speed)} km/h, ${formatRouteDistance(routeDistance)}`}
                 title={`${vehicle.name} · ${Math.round(vehicle.speed)} km/h · ${formatRouteDistance(routeDistance)}`}
               >
                 <span className={styles.nameGroup}>
                   {showCheckbox ? (
                     <span
+                      role="checkbox"
+                      aria-checked={isChecked}
+                      aria-label={`Select ${vehicle.name}`}
                       className={classNames(styles.checkbox, {
                         [styles.checkboxChecked]: isChecked,
                       })}

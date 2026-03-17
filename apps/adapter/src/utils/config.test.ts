@@ -9,6 +9,7 @@ describe("loadConfig", () => {
   beforeEach(() => {
     process.env = { ...originalEnv };
     delete process.env.PORT;
+    delete process.env.CORS_ORIGINS;
     delete process.env.SOURCE_TYPE;
     delete process.env.SOURCE_CONFIG;
     delete process.env.SINK_TYPES;
@@ -78,5 +79,31 @@ describe("loadConfig", () => {
 
     const cfg = loadConfig();
     expect(cfg.sinks).toEqual([{ type: "webhook", config: {} }]);
+  });
+
+  it("returns default CORS origins when CORS_ORIGINS is not set", () => {
+    const cfg = loadConfig();
+    expect(cfg.corsOrigins).toEqual(["http://localhost:5010", "http://localhost:5012"]);
+  });
+
+  it("parses custom CORS_ORIGINS from env", () => {
+    process.env.CORS_ORIGINS = "https://app.example.com,https://admin.example.com";
+
+    const cfg = loadConfig();
+    expect(cfg.corsOrigins).toEqual(["https://app.example.com", "https://admin.example.com"]);
+  });
+
+  it("returns wildcard string when CORS_ORIGINS is *", () => {
+    process.env.CORS_ORIGINS = "*";
+
+    const cfg = loadConfig();
+    expect(cfg.corsOrigins).toBe("*");
+  });
+
+  it("trims whitespace from CORS_ORIGINS entries", () => {
+    process.env.CORS_ORIGINS = " http://a.com , http://b.com ";
+
+    const cfg = loadConfig();
+    expect(cfg.corsOrigins).toEqual(["http://a.com", "http://b.com"]);
   });
 });

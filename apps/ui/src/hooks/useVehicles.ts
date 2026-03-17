@@ -90,6 +90,9 @@ function useVehicleChanges(): [VehicleDTO[], (vehicles: VehicleDTO[]) => void] {
       vehicleStore.set(vehicle);
     };
     client.onVehicle(onVehicle);
+    return () => {
+      client.offVehicle();
+    };
   }, []);
 
   // Throttled React state sync (slow path for control panel)

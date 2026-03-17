@@ -1,6 +1,7 @@
 declare namespace NodeJS {
   interface ProcessEnv {
     PORT?: string;
+    CORS_ORIGINS?: string;
     SOURCE_TYPE?: string;
     SOURCE_CONFIG?: string;
     SINK_TYPES?: string;

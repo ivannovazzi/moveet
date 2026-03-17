@@ -1,36 +1,97 @@
 import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
+import { z } from "zod";
 
 dotenv.config();
 
-function parseNumber(value: string | undefined, defaultValue: number, name: string): number {
-  if (!value) return defaultValue;
-  const parsed = Number(value);
-  if (isNaN(parsed)) {
-    throw new Error(`Invalid number for ${name}: ${value}`);
+/**
+ * Zod schema for all simulator environment variables.
+ * Each field declares its type, default, and constraints.
+ */
+export const envSchema = z
+  .object({
+    /** HTTP server port */
+    PORT: z.coerce.number().int().min(1).max(65535).default(5010),
+
+    /** Simulation tick interval in ms */
+    UPDATE_INTERVAL: z.coerce.number().int().min(1).default(500),
+
+    /** Minimum vehicle speed (km/h) */
+    MIN_SPEED: z.coerce.number().min(0).default(20),
+
+    /** Maximum vehicle speed (km/h) */
+    MAX_SPEED: z.coerce.number().min(0).default(60),
+
+    /** Acceleration rate (km/h per tick) */
+    ACCELERATION: z.coerce.number().min(0).default(5),
+
+    /** Deceleration rate (km/h per tick) */
+    DECELERATION: z.coerce.number().min(0).default(7),
+
+    /** Angle threshold for turn detection (degrees) */
+    TURN_THRESHOLD: z.coerce.number().min(0).default(30),
+
+    /** Random speed variation factor [0, 1] */
+    SPEED_VARIATION: z.coerce.number().min(0).max(1).default(0.1),
+
+    /** Speed multiplier inside heat zones [0, 1] */
+    HEATZONE_SPEED_FACTOR: z.coerce.number().min(0).max(1).default(0.5),
+
+    /** Timeout for adapter sync requests in ms */
+    SYNC_ADAPTER_TIMEOUT: z.coerce.number().int().min(0).default(5000),
+
+    /** Number of simulated vehicles */
+    VEHICLE_COUNT: z.coerce.number().int().min(1).default(70),
+
+    /** Path to the GeoJSON road network file */
+    GEOJSON_PATH: z.string().default("./export.geojson"),
+
+    /** URL of the adapter service (empty = disabled) */
+    ADAPTER_URL: z.string().default(""),
+  })
+  .refine((data) => data.MAX_SPEED > data.MIN_SPEED, {
+    message: "MAX_SPEED must be greater than MIN_SPEED",
+    path: ["MAX_SPEED"],
+  });
+
+export type EnvConfig = z.infer<typeof envSchema>;
+
+/** Parse and validate environment variables. Throws with descriptive errors on failure. */
+export function parseEnv(env: Record<string, string | undefined> = process.env): EnvConfig {
+  const result = envSchema.safeParse(env);
+  if (!result.success) {
+    const issues = result.error.issues
+      .map((i) => `  - ${i.path.join(".")}: ${i.message}`)
+      .join("\n");
+    throw new Error(`Invalid environment configuration:\n${issues}`);
   }
-  return parsed;
+  return result.data;
 }
 
-export const config = {
-  port: parseNumber(process.env.PORT, 5010, "PORT"),
-  updateInterval: parseNumber(process.env.UPDATE_INTERVAL, 500, "UPDATE_INTERVAL"),
-  minSpeed: parseNumber(process.env.MIN_SPEED, 20, "MIN_SPEED"),
-  maxSpeed: parseNumber(process.env.MAX_SPEED, 60, "MAX_SPEED"),
-  acceleration: parseNumber(process.env.ACCELERATION, 5, "ACCELERATION"),
-  deceleration: parseNumber(process.env.DECELERATION, 7, "DECELERATION"),
-  turnThreshold: parseNumber(process.env.TURN_THRESHOLD, 30, "TURN_THRESHOLD"),
-  speedVariation: parseNumber(process.env.SPEED_VARIATION, 0.1, "SPEED_VARIATION"),
-  heatZoneSpeedFactor: parseNumber(process.env.HEATZONE_SPEED_FACTOR, 0.5, "HEATZONE_SPEED_FACTOR"),
-  syncAdapterTimeout: parseNumber(process.env.SYNC_ADAPTER_TIMEOUT, 5000, "SYNC_ADAPTER_TIMEOUT"),
-  vehicleCount: parseNumber(process.env.VEHICLE_COUNT, 70, "VEHICLE_COUNT"),
-  geojsonPath: process.env.GEOJSON_PATH || "./export.geojson",
-  adapterURL: process.env.ADAPTER_URL || "",
-} as const;
+function buildConfig(env: EnvConfig) {
+  return {
+    port: env.PORT,
+    updateInterval: env.UPDATE_INTERVAL,
+    minSpeed: env.MIN_SPEED,
+    maxSpeed: env.MAX_SPEED,
+    acceleration: env.ACCELERATION,
+    deceleration: env.DECELERATION,
+    turnThreshold: env.TURN_THRESHOLD,
+    speedVariation: env.SPEED_VARIATION,
+    heatZoneSpeedFactor: env.HEATZONE_SPEED_FACTOR,
+    syncAdapterTimeout: env.SYNC_ADAPTER_TIMEOUT,
+    vehicleCount: env.VEHICLE_COUNT,
+    geojsonPath: env.GEOJSON_PATH,
+    adapterURL: env.ADAPTER_URL,
+  } as const;
+}
+
+const parsedEnv = parseEnv();
+export const config = buildConfig(parsedEnv);
 
 export function verifyConfig(): void {
-  // Validate geojsonPath
+  // Validate geojsonPath points to an existing file
   if (!config.geojsonPath) {
     throw new Error("Missing required environment variable: GEOJSON_PATH");
   }
@@ -39,41 +100,10 @@ export function verifyConfig(): void {
   if (!fs.existsSync(resolvedPath)) {
     throw new Error(`GeoJSON file not found at path: ${resolvedPath}`);
   }
+}
 
-  // Validate numeric ranges
-  if (config.port < 1 || config.port > 65535) {
-    throw new Error(`PORT must be between 1 and 65535, got: ${config.port}`);
-  }
-
-  if (config.updateInterval < 1) {
-    throw new Error(`UPDATE_INTERVAL must be positive, got: ${config.updateInterval}`);
-  }
-
-  if (config.minSpeed < 0) {
-    throw new Error(`MIN_SPEED must be non-negative, got: ${config.minSpeed}`);
-  }
-
-  if (config.maxSpeed <= config.minSpeed) {
-    throw new Error(
-      `MAX_SPEED (${config.maxSpeed}) must be greater than MIN_SPEED (${config.minSpeed})`
-    );
-  }
-
-  if (config.speedVariation < 0 || config.speedVariation > 1) {
-    throw new Error(`SPEED_VARIATION must be between 0 and 1, got: ${config.speedVariation}`);
-  }
-
-  if (config.heatZoneSpeedFactor < 0 || config.heatZoneSpeedFactor > 1) {
-    throw new Error(
-      `HEATZONE_SPEED_FACTOR must be between 0 and 1, got: ${config.heatZoneSpeedFactor}`
-    );
-  }
-
-  if (config.syncAdapterTimeout < 0) {
-    throw new Error(`SYNC_ADAPTER_TIMEOUT must be non-negative, got: ${config.syncAdapterTimeout}`);
-  }
-
-  if (config.vehicleCount < 1) {
-    throw new Error(`VEHICLE_COUNT must be at least 1, got: ${config.vehicleCount}`);
-  }
+/** Log the resolved config at startup, redacting sensitive values. */
+export function logConfig(): void {
+  const redacted = { ...config, adapterURL: config.adapterURL ? "••••••" : "(disabled)" };
+  console.log("Simulator config:", JSON.stringify(redacted, null, 2));
 }

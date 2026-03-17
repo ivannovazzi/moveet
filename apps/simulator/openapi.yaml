@@ -1,0 +1,1770 @@
+openapi: 3.0.3
+info:
+  title: Moveet Simulator API
+  description: |
+    REST API for the Moveet vehicle fleet simulation engine.
+    Simulates vehicle movement on real road networks (OpenStreetMap) with
+    A* pathfinding, heat zones, incidents, recording/replay, and fleet management.
+  version: 0.0.4
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:5010
+    description: Local development server
+
+tags:
+  - name: Simulation
+    description: Start, stop, reset, and query simulation state
+  - name: Vehicles
+    description: Vehicle listing, directions, and vehicle types
+  - name: Network
+    description: Road network, POIs, and spatial search
+  - name: Heat Zones
+    description: Generate and retrieve heat zones
+  - name: Incidents
+    description: Create, list, and remove road incidents
+  - name: Recording
+    description: Record simulation sessions to disk
+  - name: Replay
+    description: Replay previously recorded sessions
+  - name: Clock
+    description: Simulation clock and time-of-day control
+  - name: Traffic
+    description: Traffic congestion data and profiles
+  - name: Fleets
+    description: Fleet grouping and vehicle assignment
+
+paths:
+  # ─── Meta ────────────────────────────────────────────────────────────
+  /api-docs:
+    get:
+      operationId: getApiDocs
+      summary: Serve the OpenAPI specification as YAML
+      tags: [Simulation]
+      responses:
+        "200":
+          description: OpenAPI YAML specification
+          content:
+            text/yaml:
+              schema:
+                type: string
+        "404":
+          description: Spec file not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ─── Simulation ──────────────────────────────────────────────────────
+  /status:
+    get:
+      operationId: getStatus
+      summary: Get simulation status
+      tags: [Simulation]
+      responses:
+        "200":
+          description: Current simulation status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimulationStatus"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /start:
+    post:
+      operationId: startSimulation
+      summary: Start the simulation
+      tags: [Simulation]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartOptions"
+      responses:
+        "200":
+          description: Simulation started
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [started]
+                  vehicleTypes:
+                    type: object
+                    nullable: true
+                    description: Vehicle type distribution if provided in request
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /stop:
+    post:
+      operationId: stopSimulation
+      summary: Stop the simulation
+      tags: [Simulation]
+      responses:
+        "200":
+          description: Simulation stopped
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [stopped]
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /reset:
+    post:
+      operationId: resetSimulation
+      summary: Reset the simulation to initial state
+      tags: [Simulation]
+      responses:
+        "200":
+          description: Simulation reset
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [reset]
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /options:
+    get:
+      operationId: getOptions
+      summary: Get current simulation options
+      tags: [Simulation]
+      responses:
+        "200":
+          description: Current simulation configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StartOptions"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: setOptions
+      summary: Update simulation options
+      tags: [Simulation]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartOptions"
+      responses:
+        "200":
+          description: Options updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [options set]
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ─── Vehicles ────────────────────────────────────────────────────────
+  /vehicles:
+    get:
+      operationId: getVehicles
+      summary: List all vehicles with current state
+      tags: [Vehicles]
+      responses:
+        "200":
+          description: Array of vehicles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VehicleDTO"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /vehicle-types:
+    get:
+      operationId: getVehicleTypes
+      summary: Get vehicle type profiles
+      tags: [Vehicles]
+      responses:
+        "200":
+          description: Map of vehicle type to profile
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  $ref: "#/components/schemas/VehicleProfile"
+                example:
+                  car:
+                    type: car
+                    minSpeed: 20
+                    maxSpeed: 60
+                    acceleration: 5
+                    deceleration: 7
+                    restrictedHighways: []
+                    ignoreHeatZones: false
+                    size: medium
+
+  /directions:
+    get:
+      operationId: getDirections
+      summary: Get all active vehicle directions/routes
+      tags: [Vehicles]
+      responses:
+        "200":
+          description: Array of active directions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Direction"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /direction:
+    post:
+      operationId: setDirections
+      summary: Set destinations for one or more vehicles
+      tags: [Vehicles]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              minItems: 1
+              items:
+                $ref: "#/components/schemas/DirectionRequest"
+      responses:
+        "200":
+          description: Direction results
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, results]
+                properties:
+                  status:
+                    type: string
+                    enum: [direction]
+                  results:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DirectionResult"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+
+  # ─── Network ─────────────────────────────────────────────────────────
+  /network:
+    get:
+      operationId: getNetwork
+      summary: Get GeoJSON road network (LineString features only)
+      tags: [Network]
+      responses:
+        "200":
+          description: GeoJSON FeatureCollection of road segments
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeoJSONFeatureCollection"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /roads:
+    get:
+      operationId: getRoads
+      summary: Get all named roads
+      tags: [Network]
+      responses:
+        "200":
+          description: Array of road objects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Road"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /pois:
+    get:
+      operationId: getPOIs
+      summary: Get all points of interest
+      tags: [Network]
+      responses:
+        "200":
+          description: Array of POIs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/POI"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /find-node:
+    post:
+      operationId: findNode
+      summary: Find the nearest graph node to given coordinates
+      tags: [Network]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CoordinatePair"
+      responses:
+        "200":
+          description: Snapped coordinates [longitude, latitude]
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CoordinatePair"
+        "400":
+          description: Invalid coordinates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /find-road:
+    post:
+      operationId: findRoad
+      summary: Find the nearest road to given coordinates
+      tags: [Network]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CoordinatePair"
+      responses:
+        "200":
+          description: Nearest road object
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Road"
+        "400":
+          description: Invalid coordinates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /search:
+    post:
+      operationId: searchByName
+      summary: Search roads and POIs by name
+      tags: [Network]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [query]
+              properties:
+                query:
+                  type: string
+                  minLength: 1
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SearchResult"
+        "400":
+          description: Invalid query
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ─── Heat Zones ─────────────────────────────────────────────────────
+  /heatzones:
+    get:
+      operationId: getHeatZones
+      summary: Get current heat zones as GeoJSON features
+      tags: [Heat Zones]
+      responses:
+        "200":
+          description: Array of heat zone features
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HeatZoneFeature"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: generateHeatZones
+      summary: Generate new heat zones
+      tags: [Heat Zones]
+      responses:
+        "200":
+          description: Heat zones generated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [heatzones generated]
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ─── Incidents ──────────────────────────────────────────────────────
+  /incidents:
+    get:
+      operationId: getIncidents
+      summary: List active incidents
+      tags: [Incidents]
+      responses:
+        "200":
+          description: Array of active incidents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/IncidentDTO"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: createIncident
+      summary: Create a road incident
+      tags: [Incidents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateIncidentRequest"
+      responses:
+        "201":
+          description: Incident created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncidentDTO"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+
+  /incidents/{id}:
+    delete:
+      operationId: deleteIncident
+      summary: Remove an incident by ID
+      tags: [Incidents]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Incident removed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [removed]
+        "404":
+          description: Incident not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /incidents/random:
+    post:
+      operationId: createRandomIncident
+      summary: Create a random incident on a random road edge
+      tags: [Incidents]
+      responses:
+        "201":
+          description: Random incident created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncidentDTO"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /incidents/at-position:
+    post:
+      operationId: createIncidentAtPosition
+      summary: Create an incident near a geographic position
+      tags: [Incidents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [lat, lng, type]
+              properties:
+                lat:
+                  type: number
+                  description: Latitude
+                lng:
+                  type: number
+                  description: Longitude
+                type:
+                  $ref: "#/components/schemas/IncidentType"
+      responses:
+        "201":
+          description: Incident created at position
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncidentDTO"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ─── Recording ──────────────────────────────────────────────────────
+  /recording/start:
+    post:
+      operationId: startRecording
+      summary: Start recording vehicle snapshots to disk
+      tags: [Recording]
+      responses:
+        "200":
+          description: Recording started
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, filePath]
+                properties:
+                  status:
+                    type: string
+                    enum: [recording]
+                  filePath:
+                    type: string
+                    description: Path to the recording file
+        "409":
+          description: Recording already in progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /recording/stop:
+    post:
+      operationId: stopRecording
+      summary: Stop the current recording
+      tags: [Recording]
+      responses:
+        "200":
+          description: Recording metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordingMetadata"
+        "409":
+          description: No recording in progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /recordings:
+    get:
+      operationId: listRecordings
+      summary: List available recording files
+      tags: [Recording]
+      responses:
+        "200":
+          description: Array of recording file info
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RecordingFile"
+
+  # ─── Replay ─────────────────────────────────────────────────────────
+  /replay/start:
+    post:
+      operationId: startReplay
+      summary: Start replay of a recorded session
+      tags: [Replay]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  description: Recording file name
+                speed:
+                  type: number
+                  description: Playback speed multiplier
+                  default: 1
+      responses:
+        "200":
+          description: Replay started
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, header]
+                properties:
+                  status:
+                    type: string
+                    enum: [replaying]
+                  header:
+                    $ref: "#/components/schemas/RecordingHeader"
+        "400":
+          description: Invalid file or replay error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /replay/pause:
+    post:
+      operationId: pauseReplay
+      summary: Pause the current replay
+      tags: [Replay]
+      responses:
+        "200":
+          description: Replay paused
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [paused]
+
+  /replay/resume:
+    post:
+      operationId: resumeReplay
+      summary: Resume a paused replay
+      tags: [Replay]
+      responses:
+        "200":
+          description: Replay resumed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [resumed]
+
+  /replay/stop:
+    post:
+      operationId: stopReplay
+      summary: Stop the current replay
+      tags: [Replay]
+      responses:
+        "200":
+          description: Replay stopped
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [stopped]
+
+  /replay/seek:
+    post:
+      operationId: seekReplay
+      summary: Seek to a specific timestamp in the replay
+      tags: [Replay]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [timestamp]
+              properties:
+                timestamp:
+                  type: number
+                  description: Timestamp in milliseconds to seek to
+      responses:
+        "200":
+          description: Replay seeked
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, timestamp]
+                properties:
+                  status:
+                    type: string
+                    enum: [seeked]
+                  timestamp:
+                    type: number
+
+  /replay/speed:
+    post:
+      operationId: setReplaySpeed
+      summary: Change replay playback speed
+      tags: [Replay]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                speed:
+                  type: number
+                  description: Playback speed multiplier
+                  default: 1
+      responses:
+        "200":
+          description: Speed changed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, speed]
+                properties:
+                  status:
+                    type: string
+                    enum: [speed_changed]
+                  speed:
+                    type: number
+
+  /replay/status:
+    get:
+      operationId: getReplayStatus
+      summary: Get current replay status
+      tags: [Replay]
+      responses:
+        "200":
+          description: Replay status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReplayStatus"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ─── Clock ──────────────────────────────────────────────────────────
+  /clock:
+    get:
+      operationId: getClock
+      summary: Get simulation clock state
+      tags: [Clock]
+      responses:
+        "200":
+          description: Clock state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClockState"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: setClock
+      summary: Update simulation clock settings
+      tags: [Clock]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                speedMultiplier:
+                  type: number
+                  minimum: 0
+                  description: Clock speed multiplier (0 = paused)
+                setTime:
+                  type: string
+                  format: date-time
+                  description: ISO 8601 date-time to set the clock to
+      responses:
+        "200":
+          description: Updated clock state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClockState"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ─── Traffic ────────────────────────────────────────────────────────
+  /traffic:
+    get:
+      operationId: getTraffic
+      summary: Get per-edge traffic congestion snapshot
+      tags: [Traffic]
+      responses:
+        "200":
+          description: Array of congested edges
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TrafficEdge"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /traffic-profile:
+    get:
+      operationId: getTrafficProfile
+      summary: Get active traffic profile
+      tags: [Traffic]
+      responses:
+        "200":
+          description: Active traffic profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrafficProfile"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: setTrafficProfile
+      summary: Set the active traffic profile
+      tags: [Traffic]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TrafficProfile"
+      responses:
+        "200":
+          description: Updated traffic profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrafficProfile"
+        "400":
+          description: Invalid profile format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ─── Fleets ─────────────────────────────────────────────────────────
+  /fleets:
+    get:
+      operationId: getFleets
+      summary: List all fleets
+      tags: [Fleets]
+      responses:
+        "200":
+          description: Array of fleets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Fleet"
+    post:
+      operationId: createFleet
+      summary: Create a new fleet
+      tags: [Fleets]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  description: Fleet name
+                source:
+                  type: string
+                  enum: [local, external]
+                  default: local
+      responses:
+        "201":
+          description: Fleet created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Fleet"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /fleets/{id}:
+    delete:
+      operationId: deleteFleet
+      summary: Delete a fleet
+      tags: [Fleets]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Fleet deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [deleted]
+        "400":
+          description: Fleet not found or deletion error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /fleets/{id}/assign:
+    post:
+      operationId: assignVehiclesToFleet
+      summary: Assign vehicles to a fleet
+      tags: [Fleets]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [vehicleIds]
+              properties:
+                vehicleIds:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Vehicles assigned
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [assigned]
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /fleets/{id}/unassign:
+    post:
+      operationId: unassignVehiclesFromFleet
+      summary: Unassign vehicles from a fleet
+      tags: [Fleets]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [vehicleIds]
+              properties:
+                vehicleIds:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Vehicles unassigned
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [unassigned]
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  schemas:
+    # ─── Core types ──────────────────────────────────────────────────
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    ValidationError:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        details:
+          type: array
+          items:
+            type: string
+
+    CoordinatePair:
+      type: array
+      items:
+        type: number
+      minItems: 2
+      maxItems: 2
+      description: "[longitude, latitude]"
+      example: [36.8219, -1.2921]
+
+    LatLngPair:
+      type: array
+      items:
+        type: number
+      minItems: 2
+      maxItems: 2
+      description: "[latitude, longitude]"
+
+    # ─── Vehicle types ───────────────────────────────────────────────
+    VehicleType:
+      type: string
+      enum: [car, truck, motorcycle, ambulance, bus]
+
+    VehicleSize:
+      type: string
+      enum: [small, medium, large]
+
+    HighwayType:
+      type: string
+      enum: [motorway, trunk, primary, secondary, tertiary, residential]
+
+    VehicleProfile:
+      type: object
+      required: [type, minSpeed, maxSpeed, acceleration, deceleration, restrictedHighways, ignoreHeatZones, size]
+      properties:
+        type:
+          $ref: "#/components/schemas/VehicleType"
+        minSpeed:
+          type: number
+        maxSpeed:
+          type: number
+        acceleration:
+          type: number
+        deceleration:
+          type: number
+        restrictedHighways:
+          type: array
+          items:
+            $ref: "#/components/schemas/HighwayType"
+        ignoreHeatZones:
+          type: boolean
+        size:
+          $ref: "#/components/schemas/VehicleSize"
+
+    VehicleDTO:
+      type: object
+      required: [id, name, type, position, speed, heading]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          $ref: "#/components/schemas/VehicleType"
+        position:
+          $ref: "#/components/schemas/LatLngPair"
+        speed:
+          type: number
+          description: Current speed in km/h
+        heading:
+          type: number
+          description: Bearing in degrees (0-360)
+        fleetId:
+          type: string
+
+    # ─── Simulation ──────────────────────────────────────────────────
+    SimulationStatus:
+      type: object
+      required: [interval, running, ready]
+      properties:
+        interval:
+          type: number
+          description: Update interval in milliseconds
+        running:
+          type: boolean
+        ready:
+          type: boolean
+        clock:
+          $ref: "#/components/schemas/ClockState"
+
+    StartOptions:
+      type: object
+      properties:
+        minSpeed:
+          type: number
+          description: Minimum vehicle speed (km/h)
+        maxSpeed:
+          type: number
+          description: Maximum vehicle speed (km/h)
+        speedVariation:
+          type: number
+          description: Speed variation factor (0-1)
+        acceleration:
+          type: number
+        deceleration:
+          type: number
+        turnThreshold:
+          type: number
+        heatZoneSpeedFactor:
+          type: number
+          description: Speed reduction in heat zones (0-1)
+        updateInterval:
+          type: number
+          description: Update interval in milliseconds
+        vehicleTypes:
+          type: object
+          description: Vehicle type distribution overrides
+
+    ClockState:
+      type: object
+      required: [currentTime, speedMultiplier, hour, timeOfDay]
+      properties:
+        currentTime:
+          type: string
+          format: date-time
+          description: Current simulation time (ISO 8601)
+        speedMultiplier:
+          type: number
+        hour:
+          type: number
+          description: Current hour (0-23)
+        timeOfDay:
+          type: string
+          enum: [morning_rush, midday, evening_rush, night]
+
+    # ─── Directions ──────────────────────────────────────────────────
+    DirectionRequest:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+          description: Vehicle ID
+        lat:
+          type: number
+          description: Destination latitude (used when waypoints not provided)
+        lng:
+          type: number
+          description: Destination longitude (used when waypoints not provided)
+        waypoints:
+          type: array
+          items:
+            $ref: "#/components/schemas/WaypointRequest"
+          description: Multi-stop waypoints (overrides lat/lng if provided)
+
+    WaypointRequest:
+      type: object
+      required: [lat, lng]
+      properties:
+        lat:
+          type: number
+        lng:
+          type: number
+        dwellTime:
+          type: number
+          description: Seconds to dwell at this waypoint
+        label:
+          type: string
+
+    Direction:
+      type: object
+      required: [vehicleId, route]
+      properties:
+        vehicleId:
+          type: string
+        route:
+          $ref: "#/components/schemas/Route"
+        eta:
+          type: number
+          description: Estimated time of arrival in seconds
+        waypoints:
+          type: array
+          items:
+            $ref: "#/components/schemas/Waypoint"
+        currentWaypointIndex:
+          type: number
+
+    DirectionResult:
+      type: object
+      required: [vehicleId, status]
+      properties:
+        vehicleId:
+          type: string
+        status:
+          type: string
+          enum: [ok, error]
+        error:
+          type: string
+        route:
+          type: object
+          properties:
+            start:
+              $ref: "#/components/schemas/LatLngPair"
+            end:
+              $ref: "#/components/schemas/LatLngPair"
+            distance:
+              type: number
+        eta:
+          type: number
+        snappedTo:
+          $ref: "#/components/schemas/LatLngPair"
+        waypointCount:
+          type: number
+        legs:
+          type: array
+          items:
+            type: object
+            properties:
+              start:
+                $ref: "#/components/schemas/LatLngPair"
+              end:
+                $ref: "#/components/schemas/LatLngPair"
+              distance:
+                type: number
+
+    Route:
+      type: object
+      required: [edges, distance]
+      properties:
+        edges:
+          type: array
+          items:
+            $ref: "#/components/schemas/RouteEdge"
+        distance:
+          type: number
+          description: Total route distance in km
+
+    RouteEdge:
+      type: object
+      required: [id, streetId, start, end, distance, bearing, highway, maxSpeed, surface, oneway]
+      properties:
+        id:
+          type: string
+        streetId:
+          type: string
+        name:
+          type: string
+        start:
+          type: object
+          required: [id, coordinates]
+          properties:
+            id:
+              type: string
+            coordinates:
+              $ref: "#/components/schemas/LatLngPair"
+        end:
+          type: object
+          required: [id, coordinates]
+          properties:
+            id:
+              type: string
+            coordinates:
+              $ref: "#/components/schemas/LatLngPair"
+        distance:
+          type: number
+        bearing:
+          type: number
+        highway:
+          $ref: "#/components/schemas/HighwayType"
+        maxSpeed:
+          type: number
+        surface:
+          type: string
+        oneway:
+          type: boolean
+
+    Waypoint:
+      type: object
+      required: [position]
+      properties:
+        position:
+          $ref: "#/components/schemas/LatLngPair"
+        dwellTime:
+          type: number
+        label:
+          type: string
+
+    # ─── Network ─────────────────────────────────────────────────────
+    GeoJSONFeatureCollection:
+      type: object
+      required: [type, features]
+      properties:
+        type:
+          type: string
+          enum: [FeatureCollection]
+        features:
+          type: array
+          items:
+            type: object
+            required: [type, geometry]
+            properties:
+              type:
+                type: string
+                enum: [Feature]
+              properties:
+                type: object
+              geometry:
+                type: object
+                required: [type, coordinates]
+                properties:
+                  type:
+                    type: string
+                    enum: [LineString]
+                  coordinates:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CoordinatePair"
+
+    Road:
+      type: object
+      required: [name, nodeIds, streets]
+      properties:
+        name:
+          type: string
+        nodeIds:
+          description: Set of node IDs serialized as array
+          oneOf:
+            - type: array
+              items:
+                type: string
+            - type: object
+        streets:
+          type: array
+          items:
+            type: array
+            items:
+              $ref: "#/components/schemas/CoordinatePair"
+
+    POI:
+      type: object
+      required: [id, name, coordinates, type]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          nullable: true
+        coordinates:
+          $ref: "#/components/schemas/LatLngPair"
+        type:
+          type: string
+          description: "POI category (shop, leisure, craft, office, etc.)"
+
+    SearchResult:
+      type: object
+      required: [name, nodeIds, coordinates]
+      properties:
+        name:
+          type: string
+        nodeIds:
+          type: array
+          items:
+            type: string
+        coordinates:
+          type: array
+          items:
+            $ref: "#/components/schemas/LatLngPair"
+
+    # ─── Heat Zones ──────────────────────────────────────────────────
+    HeatZoneFeature:
+      type: object
+      required: [type, properties, geometry]
+      properties:
+        type:
+          type: string
+          enum: [Feature]
+        properties:
+          type: object
+          required: [id, intensity, timestamp, radius]
+          properties:
+            id:
+              type: string
+            intensity:
+              type: number
+              minimum: 0
+              maximum: 1
+            timestamp:
+              type: string
+            radius:
+              type: number
+        geometry:
+          type: object
+          required: [type, coordinates]
+          properties:
+            type:
+              type: string
+              enum: [Polygon]
+            coordinates:
+              type: array
+              items:
+                $ref: "#/components/schemas/CoordinatePair"
+
+    # ─── Incidents ───────────────────────────────────────────────────
+    IncidentType:
+      type: string
+      enum: [accident, closure, construction]
+
+    IncidentDTO:
+      type: object
+      required: [id, edgeIds, type, severity, speedFactor, startTime, duration, expiresAt, autoClears, position]
+      properties:
+        id:
+          type: string
+        edgeIds:
+          type: array
+          items:
+            type: string
+        type:
+          $ref: "#/components/schemas/IncidentType"
+        severity:
+          type: number
+          minimum: 0
+          maximum: 1
+        speedFactor:
+          type: number
+          minimum: 0
+          maximum: 1
+        startTime:
+          type: number
+          description: Unix timestamp in milliseconds
+        duration:
+          type: number
+          description: Duration in milliseconds
+        expiresAt:
+          type: number
+          description: Unix timestamp in milliseconds
+        autoClears:
+          type: boolean
+        position:
+          $ref: "#/components/schemas/LatLngPair"
+
+    CreateIncidentRequest:
+      type: object
+      required: [edgeIds, type, duration]
+      properties:
+        edgeIds:
+          type: array
+          minItems: 1
+          items:
+            type: string
+        type:
+          $ref: "#/components/schemas/IncidentType"
+        duration:
+          type: number
+          description: Duration in milliseconds
+          minimum: 0
+          exclusiveMinimum: true
+        severity:
+          type: number
+          minimum: 0
+          maximum: 1
+
+    # ─── Recording & Replay ──────────────────────────────────────────
+    RecordingHeader:
+      type: object
+      required: [format, version, startTime, vehicleCount, options]
+      properties:
+        format:
+          type: string
+          enum: [moveet-recording]
+        version:
+          type: integer
+          enum: [1]
+        startTime:
+          type: string
+          format: date-time
+        vehicleCount:
+          type: integer
+        options:
+          $ref: "#/components/schemas/StartOptions"
+
+    RecordingMetadata:
+      type: object
+      required: [filePath, startTime, duration, eventCount, fileSize, vehicleCount]
+      properties:
+        filePath:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        duration:
+          type: number
+          description: Duration in milliseconds
+        eventCount:
+          type: integer
+        fileSize:
+          type: integer
+          description: File size in bytes
+        vehicleCount:
+          type: integer
+
+    RecordingFile:
+      type: object
+      required: [fileName, fileSize, modifiedAt]
+      properties:
+        fileName:
+          type: string
+        fileSize:
+          type: integer
+          description: File size in bytes
+        modifiedAt:
+          type: string
+          format: date-time
+
+    ReplayStatus:
+      type: object
+      required: [mode]
+      properties:
+        mode:
+          type: string
+          enum: [live, replay]
+        file:
+          type: string
+        progress:
+          type: number
+          description: Playback progress (0-1)
+        duration:
+          type: number
+          description: Total recording duration in ms
+        currentTime:
+          type: number
+          description: Current playback position in ms
+        speed:
+          type: number
+          description: Playback speed multiplier
+        paused:
+          type: boolean
+
+    # ─── Traffic ─────────────────────────────────────────────────────
+    TrafficEdge:
+      type: object
+      required: [edgeId, congestion, coordinates, highway, streetId]
+      properties:
+        edgeId:
+          type: string
+        congestion:
+          type: number
+          description: Number of vehicles on this edge
+        coordinates:
+          type: array
+          items:
+            $ref: "#/components/schemas/LatLngPair"
+        highway:
+          type: string
+        streetId:
+          type: string
+
+    TrafficProfile:
+      type: object
+      required: [name, timeRanges]
+      properties:
+        name:
+          type: string
+        timeRanges:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeRange"
+
+    TimeRange:
+      type: object
+      required: [start, end, demandMultiplier, affectedHighways]
+      properties:
+        start:
+          type: number
+          description: Start hour (0-23)
+        end:
+          type: number
+          description: End hour (0-23)
+        demandMultiplier:
+          type: number
+        affectedHighways:
+          type: array
+          items:
+            type: string
+
+    # ─── Fleets ──────────────────────────────────────────────────────
+    Fleet:
+      type: object
+      required: [id, name, color, source, vehicleIds]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        color:
+          type: string
+          description: Hex color code
+        source:
+          type: string
+          enum: [local, external]
+        vehicleIds:
+          type: array
+          items:
+            type: string

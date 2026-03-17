@@ -13,7 +13,8 @@
     "node": ">=24"
   },
   "workspaces": [
-    "apps/*"
+    "apps/*",
+    "packages/*"
   ],
   "scripts": {
     "dev": "turbo dev",
@@ -25,9 +26,15 @@
     "test": "turbo test",
     "dev:sim": "turbo dev --filter=@moveet/simulator",
     "dev:ui": "turbo dev --filter=@moveet/ui",
-    "dev:adapter": "turbo dev --filter=@moveet/adapter"
+    "dev:adapter": "turbo dev --filter=@moveet/adapter",
+    "type-check": "turbo type-check",
+    "test:commitlint": "node --test commitlint.config.test.mjs",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
+    "husky": "^9.1.7",
     "turbo": "^2.8.14"
   },
   "packageManager": "npm@11.6.2"

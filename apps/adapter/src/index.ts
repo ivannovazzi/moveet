@@ -3,7 +3,7 @@ import compression from "compression";
 import cors from "cors";
 import type { VehicleUpdate } from "./types";
 import { PluginManager } from "./plugins/manager";
-import { loadConfig } from "./utils/config";
+import { loadConfig, logConfig } from "./utils/config";
 
 // Source plugins
 import { GraphQLSource } from "./plugins/sources/graphql";
@@ -38,6 +38,7 @@ pluginManager.registerSink("console", () => new ConsoleSink());
 
 async function startup(): Promise<void> {
   const config = loadConfig();
+  logConfig(config);
 
   await pluginManager.setSource(config.source.type, config.source.config);
   console.log(`Source: ${config.source.type}`);
@@ -48,7 +49,11 @@ async function startup(): Promise<void> {
   }
 
   const app = express();
-  app.use(cors());
+  app.use(
+    cors({
+      origin: config.corsOrigins === "*" ? "*" : config.corsOrigins,
+    })
+  );
   app.use(compression());
   app.use(express.json());
 

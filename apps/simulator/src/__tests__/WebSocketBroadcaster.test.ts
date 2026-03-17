@@ -5,18 +5,31 @@ import {
   BACKPRESSURE_THRESHOLD,
   MAX_DROPPED_FLUSHES,
   POSITION_DELTA_THRESHOLD,
+  DEFAULT_PING_INTERVAL_MS,
+  DEFAULT_PONG_TIMEOUT_MS,
 } from "../modules/WebSocketBroadcaster";
 import type { VehicleDTO } from "../types";
 
 // --- Mock WebSocket & WebSocketServer ---
 
 function createMockClient(readyState = 1, bufferedAmount = 0): MockWebSocket {
+  const listeners: Record<string, Array<(...args: unknown[]) => void>> = {};
   return {
     readyState,
     bufferedAmount,
     send: vi.fn(),
     OPEN: 1,
     close: vi.fn(),
+    ping: vi.fn(),
+    terminate: vi.fn(),
+    on: vi.fn((event: string, cb: (...args: unknown[]) => void) => {
+      if (!listeners[event]) listeners[event] = [];
+      listeners[event].push(cb);
+    }),
+    /** Simulate receiving a pong frame from the remote end. */
+    _emitPong() {
+      for (const cb of listeners["pong"] ?? []) cb();
+    },
   };
 }
 
@@ -26,6 +39,10 @@ interface MockWebSocket {
   send: ReturnType<typeof vi.fn>;
   OPEN: number;
   close: ReturnType<typeof vi.fn>;
+  ping: ReturnType<typeof vi.fn>;
+  terminate: ReturnType<typeof vi.fn>;
+  on: ReturnType<typeof vi.fn>;
+  _emitPong(): void;
 }
 
 function createMockWSS(clients: MockWebSocket[] = []): MockWSS {
@@ -774,6 +791,278 @@ describe("WebSocketBroadcaster", () => {
     });
   });
 
+  describe("heartbeat / ping-pong", () => {
+    // Use a non-zero base time to avoid ambiguity with the lastPong=0 sentinel.
+    const BASE_TIME = 1_000_000;
+
+    it("should send ping to all OPEN clients at the configured interval", () => {
+      vi.setSystemTime(BASE_TIME);
+      const client1 = createMockClient();
+      const client2 = createMockClient();
+      const wss = createMockWSS([client1, client2]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
+        flushIntervalMs: 100,
+        pingIntervalMs: 5000,
+        pongTimeoutMs: 3000,
+      });
+
+      broadcaster.trackClient(client1 as unknown as WebSocket);
+      broadcaster.trackClient(client2 as unknown as WebSocket);
+      broadcaster.start();
+
+      // Before ping interval — no pings sent
+      vi.advanceTimersByTime(4999);
+      expect(client1.ping).not.toHaveBeenCalled();
+      expect(client2.ping).not.toHaveBeenCalled();
+
+      // At 5000ms — first heartbeat fires, sends ping
+      vi.advanceTimersByTime(1);
+      expect(client1.ping).toHaveBeenCalledTimes(1);
+      expect(client2.ping).toHaveBeenCalledTimes(1);
+
+      // Both respond with pong so they are not terminated at the next heartbeat
+      client1._emitPong();
+      client2._emitPong();
+
+      // At 10000ms — second heartbeat, pong was received so both get pinged again
+      vi.advanceTimersByTime(5000);
+      expect(client1.ping).toHaveBeenCalledTimes(2);
+      expect(client2.ping).toHaveBeenCalledTimes(2);
+
+      broadcaster.stop();
+    });
+
+    it("should not send ping to non-OPEN clients", () => {
+      vi.setSystemTime(BASE_TIME);
+      const closingClient = createMockClient(2); // CLOSING
+      const closedClient = createMockClient(3); // CLOSED
+      const wss = createMockWSS([closingClient, closedClient]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
+        flushIntervalMs: 100,
+        pingIntervalMs: 1000,
+        pongTimeoutMs: 500,
+      });
+
+      broadcaster.start();
+
+      vi.advanceTimersByTime(1000);
+
+      expect(closingClient.ping).not.toHaveBeenCalled();
+      expect(closedClient.ping).not.toHaveBeenCalled();
+
+      broadcaster.stop();
+    });
+
+    it("should update lastPong when client responds with pong", () => {
+      vi.setSystemTime(BASE_TIME);
+      const client = createMockClient();
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
+        flushIntervalMs: 100,
+        pingIntervalMs: 5000,
+        pongTimeoutMs: 3000,
+      });
+
+      broadcaster.trackClient(client as unknown as WebSocket);
+      broadcaster.start();
+
+      // First heartbeat — sends ping
+      vi.advanceTimersByTime(5000);
+      expect(client.ping).toHaveBeenCalledTimes(1);
+
+      // Client responds with pong — updates lastPong
+      client._emitPong();
+
+      // Second heartbeat — lastPong was updated, client stays alive
+      vi.advanceTimersByTime(5000);
+      expect(client.ping).toHaveBeenCalledTimes(2);
+      expect(client.terminate).not.toHaveBeenCalled();
+
+      broadcaster.stop();
+    });
+
+    it("should terminate a client that does not respond with pong within the timeout", () => {
+      vi.setSystemTime(BASE_TIME);
+      const client = createMockClient();
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
+        flushIntervalMs: 100,
+        pingIntervalMs: 5000,
+        pongTimeoutMs: 3000,
+      });
+
+      broadcaster.trackClient(client as unknown as WebSocket);
+      broadcaster.start();
+
+      // First heartbeat at +5s — sends ping (no previous ping, so no termination check)
+      vi.advanceTimersByTime(5000);
+      expect(client.ping).toHaveBeenCalledTimes(1);
+      expect(client.terminate).not.toHaveBeenCalled();
+
+      // No pong received. Second heartbeat at +10s:
+      // lastPingSent was set at +5s, now is +10s, elapsed = 5s >= 3s timeout
+      // lastPong (set at BASE_TIME) < lastPingSent → terminate
+      vi.advanceTimersByTime(5000);
+      expect(client.terminate).toHaveBeenCalledTimes(1);
+    });
+
+    it("should not terminate a client that responds with pong before next heartbeat", () => {
+      vi.setSystemTime(BASE_TIME);
+      const client = createMockClient();
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
+        flushIntervalMs: 100,
+        pingIntervalMs: 2000,
+        pongTimeoutMs: 3000,
+      });
+
+      broadcaster.trackClient(client as unknown as WebSocket);
+      broadcaster.start();
+
+      // Heartbeat at +2s — sends ping
+      vi.advanceTimersByTime(2000);
+      expect(client.ping).toHaveBeenCalledTimes(1);
+
+      // Client responds with pong at +2.5s
+      vi.advanceTimersByTime(500);
+      client._emitPong();
+
+      // Heartbeat at +4s — pong received after last ping, so no termination
+      vi.advanceTimersByTime(1500);
+      expect(client.ping).toHaveBeenCalledTimes(2);
+      expect(client.terminate).not.toHaveBeenCalled();
+
+      // Client responds again at +4.5s
+      vi.advanceTimersByTime(500);
+      client._emitPong();
+
+      // Heartbeat at +6s — still alive
+      vi.advanceTimersByTime(1500);
+      expect(client.ping).toHaveBeenCalledTimes(3);
+      expect(client.terminate).not.toHaveBeenCalled();
+
+      broadcaster.stop();
+    });
+
+    it("should terminate only unresponsive clients in a mixed set", () => {
+      vi.setSystemTime(BASE_TIME);
+      const responsive = createMockClient();
+      const zombie = createMockClient();
+      const wss = createMockWSS([responsive, zombie]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
+        flushIntervalMs: 100,
+        pingIntervalMs: 5000,
+        pongTimeoutMs: 3000,
+      });
+
+      broadcaster.trackClient(responsive as unknown as WebSocket);
+      broadcaster.trackClient(zombie as unknown as WebSocket);
+      broadcaster.start();
+
+      // First heartbeat — both get pinged
+      vi.advanceTimersByTime(5000);
+      expect(responsive.ping).toHaveBeenCalledTimes(1);
+      expect(zombie.ping).toHaveBeenCalledTimes(1);
+
+      // Only responsive client sends pong
+      responsive._emitPong();
+
+      // Second heartbeat — zombie has no pong since its ping, terminate it
+      vi.advanceTimersByTime(5000);
+      expect(responsive.terminate).not.toHaveBeenCalled();
+      expect(zombie.terminate).toHaveBeenCalledTimes(1);
+
+      broadcaster.stop();
+    });
+
+    it("should not start heartbeat when pingIntervalMs is 0", () => {
+      vi.setSystemTime(BASE_TIME);
+      const client = createMockClient();
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
+        flushIntervalMs: 100,
+        pingIntervalMs: 0,
+      });
+
+      broadcaster.start();
+
+      vi.advanceTimersByTime(60_000);
+
+      expect(client.ping).not.toHaveBeenCalled();
+
+      broadcaster.stop();
+    });
+
+    it("should stop heartbeat timer on stop()", () => {
+      vi.setSystemTime(BASE_TIME);
+      const client = createMockClient();
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
+        flushIntervalMs: 100,
+        pingIntervalMs: 5000,
+        pongTimeoutMs: 3000,
+      });
+
+      broadcaster.trackClient(client as unknown as WebSocket);
+      broadcaster.start();
+
+      // First heartbeat fires
+      vi.advanceTimersByTime(5000);
+      expect(client.ping).toHaveBeenCalledTimes(1);
+
+      // Stop the broadcaster
+      broadcaster.stop();
+
+      // Advance past another ping interval — no more pings should be sent
+      vi.advanceTimersByTime(10_000);
+      expect(client.ping).toHaveBeenCalledTimes(1);
+    });
+
+    it("should initialize lastPong for untracked clients on first heartbeat", () => {
+      vi.setSystemTime(BASE_TIME);
+      const client = createMockClient();
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
+        flushIntervalMs: 100,
+        pingIntervalMs: 5000,
+        pongTimeoutMs: 3000,
+      });
+
+      // Deliberately do NOT call trackClient — simulating a client that was
+      // already in wss.clients before heartbeat was enabled
+      broadcaster.start();
+
+      // First heartbeat — should initialize lastPong to now, send ping, NOT terminate
+      vi.advanceTimersByTime(5000);
+      expect(client.ping).toHaveBeenCalledTimes(1);
+      expect(client.terminate).not.toHaveBeenCalled();
+
+      broadcaster.stop();
+    });
+
+    it("should use default ping and pong intervals when not specified", () => {
+      vi.setSystemTime(BASE_TIME);
+      const client = createMockClient();
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
+        flushIntervalMs: 100,
+      });
+
+      broadcaster.trackClient(client as unknown as WebSocket);
+      broadcaster.start();
+
+      // No ping before 30s
+      vi.advanceTimersByTime(29_999);
+      expect(client.ping).not.toHaveBeenCalled();
+
+      // Ping at 30s
+      vi.advanceTimersByTime(1);
+      expect(client.ping).toHaveBeenCalledTimes(1);
+
+      broadcaster.stop();
+    });
+  });
+
   describe("exported constants", () => {
     it("should export BACKPRESSURE_THRESHOLD as 64KB", () => {
       expect(BACKPRESSURE_THRESHOLD).toBe(64 * 1024);
@@ -785,6 +1074,14 @@ describe("WebSocketBroadcaster", () => {
 
     it("should export POSITION_DELTA_THRESHOLD as 0.00001", () => {
       expect(POSITION_DELTA_THRESHOLD).toBe(0.00001);
+    });
+
+    it("should export DEFAULT_PING_INTERVAL_MS as 30000", () => {
+      expect(DEFAULT_PING_INTERVAL_MS).toBe(30_000);
+    });
+
+    it("should export DEFAULT_PONG_TIMEOUT_MS as 10000", () => {
+      expect(DEFAULT_PONG_TIMEOUT_MS).toBe(10_000);
     });
   });
 });

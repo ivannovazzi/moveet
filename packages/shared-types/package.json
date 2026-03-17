@@ -1,0 +1,22 @@
+{
+  "name": "@moveet/shared-types",
+  "version": "0.0.4",
+  "description": "Shared TypeScript type definitions for the Moveet monorepo",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "author": "Ivan Novazzi",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ivannovazzi/moveet.git",
+    "directory": "packages/shared-types"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "vitest": "^4.0.18"
+  }
+}

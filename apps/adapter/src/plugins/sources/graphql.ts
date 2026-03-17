@@ -90,13 +90,19 @@ export class GraphQLSource implements DataSource {
   }
 
   async getVehicles(): Promise<ExportVehicle[]> {
-    if (!this.client) return [];
+    if (!this.client) {
+      throw new Error("GraphQLSource: not connected");
+    }
     try {
       const response = await this.client.request<Record<string, unknown>>(gql`
         ${this.query}
       `);
       let vehicles = getNestedValue(response, this.vehiclePath) as Record<string, unknown>[];
-      if (!Array.isArray(vehicles)) return [];
+      if (!Array.isArray(vehicles)) {
+        throw new Error(
+          `GraphQLSource: expected array at path "${this.vehiclePath}", got ${typeof vehicles}`
+        );
+      }
 
       if (this.filterFn) {
         vehicles = vehicles.filter(this.filterFn);

@@ -3,8 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import React from "react";
 import { useRoads } from "./useRoads";
 import client from "@/utils/client";
-import { ClientDataContext } from "@/data/context";
-import { DEFAULT_START_OPTIONS } from "@/data/constants";
+import { RoadsContext } from "@/data/context";
 import { createRoad } from "@/test/mocks/types";
 import type { Road } from "@/types";
 
@@ -16,20 +15,10 @@ vi.mock("@/utils/client", () => ({
 
 function createWrapper(setRoads: React.Dispatch<React.SetStateAction<Road[]>> = vi.fn()) {
   return ({ children }: { children: React.ReactNode }) =>
-    React.createElement(ClientDataContext.Provider, {
+    React.createElement(RoadsContext.Provider, {
       value: {
-        options: DEFAULT_START_OPTIONS,
         roads: [],
-        pois: [],
-        directions: new Map(),
-        heatzones: [],
-        network: { type: "FeatureCollection", features: [] },
-        setOptions: vi.fn(),
         setRoads,
-        setPOIs: vi.fn(),
-        setDirections: vi.fn(),
-        setHeatzones: vi.fn(),
-        setNetwork: vi.fn(),
       },
       children,
     });

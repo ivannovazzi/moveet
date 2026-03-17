@@ -1,6 +1,6 @@
 import type { ConfigField, DataSink, HealthCheckResult, PluginConfig } from "../types";
 import type { VehicleUpdate } from "../../types";
-import { fetchWithTimeout } from "../utils";
+import { httpFetch } from "../../utils/httpClient";
 
 export class WebhookSink implements DataSink {
   readonly type = "webhook";
@@ -27,7 +27,7 @@ export class WebhookSink implements DataSink {
   async publishUpdates(updates: VehicleUpdate[]): Promise<void> {
     if (!this.url) return;
 
-    await fetchWithTimeout(this.url, {
+    await httpFetch(this.url, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...this.headers },
       body: JSON.stringify({ vehicles: updates, timestamp: new Date().toISOString() }),
@@ -37,11 +37,8 @@ export class WebhookSink implements DataSink {
   async healthCheck(): Promise<HealthCheckResult> {
     if (!this.url) return { healthy: false, message: "not connected" };
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 3000);
-      const res = await fetch(this.url, { method: "HEAD", signal: controller.signal });
-      clearTimeout(timeout);
-      return res.ok ? { healthy: true } : { healthy: false, message: `HTTP ${res.status}` };
+      await httpFetch(this.url, { method: "HEAD" }, { timeoutMs: 3000, maxRetries: 1 });
+      return { healthy: true };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return { healthy: false, message };

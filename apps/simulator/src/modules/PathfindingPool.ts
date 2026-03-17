@@ -15,6 +15,9 @@ import logger from "../utils/logger";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+/** Default per-request timeout in milliseconds (30 seconds). */
+const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+
 export interface PathfindingResult {
   edgeIds: string[];
   distance: number;
@@ -23,6 +26,13 @@ export interface PathfindingResult {
 interface PendingRequest {
   resolve: (value: PathfindingResult | null) => void;
   reject: (reason: Error) => void;
+  workerIndex: number;
+  timer: ReturnType<typeof setTimeout>;
+}
+
+export interface PathfindingPoolOptions {
+  poolSize?: number;
+  requestTimeoutMs?: number;
 }
 
 export class PathfindingPool {
@@ -31,8 +41,19 @@ export class PathfindingPool {
   private nextId = 0;
   private nextWorker = 0;
   private shutdownFlag = false;
+  private requestTimeoutMs: number;
 
-  constructor(geojsonPath: string, poolSize?: number) {
+  constructor(geojsonPath: string, options?: PathfindingPoolOptions | number) {
+    // Support legacy signature: constructor(geojsonPath, poolSize?)
+    let poolSize: number | undefined;
+    if (typeof options === "number") {
+      poolSize = options;
+      this.requestTimeoutMs = DEFAULT_REQUEST_TIMEOUT_MS;
+    } else {
+      poolSize = options?.poolSize;
+      this.requestTimeoutMs = options?.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+    }
+
     const size = poolSize ?? Math.min(os.cpus().length, 4);
 
     // Resolve worker path: prefer .ts (dev/tsx/vitest), fall back to .js (compiled)
@@ -49,6 +70,7 @@ export class PathfindingPool {
         if (msg.type === "result") {
           const req = this.pending.get(msg.id);
           if (req) {
+            clearTimeout(req.timer);
             this.pending.delete(msg.id);
             req.resolve(msg.route);
           }
@@ -57,18 +79,30 @@ export class PathfindingPool {
 
       worker.on("error", (err) => {
         logger.error(`Pathfinding worker ${i} error: ${err.message}`);
-        // Reject all pending requests on this worker
-        // (we can't easily know which pending requests belong to this worker,
-        // so we let the timeout / caller handle retries)
+        this.rejectPendingForWorker(i, `Pathfinding worker ${i} crashed: ${err.message}`);
       });
 
       worker.on("exit", (code) => {
         if (!this.shutdownFlag && code !== 0) {
           logger.error(`Pathfinding worker ${i} exited with code ${code}`);
+          this.rejectPendingForWorker(i, `Pathfinding worker ${i} exited with code ${code}`);
         }
       });
 
       this.workers.push(worker);
+    }
+  }
+
+  /**
+   * Reject all pending requests that were dispatched to a specific worker.
+   */
+  private rejectPendingForWorker(workerIndex: number, reason: string): void {
+    for (const [id, req] of this.pending) {
+      if (req.workerIndex === workerIndex) {
+        clearTimeout(req.timer);
+        this.pending.delete(id);
+        req.reject(new Error(reason));
+      }
     }
   }
 
@@ -87,11 +121,22 @@ export class PathfindingPool {
 
     return new Promise<PathfindingResult | null>((resolve, reject) => {
       const id = this.nextId++;
-      this.pending.set(id, { resolve, reject });
-
-      const worker = this.workers[this.nextWorker % this.workers.length];
+      const workerIndex = this.nextWorker % this.workers.length;
       this.nextWorker++;
 
+      const timer = setTimeout(() => {
+        const req = this.pending.get(id);
+        if (req) {
+          this.pending.delete(id);
+          req.reject(
+            new Error(`Pathfinding request ${id} timed out after ${this.requestTimeoutMs}ms`)
+          );
+        }
+      }, this.requestTimeoutMs);
+
+      this.pending.set(id, { resolve, reject, workerIndex, timer });
+
+      const worker = this.workers[workerIndex];
       const msg: Record<string, unknown> = { type: "findRoute", id, startId, endId };
       if (incidentEdges) {
         msg.incidentEdges = Object.fromEntries(incidentEdges);
@@ -111,6 +156,7 @@ export class PathfindingPool {
 
     // Reject any remaining pending requests
     for (const [id, req] of this.pending) {
+      clearTimeout(req.timer);
       req.reject(new Error("PathfindingPool shutting down"));
       this.pending.delete(id);
     }

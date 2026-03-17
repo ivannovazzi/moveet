@@ -57,4 +57,19 @@ class ErrorBoundary extends Component<Props, State> {
   }
 }
 
+/**
+ * Lightweight fallback UI for individual sections within the app.
+ * Displays an inline error message instead of crashing the whole page.
+ */
+export function SectionErrorFallback({ section }: { section: string }) {
+  return (
+    <div className={styles.sectionFallback} role="alert">
+      <p className={styles.sectionTitle}>{section} failed to load</p>
+      <p className={styles.sectionHint}>
+        Try reloading the page. If the problem persists, check the browser console.
+      </p>
+    </div>
+  );
+}
+
 export default ErrorBoundary;

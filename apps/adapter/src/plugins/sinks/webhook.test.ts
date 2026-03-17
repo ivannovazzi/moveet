@@ -1,16 +1,23 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { WebhookSink } from "./webhook";
+
+vi.mock("../../utils/httpClient", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../utils/httpClient")>();
+  return {
+    ...actual,
+    httpFetch: vi.fn(),
+  };
+});
+
+import { httpFetch, HttpTimeoutError, HttpClientError } from "../../utils/httpClient";
+const mockHttpFetch = vi.mocked(httpFetch);
 
 describe("WebhookSink health check", () => {
   let sink: WebhookSink;
-  const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
     sink = new WebhookSink();
-  });
-
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
+    mockHttpFetch.mockReset();
   });
 
   it("reports unhealthy when not connected", async () => {
@@ -20,17 +27,17 @@ describe("WebhookSink health check", () => {
   });
 
   it("reports healthy when URL is reachable", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true });
+    mockHttpFetch.mockResolvedValue(new Response("", { status: 200 }));
     await sink.connect({ url: "http://example.com/hook" });
 
     const result = await sink.healthCheck();
 
     expect(result.healthy).toBe(true);
-    expect(globalThis.fetch).toHaveBeenCalled();
+    expect(mockHttpFetch).toHaveBeenCalled();
   });
 
   it("reports unhealthy when URL is unreachable", async () => {
-    globalThis.fetch = vi.fn().mockRejectedValue(new Error("ECONNREFUSED"));
+    mockHttpFetch.mockRejectedValue(new HttpClientError("ECONNREFUSED", undefined, false));
     await sink.connect({ url: "http://unreachable.local/hook" });
 
     const result = await sink.healthCheck();
@@ -42,46 +49,34 @@ describe("WebhookSink health check", () => {
 
 describe("WebhookSink publishUpdates timeout", () => {
   let sink: WebhookSink;
-  const originalFetch = globalThis.fetch;
 
   beforeEach(async () => {
-    vi.useFakeTimers();
     sink = new WebhookSink();
+    mockHttpFetch.mockReset();
   });
 
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-    vi.useRealTimers();
-  });
-
-  it("aborts publishUpdates when the request exceeds the timeout", async () => {
-    globalThis.fetch = vi.fn().mockImplementation(
-      (_url: string, options: RequestInit) =>
-        new Promise((_resolve, reject) => {
-          options.signal?.addEventListener("abort", () => {
-            reject(new DOMException("The operation was aborted.", "AbortError"));
-          });
-        })
-    );
+  it("propagates timeout errors from httpFetch", async () => {
+    mockHttpFetch.mockRejectedValue(new HttpTimeoutError("http://slow.example.com/hook", 10000));
 
     await sink.connect({ url: "http://slow.example.com/hook" });
-    const promise = sink.publishUpdates([{ id: "v1", latitude: -1.28, longitude: 36.8 }]);
-
-    vi.advanceTimersByTime(10000);
-
-    await expect(promise).rejects.toThrow("aborted");
+    await expect(
+      sink.publishUpdates([{ id: "v1", latitude: -1.28, longitude: 36.8 }])
+    ).rejects.toThrow("timed out");
   });
 
-  it("passes an AbortSignal to fetch during publishUpdates", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true });
-    vi.useRealTimers();
+  it("passes correct options to httpFetch during publishUpdates", async () => {
+    mockHttpFetch.mockResolvedValue(new Response("", { status: 200 }));
 
     await sink.connect({ url: "http://example.com/hook" });
     await sink.publishUpdates([{ id: "v1", latitude: -1.28, longitude: 36.8 }]);
 
-    expect(globalThis.fetch).toHaveBeenCalledWith(
+    expect(mockHttpFetch).toHaveBeenCalledWith(
       "http://example.com/hook",
-      expect.objectContaining({ signal: expect.any(AbortSignal) })
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "Content-Type": "application/json" }),
+        body: expect.stringContaining("v1"),
+      })
     );
   });
 });

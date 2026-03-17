@@ -1,7 +1,14 @@
 import React, { useMemo } from "react";
 import type { Road, Heatzone, StartOptions, RoadNetwork, POI } from "../types";
 import type { DirectionMap } from "./context";
-import { ClientDataContext } from "./context";
+import {
+  RoadsContext,
+  POIContext,
+  DirectionContext,
+  HeatZoneContext,
+  NetworkContext,
+  OptionsContext,
+} from "./context";
 import { DEFAULT_START_OPTIONS } from "./constants";
 
 export default function DataProvider({ children }: { children: React.ReactNode }) {
@@ -15,23 +22,24 @@ export default function DataProvider({ children }: { children: React.ReactNode }
     features: [],
   });
 
-  const value = useMemo(
-    () => ({
-      options,
-      roads,
-      pois,
-      directions,
-      heatzones,
-      network,
-      setOptions,
-      setPOIs,
-      setRoads,
-      setDirections,
-      setHeatzones,
-      setNetwork,
-    }),
-    [options, roads, pois, directions, heatzones, network]
-  );
+  const optionsValue = useMemo(() => ({ options, setOptions }), [options]);
+  const roadsValue = useMemo(() => ({ roads, setRoads }), [roads]);
+  const poisValue = useMemo(() => ({ pois, setPOIs }), [pois]);
+  const directionsValue = useMemo(() => ({ directions, setDirections }), [directions]);
+  const heatzonesValue = useMemo(() => ({ heatzones, setHeatzones }), [heatzones]);
+  const networkValue = useMemo(() => ({ network, setNetwork }), [network]);
 
-  return <ClientDataContext.Provider value={value}>{children}</ClientDataContext.Provider>;
+  return (
+    <OptionsContext.Provider value={optionsValue}>
+      <RoadsContext.Provider value={roadsValue}>
+        <POIContext.Provider value={poisValue}>
+          <DirectionContext.Provider value={directionsValue}>
+            <HeatZoneContext.Provider value={heatzonesValue}>
+              <NetworkContext.Provider value={networkValue}>{children}</NetworkContext.Provider>
+            </HeatZoneContext.Provider>
+          </DirectionContext.Provider>
+        </POIContext.Provider>
+      </RoadsContext.Provider>
+    </OptionsContext.Provider>
+  );
 }

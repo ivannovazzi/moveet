@@ -31,6 +31,23 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         run: npm ci
 
+  format-check:
+    name: Format check
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
+      - run: npm run format:check
+
   lint:
     name: Lint
     needs: setup
@@ -87,3 +104,30 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-turbo-
       - run: npm run build
+
+  security-audit:
+    name: Security audit
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
+      - name: Audit root
+        run: npm audit --audit-level=high
+      - name: Audit simulator
+        working-directory: apps/simulator
+        run: npm audit --audit-level=high
+      - name: Audit adapter
+        working-directory: apps/adapter
+        run: npm audit --audit-level=high
+      - name: Audit UI
+        working-directory: apps/ui
+        run: npm audit --audit-level=high

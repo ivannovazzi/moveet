@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import VehicleList from "./Vehicles";
 import { createVehicle } from "@/test/mocks/types";
-import { ClientDataContext } from "@/data/context";
+import { DirectionContext } from "@/data/context";
 import type { Route } from "@/types";
 
 describe("VehicleList", () => {
@@ -104,33 +104,14 @@ describe("VehicleList", () => {
     };
 
     render(
-      <ClientDataContext.Provider
+      <DirectionContext.Provider
         value={{
-          options: {
-            minSpeed: 10,
-            maxSpeed: 50,
-            speedVariation: 0.1,
-            acceleration: 5,
-            deceleration: 7,
-            turnThreshold: 30,
-            updateInterval: 10000,
-            heatZoneSpeedFactor: 0.5,
-          },
-          roads: [],
-          pois: [],
           directions: new Map([["v1", { route }]]),
-          heatzones: [],
-          network: { type: "FeatureCollection", features: [] },
-          setOptions: vi.fn(),
-          setRoads: vi.fn(),
-          setPOIs: vi.fn(),
           setDirections: vi.fn(),
-          setHeatzones: vi.fn(),
-          setNetwork: vi.fn(),
         }}
       >
         <VehicleList {...defaultProps} />
-      </ClientDataContext.Provider>
+      </DirectionContext.Provider>
     );
 
     expect(screen.getByText("Route 12.4 km")).toBeInTheDocument();

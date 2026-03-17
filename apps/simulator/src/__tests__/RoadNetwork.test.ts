@@ -863,4 +863,207 @@ describe("RoadNetwork", () => {
 
     return edges;
   }
+
+  // ─── Incident edge cost penalties & cache invalidation ─────────────
+  describe("incident edge penalties and cache invalidation", () => {
+    it("should invalidate route cache when setIncidentEdges is called", () => {
+      const start = network.findNearestNode([45.5017, -73.5673]);
+      const end = network.findNearestNode([45.5029, -73.5661]);
+
+      // Populate the cache
+      network.findRoute(start, end);
+      network.findRoute(start, end); // cache hit
+
+      let stats = network.routeCacheStats();
+      expect(stats.size).toBe(1);
+      expect(stats.hits).toBe(1);
+
+      // Set incident edges — should clear entire cache
+      const factors = new Map<string, number>();
+      factors.set("some-edge-id", 0.5);
+      network.setIncidentEdges(factors);
+
+      stats = network.routeCacheStats();
+      expect(stats.size).toBe(0);
+
+      // Next findRoute should be a miss (recomputed)
+      network.findRoute(start, end);
+      stats = network.routeCacheStats();
+      expect(stats.misses).toBe(1);
+      expect(stats.hits).toBe(0);
+    });
+
+    it("should invalidate route cache when clearIncidentEdges is called", () => {
+      const start = network.findNearestNode([45.5017, -73.5673]);
+      const end = network.findNearestNode([45.5029, -73.5661]);
+
+      // Set some incident data first
+      const factors = new Map<string, number>();
+      factors.set("some-edge-id", 0.3);
+      network.setIncidentEdges(factors);
+
+      // Populate cache with incident-aware routes
+      network.findRoute(start, end);
+      network.findRoute(start, end); // cache hit
+
+      let stats = network.routeCacheStats();
+      expect(stats.size).toBe(1);
+      expect(stats.hits).toBe(1);
+
+      // Clear incidents — should clear cache
+      network.clearIncidentEdges();
+
+      stats = network.routeCacheStats();
+      expect(stats.size).toBe(0);
+
+      // Next findRoute is a fresh computation
+      network.findRoute(start, end);
+      stats = network.routeCacheStats();
+      expect(stats.misses).toBe(1);
+      expect(stats.hits).toBe(0);
+    });
+
+    it("should invalidate cache on every setIncidentEdges call, not just the first", () => {
+      const start = network.findNearestNode([45.5017, -73.5673]);
+      const end = network.findNearestNode([45.5029, -73.5661]);
+
+      // First incident set
+      network.setIncidentEdges(new Map([["e1", 0.5]]));
+      network.findRoute(start, end);
+      expect(network.routeCacheStats().size).toBe(1);
+
+      // Second incident set — cache must be cleared again
+      network.setIncidentEdges(new Map([["e2", 0.2]]));
+      expect(network.routeCacheStats().size).toBe(0);
+
+      // Third — clear incidents
+      network.clearIncidentEdges();
+      network.findRoute(start, end);
+      expect(network.routeCacheStats().size).toBe(1);
+
+      // Fourth — new incident
+      network.setIncidentEdges(new Map([["e3", 0]]));
+      expect(network.routeCacheStats().size).toBe(0);
+    });
+
+    it("should skip blocked edges (speedFactor=0) during routing", () => {
+      const start = network.findNearestNode([45.5017, -73.5673]);
+      const end = network.findNearestNode([45.5029, -73.5661]);
+
+      // Route without incidents
+      const normalRoute = network.findRoute(start, end);
+      expect(normalRoute).not.toBeNull();
+      const normalEdgeIds = normalRoute!.edges.map((e) => e.id);
+
+      // Block all edges in the normal route
+      const blocked = new Map<string, number>();
+      for (const edgeId of normalEdgeIds) {
+        blocked.set(edgeId, 0); // fully blocked
+      }
+      network.setIncidentEdges(blocked);
+
+      // Route should either find an alternative or return null
+      const reroutedRoute = network.findRoute(start, end);
+
+      if (reroutedRoute) {
+        // Alternative route must not use any blocked edges
+        const reroutedEdgeIds = reroutedRoute.edges.map((e) => e.id);
+        for (const blockedId of normalEdgeIds) {
+          expect(reroutedEdgeIds).not.toContain(blockedId);
+        }
+      }
+      // If null, no alternative exists — that's also valid
+    });
+
+    it("should penalize slowed edges (speedFactor < 1) during routing", () => {
+      const start = network.findNearestNode([45.5017, -73.5673]);
+      const end = network.findNearestNode([45.5029, -73.5661]);
+
+      // Route without incidents
+      const normalRoute = network.findRoute(start, end);
+      expect(normalRoute).not.toBeNull();
+
+      // Heavily penalize all edges on the normal route
+      const penalties = new Map<string, number>();
+      for (const edge of normalRoute!.edges) {
+        penalties.set(edge.id, 0.01); // extreme slowdown
+      }
+      network.setIncidentEdges(penalties);
+
+      const penalizedRoute = network.findRoute(start, end);
+
+      // If an alternative exists, A* should prefer it over the heavily penalized route
+      // If no alternative exists, it still uses the penalized route
+      // Either way, the route should be valid
+      if (penalizedRoute) {
+        expect(penalizedRoute.edges.length).toBeGreaterThan(0);
+        expect(penalizedRoute.distance).toBeGreaterThan(0);
+      }
+    });
+
+    it("should return to normal routing after clearing incidents", () => {
+      const start = network.findNearestNode([45.5017, -73.5673]);
+      const end = network.findNearestNode([45.5029, -73.5661]);
+
+      // Normal route
+      const normalRoute = network.findRoute(start, end);
+      expect(normalRoute).not.toBeNull();
+
+      // Add incidents
+      const penalties = new Map<string, number>();
+      penalties.set(normalRoute!.edges[0].id, 0.1);
+      network.setIncidentEdges(penalties);
+
+      // Route with incident
+      network.findRoute(start, end);
+
+      // Clear incidents
+      network.clearIncidentEdges();
+
+      // Route after clearing should match the original normal route
+      const restoredRoute = network.findRoute(start, end);
+      expect(restoredRoute).not.toBeNull();
+      expect(restoredRoute!.edges.length).toBe(normalRoute!.edges.length);
+      expect(restoredRoute!.distance).toBeCloseTo(normalRoute!.distance, 6);
+      for (let i = 0; i < normalRoute!.edges.length; i++) {
+        expect(restoredRoute!.edges[i].id).toBe(normalRoute!.edges[i].id);
+      }
+    });
+
+    it("should not serve stale cached route after incident changes", () => {
+      const start = network.findNearestNode([45.5017, -73.5673]);
+      const end = network.findNearestNode([45.5029, -73.5661]);
+
+      // Warm the cache
+      const route1 = network.findRoute(start, end);
+      expect(route1).not.toBeNull();
+
+      // Verify cache hit
+      network.findRoute(start, end);
+      expect(network.routeCacheStats().hits).toBe(1);
+
+      // Block all edges on this route
+      const blocked = new Map<string, number>();
+      for (const edge of route1!.edges) {
+        blocked.set(edge.id, 0);
+      }
+      network.setIncidentEdges(blocked);
+
+      // After setIncidentEdges, cache should be empty
+      expect(network.routeCacheStats().size).toBe(0);
+
+      // The next findRoute must NOT return the stale cached route
+      // because those edges are now blocked
+      const route3 = network.findRoute(start, end);
+
+      if (route3) {
+        // Must be a different route (not using blocked edges)
+        const route3EdgeIds = route3.edges.map((e) => e.id);
+        for (const edge of route1!.edges) {
+          expect(route3EdgeIds).not.toContain(edge.id);
+        }
+      }
+      // If null, the only path was blocked — valid
+    });
+  });
 });

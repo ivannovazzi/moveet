@@ -6,7 +6,6 @@ Thank you for your interest in contributing to Moveet! This guide will help you 
 
 - **Node.js** >= 18
 - **npm** (ships with Node.js)
-- **yarn** (required for the UI project)
 
 ## Development Setup
 
@@ -49,7 +48,7 @@ Or run each project individually:
 |---|---|---|
 | **simulator** (simulation engine) | `apps/simulator/` | `npm run dev` (port 5010) |
 | **adapter** (bridge service) | `apps/adapter/` | `npm run dev` (port 5011) |
-| **ui** (dashboard) | `apps/ui/` | `yarn dev` (port 5012) |
+| **ui** (dashboard) | `apps/ui/` | `npm run dev` (port 5012) |
 
 The simulator works standalone with synthetic vehicles. The adapter is only needed when connecting to an external fleet management system.
 
@@ -64,7 +63,7 @@ The simulator works standalone with synthetic vehicles. The adapter is only need
 - **TypeScript** is used throughout all three projects.
 - **ESLint** enforces code quality. Run the linter before submitting changes:
   - `npm run lint` in `apps/simulator/` and `apps/adapter/`
-  - `yarn lint` in `apps/ui/`
+  - `npm run lint` in `apps/ui/`
 - **Prettier** handles formatting in the UI project.
 - Follow existing conventions in the codebase. When in doubt, match the style of surrounding code.
 
@@ -79,7 +78,7 @@ npm run test
 # Or per-project
 cd apps/simulator && npm test
 cd apps/adapter && npm test
-cd apps/ui && yarn test
+cd apps/ui && npm test
 ```
 
 If you are adding a new feature or fixing a bug, include tests that cover the change.

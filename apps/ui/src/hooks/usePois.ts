@@ -1,9 +1,9 @@
-import useData from "@/data/useData";
+import { usePOIContext } from "@/data/useData";
 import client from "@/utils/client";
 import { useEffect } from "react";
 
 export function usePois() {
-  const { pois, setPOIs } = useData();
+  const { pois, setPOIs } = usePOIContext();
 
   useEffect(() => {
     client

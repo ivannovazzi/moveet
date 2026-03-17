@@ -5,8 +5,7 @@ import { useVehicles } from "./useVehicles";
 import { useDirections } from "./useDirections";
 import { createVehicleDTO } from "@/test/mocks/types";
 import type { DirectionMap } from "@/data/context";
-import { ClientDataContext } from "@/data/context";
-import { DEFAULT_START_OPTIONS } from "@/data/constants";
+import { DirectionContext } from "@/data/context";
 import type { VehicleDTO, VehicleDirection, Route } from "@/types";
 import type { ResetPayload } from "@/utils/wsTypes";
 import client from "@/utils/client";
@@ -25,6 +24,7 @@ let directionHandlers: DirectionHandler[] = [];
 vi.mock("@/utils/client", () => ({
   default: {
     onVehicle: vi.fn(),
+    offVehicle: vi.fn(),
     onConnect: vi.fn((h: ConnectHandler) => {
       connectHandlers.push(h);
     }),
@@ -47,21 +47,11 @@ function createDirectionsWrapper() {
   return function Wrapper({ children }: { children: React.ReactNode }) {
     const [directions, setDirections] = useState<DirectionMap>(new Map());
     return React.createElement(
-      ClientDataContext.Provider,
+      DirectionContext.Provider,
       {
         value: {
-          options: DEFAULT_START_OPTIONS,
-          roads: [],
-          pois: [],
           directions,
-          heatzones: [],
-          network: { type: "FeatureCollection" as const, features: [] },
-          setOptions: () => {},
-          setRoads: () => {},
-          setPOIs: () => {},
           setDirections,
-          setHeatzones: () => {},
-          setNetwork: () => {},
         },
       },
       children

@@ -1,6 +1,12 @@
-import type { ConfigField, DataSink, HealthCheckResult, PluginConfig } from "../types";
+import type {
+  ConfigField,
+  DataSink,
+  HealthCheckResult,
+  PluginConfig,
+  SinkPublishResult,
+} from "../types";
 import type { VehicleUpdate } from "../../types";
-import { fetchWithTimeout } from "../utils";
+import { httpFetch } from "../../utils/httpClient";
 
 export class RestSink implements DataSink {
   readonly type = "rest";
@@ -42,7 +48,7 @@ export class RestSink implements DataSink {
     this.batchMode = true;
   }
 
-  async publishUpdates(updates: VehicleUpdate[]): Promise<void> {
+  async publishUpdates(updates: VehicleUpdate[]): Promise<SinkPublishResult | void> {
     if (!this.url || updates.length === 0) return;
 
     const fetchOptions = {
@@ -51,30 +57,58 @@ export class RestSink implements DataSink {
     };
 
     if (this.batchMode) {
-      await fetchWithTimeout(this.url, {
+      await httpFetch(this.url, {
         ...fetchOptions,
         body: JSON.stringify({ vehicles: updates }),
       });
-    } else {
-      await Promise.all(
-        updates.map((update) =>
-          fetchWithTimeout(this.url!, {
-            ...fetchOptions,
-            body: JSON.stringify(update),
-          })
-        )
+      return;
+    }
+
+    // Non-batch mode: send individual requests per vehicle with partial failure handling
+    const results = await Promise.allSettled(
+      updates.map((update) =>
+        httpFetch(this.url!, {
+          ...fetchOptions,
+          body: JSON.stringify(update),
+        })
+      )
+    );
+
+    const failures = results
+      .map((result, i) => ({ result, update: updates[i] }))
+      .filter(
+        (entry): entry is { result: PromiseRejectedResult; update: VehicleUpdate } =>
+          entry.result.status === "rejected"
+      )
+      .map(({ result, update }) => {
+        const error =
+          result.reason instanceof Error ? result.reason.message : String(result.reason);
+        console.error(`[RestSink] Failed to publish update for vehicle ${update.id}: ${error}`);
+        return { itemId: update.id, error };
+      });
+
+    const succeeded = updates.length - failures.length;
+
+    if (failures.length > 0 && succeeded === 0) {
+      throw new Error(
+        `All ${updates.length} vehicle updates failed. First error: ${failures[0].error}`
       );
     }
+
+    if (failures.length > 0) {
+      console.warn(
+        `[RestSink] Partial failure: ${succeeded}/${updates.length} updates succeeded, ${failures.length} failed`
+      );
+    }
+
+    return { attempted: updates.length, succeeded, failures };
   }
 
   async healthCheck(): Promise<HealthCheckResult> {
     if (!this.url) return { healthy: false, message: "not connected" };
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 3000);
-      const res = await fetch(this.url, { method: "HEAD", signal: controller.signal });
-      clearTimeout(timeout);
-      return res.ok ? { healthy: true } : { healthy: false, message: `HTTP ${res.status}` };
+      await httpFetch(this.url, { method: "HEAD" }, { timeoutMs: 3000, maxRetries: 1 });
+      return { healthy: true };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return { healthy: false, message };
