@@ -2,6 +2,9 @@ import type { ConfigField, DataSource, HealthCheckResult, PluginConfig } from ".
 import type { ExportVehicle } from "../../types";
 import { getNestedValue } from "../utils";
 import { httpFetch } from "../../utils/httpClient";
+import { createLogger } from "../../utils/logger";
+
+const logger = createLogger("RestSource");
 
 interface FieldMap {
   id: string;
@@ -97,7 +100,7 @@ export class RestSource implements DataSource {
       const lng = Number(getNestedValue(record, this.fieldMap.lng));
 
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        console.warn(`Skipping vehicle "${id}": invalid coordinates (lat=${lat}, lng=${lng})`);
+        logger.warn({ vehicleId: id, lat, lng }, `Skipping vehicle "${id}": invalid coordinates`);
         return [];
       }
 

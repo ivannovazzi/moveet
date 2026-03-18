@@ -13,9 +13,11 @@
   },
   "scripts": {
     "test": "vitest run",
+    "test:ci": "vitest run --coverage",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.0",
     "typescript": "^5.8.3",
     "vitest": "^4.0.18"
   }

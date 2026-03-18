@@ -12,6 +12,7 @@ import { RecordingManager } from "./modules/RecordingManager";
 import { SimulationController } from "./modules/SimulationController";
 import { config, verifyConfig, logConfig } from "./utils/config";
 import { generalRateLimiter } from "./middleware/rateLimiter";
+import { correlationIdMiddleware } from "./middleware/correlationId";
 import logger from "./utils/logger";
 import {
   createVehicleRoutes,
@@ -21,6 +22,7 @@ import {
   createRecordingRoutes,
   createReplayRoutes,
   createFleetRoutes,
+  createAnalyticsRoutes,
 } from "./routes";
 import type { RouteContext } from "./routes";
 import { setupWebSocket, wireEvents, registerGracefulShutdown } from "./setup";
@@ -33,22 +35,13 @@ app.use(cors({ origin: true }));
 app.use(compression());
 app.use(express.json());
 
+// Correlation ID and request logging middleware
+app.use(correlationIdMiddleware);
+
 // Apply general rate limiting to all routes
 app.use(generalRateLimiter.middleware());
 
-// Request logging middleware
-app.use((req: Request, res: Response, next: NextFunction) => {
-  const startTime = Date.now();
-  const originalSend = res.send;
-
-  res.send = function (data): Response {
-    const duration = Date.now() - startTime;
-    logger.info(`${req.method} ${req.path} ${res.statusCode} - ${duration}ms`);
-    return originalSend.call(this, data);
-  };
-
-  next();
-});
+const serverStartTime = Date.now();
 
 // ─── Domain modules ──────────────────────────────────────────────────
 
@@ -70,6 +63,19 @@ const ctx: RouteContext = {
   simulationController,
 };
 
+// ─── Health endpoint ─────────────────────────────────────────────────
+
+app.get("/health", (_req, res) => {
+  res.json({
+    status: "ok",
+    uptime: Math.floor((Date.now() - serverStartTime) / 1000),
+    subsystems: {
+      roadNetwork: !!network,
+      simulation: simulationController.getStatus().ready,
+    },
+  });
+});
+
 // ─── Register routes ─────────────────────────────────────────────────
 
 app.use(createSimulationRoutes(ctx));
@@ -79,6 +85,7 @@ app.use(createIncidentRoutes(ctx));
 app.use(createRecordingRoutes(ctx));
 app.use(createReplayRoutes(ctx));
 app.use(createFleetRoutes(ctx));
+app.use(createAnalyticsRoutes(ctx));
 
 // ─── API documentation ──────────────────────────────────────────────
 
@@ -108,7 +115,10 @@ async function main() {
   });
 
   const { wss, broadcaster } = setupWebSocket(server);
-  const { trafficBroadcastInterval } = wireEvents({ ...ctx, broadcaster });
+  const { trafficBroadcastInterval, analyticsBroadcastInterval } = wireEvents({
+    ...ctx,
+    broadcaster,
+  });
 
   registerGracefulShutdown({
     server,
@@ -117,6 +127,7 @@ async function main() {
     simulationController,
     network,
     trafficBroadcastInterval,
+    analyticsBroadcastInterval,
   });
 }
 

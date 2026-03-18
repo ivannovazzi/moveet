@@ -3,6 +3,9 @@ import { Pool } from "pg";
 import type { ConfigField, DataSource, HealthCheckResult, PluginConfig } from "../types";
 import type { ExportVehicle } from "../../types";
 import { validateSqlQuery } from "./sql-validation";
+import { createLogger } from "../../utils/logger";
+
+const logger = createLogger("PostgresSource");
 
 interface PostgresFieldMap {
   id?: string;
@@ -106,8 +109,9 @@ export class PostgresSource implements DataSource {
       const columns = Object.keys(firstRow);
       for (const [field, column] of Object.entries(this.fieldMap)) {
         if (!columns.includes(column)) {
-          console.warn(
-            `PostgresSource: fieldMap.${field} references column "${column}" which does not exist in query results. Available columns: ${columns.join(", ")}`
+          logger.warn(
+            { field, column, availableColumns: columns },
+            `fieldMap.${field} references column "${column}" which does not exist in query results`
           );
         }
       }
@@ -119,9 +123,9 @@ export class PostgresSource implements DataSource {
       const lngVal = row[this.fieldMap.lng];
 
       if (idVal === undefined || latVal === undefined || lngVal === undefined) {
-        console.warn(
-          `PostgresSource: skipping row ${index}: missing critical field(s) —` +
-            ` id=${idVal}, lat=${latVal}, lng=${lngVal}`
+        logger.warn(
+          { rowIndex: index, id: idVal, lat: latVal, lng: lngVal },
+          `Skipping row ${index}: missing critical field(s)`
         );
         return [];
       }
@@ -132,9 +136,7 @@ export class PostgresSource implements DataSource {
       const lng = Number(lngVal);
 
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        console.warn(
-          `PostgresSource: skipping vehicle "${id}": invalid coordinates (lat=${lat}, lng=${lng})`
-        );
+        logger.warn({ vehicleId: id, lat, lng }, `Skipping vehicle "${id}": invalid coordinates`);
         return [];
       }
 

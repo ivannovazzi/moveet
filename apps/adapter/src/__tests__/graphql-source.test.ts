@@ -171,6 +171,46 @@ describe("GraphQLSource", () => {
     expect((await source.healthCheck()).healthy).toBe(false);
   });
 
+  it("rejects field map with __proto__ path", async () => {
+    const source = new GraphQLSource();
+    await expect(
+      source.connect({
+        url: "https://api.example.com/graphql",
+        fieldMap: { id: "__proto__.polluted", name: "callsign", lat: "latitude", lng: "longitude" },
+      })
+    ).rejects.toThrow("unsafe field map paths");
+  });
+
+  it("rejects field map with constructor.prototype path", async () => {
+    const source = new GraphQLSource();
+    await expect(
+      source.connect({
+        url: "https://api.example.com/graphql",
+        fieldMap: {
+          id: "id",
+          name: "constructor.prototype.polluted",
+          lat: "latitude",
+          lng: "longitude",
+        },
+      })
+    ).rejects.toThrow("unsafe field map paths");
+  });
+
+  it("getNestedValue returns undefined for prototype-polluting paths", async () => {
+    mockRequest.mockResolvedValue({
+      vehicles: {
+        nodes: [{ id: "v1", callsign: "V1", latitude: -1.3, longitude: 36.8 }],
+      },
+    });
+
+    const source = new GraphQLSource();
+    await source.connect({ url: "https://api.example.com/graphql" });
+    const vehicles = await source.getVehicles();
+
+    expect(vehicles).toHaveLength(1);
+    expect(vehicles[0].id).toBe("v1");
+  });
+
   it("has config schema with required url", () => {
     const source = new GraphQLSource();
     expect(source.configSchema.length).toBeGreaterThan(0);

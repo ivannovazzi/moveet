@@ -160,6 +160,22 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
   async start(options: Partial<StartOptions>): Promise<void> {
     this.vehicleManager.setOptions(options);
 
+    // Clean up any listeners from a previous start() to prevent accumulation
+    if (this.incidentManager) {
+      if (this._onIncidentCreated) {
+        this.incidentManager.removeListener("incident:created", this._onIncidentCreated);
+        this._onIncidentCreated = undefined;
+      }
+      if (this._onIncidentCleared) {
+        this.incidentManager.removeListener("incident:cleared", this._onIncidentCleared);
+        this._onIncidentCleared = undefined;
+      }
+    }
+    if (this._onClockHourChanged) {
+      this.vehicleManager.clock.removeListener("hour:changed", this._onClockHourChanged);
+      this._onClockHourChanged = undefined;
+    }
+
     const intervalMs = this.vehicleManager.getOptions().updateInterval;
 
     for (const v of this.vehicleManager.getVehicles()) {

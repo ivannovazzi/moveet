@@ -13,19 +13,29 @@ export interface GracefulShutdownContext {
   simulationController: SimulationController;
   network: RoadNetwork;
   trafficBroadcastInterval: NodeJS.Timeout;
+  analyticsBroadcastInterval: NodeJS.Timeout;
 }
 
 /**
  * Register process signal handlers for graceful shutdown.
  */
 export function registerGracefulShutdown(ctx: GracefulShutdownContext): void {
-  const { server, wss, broadcaster, simulationController, network, trafficBroadcastInterval } = ctx;
+  const {
+    server,
+    wss,
+    broadcaster,
+    simulationController,
+    network,
+    trafficBroadcastInterval,
+    analyticsBroadcastInterval,
+  } = ctx;
 
   function gracefulShutdown(signal: string): void {
     logger.info(`${signal} received. Starting graceful shutdown...`);
 
     broadcaster.stop();
     clearInterval(trafficBroadcastInterval);
+    clearInterval(analyticsBroadcastInterval);
     logger.info("WebSocket broadcaster stopped");
 
     server.close(() => {

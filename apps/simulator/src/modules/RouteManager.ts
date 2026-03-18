@@ -153,8 +153,13 @@ export class RouteManager extends EventEmitter {
     route?: Route
   ): { edge: Edge; edgeIndex?: number } | null {
     if (route) {
-      const edgeIndex =
-        vehicle.edgeIndex ?? route.edges.findIndex((e) => e.id === vehicle.currentEdge.id);
+      let edgeIndex: number;
+      if (vehicle.edgeIndex !== undefined && vehicle.edgeIndex >= 0) {
+        edgeIndex = vehicle.edgeIndex;
+      } else {
+        edgeIndex = route.edges.findIndex((e) => e.id === vehicle.currentEdge.id);
+        vehicle.edgeIndex = edgeIndex;
+      }
 
       if (edgeIndex < route.edges.length - 1) {
         return {

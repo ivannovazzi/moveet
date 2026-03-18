@@ -16,13 +16,18 @@ export interface EventWiringContext {
   broadcaster: WebSocketBroadcaster;
 }
 
+/** Default analytics broadcast interval in ms (5 seconds). */
+const DEFAULT_ANALYTICS_INTERVAL_MS = 5000;
+
 /**
  * Wire all domain events to the WebSocket broadcaster and recording manager.
  *
- * Returns a cleanup function (the traffic broadcast interval) that callers
- * should clear on shutdown.
+ * Returns cleanup intervals that callers should clear on shutdown.
  */
-export function wireEvents(ctx: EventWiringContext): { trafficBroadcastInterval: NodeJS.Timeout } {
+export function wireEvents(ctx: EventWiringContext): {
+  trafficBroadcastInterval: NodeJS.Timeout;
+  analyticsBroadcastInterval: NodeJS.Timeout;
+} {
   const {
     network,
     vehicleManager,
@@ -106,5 +111,22 @@ export function wireEvents(ctx: EventWiringContext): { trafficBroadcastInterval:
   );
   simulationController.on("replayStatus", (data) => broadcaster.broadcast("replayStatus", data));
 
-  return { trafficBroadcastInterval };
+  // ─── Analytics snapshot broadcast ─────────────────────────────────
+  const analyticsIntervalMs = process.env.ANALYTICS_INTERVAL
+    ? parseInt(process.env.ANALYTICS_INTERVAL, 10)
+    : DEFAULT_ANALYTICS_INTERVAL_MS;
+
+  const analyticsBroadcastInterval = setInterval(() => {
+    // Only send if clients are connected
+    if (broadcaster.clientCount === 0) return;
+
+    const { summary, fleets } = vehicleManager.analytics.getSnapshot();
+    broadcaster.broadcast("analytics", {
+      summary,
+      fleets,
+      timestamp: Date.now(),
+    });
+  }, analyticsIntervalMs);
+
+  return { trafficBroadcastInterval, analyticsBroadcastInterval };
 }

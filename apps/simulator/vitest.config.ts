@@ -14,6 +14,12 @@ export default defineConfig({
         '**/*.spec.ts',
         'vitest.config.ts',
       ],
+      thresholds: {
+        lines: 50,
+        branches: 50,
+        functions: 50,
+        statements: 50,
+      },
     },
     include: ['**/*.test.ts', '**/*.spec.ts'],
     exclude: ['node_modules', 'dist'],

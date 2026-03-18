@@ -80,7 +80,17 @@ jobs:
             node_modules
             apps/*/node_modules
           key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
-      - run: npm test
+      - run: npx turbo test:ci
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: |
+            apps/simulator/coverage/
+            apps/adapter/coverage/
+            apps/ui/coverage/
+          retention-days: 14
 
   build:
     name: Build

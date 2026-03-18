@@ -7,6 +7,9 @@ import type {
 } from "../types";
 import type { VehicleUpdate } from "../../types";
 import { httpFetch } from "../../utils/httpClient";
+import { createLogger } from "../../utils/logger";
+
+const logger = createLogger("RestSink");
 
 export class RestSink implements DataSink {
   readonly type = "rest";
@@ -83,7 +86,10 @@ export class RestSink implements DataSink {
       .map(({ result, update }) => {
         const error =
           result.reason instanceof Error ? result.reason.message : String(result.reason);
-        console.error(`[RestSink] Failed to publish update for vehicle ${update.id}: ${error}`);
+        logger.error(
+          { vehicleId: update.id, error },
+          `Failed to publish update for vehicle ${update.id}`
+        );
         return { itemId: update.id, error };
       });
 
@@ -96,8 +102,9 @@ export class RestSink implements DataSink {
     }
 
     if (failures.length > 0) {
-      console.warn(
-        `[RestSink] Partial failure: ${succeeded}/${updates.length} updates succeeded, ${failures.length} failed`
+      logger.warn(
+        { succeeded, total: updates.length, failed: failures.length },
+        `Partial failure: ${succeeded}/${updates.length} updates succeeded, ${failures.length} failed`
       );
     }
 

@@ -1,5 +1,8 @@
 import dotenv from "dotenv";
 import { z } from "zod";
+import { createLogger } from "./logger";
+
+const logger = createLogger("config");
 
 dotenv.config();
 
@@ -42,7 +45,7 @@ function parseJSON(value: string | undefined): Record<string, unknown> {
   try {
     return JSON.parse(value);
   } catch {
-    console.warn(`Failed to parse JSON config: ${value}`);
+    logger.warn({ value }, "Failed to parse JSON config");
     return {};
   }
 }
@@ -107,5 +110,5 @@ export function logConfig(cfg: StartupConfig): void {
     source: { type: cfg.source.type, config: "••••••" },
     sinks: redactedSinks,
   };
-  console.log("Adapter config:", JSON.stringify(redacted, null, 2));
+  logger.info({ config: redacted }, "Adapter config");
 }

@@ -24,6 +24,7 @@ import { VehicleRegistry } from "./VehicleRegistry";
 import { RouteManager } from "./RouteManager";
 import { GameLoop } from "./GameLoop";
 import { AdapterSyncManager } from "./AdapterSyncManager";
+import { AnalyticsAccumulator } from "./AnalyticsAccumulator";
 
 /**
  * Thin facade/coordinator that delegates to focused sub-managers:
@@ -40,6 +41,7 @@ export class VehicleManager extends EventEmitter {
   public readonly routeManager: RouteManager;
   public readonly gameLoop: GameLoop;
   public readonly adapterSync: AdapterSyncManager;
+  public readonly analytics: AnalyticsAccumulator;
 
   public readonly clock = new SimulationClock({ startHour: 7, speedMultiplier: 1 });
   private traffic = new TrafficManager(this.clock);
@@ -74,13 +76,26 @@ export class VehicleManager extends EventEmitter {
       this.clock
     );
     this.adapterSync = new AdapterSyncManager();
+    this.analytics = new AnalyticsAccumulator(this.registry, fleetManager);
+
+    // Attach analytics accumulator to game loop so stats update each tick
+    this.gameLoop.analyticsAccumulator = this.analytics;
 
     // Wire clock hour to RouteManager for speed calculations
     this.routeManager.getClockHour = () => this.clock.getHour();
 
     // Forward events from sub-managers to this facade
-    this.routeManager.on("direction", (data) => this.emit("direction", data));
-    this.routeManager.on("waypoint:reached", (data) => this.emit("waypoint:reached", data));
+    this.routeManager.on("direction", (data) => {
+      this.emit("direction", data);
+      // Track optimal distance when a route is set
+      if (data.route?.distance != null) {
+        this.analytics.onDirectionSet(data.vehicleId, data.route.distance);
+      }
+    });
+    this.routeManager.on("waypoint:reached", (data) => {
+      this.emit("waypoint:reached", data);
+      this.analytics.onWaypointReached(data.vehicleId);
+    });
     this.routeManager.on("route:completed", (data) => this.emit("route:completed", data));
     this.routeManager.on("vehicle:rerouted", (data) => this.emit("vehicle:rerouted", data));
     this.gameLoop.on("update", (data) => this.emit("update", data));
@@ -182,6 +197,7 @@ export class VehicleManager extends EventEmitter {
     this.registry.reset();
     this.routeManager.reset();
     this.fleets.reset();
+    this.analytics.resetStats();
 
     if (adapterVehicles) {
       adapterVehicles.forEach((v) => {
