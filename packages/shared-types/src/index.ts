@@ -202,6 +202,46 @@ export interface AnalyticsSnapshot {
   timestamp: number;
 }
 
+// ─── Geofencing ─────────────────────────────────────────────────────
+
+export type GeoFenceType = "restricted" | "delivery" | "monitoring";
+
+export interface GeoFence {
+  id: string;
+  name: string;
+  type: GeoFenceType;
+  /** Array of [longitude, latitude] coordinate pairs forming a closed polygon. */
+  polygon: [number, number][];
+  color?: string;
+  active: boolean;
+}
+
+export interface GeoFenceEvent {
+  type: "geofence-event";
+  fenceId: string;
+  fenceName: string;
+  vehicleId: string;
+  vehicleName: string;
+  event: "enter" | "exit";
+  timestamp: string; // ISO date string
+}
+
+// REST CRUD types
+export interface CreateGeoFenceRequest {
+  name: string;
+  type: GeoFenceType;
+  polygon: [number, number][];
+  color?: string;
+}
+
+export interface UpdateGeoFenceRequest {
+  name?: string;
+  type?: GeoFenceType;
+  polygon?: [number, number][];
+  color?: string;
+  active?: boolean;
+}
+
 // ─── Recording & Replay ────────────────────────────────────────────
 
 export interface RecordingMetadata {
