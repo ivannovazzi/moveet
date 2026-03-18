@@ -44,8 +44,6 @@ export function validateQuery(schema: z.ZodType) {
       });
       return;
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    req.query = result.data as any;
     next();
   };
 }
@@ -63,8 +61,6 @@ export function validateParams(schema: z.ZodType) {
       });
       return;
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    req.params = result.data as any;
     next();
   };
 }
