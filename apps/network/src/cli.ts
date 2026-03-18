@@ -7,7 +7,10 @@ import { filter, DEFAULT_ROAD_CLASSES } from "./commands/filter.js";
 import { exportNetwork } from "./commands/export.js";
 import { validate } from "./commands/validate.js";
 import { diff } from "./commands/diff.js";
+import { prepare } from "./commands/prepare.js";
 import path from "path";
+
+const DEFAULT_OUTPUT = "apps/simulator/data/network.geojson";
 
 const CACHE_DIR = path.resolve("apps/network/.cache");
 
@@ -99,6 +102,23 @@ program
   .action((oldPath: string, newPath: string) => {
     const result = diff(oldPath, newPath);
     if (!result.identical) process.exit(1);
+  });
+
+program
+  .command("prepare [region]")
+  .description(
+    "Full pipeline: download → extract → filter → export → validate"
+  )
+  .option("--output <path>", "Output GeoJSON path", DEFAULT_OUTPUT)
+  .option("--force", "Force re-download even if cached")
+  .option("--dry-run", "Print pipeline steps without executing")
+  .action(async (region: string | undefined, opts: { output: string; force?: boolean; dryRun?: boolean }) => {
+    await prepare({
+      region,
+      output: opts.output,
+      force: opts.force,
+      dryRun: opts.dryRun,
+    });
   });
 
 program.parse();
