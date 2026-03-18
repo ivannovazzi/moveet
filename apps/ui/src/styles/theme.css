@@ -1,0 +1,52 @@
+/**
+ * React Aria component theme — maps the variable names used in React Aria's
+ * documented CSS examples to the project's design tokens.
+ *
+ * Usage: @import "./theme.css" at the top of any component CSS that uses
+ * React Aria's example styles verbatim.
+ */
+
+:root {
+  /* Spacing (React Aria uses multiples of a 4px base unit) */
+  --spacing: 4px;
+  --spacing-1: var(--space-2); /* 4px */
+  --spacing-2: var(--space-4); /* 8px */
+  --spacing-3: var(--space-5); /* 12px */
+  --spacing-4: var(--space-6); /* 16px */
+  --spacing-5: 20px;
+  --spacing-6: var(--space-7); /* 24px */
+  --spacing-8: var(--space-8); /* 32px */
+
+  /* Border radius */
+  --radius: var(--radius-md); /* 6px */
+
+  /* Typography */
+  --font-size: var(--text-base); /* 13px */
+  --font-size-sm: var(--text-sm); /* 12px */
+  --font-size-lg: var(--text-md); /* 14px */
+
+  /* Text */
+  --text-color: var(--color-text);
+  --text-color-disabled: var(--color-text-secondary);
+
+  /* Borders */
+  --border-color: rgba(255, 255, 255, 0.12);
+
+  /* Backgrounds */
+  --overlay-background: var(--glass-bg);
+
+  /* Selection / highlight */
+  --highlight-background: var(--color-accent); /* #39f */
+  --highlight-foreground: #fff;
+  --highlight-hover: var(--surface-bg-hover);
+  --highlight-overlay: rgba(57, 153, 255, 0.08);
+
+  /* Focus */
+  --focus-ring-color: var(--color-accent);
+
+  /* Grays (used for subtle dividers) */
+  --gray-300: rgba(255, 255, 255, 0.18);
+
+  /* Validation */
+  --invalid-color: var(--color-danger);
+}

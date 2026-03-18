@@ -49,13 +49,7 @@ describe("Typeahead", () => {
 
   it("supports renderLabel for display text", () => {
     const items = [{ name: "Nairobi" }, { name: "Mombasa" }];
-    render(
-      <Typeahead
-        options={items}
-        onChange={() => {}}
-        renderLabel={(item) => item.name}
-      />
-    );
+    render(<Typeahead options={items} onChange={() => {}} renderLabel={(item) => item.name} />);
     expect(screen.getByRole("combobox")).toBeInTheDocument();
   });
 });

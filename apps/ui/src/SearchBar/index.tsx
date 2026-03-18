@@ -22,7 +22,8 @@ function score(name: string, q: string): Match | null {
   if (!query) return null;
 
   // Exact
-  if (n === query) return { score: 1000, positions: Array.from({ length: query.length }, (_, i) => i) };
+  if (n === query)
+    return { score: 1000, positions: Array.from({ length: query.length }, (_, i) => i) };
 
   // Starts with
   if (n.startsWith(query)) {
@@ -30,7 +31,9 @@ function score(name: string, q: string): Match | null {
   }
 
   // Word boundary start
-  const wordMatch = n.match(new RegExp(`(^|\\s|-)(?=${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`));
+  const wordMatch = n.match(
+    new RegExp(`(^|\\s|-)(?=${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`)
+  );
   if (wordMatch !== null && wordMatch.index !== undefined) {
     const start = wordMatch.index + wordMatch[1].length;
     return {
@@ -60,7 +63,10 @@ function score(name: string, q: string): Match | null {
   if (qi === query.length) {
     const spread = pos[pos.length - 1] - pos[0] + 1;
     const coverage = query.length / spread;
-    const consecutiveBonus = pos.reduce((acc, p, i) => acc + (i > 0 && p === pos[i - 1] + 1 ? 10 : 0), 0);
+    const consecutiveBonus = pos.reduce(
+      (acc, p, i) => acc + (i > 0 && p === pos[i - 1] + 1 ? 10 : 0),
+      0
+    );
     return { score: 200 * coverage + consecutiveBonus - pos[0], positions: pos };
   }
 
@@ -137,7 +143,11 @@ interface SearchBarProps {
   onItemUnselect: () => void;
 }
 
-export default function SearchBar({ selectedItem, onDestinationClick, onItemSelect }: SearchBarProps) {
+export default function SearchBar({
+  selectedItem,
+  onDestinationClick,
+  onItemSelect,
+}: SearchBarProps) {
   const { roads } = useRoads();
   const { pois } = usePois();
 
@@ -242,7 +252,12 @@ export default function SearchBar({ selectedItem, onDestinationClick, onItemSele
               aria-label="Clear"
             >
               <svg viewBox="0 0 12 12" fill="currentColor">
-                <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <path
+                  d="M2 2l8 8M10 2l-8 8"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
               </svg>
             </button>
           )}
@@ -260,7 +275,12 @@ export default function SearchBar({ selectedItem, onDestinationClick, onItemSele
 
       {/* ── Results ── */}
       {showResults && (
-        <ul id="search-results" className={styles.results} role="listbox" aria-label="Search results">
+        <ul
+          id="search-results"
+          className={styles.results}
+          role="listbox"
+          aria-label="Search results"
+        >
           {results.map((r, i) => {
             const road = isRoad(r.item);
             return (

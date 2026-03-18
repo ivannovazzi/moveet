@@ -10,12 +10,7 @@ interface InputProps extends Omit<TextFieldProps, "onChange"> {
 
 export function Input({ label, value, onChange, type = "number", ...props }: InputProps) {
   return (
-    <TextField
-      className={styles.label}
-      value={String(value ?? "")}
-      onChange={onChange}
-      {...props}
-    >
+    <TextField className={styles.label} value={String(value ?? "")} onChange={onChange} {...props}>
       {label && <Label>{label}</Label>}
       <AriaInput type={type} className={styles.input} />
     </TextField>

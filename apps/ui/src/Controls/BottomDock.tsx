@@ -268,7 +268,6 @@ export default function BottomDock({
           </span>
         ))}
       </div>
-
     </div>
   );
 }

@@ -1,12 +1,5 @@
 import { useState } from "react";
-import {
-  Button,
-  Select,
-  SelectValue,
-  Popover,
-  ListBox,
-  ListBoxItem,
-} from "react-aria-components";
+import { Button, Select, SelectValue, Popover, ListBox, ListBoxItem } from "react-aria-components";
 import type { HealthResponse, ConfigResponse } from "./adapterClient";
 import ConfigForm from "./ConfigForm";
 import styles from "./AdapterDrawer.module.css";
@@ -81,7 +74,9 @@ export default function SinksTab({ health, config, loading, onAdd, onRemove }: S
               <SelectValue className={styles.selectValue}>
                 {({ selectedText }) => selectedText || "-- select type --"}
               </SelectValue>
-              <span aria-hidden className={styles.selectChevron}>▾</span>
+              <span aria-hidden className={styles.selectChevron}>
+                ▾
+              </span>
             </Button>
             <Popover className={styles.selectPopover}>
               <ListBox className={styles.selectListBox}>

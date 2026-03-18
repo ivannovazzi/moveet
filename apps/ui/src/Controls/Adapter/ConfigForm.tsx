@@ -143,7 +143,9 @@ function renderInput(
             <SelectValue className={styles.selectValue}>
               {({ selectedText }) => selectedText || "--"}
             </SelectValue>
-            <span aria-hidden className={styles.selectChevron}>▾</span>
+            <span aria-hidden className={styles.selectChevron}>
+              ▾
+            </span>
           </Button>
           <Popover className={styles.selectPopover}>
             <ListBox className={styles.selectListBox}>

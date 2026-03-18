@@ -84,12 +84,7 @@ export default function Fleets({ fleets, onCreateFleet, onDeleteFleet }: FleetsP
         </div>
 
         {isAdding ? (
-          <TextField
-            value={newName}
-            onChange={setNewName}
-            aria-label="New fleet name"
-            autoFocus
-          >
+          <TextField value={newName} onChange={setNewName} aria-label="New fleet name" autoFocus>
             <Input
               className={styles.newFleetInput}
               onKeyDown={handleKeyDown}

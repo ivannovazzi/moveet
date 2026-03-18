@@ -1,12 +1,5 @@
 import { useCallback, useMemo, type ReactNode } from "react";
-import {
-  ComboBox,
-  Input,
-  Label,
-  ListBox,
-  ListBoxItem,
-  Popover,
-} from "react-aria-components";
+import { ComboBox, Input, Label, ListBox, ListBoxItem, Popover } from "react-aria-components";
 import styles from "./Inputs.module.css";
 import classNames from "classnames";
 
@@ -68,10 +61,7 @@ export function Typeahead<T>({
       menuTrigger="input"
     >
       {label && <Label className={styles.comboLabel}>{label}</Label>}
-      <Input
-        className={classNames(styles.input, className)}
-        placeholder={placeholder}
-      />
+      <Input className={classNames(styles.input, className)} placeholder={placeholder} />
       <Popover className={styles.dropdown}>
         <ListBox<TypeaheadItem<T>> className={styles.listBox}>
           {(item) => (
