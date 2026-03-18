@@ -57,8 +57,8 @@ export function Typeahead<T>({
     <ComboBox<TypeaheadItem<T>>
       className={styles.comboBoxRoot}
       defaultItems={items}
-      selectedKey={selectedKey}
-      onSelectionChange={(key) => {
+      value={selectedKey}
+      onChange={(key) => {
         const found = items.find((item) => item.key === key);
         if (found) onChange(found.option);
       }}
