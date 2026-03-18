@@ -1,7 +1,7 @@
 import { execSync } from "child_process";
 import path from "path";
 
-const OSMIUM_IMAGE = "ghcr.io/osmcode/osmium-tool";
+const OSMIUM_IMAGE = "osmcode/osmium-tool";
 
 export function buildOsmiumCommand(args: string[], workdir: string): string {
   const absWorkdir = path.resolve(workdir);

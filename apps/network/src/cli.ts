@@ -9,10 +9,12 @@ import { validate } from "./commands/validate.js";
 import { diff } from "./commands/diff.js";
 import { prepare } from "./commands/prepare.js";
 import path from "path";
+import { fileURLToPath } from "url";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_OUTPUT = "apps/simulator/data/network.geojson";
 
-const CACHE_DIR = path.resolve("apps/network/.cache");
+const CACHE_DIR = path.resolve(__dirname, "../.cache");
 
 const program = new Command();
 
