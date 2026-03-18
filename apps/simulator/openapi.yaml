@@ -1223,6 +1223,151 @@ paths:
                   ok:
                     type: boolean
 
+  # ─── Geofences ──────────────────────────────────────────────────
+  /geofences:
+    post:
+      operationId: createGeofence
+      summary: Create a new geofence zone
+      tags: [Geofences]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGeoFenceRequest"
+      responses:
+        "201":
+          description: Zone created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeoFence"
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    get:
+      operationId: listGeofences
+      summary: List all geofence zones
+      tags: [Geofences]
+      responses:
+        "200":
+          description: List of zones
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GeoFence"
+
+  /geofences/{id}:
+    get:
+      operationId: getGeofence
+      summary: Get a single geofence zone by ID
+      tags: [Geofences]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Zone found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeoFence"
+        "404":
+          description: Zone not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    put:
+      operationId: replaceGeofence
+      summary: Full replace of a geofence zone
+      tags: [Geofences]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGeoFenceRequest"
+      responses:
+        "200":
+          description: Zone updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeoFence"
+        "404":
+          description: Zone not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: deleteGeofence
+      summary: Delete a geofence zone
+      tags: [Geofences]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Zone removed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+        "404":
+          description: Zone not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /geofences/{id}/toggle:
+    patch:
+      operationId: toggleGeofence
+      summary: Flip the active flag of a geofence zone
+      tags: [Geofences]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Zone updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeoFence"
+        "404":
+          description: Zone not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
 components:
   schemas:
     # ─── Core types ──────────────────────────────────────────────────
@@ -1946,3 +2091,49 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/VehicleStats"
+
+    # ─── Geofencing ──────────────────────────────────────────────────
+    GeoFence:
+      type: object
+      required: [id, name, type, polygon, active]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [restricted, delivery, monitoring]
+        polygon:
+          type: array
+          items:
+            type: array
+            items:
+              type: number
+            minItems: 2
+            maxItems: 2
+          description: Array of [longitude, latitude] coordinate pairs forming a closed polygon
+        color:
+          type: string
+        active:
+          type: boolean
+
+    CreateGeoFenceRequest:
+      type: object
+      required: [name, type, polygon]
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [restricted, delivery, monitoring]
+        polygon:
+          type: array
+          items:
+            type: array
+            items:
+              type: number
+            minItems: 2
+            maxItems: 2
+        color:
+          type: string

@@ -7,7 +7,7 @@ describe("IconRail", () => {
     render(<IconRail activePanel={null} onPanelChange={() => {}} />);
 
     const buttons = screen.getAllByRole("button");
-    expect(buttons).toHaveLength(9);
+    expect(buttons).toHaveLength(10);
 
     expect(screen.getByLabelText("Vehicles")).toBeInTheDocument();
     expect(screen.getByLabelText("Fleets")).toBeInTheDocument();
@@ -17,6 +17,7 @@ describe("IconRail", () => {
     expect(screen.getByLabelText("Speed")).toBeInTheDocument();
     expect(screen.getByLabelText("Analytics")).toBeInTheDocument();
     expect(screen.getByLabelText("Adapter")).toBeInTheDocument();
+    expect(screen.getByLabelText("Geofences")).toBeInTheDocument();
   });
 
   it("calls onPanelChange with panel id when clicking inactive button", async () => {

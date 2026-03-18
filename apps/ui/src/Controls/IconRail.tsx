@@ -9,6 +9,7 @@ import {
   Gear,
   ClockIcon,
   ChartIcon,
+  GeofenceIcon,
 } from "@/components/Icons";
 import styles from "./IconRail.module.css";
 
@@ -21,7 +22,8 @@ export type PanelId =
   | "speed"
   | "clock"
   | "analytics"
-  | "adapter";
+  | "adapter"
+  | "geofences";
 
 interface IconRailProps {
   activePanel: PanelId | null;
@@ -33,6 +35,7 @@ const topItems: { id: PanelId; Icon: React.FC<React.SVGProps<SVGSVGElement>>; la
   { id: "vehicles", Icon: CarIcon, label: "Vehicles" },
   { id: "fleets", Icon: LayersIcon, label: "Fleets" },
   { id: "incidents", Icon: AlertIcon, label: "Incidents" },
+  { id: "geofences", Icon: GeofenceIcon, label: "Geofences" },
   { id: "recordings", Icon: RecordCircleIcon, label: "Recordings" },
   { id: "toggles", Icon: EyeIcon, label: "Visibility" },
   { id: "speed", Icon: GaugeIcon, label: "Speed" },

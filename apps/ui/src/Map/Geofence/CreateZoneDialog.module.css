@@ -1,0 +1,205 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+}
+
+.dialog {
+  width: clamp(280px, 90vw, 360px);
+  background: var(--panel-surface, #1a1d23);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-lg, 8px);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.5),
+    0 1px 0 rgba(255, 255, 255, 0.06) inset;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4, 12px) var(--space-5, 16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--panel-header-bg, rgba(255, 255, 255, 0.03));
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-lg, 15px);
+  font-weight: 600;
+  color: var(--color-white, #fff);
+}
+
+.closeButton {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--color-gray, #888);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm, 4px);
+  transition: color var(--transition-fast, 150ms ease);
+}
+
+.closeButton:hover {
+  color: var(--color-white, #fff);
+}
+
+.form {
+  padding: var(--space-4, 12px) var(--space-5, 16px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4, 12px);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1, 4px);
+}
+
+.label {
+  font-size: var(--text-sm, 13px);
+  color: var(--color-text-secondary, #aaa);
+}
+
+.required {
+  color: rgb(239, 68, 68);
+}
+
+.optional {
+  color: var(--color-gray, #888);
+  font-size: var(--text-xs, 11px);
+}
+
+.input,
+.select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 var(--space-4, 12px);
+  height: var(--control-sm, 32px);
+  border-radius: var(--radius-sm, 4px);
+  font-size: var(--text-base, 13px);
+  color: var(--color-gray-lightest, #e0e0e0);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-family: inherit;
+  transition:
+    background var(--transition-fast, 150ms ease),
+    border-color var(--transition-fast, 150ms ease);
+}
+
+.input:focus,
+.select:focus {
+  outline: none;
+  border-color: var(--focus-border, rgba(59, 130, 246, 0.6));
+  background: var(--focus-bg, rgba(59, 130, 246, 0.08));
+  box-shadow: var(--focus-ring, 0 0 0 2px rgba(59, 130, 246, 0.2));
+}
+
+.select option {
+  background: #1a1d23;
+  color: #e0e0e0;
+}
+
+.colorRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3, 8px);
+}
+
+.colorPicker {
+  width: 36px;
+  height: 32px;
+  padding: 2px;
+  border-radius: var(--radius-sm, 4px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+}
+
+.clearColor {
+  font-size: var(--text-xs, 11px);
+  color: var(--color-gray, #888);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.clearColor:hover {
+  color: var(--color-gray-light, #aaa);
+}
+
+.meta {
+  font-size: var(--text-xs, 11px);
+  color: var(--color-gray, #888);
+}
+
+.vertexCount::before {
+  content: "Polygon: ";
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-3, 8px);
+  justify-content: flex-end;
+  padding-top: var(--space-2, 8px);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.cancelButton {
+  padding: 0 var(--space-4, 12px);
+  height: var(--control, 36px);
+  border-radius: var(--radius-sm, 4px);
+  font-size: var(--text-base, 13px);
+  color: var(--color-gray-light, #aaa);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  transition:
+    background var(--transition-fast, 150ms ease),
+    color var(--transition-fast, 150ms ease);
+  font-family: inherit;
+}
+
+.cancelButton:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-white, #fff);
+}
+
+.submitButton {
+  padding: 0 var(--space-4, 12px);
+  height: var(--control, 36px);
+  border-radius: var(--radius-sm, 4px);
+  font-size: var(--text-base, 13px);
+  font-weight: 500;
+  color: #fff;
+  background: rgba(59, 130, 246, 0.8);
+  border: 1px solid rgba(59, 130, 246, 0.5);
+  cursor: pointer;
+  transition:
+    background var(--transition-fast, 150ms ease),
+    opacity var(--transition-fast, 150ms ease);
+  font-family: inherit;
+}
+
+.submitButton:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 1);
+}
+
+.submitButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

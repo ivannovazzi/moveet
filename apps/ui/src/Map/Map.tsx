@@ -9,6 +9,7 @@ import type {
   Road,
   Vehicle,
 } from "@/types";
+import type { GeoFence } from "@moveet/shared-types";
 import type { Filters } from "@/hooks/useVehicles";
 import { type DispatchState, cursorForDispatchState } from "@/hooks/useDispatchState";
 
@@ -21,6 +22,8 @@ import PendingDispatch from "./PendingDispatch";
 import IncidentMarkers from "./IncidentMarkers";
 import { isPOI, isRoad } from "@/utils/typeGuards";
 import POIMarker from "./POI/POI";
+import GeofenceLayer from "./Geofence/GeofenceLayer";
+import GeofenceDrawTool from "./Geofence/GeofenceDrawTool";
 
 const Heatmap = lazy(() => import("./Heatmap"));
 const POIs = lazy(() => import("./POIs"));
@@ -42,6 +45,11 @@ interface MapProps {
   dispatchState?: DispatchState;
   assignments?: DispatchAssignment[];
   incidents?: IncidentDTO[];
+  fences?: GeoFence[];
+  selectedFenceId?: string;
+  drawingActive?: boolean;
+  onDrawComplete?: (polygon: [number, number][]) => void;
+  onDrawCancel?: () => void;
 }
 
 export default function Map({
@@ -58,6 +66,11 @@ export default function Map({
   dispatchState,
   assignments = [],
   incidents,
+  fences = [],
+  selectedFenceId,
+  drawingActive = false,
+  onDrawComplete,
+  onDrawCancel,
 }: MapProps) {
   const network = useNetwork();
 
@@ -87,6 +100,8 @@ export default function Map({
         }
       >
         {/* <Selection /> */}
+        {/* Geofence zones — rendered between roads and vehicles */}
+        {fences.length > 0 && <GeofenceLayer fences={fences} selectedFenceId={selectedFenceId} />}
         <Direction selected={filters.selected} hovered={filters.hovered} />
         {modifiers.showBreadcrumbs && (
           <Suspense fallback={null}>
@@ -128,6 +143,11 @@ export default function Map({
         {assignments.length > 0 && (
           <PendingDispatch assignments={assignments} vehicles={vehicles} />
         )}
+        <GeofenceDrawTool
+          active={drawingActive}
+          onComplete={onDrawComplete ?? (() => {})}
+          onCancel={onDrawCancel ?? (() => {})}
+        />
       </RoadNetworkMap>
     </>
   );
