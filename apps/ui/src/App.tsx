@@ -18,6 +18,8 @@ import MapView from "./Map/Map";
 import FleetLegend from "./Map/FleetLegend";
 import SearchBar from "./SearchBar";
 import Zoom from "./Zoom/";
+import GeofencePanel from "./Controls/GeofencePanel";
+import CreateZoneDialog from "./Map/Geofence/CreateZoneDialog";
 import type {
   Fleet,
   IncidentType,
@@ -27,6 +29,7 @@ import type {
   Road,
   SimulationStatus,
 } from "./types";
+import type { GeoFence, GeoFenceEvent, CreateGeoFenceRequest } from "@moveet/shared-types";
 import styles from "./App.module.css";
 import { useVehicles } from "./hooks/useVehicles";
 import { useFleets } from "./hooks/useFleets";
@@ -60,6 +63,12 @@ export default function App() {
 
   const [connected, setConnected] = useState(false);
   const connectionInfo = useConnectionState();
+
+  // ─── Geofencing state ───────────────────────────────────────────
+  const [fences, setFences] = useState<GeoFence[]>([]);
+  const [alerts, setAlerts] = useState<GeoFenceEvent[]>([]);
+  const [drawingActive, setDrawingActive] = useState(false);
+  const [pendingPolygon, setPendingPolygon] = useState<[number, number][] | null>(null);
 
   const dispatch = useDispatchFlow();
   const { activePanel, setActivePanel, closePanel } = usePanelNavigation(dispatch.dispatchMode);
@@ -227,6 +236,56 @@ export default function App() {
     });
   }, [setVehicles]);
 
+  // ─── Geofence data loading ────────────────────────────────────────
+  const fetchFences = useCallback(() => {
+    client.getGeofences().then((response) => {
+      if (response.data) setFences(response.data);
+    });
+  }, []);
+
+  useEffect(() => {
+    fetchFences();
+  }, [fetchFences]);
+
+  const onFenceToggle = useCallback(
+    (id: string) => {
+      client.toggleGeofence(id).then((response) => {
+        if (response.data) {
+          setFences((prev) => prev.map((f) => (f.id === id ? response.data! : f)));
+        }
+      });
+    },
+    []
+  );
+
+  const onFenceDelete = useCallback((id: string) => {
+    client.deleteGeofence(id).then(() => {
+      setFences((prev) => prev.filter((f) => f.id !== id));
+    });
+  }, []);
+
+  const onDrawComplete = useCallback((polygon: [number, number][]) => {
+    setDrawingActive(false);
+    setPendingPolygon(polygon);
+  }, []);
+
+  const onDrawCancel = useCallback(() => {
+    setDrawingActive(false);
+    setPendingPolygon(null);
+  }, []);
+
+  const onCreateZone = useCallback(
+    (req: CreateGeoFenceRequest) => {
+      client.createGeofence(req).then((response) => {
+        if (response.data) {
+          setFences((prev) => [...prev, response.data!]);
+        }
+        setPendingPolygon(null);
+      });
+    },
+    []
+  );
+
   useEffect(() => {
     client.onConnect(() => {
       setConnected(true);
@@ -253,8 +312,18 @@ export default function App() {
       }
     });
 
+    client.onGeofenceEvent((event) => {
+      setAlerts((prev) => {
+        const next = [event, ...prev];
+        return next.length > 200 ? next.slice(0, 200) : next;
+      });
+    });
+
     client.connectWebSocket();
-    return () => client.disconnect();
+    return () => {
+      client.offGeofenceEvent();
+      client.disconnect();
+    };
   }, [setVehicles, onUnselectVehicle]);
 
   const maxSpeedRef = useRef(60);
@@ -344,6 +413,14 @@ export default function App() {
                   summaryHistory={analytics.summaryHistory}
                 />
               )}
+              {activePanel === "geofences" && (
+                <GeofencePanel
+                  fences={fences}
+                  onFenceToggle={onFenceToggle}
+                  onFenceDelete={onFenceDelete}
+                  alerts={alerts}
+                />
+              )}
               {activePanel === "adapter" && (
                 <AdapterDrawer
                   isOpen={true}
@@ -377,6 +454,10 @@ export default function App() {
               dispatchState={dispatch.dispatchState}
               assignments={dispatch.assignments}
               incidents={incidents.incidents}
+              fences={fences}
+              drawingActive={drawingActive}
+              onDrawComplete={onDrawComplete}
+              onDrawCancel={onDrawCancel}
             />
             <SearchBar
               selectedItem={selectedItem}
@@ -402,6 +483,23 @@ export default function App() {
               isRecording={recording.isRecording}
               onStartRecording={recording.startRecording}
               onStopRecording={recording.stopRecording}
+            />
+            {/* Draw Zone toolbar button */}
+            <button
+              type="button"
+              className={classNames(styles.drawZoneButton, {
+                [styles.drawZoneButtonActive]: drawingActive,
+              })}
+              onClick={() => setDrawingActive((v) => !v)}
+              title={drawingActive ? "Cancel drawing (Esc)" : "Draw geofence zone"}
+              aria-pressed={drawingActive}
+            >
+              {drawingActive ? "Cancel Zone" : "Draw Zone"}
+            </button>
+            <CreateZoneDialog
+              polygon={pendingPolygon}
+              onSubmit={onCreateZone}
+              onClose={() => setPendingPolygon(null)}
             />
           </div>
         </ErrorBoundary>

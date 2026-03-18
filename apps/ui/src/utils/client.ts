@@ -30,6 +30,12 @@ import type {
   IncidentClearedPayload,
   VehicleReroutedPayload,
 } from "./wsTypes";
+import type {
+  GeoFence,
+  GeoFenceEvent,
+  CreateGeoFenceRequest,
+  UpdateGeoFenceRequest,
+} from "@moveet/shared-types";
 
 class SimulationService {
   constructor(
@@ -104,6 +110,14 @@ class SimulationService {
     this.resetAnalytics = this.resetAnalytics.bind(this);
     // connection state
     this.onConnectionStateChange = this.onConnectionStateChange.bind(this);
+    // geofences
+    this.getGeofences = this.getGeofences.bind(this);
+    this.createGeofence = this.createGeofence.bind(this);
+    this.updateGeofence = this.updateGeofence.bind(this);
+    this.deleteGeofence = this.deleteGeofence.bind(this);
+    this.toggleGeofence = this.toggleGeofence.bind(this);
+    this.onGeofenceEvent = this.onGeofenceEvent.bind(this);
+    this.offGeofenceEvent = this.offGeofenceEvent.bind(this);
   }
 
   connectWebSocket(): void {
@@ -401,6 +415,36 @@ class SimulationService {
 
   async resetAnalytics(): Promise<ApiResponse<{ ok: true }>> {
     return this.http.post<undefined, { ok: true }>("/analytics/reset");
+  }
+
+  // ─── Geofences ────────────────────────────────────────────────────
+
+  async getGeofences(): Promise<ApiResponse<GeoFence[]>> {
+    return this.http.get<GeoFence[]>("/geofences");
+  }
+
+  async createGeofence(req: CreateGeoFenceRequest): Promise<ApiResponse<GeoFence>> {
+    return this.http.post<CreateGeoFenceRequest, GeoFence>("/geofences", req);
+  }
+
+  async updateGeofence(id: string, req: UpdateGeoFenceRequest): Promise<ApiResponse<GeoFence>> {
+    return this.http.patch<UpdateGeoFenceRequest, GeoFence>(`/geofences/${id}`, req);
+  }
+
+  async deleteGeofence(id: string): Promise<ApiResponse<void>> {
+    return this.http.delete(`/geofences/${id}`);
+  }
+
+  async toggleGeofence(id: string): Promise<ApiResponse<GeoFence>> {
+    return this.http.post<undefined, GeoFence>(`/geofences/${id}/toggle`);
+  }
+
+  onGeofenceEvent(handler: (event: GeoFenceEvent) => void): void {
+    this.ws.on("geofence-event", handler);
+  }
+
+  offGeofenceEvent(): void {
+    this.ws.off("geofence-event");
   }
 }
 
