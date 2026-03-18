@@ -7,7 +7,7 @@
     "network": "./dist/cli.js"
   },
   "scripts": {
-    "dev": "tsx src/cli.ts",
+    "dev": "tsc --watch --noEmit",
     "build": "tsc",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
