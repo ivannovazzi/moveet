@@ -31,7 +31,13 @@ function assertType<T>(_value: T): void {
 describe("@moveet/shared-types", () => {
   describe("VehicleType", () => {
     it("accepts valid vehicle types", () => {
-      const types: VehicleType[] = ["car", "truck", "motorcycle", "ambulance", "bus"];
+      const types: VehicleType[] = [
+        "car",
+        "truck",
+        "motorcycle",
+        "ambulance",
+        "bus",
+      ];
       expect(types).toHaveLength(5);
     });
   });
@@ -136,7 +142,12 @@ describe("@moveet/shared-types", () => {
 
   describe("TimeOfDay", () => {
     it("accepts all valid values", () => {
-      const periods: TimeOfDay[] = ["morning_rush", "midday", "evening_rush", "night"];
+      const periods: TimeOfDay[] = [
+        "morning_rush",
+        "midday",
+        "evening_rush",
+        "night",
+      ];
       expect(periods).toHaveLength(4);
     });
   });
@@ -187,7 +198,12 @@ describe("@moveet/shared-types", () => {
   describe("HighwayType", () => {
     it("accepts all valid values", () => {
       const types: HighwayType[] = [
-        "motorway", "trunk", "primary", "secondary", "tertiary", "residential",
+        "motorway",
+        "trunk",
+        "primary",
+        "secondary",
+        "tertiary",
+        "residential",
       ];
       expect(types).toHaveLength(6);
     });
@@ -195,8 +211,16 @@ describe("@moveet/shared-types", () => {
 
   describe("Edge and Node", () => {
     it("can create a valid graph structure", () => {
-      const nodeA: Node = { id: "n1", coordinates: [-1.3, 36.8], connections: [] };
-      const nodeB: Node = { id: "n2", coordinates: [-1.31, 36.81], connections: [] };
+      const nodeA: Node = {
+        id: "n1",
+        coordinates: [-1.3, 36.8],
+        connections: [],
+      };
+      const nodeB: Node = {
+        id: "n2",
+        coordinates: [-1.31, 36.81],
+        connections: [],
+      };
       const edge: Edge = {
         id: "e1",
         streetId: "s1",

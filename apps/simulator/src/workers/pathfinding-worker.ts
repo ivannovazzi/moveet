@@ -393,7 +393,8 @@ function findRoute(
       const smoothnessPenalty = 1 / ((edge.smoothnessFactor ?? 1.0) || 1.0); // avoid div-by-zero for impassable=0
       const flow = currentNode.edges.length; // proxy for observed flow (outbound edges from current node)
       const bprCongestion = 1 + 0.15 * Math.pow(flow / (edge.capacity ?? 1800), 4);
-      let travelTime = (edge.distance / edge.maxSpeed) * surfacePenalty * smoothnessPenalty * bprCongestion;
+      let travelTime =
+        (edge.distance / edge.maxSpeed) * surfacePenalty * smoothnessPenalty * bprCongestion;
       if (incidentFactor !== undefined && incidentFactor < 1) {
         travelTime = travelTime / incidentFactor;
       }

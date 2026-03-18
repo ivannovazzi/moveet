@@ -1084,7 +1084,10 @@ describe("RoadNetwork", () => {
             properties: { id: "p1-ab", name: "Path1-AB", highway: "primary", maxspeed: "50" },
             geometry: {
               type: "LineString",
-              coordinates: [[-73.567, 45.501], [-73.566, 45.501]],
+              coordinates: [
+                [-73.567, 45.501],
+                [-73.566, 45.501],
+              ],
             },
           },
           // Extra spurs from B to inflate its connection count (simulating busy intersection)
@@ -1093,7 +1096,10 @@ describe("RoadNetwork", () => {
             properties: { id: "spur1", name: "Spur1", highway: "primary", maxspeed: "50" },
             geometry: {
               type: "LineString",
-              coordinates: [[-73.566, 45.501], [-73.566, 45.5015]],
+              coordinates: [
+                [-73.566, 45.501],
+                [-73.566, 45.5015],
+              ],
             },
           },
           {
@@ -1101,7 +1107,10 @@ describe("RoadNetwork", () => {
             properties: { id: "spur2", name: "Spur2", highway: "primary", maxspeed: "50" },
             geometry: {
               type: "LineString",
-              coordinates: [[-73.566, 45.501], [-73.566, 45.5005]],
+              coordinates: [
+                [-73.566, 45.501],
+                [-73.566, 45.5005],
+              ],
             },
           },
           {
@@ -1109,7 +1118,10 @@ describe("RoadNetwork", () => {
             properties: { id: "spur3", name: "Spur3", highway: "primary", maxspeed: "50" },
             geometry: {
               type: "LineString",
-              coordinates: [[-73.566, 45.501], [-73.5655, 45.501]],
+              coordinates: [
+                [-73.566, 45.501],
+                [-73.5655, 45.501],
+              ],
             },
           },
           // Path 1: B→D
@@ -1118,7 +1130,10 @@ describe("RoadNetwork", () => {
             properties: { id: "p1-bd", name: "Path1-BD", highway: "primary", maxspeed: "50" },
             geometry: {
               type: "LineString",
-              coordinates: [[-73.566, 45.501], [-73.565, 45.501]],
+              coordinates: [
+                [-73.566, 45.501],
+                [-73.565, 45.501],
+              ],
             },
           },
           // Path 2: A→C→D (C has only one outbound edge — low congestion)
@@ -1127,7 +1142,10 @@ describe("RoadNetwork", () => {
             properties: { id: "p2-ac", name: "Path2-AC", highway: "primary", maxspeed: "50" },
             geometry: {
               type: "LineString",
-              coordinates: [[-73.567, 45.501], [-73.566, 45.5025]],
+              coordinates: [
+                [-73.567, 45.501],
+                [-73.566, 45.5025],
+              ],
             },
           },
           {
@@ -1135,7 +1153,10 @@ describe("RoadNetwork", () => {
             properties: { id: "p2-cd", name: "Path2-CD", highway: "primary", maxspeed: "50" },
             geometry: {
               type: "LineString",
-              coordinates: [[-73.566, 45.5025], [-73.565, 45.501]],
+              coordinates: [
+                [-73.566, 45.5025],
+                [-73.565, 45.501],
+              ],
             },
           },
         ],
@@ -2001,7 +2022,11 @@ describe("RoadNetwork", () => {
           properties: { id: "r1", name: "Road1", highway: "primary", maxspeed: "50" },
           geometry: {
             type: "LineString",
-            coordinates: [[-73.567, 45.501], [-73.566, 45.501], [-73.565, 45.501]],
+            coordinates: [
+              [-73.567, 45.501],
+              [-73.566, 45.501],
+              [-73.565, 45.501],
+            ],
           },
         },
       ];
@@ -2012,8 +2037,14 @@ describe("RoadNetwork", () => {
         geometry: { type: "Point", coordinates: [-73.566, 45.501] },
       };
 
-      fs.writeFileSync(tmpNoSignal, JSON.stringify({ type: "FeatureCollection", features: baseFeatures }));
-      fs.writeFileSync(tmpWithSignal, JSON.stringify({ type: "FeatureCollection", features: [...baseFeatures, signalFeature] }));
+      fs.writeFileSync(
+        tmpNoSignal,
+        JSON.stringify({ type: "FeatureCollection", features: baseFeatures })
+      );
+      fs.writeFileSync(
+        tmpWithSignal,
+        JSON.stringify({ type: "FeatureCollection", features: [...baseFeatures, signalFeature] })
+      );
 
       try {
         const netNoSignal = new RoadNetwork(tmpNoSignal);
