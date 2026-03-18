@@ -1,6 +1,6 @@
 import type { MouseEventHandler } from "react";
 import React, { useEffect, useState, useRef, useCallback } from "react";
-import { select, geoMercator, geoPath, geoLength, zoom, pointer, zoomIdentity } from "d3";
+import { select, geoMercator, geoPath, zoom, pointer, zoomIdentity } from "d3";
 import type { GeoProjection, ZoomTransform, ZoomBehavior } from "d3";
 import type { Position, RoadNetwork } from "@/types";
 import { useResizeObserver } from "@/hooks/useResizeObserver";
@@ -31,77 +31,119 @@ export const RoadNetworkMap: React.FC<RoadNetworkMapProps> = ({
   cursor = "grab",
 }) => {
   const htmlItemsRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [svgRef, setSvgRef] = useState<SVGSVGElement | null>(null);
   const [projection, setProjection] = useState<GeoProjection | null>(null);
   const [transform, setTransform] = useState<ZoomTransform>(zoomIdentity);
   const [zoomState, setZoomState] = useState<ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const [containerRef, size] = useResizeObserver();
 
+  // Ref so drawRoads can always access the latest values without re-registering zoom
+  const projectionRef = useRef<GeoProjection | null>(null);
+  const transformRef = useRef<ZoomTransform>(zoomIdentity);
+  const dataRef = useRef<RoadNetwork | null>(null);
+  const drawTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const drawRoads = useCallback((proj: GeoProjection, t: ZoomTransform, network: RoadNetwork) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    // Apply zoom transform to a copy of the projection so we draw at screen coords
+    const scaled = geoMercator()
+      .translate([proj.translate()[0] * t.k + t.x, proj.translate()[1] * t.k + t.y])
+      .scale(proj.scale() * t.k);
+
+    const pathGen = geoPath().projection(scaled).context(ctx);
+
+    ctx.globalAlpha = strokeOpacity;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+
+    // Batch by stroke style for fewer ctx state changes
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = strokeWidth;
+    ctx.beginPath();
+    for (const feature of network.features) {
+      if (feature.properties.type !== "highway") pathGen(feature);
+    }
+    ctx.stroke();
+
+    ctx.strokeStyle = "#222";
+    ctx.lineWidth = strokeWidth * 2;
+    ctx.beginPath();
+    for (const feature of network.features) {
+      if (feature.properties.type === "highway") pathGen(feature);
+    }
+    ctx.stroke();
+
+    ctx.globalAlpha = 1;
+  }, [strokeColor, strokeWidth, strokeOpacity]);
+
   useEffect(() => {
     if (!svgRef || !size.width || !size.height || !data) return;
 
     const svg = select(svgRef);
-    svg.selectAll("g.roads").remove();
     svg.attr("width", size.width).attr("height", size.height);
 
+    const canvas = canvasRef.current;
+    if (canvas) {
+      canvas.width = size.width;
+      canvas.height = size.height;
+    }
+
     const proj = geoMercator().fitSize([size.width, size.height], data);
-    const pathGen = geoPath().projection(proj);
     setProjection(() => proj);
+    projectionRef.current = proj;
+    dataRef.current = data;
 
-    const roadsGroup = svg
-      .insert("g", ":first-child")
-      .attr("class", "roads")
-      .attr("opacity", strokeOpacity);
-
-    // Filter and cache long main roads first
-    const mainRoads = data.features.filter((d) => {
-      if (!d.properties.name) return false;
-      if (d.properties.highway === "primary") return true;
-      const length = geoLength(d);
-      return length > 0.0001; // Stricter threshold
-    });
-
-    // Add roads
-    roadsGroup
-      .selectAll("path")
-      .data(data.features)
-      .enter()
-      .append("path")
-      .attr("d", pathGen)
-      .attr("fill", "none")
-      .attr("stroke", (d) => (d.properties.type === "highway" ? "#222" : strokeColor))
-      .attr("stroke-width", (d) =>
-        d.properties.type === "highway" ? strokeWidth * 2 : strokeWidth
-      )
-      .attr("stroke-linejoin", "round")
-      .attr("stroke-linecap", "round")
-      .attr("id", (d, i) => (mainRoads.includes(d) ? `road-${i}` : null));
-
-    const labelsGroup = roadsGroup.append("g").attr("class", "street-labels").style("opacity", 0.4);
+    drawRoads(proj, transformRef.current, data);
 
     const markersGroup = svg.select<SVGGElement>("g.markers");
 
-    // Simplified zoom handler
     const zoomBehavior = zoom<SVGSVGElement, unknown>()
       .scaleExtent([1, 15])
       .on("zoom", (evt) => {
+        const t: ZoomTransform = evt.transform;
+        transformRef.current = t;
+
         requestAnimationFrame(() => {
-          roadsGroup.attr("transform", evt.transform.toString());
-          markersGroup.attr("transform", evt.transform.toString());
-          labelsGroup.style("opacity", evt.transform.k > 6 ? 0.9 : 0);
+          // Canvas: cheap CSS transform during active pan/zoom
+          if (canvas) {
+            canvas.style.transformOrigin = "0 0";
+            canvas.style.transform = `translate(${t.x}px, ${t.y}px) scale(${t.k})`;
+          }
+
+          markersGroup.attr("transform", t.toString());
 
           if (htmlItemsRef.current) {
             htmlItemsRef.current.style.transformOrigin = "0% 0%";
-            htmlItemsRef.current.style.transform = `translate(${evt.transform.x}px, ${evt.transform.y}px) scale(${evt.transform.k})`;
+            htmlItemsRef.current.style.transform = `translate(${t.x}px, ${t.y}px) scale(${t.k})`;
           }
 
-          setTransform(evt.transform);
+          setTransform(t);
         });
+
+        // Redraw at full resolution shortly after zooming stops
+        if (drawTimerRef.current) clearTimeout(drawTimerRef.current);
+        drawTimerRef.current = setTimeout(() => {
+          if (canvas) {
+            canvas.style.transform = "";
+          }
+          if (projectionRef.current && dataRef.current) {
+            drawRoads(projectionRef.current, t, dataRef.current);
+          }
+        }, 150);
       });
 
     setZoomState(() => zoomBehavior);
     svg.call(zoomBehavior);
-  }, [data, size, strokeColor, strokeWidth, strokeOpacity, svgRef]);
+  }, [data, size, svgRef, drawRoads]);
 
   const getBoundingBox = useCallback(() => {
     let boundingBox = [
@@ -191,12 +233,24 @@ export const RoadNetworkMap: React.FC<RoadNetworkMapProps> = ({
           getRef={() => containerRef.current}
         >
           <div ref={containerRef} style={{ width: "100%", height: "100%", position: "relative" }}>
+            <canvas
+              ref={canvasRef}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                pointerEvents: "none",
+                background: "#111",
+              }}
+            />
             <svg
               ref={setSvgRef}
               style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
                 width: "100%",
                 height: "100%",
-                background: "#111",
                 display: "block",
                 cursor,
               }}
