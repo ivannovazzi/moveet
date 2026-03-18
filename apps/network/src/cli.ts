@@ -5,6 +5,7 @@ import { download } from "./commands/download.js";
 import { extract } from "./commands/extract.js";
 import { filter, DEFAULT_ROAD_CLASSES } from "./commands/filter.js";
 import { exportNetwork } from "./commands/export.js";
+import { validate } from "./commands/validate.js";
 import path from "path";
 
 const CACHE_DIR = path.resolve("apps/network/.cache");
@@ -80,6 +81,15 @@ program
       bbox: [0, 0, 0, 0],
       classes: [],
     });
+  });
+
+program
+  .command("validate")
+  .description("Run topology validation on a network GeoJSON")
+  .requiredOption("--input <path>", "GeoJSON file to validate")
+  .action((opts: { input: string }) => {
+    const report = validate(opts.input);
+    if (!report.passed) process.exit(1);
   });
 
 program.parse();
