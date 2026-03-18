@@ -2,6 +2,7 @@
 import { Command } from "commander";
 import { resolveRegion } from "./regions.js";
 import { download } from "./commands/download.js";
+import { extract } from "./commands/extract.js";
 import path from "path";
 
 const CACHE_DIR = path.resolve("apps/network/.cache");
@@ -32,6 +33,20 @@ program
       geofabrik: region.geofabrik,
       cacheDir: CACHE_DIR,
       force: opts.force,
+    });
+  });
+
+program
+  .command("extract")
+  .description("Extract bbox from country PBF using osmium")
+  .requiredOption("--input <path>", "Input country PBF file")
+  .requiredOption("--output <path>", "Output extracted PBF file")
+  .requiredOption("--bbox <w,s,e,n>", "Bounding box as west,south,east,north")
+  .action((opts: { input: string; output: string; bbox: string }) => {
+    extract({
+      input: opts.input,
+      output: opts.output,
+      bbox: opts.bbox.split(",").map(Number) as [number, number, number, number],
     });
   });
 
