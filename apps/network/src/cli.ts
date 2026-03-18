@@ -3,6 +3,7 @@ import { Command } from "commander";
 import { resolveRegion } from "./regions.js";
 import { download } from "./commands/download.js";
 import { extract } from "./commands/extract.js";
+import { filter, DEFAULT_ROAD_CLASSES } from "./commands/filter.js";
 import path from "path";
 
 const CACHE_DIR = path.resolve("apps/network/.cache");
@@ -47,6 +48,20 @@ program
       input: opts.input,
       output: opts.output,
       bbox: opts.bbox.split(",").map(Number) as [number, number, number, number],
+    });
+  });
+
+program
+  .command("filter")
+  .description("Filter road classes from PBF using osmium")
+  .requiredOption("--input <path>", "Input PBF file")
+  .requiredOption("--output <path>", "Output filtered PBF file")
+  .option("--classes <list>", "Comma-separated road classes", [...DEFAULT_ROAD_CLASSES].join(","))
+  .action((opts: { input: string; output: string; classes: string }) => {
+    filter({
+      input: opts.input,
+      output: opts.output,
+      classes: opts.classes.split(","),
     });
   });
 
