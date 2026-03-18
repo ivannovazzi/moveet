@@ -81,6 +81,11 @@ function streamDownload(url: string, dest: string): Promise<void> {
     const file = fs.createWriteStream(dest);
     mod
       .get(url, (res) => {
+        if (res.statusCode && res.statusCode >= 400) {
+          file.close();
+          reject(new Error(`HTTP ${res.statusCode} downloading ${url}`));
+          return;
+        }
         const total = parseInt(res.headers["content-length"] ?? "0", 10);
         let received = 0;
         res.on("data", (chunk: Buffer) => {

@@ -1,7 +1,7 @@
 import path from "path";
 import { resolveRegion, listRegions } from "../regions.js";
 import { checkDockerAvailable } from "../docker.js";
-import { download } from "./download.js";
+import { download, getCachePath } from "./download.js";
 import { extract } from "./extract.js";
 import { filter, DEFAULT_ROAD_CLASSES } from "./filter.js";
 import { exportNetwork } from "./export.js";
@@ -69,9 +69,8 @@ export async function prepare(opts: PrepareOptions): Promise<void> {
   const regionName = resolvedOpts.region ?? "custom";
   const safeName = regionName.replace(/[^a-z0-9-]/g, "-");
 
-  // Derive cache file paths from geofabrik basename + region name
-  const geofabrikBasename = path.basename(region.geofabrik);
-  const pbfCountry = path.join(CACHE_DIR, `${geofabrikBasename}-latest.osm.pbf`);
+  // Derive cache file paths from geofabrik path + region name
+  const pbfCountry = getCachePath(region.geofabrik, CACHE_DIR);
   const pbfExtracted = path.join(CACHE_DIR, `${safeName}.osm.pbf`);
   const pbfFiltered = path.join(CACHE_DIR, `${safeName}-roads.osm.pbf`);
 

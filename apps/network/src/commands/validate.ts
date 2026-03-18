@@ -49,7 +49,7 @@ export function analyzeNetwork(fc: FeatureCollection): ValidationReport {
     let size = 0;
     const queue: string[] = [node];
     while (queue.length) {
-      const curr = queue.pop()!;
+      const curr = queue.shift()!;
       if (visited.has(curr)) continue;
       visited.add(curr);
       size++;

@@ -80,7 +80,9 @@ export function diffNetworks(
     nodesAdded === 0 &&
     nodesRemoved === 0 &&
     edgesAdded === 0 &&
-    edgesRemoved === 0;
+    edgesRemoved === 0 &&
+    speedChanges === 0 &&
+    newOneway === 0;
 
   return {
     identical,

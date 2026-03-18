@@ -46,4 +46,12 @@ describe("diffNetworks", () => {
     const result = diffNetworks(old, next);
     expect(result.newOneway).toBe(1);
   });
+
+  it("is not identical when only speed limits changed", () => {
+    const old = makeFC([road([[0, 0], [1, 0]], { maxspeed: "50" })]);
+    const next = makeFC([road([[0, 0], [1, 0]], { maxspeed: "80" })]);
+    const result = diffNetworks(old, next);
+    expect(result.speedChanges).toBe(1);
+    expect(result.identical).toBe(false);
+  });
 });

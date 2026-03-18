@@ -121,8 +121,6 @@ program
     });
   });
 
-program.parse();
-
 export function runCLI(): void {
   program.parse();
 }
