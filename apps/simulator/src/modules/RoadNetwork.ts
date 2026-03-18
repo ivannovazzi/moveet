@@ -32,6 +32,8 @@ const DEFAULT_SPEEDS: Record<HighwayType, number> = {
   secondary: 50,
   tertiary: 40,
   residential: 30,
+  unclassified: 35,
+  living_street: 20,
 };
 
 function parseMaxSpeed(raw: string | undefined, highway: HighwayType): number {
@@ -45,6 +47,12 @@ function parseMaxSpeed(raw: string | undefined, highway: HighwayType): number {
   }
   const parsed = Number(raw);
   return isNaN(parsed) ? DEFAULT_SPEEDS[highway] : parsed;
+}
+
+function parseOneway(value: string | undefined | null): "forward" | "reverse" | false {
+  if (!value || value === "no" || value === "false" || value === "0") return false;
+  if (value === "-1" || value === "reverse") return "reverse";
+  return "forward"; // yes, true, 1
 }
 
 export class RoadNetwork extends EventEmitter {
@@ -75,6 +83,16 @@ export class RoadNetwork extends EventEmitter {
   // Worker-thread pathfinding pool (lazy-initialized)
   private pathfindingPool: PathfindingPool | null = null;
   private geojsonPath: string;
+
+  private static readonly COORD_SNAP_EPSILON = 1e-7;
+
+  private snapCoord(val: number): string {
+    return (Math.round(val / RoadNetwork.COORD_SNAP_EPSILON) * RoadNetwork.COORD_SNAP_EPSILON).toFixed(7);
+  }
+
+  private makeNodeKey(lat: number, lon: number): string {
+    return `${this.snapCoord(lat)},${this.snapCoord(lon)}`;
+  }
 
   constructor(geojsonPath: string, cacheOptions?: { maxSize?: number; ttlMs?: number }) {
     super();
@@ -240,6 +258,8 @@ export class RoadNetwork extends EventEmitter {
           "secondary",
           "tertiary",
           "residential",
+          "unclassified",
+          "living_street",
         ]);
         const rawHighway = feature.properties?.highway || "residential";
         const highway: HighwayType = VALID_HIGHWAYS.has(rawHighway)
@@ -247,7 +267,12 @@ export class RoadNetwork extends EventEmitter {
           : "residential";
         const maxSpeed = parseMaxSpeed(feature.properties?.maxspeed, highway);
         const surface: string = feature.properties?.surface || "unknown";
-        const isOneway = feature.properties?.oneway === "yes";
+        const onewayDir = parseOneway(feature.properties?.oneway);
+        const isRoundabout = feature.properties?.junction === "roundabout";
+        // Roundabouts are implicitly one-way forward regardless of the oneway tag
+        const effectiveOneway = isRoundabout ? "forward" : onewayDir;
+        // Apply speed reduction for roundabout segments
+        const effectiveMaxSpeed = isRoundabout ? maxSpeed * 0.5 : maxSpeed;
 
         // Initialize or get existing road
         if (!this.roads.has(streetName)) {
@@ -265,8 +290,8 @@ export class RoadNetwork extends EventEmitter {
           const [lon1, lat1] = coords[i];
           const [lon2, lat2] = coords[i + 1];
 
-          const node1 = this.getOrCreateNode(`${lat1},${lon1}`, [lat1, lon1]);
-          const node2 = this.getOrCreateNode(`${lat2},${lon2}`, [lat2, lon2]);
+          const node1 = this.getOrCreateNode(this.makeNodeKey(lat1, lon1), [lat1, lon1]);
+          const node2 = this.getOrCreateNode(this.makeNodeKey(lat2, lon2), [lat2, lon2]);
 
           road.nodeIds.add(node1.id);
           road.nodeIds.add(node2.id);
@@ -274,24 +299,27 @@ export class RoadNetwork extends EventEmitter {
           const distance = utils.calculateDistance(node1.coordinates, node2.coordinates);
           const bearing = utils.calculateBearing(node1.coordinates, node2.coordinates);
 
-          const forwardEdge: Edge = {
-            id: `${node1.id}-${node2.id}`,
-            streetId,
-            start: node1,
-            end: node2,
-            distance,
-            bearing,
-            name: streetName,
-            highway,
-            maxSpeed,
-            surface,
-            oneway: isOneway,
-          };
+          // Forward edge (node1 → node2): skip if reverse one-way
+          if (effectiveOneway !== "reverse") {
+            const forwardEdge: Edge = {
+              id: `${node1.id}-${node2.id}`,
+              streetId,
+              start: node1,
+              end: node2,
+              distance,
+              bearing,
+              name: streetName,
+              highway,
+              maxSpeed: effectiveMaxSpeed,
+              surface,
+              oneway: effectiveOneway === "forward",
+            };
+            this.edges.set(forwardEdge.id, forwardEdge);
+            node1.connections.push(forwardEdge);
+          }
 
-          this.edges.set(forwardEdge.id, forwardEdge);
-          node1.connections.push(forwardEdge);
-
-          if (!isOneway) {
+          // Reverse edge (node2 → node1): skip if forward one-way
+          if (effectiveOneway !== "forward") {
             const reverseEdge: Edge = {
               id: `${node2.id}-${node1.id}`,
               streetId,
@@ -301,11 +329,10 @@ export class RoadNetwork extends EventEmitter {
               bearing: (bearing + 180) % 360,
               name: streetName,
               highway,
-              maxSpeed,
+              maxSpeed: effectiveMaxSpeed,
               surface,
-              oneway: false,
+              oneway: effectiveOneway === "reverse",
             };
-
             this.edges.set(reverseEdge.id, reverseEdge);
             node2.connections.push(reverseEdge);
           }

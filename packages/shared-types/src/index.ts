@@ -86,7 +86,9 @@ export type HighwayType =
   | "primary"
   | "secondary"
   | "tertiary"
-  | "residential";
+  | "residential"
+  | "unclassified"
+  | "living_street";
 
 export interface Node {
   id: string;
