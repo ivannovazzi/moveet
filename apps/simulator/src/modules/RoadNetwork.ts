@@ -87,7 +87,9 @@ export class RoadNetwork extends EventEmitter {
   private static readonly COORD_SNAP_EPSILON = 1e-7;
 
   private snapCoord(val: number): string {
-    return (Math.round(val / RoadNetwork.COORD_SNAP_EPSILON) * RoadNetwork.COORD_SNAP_EPSILON).toFixed(7);
+    return (
+      Math.round(val / RoadNetwork.COORD_SNAP_EPSILON) * RoadNetwork.COORD_SNAP_EPSILON
+    ).toFixed(7);
   }
 
   private makeNodeKey(lat: number, lon: number): string {

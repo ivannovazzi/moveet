@@ -878,7 +878,10 @@ describe("RoadNetwork", () => {
             properties: { id: "r1", name: "Unclassified Road", highway: "unclassified" },
             geometry: {
               type: "LineString",
-              coordinates: [[36.8, -1.28], [36.801, -1.281]],
+              coordinates: [
+                [36.8, -1.28],
+                [36.801, -1.281],
+              ],
             },
           },
         ],
@@ -906,7 +909,10 @@ describe("RoadNetwork", () => {
             properties: { id: "r2", name: "Living Street", highway: "living_street" },
             geometry: {
               type: "LineString",
-              coordinates: [[36.8, -1.28], [36.801, -1.281]],
+              coordinates: [
+                [36.8, -1.28],
+                [36.801, -1.281],
+              ],
             },
           },
         ],
@@ -939,7 +945,10 @@ describe("RoadNetwork", () => {
             geometry: {
               type: "LineString",
               // end point: exactly [36.8, -1.28]
-              coordinates: [[36.79, -1.27], [36.8, -1.28]],
+              coordinates: [
+                [36.79, -1.27],
+                [36.8, -1.28],
+              ],
             },
           },
           {
@@ -948,7 +957,10 @@ describe("RoadNetwork", () => {
             geometry: {
               type: "LineString",
               // start point: differs from [36.8, -1.28] by 1e-8 (within epsilon)
-              coordinates: [[36.80000001, -1.28], [36.81, -1.29]],
+              coordinates: [
+                [36.80000001, -1.28],
+                [36.81, -1.29],
+              ],
             },
           },
         ],
@@ -986,7 +998,11 @@ describe("RoadNetwork", () => {
             properties: { id: "road-x", name: "Road X", highway: "residential" },
             geometry: {
               type: "LineString",
-              coordinates: [[36.8, -1.28], [36.80000001, -1.28], [36.802, -1.282]],
+              coordinates: [
+                [36.8, -1.28],
+                [36.80000001, -1.28],
+                [36.802, -1.282],
+              ],
             },
           },
         ],
@@ -1019,10 +1035,18 @@ describe("RoadNetwork", () => {
         features: [
           {
             type: "Feature",
-            properties: { id: "road-ow", name: "Reverse Road", highway: "primary", oneway: onewayValue },
+            properties: {
+              id: "road-ow",
+              name: "Reverse Road",
+              highway: "primary",
+              oneway: onewayValue,
+            },
             geometry: {
               type: "LineString",
-              coordinates: [[36.8, -1.28], [36.81, -1.29]],
+              coordinates: [
+                [36.8, -1.28],
+                [36.81, -1.29],
+              ],
             },
           },
         ],
@@ -1102,7 +1126,10 @@ describe("RoadNetwork", () => {
             },
             geometry: {
               type: "LineString",
-              coordinates: [[36.8, -1.28], [36.81, -1.29]],
+              coordinates: [
+                [36.8, -1.28],
+                [36.81, -1.29],
+              ],
             },
           },
         ],
@@ -1143,7 +1170,10 @@ describe("RoadNetwork", () => {
             },
             geometry: {
               type: "LineString",
-              coordinates: [[36.8, -1.28], [36.81, -1.29]],
+              coordinates: [
+                [36.8, -1.28],
+                [36.81, -1.29],
+              ],
             },
           },
         ],
@@ -1177,7 +1207,10 @@ describe("RoadNetwork", () => {
             },
             geometry: {
               type: "LineString",
-              coordinates: [[36.8, -1.28], [36.81, -1.29]],
+              coordinates: [
+                [36.8, -1.28],
+                [36.81, -1.29],
+              ],
             },
           },
         ],
