@@ -72,20 +72,24 @@
   transition: background var(--transition-fast);
 }
 
-.destinationButton:hover {
+.destinationButton:hover,
+.destinationButton[data-hovered] {
   background: rgba(255, 255, 255, 0.06);
 }
 
-.destinationButton:active {
+.destinationButton:active,
+.destinationButton[data-pressed] {
   background: rgba(57, 153, 255, 0.1);
 }
 
-.destinationButton:disabled {
+.destinationButton:disabled,
+.destinationButton[data-disabled] {
   opacity: 0.4;
   cursor: default;
 }
 
-.destinationButton:disabled:hover {
+.destinationButton:disabled:hover,
+.destinationButton[data-disabled][data-hovered] {
   background: rgba(255, 255, 255, 0.02);
 }
 

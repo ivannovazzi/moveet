@@ -10,6 +10,7 @@ import {
   PanelSectionLabel,
 } from "./PanelPrimitives";
 import styles from "./RecordReplay.module.css";
+import { Button } from "react-aria-components";
 
 interface RecordingHook {
   isRecording: boolean;
@@ -128,12 +129,11 @@ export default function RecordReplay({
 
       <PanelBody className={styles.body}>
         <div className={styles.recordRow}>
-          <button
-            type="button"
+          <Button
             className={classNames(styles.recordButton, {
               [styles.recordButtonActive]: isRecording,
             })}
-            onClick={handleRecordToggle}
+            onPress={handleRecordToggle}
             aria-label={isRecording ? "Stop recording" : "Start recording"}
           >
             {isRecording ? (
@@ -149,7 +149,7 @@ export default function RecordReplay({
                 Record
               </>
             )}
-          </button>
+          </Button>
           {isRecording && <span className={styles.elapsed}>{formatTime(elapsed)}</span>}
         </div>
 
@@ -165,19 +165,14 @@ export default function RecordReplay({
               const isActive = isReplayMode && activeFile === file.fileName;
 
               return (
-                <div
+                <Button
                   key={file.fileName}
                   className={classNames(styles.recordingItem, {
                     [styles.recordingItemActive]: isActive,
                   })}
-                  onClick={() => !isActive && handleFileClick(file)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      if (!isActive) handleFileClick(file);
-                    }
-                  }}
+                  onPress={() => !isActive && handleFileClick(file)}
+                  isDisabled={isActive}
+                  aria-label={`Play recording ${formatLabel(file)}`}
                 >
                   <div className={styles.recordingInfo}>
                     <div className={styles.recordingName} title={file.fileName}>
@@ -192,7 +187,7 @@ export default function RecordReplay({
                       )}
                     </div>
                   </div>
-                </div>
+                </Button>
               );
             })}
           </div>

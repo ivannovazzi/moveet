@@ -3,6 +3,7 @@ import type { Fleet } from "@/types";
 import { Button, SquaredButton } from "@/components/Inputs";
 import { PanelBadge, PanelBody, PanelEmptyState, PanelHeader } from "./PanelPrimitives";
 import styles from "./Fleets.module.css";
+import { TextField, Input } from "react-aria-components";
 
 interface FleetsProps {
   fleets: Fleet[];
@@ -83,17 +84,21 @@ export default function Fleets({ fleets, onCreateFleet, onDeleteFleet }: FleetsP
         </div>
 
         {isAdding ? (
-          <input
-            className={styles.newFleetInput}
+          <TextField
             value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onBlur={() => {
-              if (!newName.trim()) setIsAdding(false);
-            }}
-            placeholder="Fleet name..."
+            onChange={setNewName}
+            aria-label="New fleet name"
             autoFocus
-          />
+          >
+            <Input
+              className={styles.newFleetInput}
+              onKeyDown={handleKeyDown}
+              onBlur={() => {
+                if (!newName.trim()) setIsAdding(false);
+              }}
+              placeholder="Fleet name..."
+            />
+          </TextField>
         ) : null}
       </PanelBody>
     </>
