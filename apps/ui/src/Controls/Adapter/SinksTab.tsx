@@ -1,4 +1,12 @@
 import { useState } from "react";
+import {
+  Button,
+  Select,
+  SelectValue,
+  Popover,
+  ListBox,
+  ListBoxItem,
+} from "react-aria-components";
 import type { HealthResponse, ConfigResponse } from "./adapterClient";
 import ConfigForm from "./ConfigForm";
 import styles from "./AdapterDrawer.module.css";
@@ -43,13 +51,13 @@ export default function SinksTab({ health, config, loading, onAdd, onRemove }: S
                   <span className={styles.sinkName}>{sink.type}</span>
                 </div>
                 <span className={styles.statusText}>{sink.healthy ? "Healthy" : "Unhealthy"}</span>
-                <button
+                <Button
                   className={styles.removeBtn}
-                  onClick={() => onRemove(sink.type)}
-                  title={`Remove ${sink.type}`}
+                  onPress={() => onRemove(sink.type)}
+                  aria-label={`Remove ${sink.type}`}
                 >
                   &times;
-                </button>
+                </Button>
               </div>
             ))}
           </div>
@@ -63,18 +71,36 @@ export default function SinksTab({ health, config, loading, onAdd, onRemove }: S
             <span className={styles.sectionLabel}>Add sink</span>
             <span className={styles.fieldHint}>Attach another downstream target.</span>
           </div>
-          <select
-            className={styles.input}
-            value={addingType}
-            onChange={(e) => setAddingType(e.target.value)}
+          <Select
+            selectedKey={addingType}
+            onSelectionChange={(key) => setAddingType(String(key))}
+            className={styles.selectRoot}
+            aria-label="Sink Type"
           >
-            <option value="">-- select type --</option>
-            {availableToAdd.map((s) => (
-              <option key={s.type} value={s.type}>
-                {s.type}
-              </option>
-            ))}
-          </select>
+            <Button className={styles.selectTrigger}>
+              <SelectValue className={styles.selectValue}>
+                {({ selectedText }) => selectedText || "-- select type --"}
+              </SelectValue>
+              <span aria-hidden className={styles.selectChevron}>▾</span>
+            </Button>
+            <Popover className={styles.selectPopover}>
+              <ListBox className={styles.selectListBox}>
+                <ListBoxItem id="" textValue="-- select type --" className={styles.selectItem}>
+                  -- select type --
+                </ListBoxItem>
+                {availableToAdd.map((s) => (
+                  <ListBoxItem
+                    key={s.type}
+                    id={s.type}
+                    textValue={s.type}
+                    className={styles.selectItem}
+                  >
+                    {s.type}
+                  </ListBoxItem>
+                ))}
+              </ListBox>
+            </Popover>
+          </Select>
 
           {addPlugin && addPlugin.configSchema.length > 0 && (
             <>
@@ -97,16 +123,16 @@ export default function SinksTab({ health, config, loading, onAdd, onRemove }: S
           )}
 
           {addPlugin && addPlugin.configSchema.length === 0 && (
-            <button
+            <Button
               className={styles.submitBtn}
-              disabled={loading}
-              onClick={() => {
+              isDisabled={loading}
+              onPress={() => {
                 onAdd(addingType);
                 setAddingType("");
               }}
             >
               {loading ? "Adding..." : "Add sink"}
-            </button>
+            </Button>
           )}
         </section>
       )}
