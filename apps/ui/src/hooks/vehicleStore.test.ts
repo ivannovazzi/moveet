@@ -22,13 +22,13 @@ describe("vehicleStore — trail buffer", () => {
 
   it("set() maintains trail across multiple updates", () => {
     vehicleStore.set(createVehicleDTO({ id: "v1", position: [-1.29, 36.82] }));
-    vehicleStore.set(createVehicleDTO({ id: "v1", position: [-1.30, 36.83] }));
+    vehicleStore.set(createVehicleDTO({ id: "v1", position: [-1.3, 36.83] }));
     vehicleStore.set(createVehicleDTO({ id: "v1", position: [-1.31, 36.84] }));
 
     const trail = vehicleStore.getTrail("v1");
     expect(trail).toEqual([
       [-1.29, 36.82],
-      [-1.30, 36.83],
+      [-1.3, 36.83],
       [-1.31, 36.84],
     ]);
   });

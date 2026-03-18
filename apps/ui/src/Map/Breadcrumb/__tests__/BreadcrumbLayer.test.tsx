@@ -129,7 +129,14 @@ describe("BreadcrumbLayer", () => {
 
   it("renders trail segments for selected vehicle", () => {
     const trails = new Map<string, Position[]>([
-      ["v1", [[36.82, -1.29], [36.83, -1.3], [36.84, -1.31]]],
+      [
+        "v1",
+        [
+          [36.82, -1.29],
+          [36.83, -1.3],
+          [36.84, -1.31],
+        ],
+      ],
     ]);
     mockGetAllTrails.mockReturnValue(trails);
 
@@ -147,8 +154,20 @@ describe("BreadcrumbLayer", () => {
 
   it("renders trails for all vehicles when showAll is true", () => {
     const trails = new Map<string, Position[]>([
-      ["v1", [[36.82, -1.29], [36.83, -1.3]]],
-      ["v2", [[36.84, -1.31], [36.85, -1.32]]],
+      [
+        "v1",
+        [
+          [36.82, -1.29],
+          [36.83, -1.3],
+        ],
+      ],
+      [
+        "v2",
+        [
+          [36.84, -1.31],
+          [36.85, -1.32],
+        ],
+      ],
     ]);
     mockGetAllTrails.mockReturnValue(trails);
 
@@ -166,7 +185,14 @@ describe("BreadcrumbLayer", () => {
 
   it("does not render trail for vehicles in hidden fleets", () => {
     const trails = new Map<string, Position[]>([
-      ["v1", [[36.82, -1.29], [36.83, -1.3], [36.84, -1.31]]],
+      [
+        "v1",
+        [
+          [36.82, -1.29],
+          [36.83, -1.3],
+          [36.84, -1.31],
+        ],
+      ],
     ]);
     mockGetAllTrails.mockReturnValue(trails);
 
