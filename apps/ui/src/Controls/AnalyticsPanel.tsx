@@ -157,10 +157,7 @@ export default function AnalyticsPanel({
 
   const fleetIds = useMemo(() => Array.from(fleetHistory.keys()), [fleetHistory]);
 
-  const speedHistory = useMemo(
-    () => summaryHistory.map((s) => s.avgSpeed),
-    [summaryHistory]
-  );
+  const speedHistory = useMemo(() => summaryHistory.map((s) => s.avgSpeed), [summaryHistory]);
 
   if (!summary) {
     return (
@@ -186,11 +183,7 @@ export default function AnalyticsPanel({
       />
       <PanelBody className={styles.body}>
         <div className={styles.summary}>
-          <KpiCard
-            label="Vehicles"
-            value={summary.activeVehicles}
-            total={summary.totalVehicles}
-          />
+          <KpiCard label="Vehicles" value={summary.activeVehicles} total={summary.totalVehicles} />
           <KpiCard label="Avg Speed" value={formatSpeed(summary.avgSpeed)} unit="km/h" />
           <KpiCard
             label="Distance"

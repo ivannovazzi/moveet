@@ -186,7 +186,12 @@ describe("GraphQLSource", () => {
     await expect(
       source.connect({
         url: "https://api.example.com/graphql",
-        fieldMap: { id: "id", name: "constructor.prototype.polluted", lat: "latitude", lng: "longitude" },
+        fieldMap: {
+          id: "id",
+          name: "constructor.prototype.polluted",
+          lat: "latitude",
+          lng: "longitude",
+        },
       })
     ).rejects.toThrow("unsafe field map paths");
   });
@@ -194,9 +199,7 @@ describe("GraphQLSource", () => {
   it("getNestedValue returns undefined for prototype-polluting paths", async () => {
     mockRequest.mockResolvedValue({
       vehicles: {
-        nodes: [
-          { id: "v1", callsign: "V1", latitude: -1.3, longitude: 36.8 },
-        ],
+        nodes: [{ id: "v1", callsign: "V1", latitude: -1.3, longitude: 36.8 }],
       },
     });
 

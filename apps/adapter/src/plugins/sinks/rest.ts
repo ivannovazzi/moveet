@@ -86,7 +86,10 @@ export class RestSink implements DataSink {
       .map(({ result, update }) => {
         const error =
           result.reason instanceof Error ? result.reason.message : String(result.reason);
-        logger.error({ vehicleId: update.id, error }, `Failed to publish update for vehicle ${update.id}`);
+        logger.error(
+          { vehicleId: update.id, error },
+          `Failed to publish update for vehicle ${update.id}`
+        );
         return { itemId: update.id, error };
       });
 

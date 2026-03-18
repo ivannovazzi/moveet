@@ -1,9 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from "react";
-import {
-  analyticsStore,
-  type AnalyticsSummary,
-  type FleetAnalytics,
-} from "./analyticsStore";
+import { analyticsStore, type AnalyticsSummary, type FleetAnalytics } from "./analyticsStore";
 
 const POLL_INTERVAL_MS = 1000;
 

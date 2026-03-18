@@ -117,7 +117,6 @@ describe("RestSink", () => {
     });
 
     it("throws when all individual requests fail", async () => {
-
       mockHttpFetch
         .mockRejectedValueOnce(new Error("timeout"))
         .mockRejectedValueOnce(new Error("timeout"));

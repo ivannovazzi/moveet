@@ -194,7 +194,7 @@ export class RouteManager extends EventEmitter {
       });
 
       if (wpIndex < vehicle.waypoints.length - 1) {
-        const dwellSeconds = waypoint?.dwellTime ?? (10 + Math.random() * 50);
+        const dwellSeconds = waypoint?.dwellTime ?? 10 + Math.random() * 50;
         vehicle.dwellUntil = Date.now() + dwellSeconds * 1000;
         vehicle.speed = 0; // Will be set by caller via options.minSpeed
 
@@ -208,7 +208,7 @@ export class RouteManager extends EventEmitter {
       } else {
         this.emit("route:completed", { vehicleId: vehicle.id });
         this.clearWaypointState(vehicle);
-        const dwellSeconds = waypoint?.dwellTime ?? (10 + Math.random() * 50);
+        const dwellSeconds = waypoint?.dwellTime ?? 10 + Math.random() * 50;
         vehicle.dwellUntil = Date.now() + dwellSeconds * 1000;
         vehicle.speed = 0; // Will be set by caller via options.minSpeed
         this.routes.delete(vehicle.id);

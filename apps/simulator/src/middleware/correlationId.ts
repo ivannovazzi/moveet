@@ -1,14 +1,8 @@
 import type { Request, Response, NextFunction } from "express";
 import logger from "../utils/logger";
 
-export function correlationIdMiddleware(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void {
-  const requestId =
-    (req.headers["x-request-id"] as string | undefined) ??
-    crypto.randomUUID();
+export function correlationIdMiddleware(req: Request, res: Response, next: NextFunction): void {
+  const requestId = (req.headers["x-request-id"] as string | undefined) ?? crypto.randomUUID();
 
   res.locals.requestId = requestId;
   res.locals.logger = logger.child({ requestId });

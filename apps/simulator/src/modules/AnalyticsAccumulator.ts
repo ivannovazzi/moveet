@@ -186,9 +186,7 @@ export class AnalyticsAccumulator {
    */
   getSnapshot(): { summary: AnalyticsSummary; fleets: FleetAnalytics[] } {
     const summary = this.getSummary();
-    const fleets = this.fleetManager
-      .getFleets()
-      .map((f) => this.getFleetStats(f.id));
+    const fleets = this.fleetManager.getFleets().map((f) => this.getFleetStats(f.id));
 
     return { summary, fleets };
   }

@@ -22,11 +22,7 @@ import type {
   ClockState,
   TrafficEdge,
 } from "@/types";
-import type {
-  AnalyticsSnapshot,
-  AnalyticsSummary,
-  FleetAnalytics,
-} from "@/hooks/analyticsStore";
+import type { AnalyticsSnapshot, AnalyticsSummary, FleetAnalytics } from "@/hooks/analyticsStore";
 import type {
   ResetPayload,
   WaypointReachedPayload,

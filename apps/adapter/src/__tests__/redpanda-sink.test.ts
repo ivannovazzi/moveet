@@ -183,7 +183,6 @@ describe("RedpandaSink", () => {
     });
 
     it("throws when all chunks fail", async () => {
-
       mockSend
         .mockRejectedValueOnce(new Error("broker down"))
         .mockRejectedValueOnce(new Error("broker down"))

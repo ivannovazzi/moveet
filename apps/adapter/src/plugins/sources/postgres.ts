@@ -136,10 +136,7 @@ export class PostgresSource implements DataSource {
       const lng = Number(lngVal);
 
       if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        logger.warn(
-          { vehicleId: id, lat, lng },
-          `Skipping vehicle "${id}": invalid coordinates`
-        );
+        logger.warn({ vehicleId: id, lat, lng }, `Skipping vehicle "${id}": invalid coordinates`);
         return [];
       }
 
