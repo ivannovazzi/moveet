@@ -315,8 +315,6 @@ export class RoadNetwork extends EventEmitter {
         const road = this.roads.get(streetName)!;
 
         road.streets.push(coords as Street);
-        // Roundabouts require lower approach speeds
-        const segmentMaxSpeed = isRoundabout ? maxSpeed * 0.5 : maxSpeed;
 
         // Build edges
         for (let i = 0; i < coords.length - 1; i++) {
