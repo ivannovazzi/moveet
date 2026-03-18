@@ -1,112 +1,260 @@
+/* ── Container ── */
+
 .searchBar {
-  background: var(--glass-bg); /* elevated glass — lighter than map */
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(640px, calc(100% - 56px));
-  height: var(--control-xl);
   position: absolute;
   top: var(--space-4);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(640px, calc(100% - 72px));
+  z-index: 50;
   display: flex;
-  flex-direction: row;
-  align-items: stretch;
-  gap: 0;
-  border: var(--glass-border);
+  flex-direction: column;
   border-radius: var(--radius-lg);
-  box-shadow: var(--glass-shadow);
+  border: var(--glass-border);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
-  transition: border-color var(--transition-fast);
+  box-shadow: var(--glass-shadow);
+  transition:
+    border-radius 120ms ease,
+    box-shadow 120ms ease;
 }
 
-.searchBar:focus-within {
-  border-color: var(--focus-border);
+.searchBar.open {
+  border-radius: var(--radius-lg) var(--radius-lg) var(--radius-md) var(--radius-md);
+  box-shadow:
+    var(--glass-shadow),
+    0 0 0 1px rgba(57, 153, 255, 0.1);
 }
 
-.searchBar label {
-  flex: 1;
-  min-width: 0;
+/* ── Input row ── */
+
+.inputRow {
+  height: var(--control-xl);
   display: flex;
   align-items: stretch;
+  background: var(--glass-bg);
+  border-radius: inherit;
+  flex-shrink: 0;
+  overflow: hidden;
 }
 
-/* Override Inputs.module.css .input when used inside the search bar */
-.typeahead,
-.typeahead:hover,
-.typeahead:focus {
-  height: 100%;
+.searchBar.open .inputRow {
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.inputWrap {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.searchIcon {
+  position: absolute;
+  left: var(--space-5);
+  width: 16px;
+  height: 16px;
+  color: var(--color-gray);
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.input {
   width: 100%;
-  padding: 0 var(--space-6);
+  height: 100%;
+  padding: 0 var(--space-7) 0 44px;
   font-size: var(--text-md);
-  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
-  margin-right: 0;
+  font-family: inherit;
   background: transparent;
   border: none;
-  box-shadow: none;
-  backdrop-filter: none;
   color: var(--color-gray-lightest);
-  font-family: inherit;
   outline: none;
+  caret-color: var(--color-accent);
 }
 
-.typeahead::placeholder {
+.input::placeholder {
   color: var(--color-gray);
 }
 
-/* Override Inputs.module.css .squaredButton when used as the destination button */
-.destinationButton,
-.destinationButton:hover,
-.destinationButton:focus {
-  height: 100%;
-  width: 56px;
-  flex: 0 0 56px;
-  color: var(--color-text-primary);
-  align-self: stretch;
-  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
-  background: rgba(255, 255, 255, 0.02);
+.clearBtn {
+  position: absolute;
+  right: var(--space-4);
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.07);
   border: none;
-  border-left: 1px solid var(--color-overlay-1);
-  box-shadow: none;
-  backdrop-filter: none;
+  border-radius: 50%;
+  color: var(--color-gray);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.clearBtn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--color-gray-lightest);
+}
+
+.clearBtn svg {
+  width: 8px;
+  height: 8px;
+  fill: none;
+}
+
+/* ── Directions button ── */
+
+.directionsBtn {
+  flex: 0 0 56px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.025);
+  border: none;
+  border-left: 1px solid rgba(255, 255, 255, 0.07);
+  color: var(--color-text-secondary);
   cursor: pointer;
   outline: none;
-  transition: background var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
 }
 
-.destinationButton:hover,
-.destinationButton[data-hovered] {
-  background: rgba(255, 255, 255, 0.06);
+.directionsBtn:hover,
+.directionsBtn[data-hovered] {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--color-text-primary);
 }
 
-.destinationButton:active,
-.destinationButton[data-pressed] {
-  background: rgba(57, 153, 255, 0.1);
+.directionsBtn[data-pressed] {
+  background: rgba(57, 153, 255, 0.12);
+  color: var(--color-accent);
 }
 
-.destinationButton:disabled,
-.destinationButton[data-disabled] {
-  opacity: 0.4;
+.directionsBtn[data-disabled] {
+  opacity: 0.3;
   cursor: default;
 }
 
-.destinationButton:disabled:hover,
-.destinationButton[data-disabled][data-hovered] {
-  background: rgba(255, 255, 255, 0.02);
+.directionsBtn[data-focus-visible] {
+  outline: 2px solid var(--focus-border);
+  outline-offset: -2px;
 }
 
-.destinationButton svg {
-  width: 20px;
-  height: 20px;
+.directionsBtn svg {
+  width: 18px;
+  height: 18px;
 }
 
-.option {
+/* ── Results dropdown ── */
+
+.results {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-2);
+  background: rgba(16, 20, 32, 0.94);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  overflow-y: auto;
+  max-height: 380px;
+}
+
+.results::-webkit-scrollbar {
+  width: 4px;
+}
+
+.results::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.results::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+/* ── Result item ── */
+
+.result {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--transition-fast);
+  min-height: 36px;
 }
 
-.option svg {
-  fill: var(--color-gray-light);
-  height: 14px;
+.result:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.resultActive {
+  background: rgba(57, 153, 255, 0.1) !important;
+}
+
+.resultIcon {
   width: 14px;
+  height: 14px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-gray);
+  transition: color var(--transition-fast);
+}
+
+.resultIcon svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+.resultActive .resultIcon {
+  color: var(--color-accent);
+}
+
+.resultName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-base);
+  color: var(--color-gray-lighter);
+  line-height: 1.3;
+}
+
+.resultActive .resultName {
+  color: var(--color-white);
+}
+
+/* Fuzzy match highlights */
+.hl {
+  background: none;
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.resultBadge {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--color-gray);
+  opacity: 0.7;
+}
+
+.resultActive .resultBadge {
+  opacity: 1;
+  color: rgba(57, 153, 255, 0.7);
 }
