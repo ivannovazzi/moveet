@@ -10,6 +10,7 @@
     "build": "tsc",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
+    "test:ci": "vitest run --coverage",
     "test:watch": "vitest watch",
     "lint": "tsc --noEmit && eslint .",
     "lint:fix": "eslint . --fix",
