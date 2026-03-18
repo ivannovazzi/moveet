@@ -17,10 +17,10 @@ describe("PathfindingPool", () => {
   it("should find a route between two connected nodes", async () => {
     pool = new PathfindingPool(testGeojsonPath, 1);
 
-    // Main Street goes: 45.5017,-73.5673 -> 45.502,-73.567 -> 45.5023,-73.5667
-    // First Avenue goes: 45.5023,-73.5667 -> 45.5026,-73.5664 -> 45.5029,-73.5661
+    // Main Street goes: 45.5017000,-73.5673000 -> 45.5020000,-73.5670000 -> 45.5023000,-73.5667000
+    // First Avenue goes: 45.5023000,-73.5667000 -> 45.5026000,-73.5664000 -> 45.5029000,-73.5661000
     // Main Street is one-way, so route from start of Main to end of First Avenue
-    const result = await pool.findRoute("45.5017,-73.5673", "45.5029,-73.5661");
+    const result = await pool.findRoute("45.5017000,-73.5673000", "45.5029000,-73.5661000");
 
     expect(result).not.toBeNull();
     expect(result!.edgeIds.length).toBeGreaterThan(0);
@@ -31,7 +31,7 @@ describe("PathfindingPool", () => {
     pool = new PathfindingPool(testGeojsonPath, 1);
 
     // Use a node ID that doesn't exist in the graph
-    const result = await pool.findRoute("45.5017,-73.5673", "99.99,99.99");
+    const result = await pool.findRoute("45.5017000,-73.5673000", "99.99,99.99");
     expect(result).toBeNull();
   });
 
@@ -39,10 +39,10 @@ describe("PathfindingPool", () => {
     pool = new PathfindingPool(testGeojsonPath, 2);
 
     const requests = [
-      pool.findRoute("45.5017,-73.5673", "45.5029,-73.5661"),
-      pool.findRoute("45.5017,-73.5673", "45.5023,-73.5667"),
-      pool.findRoute("45.502,-73.567", "45.5026,-73.5664"),
-      pool.findRoute("45.5023,-73.5667", "45.5029,-73.5661"),
+      pool.findRoute("45.5017000,-73.5673000", "45.5029000,-73.5661000"),
+      pool.findRoute("45.5017000,-73.5673000", "45.5023000,-73.5667000"),
+      pool.findRoute("45.5020000,-73.5670000", "45.5026000,-73.5664000"),
+      pool.findRoute("45.5023000,-73.5667000", "45.5029000,-73.5661000"),
     ];
 
     const results = await Promise.all(requests);
@@ -58,21 +58,21 @@ describe("PathfindingPool", () => {
     pool = new PathfindingPool(testGeojsonPath, 2);
 
     // Verify pool works before shutdown
-    const result = await pool.findRoute("45.5017,-73.5673", "45.5023,-73.5667");
+    const result = await pool.findRoute("45.5017000,-73.5673000", "45.5023000,-73.5667000");
     expect(result).not.toBeNull();
 
     // Shutdown should not throw
     await pool.shutdown();
 
     // After shutdown, findRoute returns null (no workers available)
-    const afterShutdown = await pool.findRoute("45.5017,-73.5673", "45.5023,-73.5667");
+    const afterShutdown = await pool.findRoute("45.5017000,-73.5673000", "45.5023000,-73.5667000");
     expect(afterShutdown).toBeNull();
   });
 
   it("should return valid edge IDs that match the graph", async () => {
     pool = new PathfindingPool(testGeojsonPath, 1);
 
-    const result = await pool.findRoute("45.5017,-73.5673", "45.5023,-73.5667");
+    const result = await pool.findRoute("45.5017000,-73.5673000", "45.5023000,-73.5667000");
     expect(result).not.toBeNull();
 
     // Edge IDs follow the format "startNodeId-endNodeId"
@@ -84,7 +84,7 @@ describe("PathfindingPool", () => {
     for (let i = 0; i < result!.edgeIds.length - 1; i++) {
       const currentEnd = result!.edgeIds[i].split("-").slice(1).join("-");
       const nextStart = result!.edgeIds[i + 1].split("-")[0];
-      // For node IDs like "45.5017,-73.5673", the edge ID is "45.5017,-73.5673-45.502,-73.567"
+      // For node IDs like "45.5017000,-73.5673000", the edge ID is "45.5017000,-73.5673000-45.5020000,-73.5670000"
       // We need a smarter split. The edge ID has format "lat1,lon1-lat2,lon2"
       // so the separator is the third "-" conceptually. Let's just verify start of route.
       expect(currentEnd).toBeDefined();
