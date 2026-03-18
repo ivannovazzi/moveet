@@ -1,12 +1,21 @@
-import React, { useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useMemo } from "react";
+import {
+  ComboBox,
+  Input,
+  Label,
+  ListBox,
+  ListBoxItem,
+  Popover,
+} from "react-aria-components";
 import styles from "./Inputs.module.css";
 import classNames from "classnames";
 
-interface TypeaheadProps<T> extends Omit<
-  React.InputHTMLAttributes<HTMLInputElement>,
-  "onChange" | "value"
-> {
+interface TypeaheadItem<T> {
+  key: string;
+  option: T;
+}
+
+interface TypeaheadProps<T> {
   label?: string;
   value?: T | null;
   options: T[];
@@ -15,107 +24,68 @@ interface TypeaheadProps<T> extends Omit<
   onChange: (option: T) => void;
   onOptionHover?: (option: T) => void;
   onOptionLeave?: () => void;
+  className?: string;
+  placeholder?: string;
 }
 
 export function Typeahead<T>({
-  label = "",
+  label,
   options,
   renderLabel,
   renderOption,
   value,
   onChange,
-  onOptionHover = () => {},
-  onOptionLeave = () => {},
-  ...props
+  onOptionHover,
+  onOptionLeave,
+  className,
+  placeholder,
 }: TypeaheadProps<T>) {
-  const getLabel = React.useCallback(
+  const getLabel = useCallback(
     (option: T) => (renderLabel ? renderLabel(option) : String(option)),
     [renderLabel]
   );
-  const [inputValue, setInputValue] = React.useState(value ? getLabel(value) : "");
-  const [isOpen, setIsOpen] = React.useState(false);
-  const [dropdownStyle, setDropdownStyle] = React.useState<React.CSSProperties>({});
-  const labelRef = useRef<HTMLLabelElement>(null);
 
-  const hasValue = !!value;
-
-  useEffect(() => {
-    if (!hasValue && !isOpen) {
-      setInputValue("");
-    }
-  }, [hasValue, isOpen]);
-
-  useEffect(() => {
-    if (value) {
-      setInputValue(getLabel(value));
-    }
-  }, [value, getLabel]);
-
-  useEffect(() => {
-    if (isOpen && labelRef.current) {
-      const rect = labelRef.current.getBoundingClientRect();
-      setDropdownStyle({
-        position: "fixed",
-        top: rect.bottom + 6,
-        left: rect.left,
-        width: rect.width,
-      });
-    }
-  }, [isOpen]);
-
-  const filtered = React.useMemo(
-    () => options.filter((o) => getLabel(o).toLowerCase().includes(inputValue.toLowerCase())),
-    [options, inputValue, getLabel]
+  const items = useMemo<TypeaheadItem<T>[]>(
+    () => options.map((option, i) => ({ key: `${getLabel(option)}-${i}`, option })),
+    [options, getLabel]
   );
 
-  const handleSelect = (option: T) => {
-    setInputValue(getLabel(option));
-    onChange(option);
-    setIsOpen(false);
-  };
+  const selectedKey =
+    value != null
+      ? `${getLabel(value)}-${options.indexOf(value)}`
+      : null;
 
   return (
-    <label className={styles.label} ref={labelRef}>
-      {label}
-      <input
-        {...props}
-        value={inputValue}
-        onFocus={() => setIsOpen(true)}
-        onChange={(e) => setInputValue(e.target.value)}
-        onBlur={() => setIsOpen(false)}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            setIsOpen(false);
-            (e.target as HTMLElement).blur();
-          }
-        }}
-        aria-expanded={isOpen}
-        aria-haspopup="listbox"
-        autoComplete="off"
-        className={classNames([styles.input, props.className])}
+    <ComboBox<TypeaheadItem<T>>
+      className={styles.comboBoxRoot}
+      defaultItems={items}
+      selectedKey={selectedKey}
+      onSelectionChange={(key) => {
+        const found = items.find((item) => item.key === key);
+        if (found) onChange(found.option);
+      }}
+      menuTrigger="focus"
+    >
+      {label && <Label className={styles.comboLabel}>{label}</Label>}
+      <Input
+        className={classNames(styles.input, className)}
+        placeholder={placeholder}
       />
-      {isOpen &&
-        filtered.length > 0 &&
-        createPortal(
-          <ul className={styles.dropdown} style={dropdownStyle} role="listbox">
-            {filtered.slice(0, 30).map((option, i) => (
-              <li
-                key={`${getLabel(option)}-${i}`}
-                role="option"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  handleSelect(option);
-                }}
-                onMouseEnter={() => onOptionHover(option)}
-                onMouseLeave={() => onOptionLeave()}
-                className={styles.option}
-              >
-                {renderOption ? renderOption(option) : String(option)}
-              </li>
-            ))}
-          </ul>,
-          document.body
-        )}
-    </label>
+      <Popover className={styles.dropdown}>
+        <ListBox<TypeaheadItem<T>> className={styles.listBox}>
+          {(item) => (
+            <ListBoxItem
+              id={item.key}
+              textValue={getLabel(item.option)}
+              className={styles.option}
+              onHoverStart={() => onOptionHover?.(item.option)}
+              onHoverEnd={() => onOptionLeave?.()}
+            >
+              {renderOption ? renderOption(item.option) : getLabel(item.option)}
+            </ListBoxItem>
+          )}
+        </ListBox>
+      </Popover>
+    </ComboBox>
   );
 }

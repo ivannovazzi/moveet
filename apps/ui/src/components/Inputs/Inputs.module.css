@@ -332,3 +332,48 @@
 .option:hover {
   background: var(--color-active-bg);
 }
+
+/* ComboBox (Typeahead) — React Aria */
+.comboBoxRoot {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.comboLabel {
+  font-size: var(--text-base);
+  color: var(--color-gray-lighter);
+  margin-bottom: var(--space-1);
+}
+
+.listBox {
+  list-style: none;
+  padding: var(--space-2);
+  margin: 0;
+  max-height: 400px;
+  overflow-y: auto;
+  outline: none;
+}
+
+.listBox::-webkit-scrollbar {
+  width: 5px;
+}
+
+.listBox::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.listBox::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.option[data-focused] {
+  background: var(--color-active-bg);
+  outline: none;
+}
+
+.option[data-selected] {
+  background: var(--color-active-bg);
+  color: var(--color-white);
+}
