@@ -38,11 +38,10 @@ export const RoadNetworkMap: React.FC<RoadNetworkMapProps> = ({
   const [zoomState, setZoomState] = useState<ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const [containerRef, size] = useResizeObserver();
 
-  // Ref so drawRoads can always access the latest values without re-registering zoom
+  // Refs so the zoom handler always sees latest values without re-registering
   const projectionRef = useRef<GeoProjection | null>(null);
-  const transformRef = useRef<ZoomTransform>(zoomIdentity);
   const dataRef = useRef<RoadNetwork | null>(null);
-  const drawTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rafRef = useRef<number | null>(null);
 
   const drawRoads = useCallback((proj: GeoProjection, t: ZoomTransform, network: RoadNetwork) => {
     const canvas = canvasRef.current;
@@ -50,11 +49,9 @@ export const RoadNetworkMap: React.FC<RoadNetworkMapProps> = ({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const w = canvas.width;
-    const h = canvas.height;
-    ctx.clearRect(0, 0, w, h);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Apply zoom transform to a copy of the projection so we draw at screen coords
+    // Bake the zoom transform into the projection so coordinates map to screen pixels
     const scaled = geoMercator()
       .translate([proj.translate()[0] * t.k + t.x, proj.translate()[1] * t.k + t.y])
       .scale(proj.scale() * t.k);
@@ -65,7 +62,6 @@ export const RoadNetworkMap: React.FC<RoadNetworkMapProps> = ({
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
 
-    // Batch by stroke style for fewer ctx state changes
     ctx.strokeStyle = strokeColor;
     ctx.lineWidth = strokeWidth;
     ctx.beginPath();
@@ -74,7 +70,7 @@ export const RoadNetworkMap: React.FC<RoadNetworkMapProps> = ({
     }
     ctx.stroke();
 
-    ctx.strokeStyle = "#222";
+    ctx.strokeStyle = "#444";
     ctx.lineWidth = strokeWidth * 2;
     ctx.beginPath();
     for (const feature of network.features) {
@@ -102,7 +98,7 @@ export const RoadNetworkMap: React.FC<RoadNetworkMapProps> = ({
     projectionRef.current = proj;
     dataRef.current = data;
 
-    drawRoads(proj, transformRef.current, data);
+    drawRoads(proj, zoomIdentity, data);
 
     const markersGroup = svg.select<SVGGElement>("g.markers");
 
@@ -110,13 +106,12 @@ export const RoadNetworkMap: React.FC<RoadNetworkMapProps> = ({
       .scaleExtent([1, 15])
       .on("zoom", (evt) => {
         const t: ZoomTransform = evt.transform;
-        transformRef.current = t;
 
-        requestAnimationFrame(() => {
-          // Canvas: cheap CSS transform during active pan/zoom
-          if (canvas) {
-            canvas.style.transformOrigin = "0 0";
-            canvas.style.transform = `translate(${t.x}px, ${t.y}px) scale(${t.k})`;
+        if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+        rafRef.current = requestAnimationFrame(() => {
+          // Redraw roads directly at the new transform — crisp at every zoom level
+          if (projectionRef.current && dataRef.current) {
+            drawRoads(projectionRef.current, t, dataRef.current);
           }
 
           markersGroup.attr("transform", t.toString());
@@ -128,17 +123,6 @@ export const RoadNetworkMap: React.FC<RoadNetworkMapProps> = ({
 
           setTransform(t);
         });
-
-        // Redraw at full resolution shortly after zooming stops
-        if (drawTimerRef.current) clearTimeout(drawTimerRef.current);
-        drawTimerRef.current = setTimeout(() => {
-          if (canvas) {
-            canvas.style.transform = "";
-          }
-          if (projectionRef.current && dataRef.current) {
-            drawRoads(projectionRef.current, t, dataRef.current);
-          }
-        }, 150);
       });
 
     setZoomState(() => zoomBehavior);
