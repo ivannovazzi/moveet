@@ -35,8 +35,8 @@
     "the-new-css-reset": "^1.11.3"
   },
   "devDependencies": {
-    "@moveet/eslint-config": "*",
     "@eslint/js": "^9.27.0",
+    "@moveet/eslint-config": "*",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
@@ -45,6 +45,7 @@
     "@types/react": "^19.1.4",
     "@types/react-dom": "^19.1.5",
     "@vitejs/plugin-react": "^5.1.4",
+    "@vitest/coverage-v8": "^4.1.0",
     "@vitest/ui": "^4.0.18",
     "eslint": "^9.27.0",
     "eslint-config-prettier": "^10.1.8",
