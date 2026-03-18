@@ -162,6 +162,46 @@ export interface IncidentDTO {
   position: Position;
 }
 
+// ─── Analytics ────────────────────────────────────────────────────
+
+export interface VehicleStats {
+  distanceTraveled: number; // km, sum of edge lengths traversed
+  idleTime: number; // seconds spent with speed=0 or at waypoint dwell
+  activeTime: number; // seconds spent moving
+  avgSpeed: number; // km/h rolling average
+  optimalDistance: number; // km, shortest-path distance for current route
+  actualDistance: number; // km, actual distance traveled on current route
+  waypointsReached: number; // count of waypoints reached
+  lastUpdated: number; // timestamp
+}
+
+export interface AnalyticsSummary {
+  totalVehicles: number;
+  activeVehicles: number;
+  totalDistanceTraveled: number; // km
+  avgSpeed: number; // km/h across all vehicles
+  totalIdleTime: number; // seconds
+  avgRouteEfficiency: number; // ratio optimal/actual, 1.0 = perfect
+  timestamp: number;
+}
+
+export interface FleetAnalytics {
+  fleetId: string;
+  vehicleCount: number;
+  activeCount: number;
+  totalDistance: number;
+  avgSpeed: number;
+  totalIdleTime: number;
+  routeEfficiency: number;
+  vehicles: VehicleStats[];
+}
+
+export interface AnalyticsSnapshot {
+  summary: AnalyticsSummary;
+  fleets: FleetAnalytics[];
+  timestamp: number;
+}
+
 // ─── Recording & Replay ────────────────────────────────────────────
 
 export interface RecordingMetadata {

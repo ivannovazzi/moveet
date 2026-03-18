@@ -297,6 +297,14 @@ export function GaugeIcon(props: SVGProps) {
   );
 }
 
+export function ChartIcon(props: SVGProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <path d="M3 13h2v8H3zm4-4h2v12H7zm4-4h2v16h-2zm4 8h2v8h-2zm4-4h2v12h-2z" />
+    </svg>
+  );
+}
+
 export function ClockIcon(props: SVGProps) {
   return (
     <svg

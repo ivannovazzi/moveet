@@ -44,6 +44,9 @@ import { useConnectionState } from "./hooks/useConnectionState";
 import { isRoad } from "./utils/typeGuards";
 import ErrorBoundary, { SectionErrorFallback } from "./components/ErrorBoundary";
 import { toLatLng } from "./utils/coordinates";
+import { analyticsStore } from "./hooks/analyticsStore";
+import { useAnalytics } from "./hooks/useAnalytics";
+import AnalyticsPanel from "./Controls/AnalyticsPanel";
 
 export default function App() {
   const [onContextClick, ref, xy, closeContextMenu] = useContextMenu();
@@ -80,6 +83,7 @@ export default function App() {
   const incidents = useIncidents();
   const recording = useRecording();
   const replay = useReplay();
+  const analytics = useAnalytics();
 
   const vehicleFleetMap = useMemo(() => {
     const map = new Map<string, Fleet>();
@@ -226,12 +230,14 @@ export default function App() {
   useEffect(() => {
     client.onConnect(() => {
       setConnected(true);
+      analyticsStore.clear();
       // Re-fetch full state on reconnect
       client.getVehicles().then((response) => {
         if (response.data) setVehicles(response.data);
       });
     });
     client.onDisconnect(() => setConnected(false));
+    client.onAnalytics((snapshot) => analyticsStore.push(snapshot));
     client.onStatus((data) => {
       setStatus(data);
     });
@@ -331,6 +337,13 @@ export default function App() {
               )}
               {activePanel === "speed" && <SpeedPanel maxSpeedRef={maxSpeedRef} />}
               {activePanel === "clock" && <ClockPanel />}
+              {activePanel === "analytics" && (
+                <AnalyticsPanel
+                  summary={analytics.summary}
+                  fleetHistory={analytics.fleetHistory}
+                  summaryHistory={analytics.summaryHistory}
+                />
+              )}
               {activePanel === "adapter" && (
                 <AdapterDrawer
                   isOpen={true}

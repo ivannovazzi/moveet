@@ -34,6 +34,8 @@ tags:
     description: Traffic congestion data and profiles
   - name: Fleets
     description: Fleet grouping and vehicle assignment
+  - name: Analytics
+    description: Fleet analytics, summaries, and per-vehicle stats
 
 paths:
   # ─── Meta ────────────────────────────────────────────────────────────
@@ -1171,6 +1173,56 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  # ─── Analytics ───────────────────────────────────────────────────────
+  /analytics/summary:
+    get:
+      operationId: getAnalyticsSummary
+      summary: Get aggregate analytics across all vehicles
+      tags: [Analytics]
+      responses:
+        "200":
+          description: Analytics summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsSummary"
+
+  /analytics/fleet/{id}:
+    get:
+      operationId: getFleetAnalytics
+      summary: Get analytics for a specific fleet
+      tags: [Analytics]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Fleet analytics with per-vehicle breakdown
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FleetAnalytics"
+
+  /analytics/reset:
+    post:
+      operationId: resetAnalytics
+      summary: Reset all accumulated analytics data
+      tags: [Analytics]
+      responses:
+        "200":
+          description: Analytics reset
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+
 components:
   schemas:
     # ─── Core types ──────────────────────────────────────────────────
@@ -1795,3 +1847,102 @@ components:
           type: array
           items:
             type: string
+
+    # ─── Analytics ─────────────────────────────────────────────────
+    VehicleStats:
+      type: object
+      required:
+        - distanceTraveled
+        - idleTime
+        - activeTime
+        - avgSpeed
+        - optimalDistance
+        - actualDistance
+        - waypointsReached
+        - lastUpdated
+      properties:
+        distanceTraveled:
+          type: number
+          description: Total distance traveled in km
+        idleTime:
+          type: number
+          description: Seconds spent idle
+        activeTime:
+          type: number
+          description: Seconds spent moving
+        avgSpeed:
+          type: number
+          description: Rolling average speed in km/h
+        optimalDistance:
+          type: number
+          description: Shortest-path distance for current route in km
+        actualDistance:
+          type: number
+          description: Actual distance traveled on current route in km
+        waypointsReached:
+          type: number
+          description: Count of waypoints reached
+        lastUpdated:
+          type: number
+          description: Timestamp of last update
+
+    AnalyticsSummary:
+      type: object
+      required:
+        - totalVehicles
+        - activeVehicles
+        - totalDistanceTraveled
+        - avgSpeed
+        - totalIdleTime
+        - avgRouteEfficiency
+        - timestamp
+      properties:
+        totalVehicles:
+          type: number
+        activeVehicles:
+          type: number
+        totalDistanceTraveled:
+          type: number
+          description: Total km across all vehicles
+        avgSpeed:
+          type: number
+          description: Average speed in km/h across all vehicles
+        totalIdleTime:
+          type: number
+          description: Total idle seconds across all vehicles
+        avgRouteEfficiency:
+          type: number
+          description: "Average ratio of optimal/actual distance (1.0 = perfect)"
+        timestamp:
+          type: number
+
+    FleetAnalytics:
+      type: object
+      required:
+        - fleetId
+        - vehicleCount
+        - activeCount
+        - totalDistance
+        - avgSpeed
+        - totalIdleTime
+        - routeEfficiency
+        - vehicles
+      properties:
+        fleetId:
+          type: string
+        vehicleCount:
+          type: number
+        activeCount:
+          type: number
+        totalDistance:
+          type: number
+        avgSpeed:
+          type: number
+        totalIdleTime:
+          type: number
+        routeEfficiency:
+          type: number
+        vehicles:
+          type: array
+          items:
+            $ref: "#/components/schemas/VehicleStats"

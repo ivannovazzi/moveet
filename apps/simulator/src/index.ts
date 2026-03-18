@@ -22,6 +22,7 @@ import {
   createRecordingRoutes,
   createReplayRoutes,
   createFleetRoutes,
+  createAnalyticsRoutes,
 } from "./routes";
 import type { RouteContext } from "./routes";
 import { setupWebSocket, wireEvents, registerGracefulShutdown } from "./setup";
@@ -84,6 +85,7 @@ app.use(createIncidentRoutes(ctx));
 app.use(createRecordingRoutes(ctx));
 app.use(createReplayRoutes(ctx));
 app.use(createFleetRoutes(ctx));
+app.use(createAnalyticsRoutes(ctx));
 
 // ─── API documentation ──────────────────────────────────────────────
 
@@ -113,7 +115,10 @@ async function main() {
   });
 
   const { wss, broadcaster } = setupWebSocket(server);
-  const { trafficBroadcastInterval } = wireEvents({ ...ctx, broadcaster });
+  const { trafficBroadcastInterval, analyticsBroadcastInterval } = wireEvents({
+    ...ctx,
+    broadcaster,
+  });
 
   registerGracefulShutdown({
     server,
@@ -122,6 +127,7 @@ async function main() {
     simulationController,
     network,
     trafficBroadcastInterval,
+    analyticsBroadcastInterval,
   });
 }
 

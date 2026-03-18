@@ -5,4 +5,5 @@ export { createIncidentRoutes } from "./incidents";
 export { createRecordingRoutes } from "./recording";
 export { createReplayRoutes } from "./replay";
 export { createFleetRoutes } from "./fleets";
+export { createAnalyticsRoutes } from "./analytics";
 export type { RouteContext } from "./types";

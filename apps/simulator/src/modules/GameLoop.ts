@@ -2,6 +2,7 @@ import type { Vehicle } from "../types";
 import type { SimulationClock } from "./SimulationClock";
 import type { VehicleRegistry } from "./VehicleRegistry";
 import type { FleetManager } from "./FleetManager";
+import type { AnalyticsAccumulator } from "./AnalyticsAccumulator";
 import { config } from "../utils/config";
 import { serializeVehicle } from "../utils/serializer";
 import { EventEmitter } from "events";
@@ -28,6 +29,11 @@ export class GameLoop extends EventEmitter {
    * Assigned by the facade so that tests can stub it via (manager as any).updateVehicle.
    */
   public updateVehicleFn: UpdateVehicleFn;
+
+  /**
+   * Optional analytics accumulator. When set, stats are updated each tick per vehicle.
+   */
+  public analyticsAccumulator: AnalyticsAccumulator | null = null;
 
   constructor(
     private registry: VehicleRegistry,
@@ -91,6 +97,11 @@ export class GameLoop extends EventEmitter {
       this.lastUpdateTimes.set(vehicleId, now);
 
       this.updateVehicleFn(vehicle, deltaMs);
+
+      // Accumulate per-vehicle analytics stats after movement update
+      if (this.analyticsAccumulator) {
+        this.analyticsAccumulator.updateVehicleStats(vehicle, deltaMs);
+      }
 
       this.emit(
         "update",

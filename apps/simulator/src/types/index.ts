@@ -22,6 +22,10 @@ export type {
   IncidentDTO,
   RecordingMetadata,
   ReplayStatus,
+  VehicleStats,
+  AnalyticsSummary,
+  FleetAnalytics,
+  AnalyticsSnapshot,
 } from "@moveet/shared-types";
 
 // Re-export ExportVehicle under its old name for backwards compatibility

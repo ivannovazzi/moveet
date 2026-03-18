@@ -23,6 +23,11 @@ import type {
   TrafficEdge,
 } from "@/types";
 import type {
+  AnalyticsSnapshot,
+  AnalyticsSummary,
+  FleetAnalytics,
+} from "@/hooks/analyticsStore";
+import type {
   ResetPayload,
   WaypointReachedPayload,
   RouteCompletedPayload,
@@ -96,6 +101,11 @@ class SimulationService {
     // traffic
     this.getTraffic = this.getTraffic.bind(this);
     this.onTraffic = this.onTraffic.bind(this);
+    // analytics
+    this.onAnalytics = this.onAnalytics.bind(this);
+    this.getAnalyticsSummary = this.getAnalyticsSummary.bind(this);
+    this.getFleetAnalytics = this.getFleetAnalytics.bind(this);
+    this.resetAnalytics = this.resetAnalytics.bind(this);
     // connection state
     this.onConnectionStateChange = this.onConnectionStateChange.bind(this);
   }
@@ -377,6 +387,24 @@ class SimulationService {
 
   onTraffic(handler: (data: TrafficEdge[]) => void): void {
     this.ws.on("traffic", handler);
+  }
+
+  // ─── Analytics ────────────────────────────────────────────────────
+
+  onAnalytics(handler: (data: AnalyticsSnapshot) => void): void {
+    this.ws.on("analytics", handler);
+  }
+
+  async getAnalyticsSummary(): Promise<ApiResponse<AnalyticsSummary>> {
+    return this.http.get<AnalyticsSummary>("/analytics/summary");
+  }
+
+  async getFleetAnalytics(id: string): Promise<ApiResponse<FleetAnalytics>> {
+    return this.http.get<FleetAnalytics>(`/analytics/fleet/${id}`);
+  }
+
+  async resetAnalytics(): Promise<ApiResponse<{ ok: true }>> {
+    return this.http.post<undefined, { ok: true }>("/analytics/reset");
   }
 }
 
