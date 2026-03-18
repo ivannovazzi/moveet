@@ -91,34 +91,36 @@
   display: flex;
   align-items: center;
   cursor: pointer;
+  padding: 0 6px;
+  box-sizing: border-box;
 }
 
 .sliderTrack::before {
   content: "";
   display: block;
   position: absolute;
-  background: var(--surface-bg-active);
+  background: var(--color-overlay-2);
   height: 4px;
-  width: 100%;
+  width: calc(100% - 12px);
   border-radius: var(--radius-full);
-  left: 0;
+  left: 6px;
 }
 
 .sliderThumb {
-  width: 16px;
-  height: 16px;
+  width: 12px;
+  height: 12px;
   border-radius: var(--radius-full);
-  background: var(--color-accent);
+  background: var(--color-gray-light);
   cursor: grab;
   transition: background var(--transition-fast);
 }
 
 .sliderThumb[data-hovered] {
-  background: var(--color-white);
+  background: var(--color-gray-lightest);
 }
 
 .sliderThumb[data-dragging] {
-  background: var(--color-white);
+  background: var(--color-accent);
   cursor: grabbing;
 }
 
