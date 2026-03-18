@@ -52,7 +52,7 @@ describe("envSchema / parseEnv", () => {
     expect(cfg.MIN_SPEED).toBe(20);
     expect(cfg.MAX_SPEED).toBe(60);
     expect(cfg.VEHICLE_COUNT).toBe(70);
-    expect(cfg.GEOJSON_PATH).toBe("./export.geojson");
+    expect(cfg.GEOJSON_PATH).toBe("./data/network.geojson");
     expect(cfg.ADAPTER_URL).toBe("");
   });
 
