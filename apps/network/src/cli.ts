@@ -4,6 +4,7 @@ import { resolveRegion } from "./regions.js";
 import { download } from "./commands/download.js";
 import { extract } from "./commands/extract.js";
 import { filter, DEFAULT_ROAD_CLASSES } from "./commands/filter.js";
+import { exportNetwork } from "./commands/export.js";
 import path from "path";
 
 const CACHE_DIR = path.resolve("apps/network/.cache");
@@ -62,6 +63,22 @@ program
       input: opts.input,
       output: opts.output,
       classes: opts.classes.split(","),
+    });
+  });
+
+program
+  .command("export")
+  .description("Export filtered PBF to GeoJSON using osmium")
+  .requiredOption("--input <path>", "Input filtered roads PBF file")
+  .option("--output <path>", "Output GeoJSON path", "apps/simulator/data/network.geojson")
+  .option("--region <name>", "Region name for metadata", "unknown")
+  .action((opts: { input: string; output: string; region: string }) => {
+    exportNetwork({
+      input: opts.input,
+      output: opts.output,
+      region: opts.region,
+      bbox: [0, 0, 0, 0],
+      classes: [],
     });
   });
 
