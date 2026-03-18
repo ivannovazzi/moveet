@@ -1,5 +1,6 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import styles from "./ContextMenu.module.css";
 
 export default function ContextMenu({
   position,
@@ -12,26 +13,54 @@ export default function ContextMenu({
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
+  // Focus first item on open
+  useEffect(() => {
+    const menu = menuRef.current;
+    if (!menu) return;
+    const first = menu.querySelector<HTMLElement>(
+      '[role="menuitem"]:not([disabled]), button:not([disabled])'
+    );
+    first?.focus();
+  }, []);
+
+  // Keyboard handling: Escape closes, Arrow keys navigate
+  useEffect(() => {
+    const menu = menuRef.current;
+    if (!menu) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
         onClose?.();
         return;
       }
 
-      if (e.key === "Tab") {
-        const menu = menuRef.current;
-        if (!menu) return;
-
-        const focusable = menu.querySelectorAll<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const items = Array.from(
+          menu.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])')
         );
-        if (focusable.length === 0) return;
+        if (items.length === 0) return;
+        const current = document.activeElement as HTMLElement;
+        const idx = items.indexOf(current);
+        if (e.key === "ArrowDown") {
+          items[(idx + 1) % items.length]?.focus();
+        } else {
+          items[(idx - 1 + items.length) % items.length]?.focus();
+        }
+        return;
+      }
 
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-
+      // Tab cycles through items
+      if (e.key === "Tab") {
+        const items = Array.from(
+          menu.querySelectorAll<HTMLElement>(
+            'button, [href], input, [tabindex]:not([tabindex="-1"])'
+          )
+        );
+        if (items.length === 0) return;
+        const first = items[0];
+        const last = items[items.length - 1];
         if (e.shiftKey) {
           if (document.activeElement === first) {
             e.preventDefault();
@@ -44,34 +73,31 @@ export default function ContextMenu({
           }
         }
       }
-    },
-    [onClose]
-  );
-
-  // Focus the first focusable element when the menu opens
-  useEffect(() => {
-    const menu = menuRef.current;
-    if (!menu) return;
-
-    const focusable = menu.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    );
-    if (focusable.length > 0) {
-      focusable[0].focus();
-    }
+    };
 
     document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  // Close on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        onClose?.();
+      }
     };
-  }, [handleKeyDown]);
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [onClose]);
 
   if (!position) return null;
-  const portal = createPortal(
+
+  return createPortal(
     <div
       ref={menuRef}
       role="menu"
       aria-label="Context menu"
+      className={styles.menu}
       style={{
         position: "fixed",
         top: position.y,
@@ -83,6 +109,4 @@ export default function ContextMenu({
     </div>,
     document.body
   );
-
-  return portal;
 }
