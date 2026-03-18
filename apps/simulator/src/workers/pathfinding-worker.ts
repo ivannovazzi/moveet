@@ -20,6 +20,7 @@ import type { FeatureCollection, LineString } from "geojson";
 
 interface WorkerEdge {
   id: string;
+  streetId: string;
   endNodeId: string;
   distance: number;
   maxSpeed: number;
@@ -43,6 +44,9 @@ interface PathNode {
 // ---------------------------------------------------------------------------
 // Graph building
 // ---------------------------------------------------------------------------
+
+// Module-level max network speed for admissible heuristic (set by buildGraph)
+let _maxNetworkSpeed = 110;
 
 type HighwayType =
   | "motorway"
@@ -133,6 +137,16 @@ function buildGraph(geojsonPath: string): Map<string, WorkerNode> {
   for (const feature of data.features) {
     if (feature.geometry.type !== "LineString") continue;
 
+    // Skip access-restricted roads (private estates, gated communities)
+    const accessTag = feature.properties?.access;
+    const motorVehicleTag = feature.properties?.motor_vehicle;
+    if (
+      accessTag === "private" || accessTag === "no" ||
+      motorVehicleTag === "private" || motorVehicleTag === "no"
+    ) {
+      continue; // skip this feature entirely
+    }
+
     const coords = (feature.geometry as LineString).coordinates;
     const rawHighway = feature.properties?.highway || "residential";
     const highway: HighwayType = VALID_HIGHWAYS.has(rawHighway)
@@ -144,6 +158,11 @@ function buildGraph(geojsonPath: string): Map<string, WorkerNode> {
     const isRoundabout = feature.properties?.junction === "roundabout";
     const effectiveOneway = isRoundabout ? "forward" : onewayDir;
     const effectiveMaxSpeed = isRoundabout ? maxSpeed * 0.5 : maxSpeed;
+    const streetId: string =
+      feature.properties?.streetId ||
+      feature.properties?.id ||
+      feature.properties?.["@id"] ||
+      "";
 
     for (let i = 0; i < coords.length - 1; i++) {
       const [lon1, lat1] = coords[i];
@@ -162,6 +181,7 @@ function buildGraph(geojsonPath: string): Map<string, WorkerNode> {
         const forwardEdgeId = `${id1}-${id2}`;
         node1.edges.push({
           id: forwardEdgeId,
+          streetId,
           endNodeId: id2,
           distance,
           maxSpeed: effectiveMaxSpeed,
@@ -175,6 +195,7 @@ function buildGraph(geojsonPath: string): Map<string, WorkerNode> {
         const reverseEdgeId = `${id2}-${id1}`;
         node2.edges.push({
           id: reverseEdgeId,
+          streetId,
           endNodeId: id1,
           distance,
           maxSpeed: effectiveMaxSpeed,
@@ -184,6 +205,15 @@ function buildGraph(geojsonPath: string): Map<string, WorkerNode> {
       }
     }
   }
+
+  // Compute max speed across all edges for admissible heuristic
+  let maxSpeed = 0;
+  for (const node of nodes.values()) {
+    for (const edge of node.edges) {
+      if (edge.maxSpeed > maxSpeed) maxSpeed = edge.maxSpeed;
+    }
+  }
+  _maxNetworkSpeed = maxSpeed > 0 ? maxSpeed : 110;
 
   return nodes;
 }
@@ -197,14 +227,16 @@ function findRoute(
   startId: string,
   endId: string,
   incidentEdges?: Record<string, number>,
-  restrictedHighways?: string[]
+  restrictedHighways?: string[],
+  turnRestrictions?: Record<string, string[]>,
+  turnRestrictionTypes?: Record<string, string>
 ): { edgeIds: string[]; distance: number } | null {
   const startNode = nodes.get(startId);
   const endNode = nodes.get(endId);
   if (!startNode || !endNode) return null;
 
   const closedSet = new Set<string>();
-  const cameFrom = new Map<string, { prevId: string; edgeId: string; edgeDistance: number }>();
+  const cameFrom = new Map<string, { prevId: string; edgeId: string; edgeDistance: number; edgeStreetId: string }>();
   const gScore = new Map<string, number>();
 
   // Min-heap
@@ -241,9 +273,10 @@ function findRoute(
     return top;
   };
 
+  const maxNetworkSpeed = _maxNetworkSpeed;
   const heuristic = (nodeId: string): number => {
     const n = nodes.get(nodeId)!;
-    return calculateDistance([n.lat, n.lon], [endNode.lat, endNode.lon]) / 110;
+    return calculateDistance([n.lat, n.lon], [endNode.lat, endNode.lon]) / maxNetworkSpeed;
   };
 
   gScore.set(startId, 0);
@@ -283,6 +316,20 @@ function findRoute(
         continue;
       }
 
+      // Check turn restrictions
+      if (turnRestrictions) {
+        const arrivalEntry = cameFrom.get(current.id);
+        if (arrivalEntry) {
+          const key = `${arrivalEntry.edgeStreetId}|${current.id}`;
+          const restricted = turnRestrictions[key];
+          if (restricted) {
+            const rtype = turnRestrictionTypes?.[`${key}|type`];
+            if (rtype === "prohibitory" && restricted.includes(edge.streetId)) continue;
+            if (rtype === "mandatory" && !restricted.includes(edge.streetId)) continue;
+          }
+        }
+      }
+
       // Apply incident-based edge cost penalties
       const incidentFactor = incidentEdges?.[edge.id];
       if (incidentFactor !== undefined && incidentFactor === 0) continue; // closure — skip edge
@@ -300,6 +347,7 @@ function findRoute(
           prevId: current.id,
           edgeId: edge.id,
           edgeDistance: edge.distance,
+          edgeStreetId: edge.streetId,
         });
         gScore.set(edge.endNodeId, tentativeCost);
         const f = tentativeCost + heuristic(edge.endNodeId);
@@ -328,6 +376,8 @@ if (parentPort) {
       endId: string;
       incidentEdges?: Record<string, number>;
       restrictedHighways?: string[];
+      turnRestrictions?: Record<string, string[]>;
+      turnRestrictionTypes?: Record<string, string>;
     }) => {
       if (msg.type === "findRoute") {
         let route = findRoute(
@@ -335,11 +385,21 @@ if (parentPort) {
           msg.startId,
           msg.endId,
           msg.incidentEdges,
-          msg.restrictedHighways
+          msg.restrictedHighways,
+          msg.turnRestrictions,
+          msg.turnRestrictionTypes
         );
-        // Fallback: if no route found with restrictions, retry without
+        // Fallback: if no route found with highway restrictions, retry without
         if (!route && msg.restrictedHighways && msg.restrictedHighways.length > 0) {
-          route = findRoute(nodes, msg.startId, msg.endId, msg.incidentEdges);
+          route = findRoute(
+            nodes,
+            msg.startId,
+            msg.endId,
+            msg.incidentEdges,
+            undefined,
+            msg.turnRestrictions,
+            msg.turnRestrictionTypes
+          );
         }
         parentPort!.postMessage({ type: "result", id: msg.id, route });
       }
