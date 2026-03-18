@@ -827,6 +827,186 @@ describe("RoadNetwork", () => {
     });
   });
 
+  describe("5mu4.1 — turn restrictions", () => {
+    const fs = require("fs");
+    const os = require("os");
+
+    // Node IDs used in the synthetic network
+    // A at (-1.28, 36.8), C at (-1.285, 36.805), B at (-1.29, 36.81), D at (-1.28, 36.81)
+    // GeoJSON coords are [lon, lat]
+    // nodeC uses the snapped 7-decimal format that makeNodeKey() produces
+    const nodeC = "-1.2850000,36.8050000";
+
+    // Minimal 3-road intersection network (all bidirectional)
+    const baseFeatures = [
+      {
+        type: "Feature",
+        properties: { id: "way-A", name: "Road A", highway: "residential" },
+        geometry: {
+          type: "LineString",
+          // A=[lat=-1.28,lon=36.8], C=[lat=-1.285,lon=36.805]
+          coordinates: [
+            [36.8, -1.28],
+            [36.805, -1.285],
+          ],
+        },
+      },
+      {
+        type: "Feature",
+        properties: { id: "way-B", name: "Road B", highway: "residential" },
+        geometry: {
+          type: "LineString",
+          // C=[lat=-1.285,lon=36.805], B=[lat=-1.29,lon=36.81]
+          coordinates: [
+            [36.805, -1.285],
+            [36.81, -1.29],
+          ],
+        },
+      },
+      {
+        type: "Feature",
+        properties: { id: "way-D", name: "Road D", highway: "residential" },
+        geometry: {
+          type: "LineString",
+          // C=[lat=-1.285,lon=36.805], D=[lat=-1.28,lon=36.81]
+          coordinates: [
+            [36.805, -1.285],
+            [36.81, -1.28],
+          ],
+        },
+      },
+    ];
+
+    function writeTmpNetwork(features: object[]): string {
+      const tmpPath = path.join(
+        os.tmpdir(),
+        `turn-restriction-${Date.now()}-${Math.random()}.geojson`
+      );
+      fs.writeFileSync(tmpPath, JSON.stringify({ type: "FeatureCollection", features }));
+      return tmpPath;
+    }
+
+    it("should load one turn restriction entry from a restriction relation feature", () => {
+      const restrictionFeature = {
+        type: "Feature",
+        geometry: null,
+        properties: {
+          type: "restriction",
+          from: "way-A",
+          via: nodeC,
+          to: "way-B",
+          restriction: "no_right_turn",
+        },
+      };
+
+      const tmpPath = writeTmpNetwork([...baseFeatures, restrictionFeature]);
+      try {
+        const rn = new RoadNetwork(tmpPath);
+        const restrictions = rn.getTurnRestrictions();
+        expect(restrictions.size).toBe(1);
+        const key = `way-A|${nodeC}`;
+        expect(restrictions.has(key)).toBe(true);
+        expect(restrictions.get(key)!.has("way-B")).toBe(true);
+      } finally {
+        fs.unlinkSync(tmpPath);
+      }
+    });
+
+    it("should block route from A to B when no_right_turn restriction is active (A→C→B)", () => {
+      const restrictionFeature = {
+        type: "Feature",
+        geometry: null,
+        properties: {
+          type: "restriction",
+          from: "way-A",
+          via: nodeC,
+          to: "way-B",
+          restriction: "no_right_turn",
+        },
+      };
+
+      const tmpPath = writeTmpNetwork([...baseFeatures, restrictionFeature]);
+      try {
+        const rn = new RoadNetwork(tmpPath);
+        const start = rn.findNearestNode([-1.28, 36.8]);
+        const end = rn.findNearestNode([-1.29, 36.81]);
+
+        // With restriction, A→C→B is blocked; no other route exists → null
+        const route = rn.findRoute(start, end);
+        expect(route).toBeNull();
+      } finally {
+        fs.unlinkSync(tmpPath);
+      }
+    });
+
+    it("should still route from A to D when only A→C→B is restricted", () => {
+      const restrictionFeature = {
+        type: "Feature",
+        geometry: null,
+        properties: {
+          type: "restriction",
+          from: "way-A",
+          via: nodeC,
+          to: "way-B",
+          restriction: "no_right_turn",
+        },
+      };
+
+      const tmpPath = writeTmpNetwork([...baseFeatures, restrictionFeature]);
+      try {
+        const rn = new RoadNetwork(tmpPath);
+        const start = rn.findNearestNode([-1.28, 36.8]);
+        const end = rn.findNearestNode([-1.28, 36.81]);
+
+        // A→C→D is not restricted
+        const route = rn.findRoute(start, end);
+        expect(route).not.toBeNull();
+        expect(route!.edges.length).toBeGreaterThan(0);
+      } finally {
+        fs.unlinkSync(tmpPath);
+      }
+    });
+
+    it("should block routes that don't go straight under only_straight_on restriction", () => {
+      // only_straight_on from way-A via C: only way-B is allowed (straight), way-D is blocked
+      const restrictionFeature = {
+        type: "Feature",
+        geometry: null,
+        properties: {
+          type: "restriction",
+          from: "way-A",
+          via: nodeC,
+          to: "way-B",
+          restriction: "only_straight_on",
+        },
+      };
+
+      const tmpPath = writeTmpNetwork([...baseFeatures, restrictionFeature]);
+      try {
+        const rn = new RoadNetwork(tmpPath);
+        const start = rn.findNearestNode([-1.28, 36.8]);
+        const end = rn.findNearestNode([-1.28, 36.81]);
+
+        // A→C→D is blocked (mandatory: only B allowed when coming from A via C)
+        const route = rn.findRoute(start, end);
+        expect(route).toBeNull();
+      } finally {
+        fs.unlinkSync(tmpPath);
+      }
+    });
+
+    it("should have empty turn restrictions when no relation features are present", () => {
+      const tmpPath = writeTmpNetwork(baseFeatures);
+      try {
+        const rn = new RoadNetwork(tmpPath);
+        const restrictions = rn.getTurnRestrictions();
+        expect(restrictions.size).toBe(0);
+      } finally {
+        fs.unlinkSync(tmpPath);
+      }
+    });
+  });
+
   // Helper: find any edge with a given street name by checking known node positions
   function findEdgeByName(name: string) {
     const allEdges = getAllEdges();
@@ -1430,6 +1610,385 @@ describe("RoadNetwork", () => {
         }
       }
       // If null, the only path was blocked — valid
+    });
+  });
+
+  // ─── 5mu4.2: A* heuristic admissibility ────────────────────────────
+  describe("5mu4.2 — A* heuristic admissibility", () => {
+    it("should find a valid route on a network with maxSpeed=150 (regression guard)", () => {
+      const fs = require("fs");
+      const os = require("os");
+      const tmpPath = path.join(os.tmpdir(), `test-fast-road-${Date.now()}.geojson`);
+      const geojson = {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            properties: {
+              id: "fast-road",
+              name: "Fast Road",
+              highway: "motorway",
+              maxspeed: "150",
+            },
+            geometry: {
+              type: "LineString",
+              coordinates: [
+                [-73.5673, 45.5017],
+                [-73.567, 45.502],
+                [-73.5667, 45.5023],
+              ],
+            },
+          },
+        ],
+      };
+      fs.writeFileSync(tmpPath, JSON.stringify(geojson));
+      try {
+        const fastNetwork = new RoadNetwork(tmpPath);
+        const start = fastNetwork.findNearestNode([45.5017, -73.5673]);
+        const end = fastNetwork.findNearestNode([45.5023, -73.5667]);
+        const route = fastNetwork.findRoute(start, end);
+        // Should find a valid route (not null)
+        expect(route).not.toBeNull();
+        expect(route!.edges.length).toBeGreaterThan(0);
+      } finally {
+        fs.unlinkSync(tmpPath);
+      }
+    });
+
+    it("should use maxNetworkSpeed from actual network (not hard-coded 110)", () => {
+      const fs = require("fs");
+      const os = require("os");
+      const tmpPath = path.join(os.tmpdir(), `test-fast-heuristic-${Date.now()}.geojson`);
+      const geojson = {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            properties: {
+              id: "fast-road",
+              name: "Fast Road",
+              highway: "motorway",
+              maxspeed: "150",
+            },
+            geometry: {
+              type: "LineString",
+              coordinates: [
+                [-73.5673, 45.5017],
+                [-73.567, 45.502],
+                [-73.5667, 45.5023],
+              ],
+            },
+          },
+        ],
+      };
+      fs.writeFileSync(tmpPath, JSON.stringify(geojson));
+      try {
+        const fastNetwork = new RoadNetwork(tmpPath);
+        const start = fastNetwork.findNearestNode([45.5017, -73.5673]);
+        const end = fastNetwork.findNearestNode([45.5023, -73.5667]);
+        const route = fastNetwork.findRoute(start, end);
+        expect(route).not.toBeNull();
+
+        // Heuristic using actual maxNetworkSpeed (150) should be ≤ actual travel time
+        const straightLine = utils.calculateDistance(start.coordinates, end.coordinates);
+        const heuristicWith150 = straightLine / 150;
+
+        let actualTravelTime = 0;
+        for (const edge of route!.edges) {
+          actualTravelTime += edge.distance / edge.maxSpeed;
+        }
+        // Admissible: heuristic must not overestimate
+        expect(heuristicWith150).toBeLessThanOrEqual(actualTravelTime + 1e-10);
+      } finally {
+        fs.unlinkSync(tmpPath);
+      }
+    });
+  });
+
+  // ─── 5mu4.3: Access filtering ───────────────────────────────────────
+  describe("5mu4.3 — Access filtering (private/no roads)", () => {
+    function makeAccessNetwork(accessProps: Record<string, string>) {
+      const fs = require("fs");
+      const os = require("os");
+      const tmpPath = path.join(os.tmpdir(), `test-access-${Date.now()}.geojson`);
+      const geojson = {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            properties: {
+              id: "restricted-road",
+              name: "Restricted Road",
+              highway: "residential",
+              ...accessProps,
+            },
+            geometry: {
+              type: "LineString",
+              coordinates: [
+                [-73.5673, 45.5017],
+                [-73.567, 45.502],
+              ],
+            },
+          },
+        ],
+      };
+      fs.writeFileSync(tmpPath, JSON.stringify(geojson));
+      return { tmpPath, fs };
+    }
+
+    it("should NOT create edges for a road with access=private", () => {
+      const { tmpPath, fs } = makeAccessNetwork({ access: "private" });
+      try {
+        const restrictedNetwork = new RoadNetwork(tmpPath);
+        // @ts-expect-error - Testing private property
+        expect(restrictedNetwork.edges.size).toBe(0);
+      } finally {
+        fs.unlinkSync(tmpPath);
+      }
+    });
+
+    it("should NOT create edges for a road with access=no", () => {
+      const { tmpPath, fs } = makeAccessNetwork({ access: "no" });
+      try {
+        const restrictedNetwork = new RoadNetwork(tmpPath);
+        // @ts-expect-error - Testing private property
+        expect(restrictedNetwork.edges.size).toBe(0);
+      } finally {
+        fs.unlinkSync(tmpPath);
+      }
+    });
+
+    it("should NOT create edges for a road with motor_vehicle=private", () => {
+      const { tmpPath, fs } = makeAccessNetwork({ motor_vehicle: "private" });
+      try {
+        const restrictedNetwork = new RoadNetwork(tmpPath);
+        // @ts-expect-error - Testing private property
+        expect(restrictedNetwork.edges.size).toBe(0);
+      } finally {
+        fs.unlinkSync(tmpPath);
+      }
+    });
+
+    it("should NOT create edges for a road with motor_vehicle=no", () => {
+      const { tmpPath, fs } = makeAccessNetwork({ motor_vehicle: "no" });
+      try {
+        const restrictedNetwork = new RoadNetwork(tmpPath);
+        // @ts-expect-error - Testing private property
+        expect(restrictedNetwork.edges.size).toBe(0);
+      } finally {
+        fs.unlinkSync(tmpPath);
+      }
+    });
+
+    it("should create edges normally for a road with no access tag", () => {
+      const { tmpPath, fs } = makeAccessNetwork({});
+      try {
+        const openNetwork = new RoadNetwork(tmpPath);
+        // Bidirectional: 1 segment → 2 edges (forward + reverse)
+        // @ts-expect-error - Testing private property
+        expect(openNetwork.edges.size).toBe(2);
+      } finally {
+        fs.unlinkSync(tmpPath);
+      }
+    });
+
+    it("should return null from findRoute when only route uses a private road", () => {
+      const fs = require("fs");
+      const os = require("os");
+      const tmpPath = path.join(os.tmpdir(), `test-private-route-${Date.now()}.geojson`);
+      // Two public nodes connected only via a private road — findRoute must return null
+      const geojson = {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            properties: {
+              id: "public-a",
+              name: "Public Road A",
+              highway: "residential",
+            },
+            geometry: {
+              type: "LineString",
+              coordinates: [
+                [-73.568, 45.501],
+                [-73.5673, 45.5017],
+              ],
+            },
+          },
+          {
+            type: "Feature",
+            properties: {
+              id: "private-bridge",
+              name: "Private Bridge",
+              highway: "residential",
+              access: "private",
+            },
+            geometry: {
+              type: "LineString",
+              coordinates: [
+                [-73.5673, 45.5017],
+                [-73.5667, 45.5023],
+              ],
+            },
+          },
+          {
+            type: "Feature",
+            properties: {
+              id: "public-b",
+              name: "Public Road B",
+              highway: "residential",
+            },
+            geometry: {
+              type: "LineString",
+              coordinates: [
+                [-73.5667, 45.5023],
+                [-73.5661, 45.5029],
+              ],
+            },
+          },
+        ],
+      };
+      fs.writeFileSync(tmpPath, JSON.stringify(geojson));
+      try {
+        const partialNetwork = new RoadNetwork(tmpPath);
+        const start = partialNetwork.findNearestNode([45.501, -73.568]);
+        const end = partialNetwork.findNearestNode([45.5029, -73.5661]);
+        // Private bridge is the only connection between public segments
+        // Start is connected to node [45.5017,-73.5673], end to [45.5023,-73.5667]
+        // but the private bridge between those two nodes was excluded
+        const route = partialNetwork.findRoute(start, end);
+        expect(route).toBeNull();
+      } finally {
+        fs.unlinkSync(tmpPath);
+      }
+    });
+  });
+
+  // ─── 5mu4.4: Roundabout one-way enforcement ─────────────────────────
+  describe("5mu4.4 — Roundabout one-way enforcement", () => {
+    function makeRoundaboutNetwork() {
+      const fs = require("fs");
+      const os = require("os");
+      const tmpPath = path.join(os.tmpdir(), `test-roundabout-${Date.now()}.geojson`);
+      const geojson = {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            properties: {
+              id: "roundabout-1",
+              name: "Roundabout Road",
+              highway: "primary",
+              maxspeed: "60",
+              junction: "roundabout",
+            },
+            geometry: {
+              type: "LineString",
+              coordinates: [
+                [-73.5673, 45.5017],
+                [-73.567, 45.502],
+                [-73.5667, 45.5023],
+              ],
+            },
+          },
+          {
+            type: "Feature",
+            properties: {
+              id: "normal-road",
+              name: "Normal Road",
+              highway: "secondary",
+              maxspeed: "50",
+            },
+            geometry: {
+              type: "LineString",
+              coordinates: [
+                [-73.5673, 45.5017],
+                [-73.5676, 45.502],
+              ],
+            },
+          },
+        ],
+      };
+      fs.writeFileSync(tmpPath, JSON.stringify(geojson));
+      return { tmpPath, fs };
+    }
+
+    it("should create only forward edges for a roundabout (no reverse edges)", () => {
+      const { tmpPath, fs } = makeRoundaboutNetwork();
+      try {
+        const roundaboutNetwork = new RoadNetwork(tmpPath);
+        // @ts-expect-error - Testing private property
+        const allEdges: Edge[] = Array.from(roundaboutNetwork.edges.values());
+        const roundaboutEdges = allEdges.filter((e) => e.name === "Roundabout Road");
+
+        // 2 segments → 2 forward edges only (no reverse)
+        expect(roundaboutEdges.length).toBe(2);
+
+        // Verify no reverse edge exists for any roundabout edge
+        for (const fwd of roundaboutEdges) {
+          const reverseId = `${fwd.end.id}-${fwd.start.id}`;
+          const reverse = allEdges.find((e) => e.id === reverseId && e.name === "Roundabout Road");
+          expect(reverse).toBeUndefined();
+        }
+      } finally {
+        fs.unlinkSync(tmpPath);
+      }
+    });
+
+    it("should reduce maxSpeed by 50% for roundabout edges", () => {
+      const { tmpPath, fs } = makeRoundaboutNetwork();
+      try {
+        const roundaboutNetwork = new RoadNetwork(tmpPath);
+        // @ts-expect-error - Testing private property
+        const allEdges: Edge[] = Array.from(roundaboutNetwork.edges.values());
+        const roundaboutEdges = allEdges.filter((e) => e.name === "Roundabout Road");
+
+        // Base maxspeed is 60, roundabout factor 0.5 → expected 30
+        for (const edge of roundaboutEdges) {
+          expect(edge.maxSpeed).toBe(30);
+        }
+      } finally {
+        fs.unlinkSync(tmpPath);
+      }
+    });
+
+    it("should still create bidirectional edges for normal (non-roundabout) road", () => {
+      const { tmpPath, fs } = makeRoundaboutNetwork();
+      try {
+        const roundaboutNetwork = new RoadNetwork(tmpPath);
+        // @ts-expect-error - Testing private property
+        const allEdges: Edge[] = Array.from(roundaboutNetwork.edges.values());
+        const normalEdges = allEdges.filter((e) => e.name === "Normal Road");
+
+        // 1 segment → 2 edges (forward + reverse)
+        expect(normalEdges.length).toBe(2);
+
+        // Verify reverse edge exists
+        const fwd = normalEdges.find((e) => e.oneway === false);
+        expect(fwd).toBeDefined();
+        const reverseId = `${fwd!.end.id}-${fwd!.start.id}`;
+        const reverse = allEdges.find((e) => e.id === reverseId);
+        expect(reverse).toBeDefined();
+      } finally {
+        fs.unlinkSync(tmpPath);
+      }
+    });
+
+    it("should mark roundabout edges as oneway=true", () => {
+      const { tmpPath, fs } = makeRoundaboutNetwork();
+      try {
+        const roundaboutNetwork = new RoadNetwork(tmpPath);
+        // @ts-expect-error - Testing private property
+        const allEdges: Edge[] = Array.from(roundaboutNetwork.edges.values());
+        const roundaboutEdges = allEdges.filter((e) => e.name === "Roundabout Road");
+
+        expect(roundaboutEdges.length).toBeGreaterThan(0);
+        for (const edge of roundaboutEdges) {
+          expect(edge.oneway).toBe(true);
+        }
+      } finally {
+        fs.unlinkSync(tmpPath);
+      }
     });
   });
 });

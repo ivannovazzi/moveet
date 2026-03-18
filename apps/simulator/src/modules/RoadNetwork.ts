@@ -77,6 +77,15 @@ export class RoadNetwork extends EventEmitter {
   // Incident-based edge cost penalties: edge ID → speedFactor (lowest wins; 0 = blocked)
   private incidentEdges: Map<string, number> = new Map();
 
+  // Maximum speed across all edges — used for admissible A* heuristic
+  private maxNetworkSpeed = 110; // updated after buildNetwork
+
+  // Turn restriction table: "fromStreetId|viaNodeId" → Set of forbidden toStreetIds ("no_*")
+  // or: "fromStreetId|viaNodeId" → Set of ALLOWED toStreetIds only ("only_*")
+  // Type flag stored alongside: "fromStreetId|viaNodeId|type" → "prohibitory" | "mandatory"
+  private turnRestrictions: Map<string, Set<string>> = new Map();
+  private turnRestrictionTypes: Map<string, "prohibitory" | "mandatory"> = new Map();
+
   // A* route cache — avoids recomputing identical start→end routes
   private routeCache: LRUCache<Route>;
 
@@ -108,6 +117,13 @@ export class RoadNetwork extends EventEmitter {
     this.computeBbox();
     this.buildSpatialIndex();
     this.buildSectorIndex();
+
+    // Compute admissible heuristic bound from actual network max speed
+    let maxSpeed = 0;
+    for (const edge of this.edges.values()) {
+      if (edge.maxSpeed > maxSpeed) maxSpeed = edge.maxSpeed;
+    }
+    this.maxNetworkSpeed = maxSpeed > 0 ? maxSpeed : 110;
   }
 
   private computeBbox(): void {
@@ -217,7 +233,7 @@ export class RoadNetwork extends EventEmitter {
     const poi: Array<POI> = [];
 
     for (const feature of this.data.features) {
-      if (feature.geometry.type === "Point") {
+      if (feature.geometry?.type === "Point") {
         const type = this.getPoiType(feature);
         if (type === null) {
           continue;
@@ -244,7 +260,7 @@ export class RoadNetwork extends EventEmitter {
 
   private buildNetwork(data: FeatureCollection): void {
     data.features.forEach((feature) => {
-      if (feature.geometry.type === "LineString") {
+      if (feature.geometry?.type === "LineString") {
         const streetId =
           feature.properties?.id || feature.properties?.["@id"] || crypto.randomUUID();
         // Stamp the resolved streetId back onto the feature for the /network API
@@ -276,6 +292,18 @@ export class RoadNetwork extends EventEmitter {
         // Apply speed reduction for roundabout segments
         const effectiveMaxSpeed = isRoundabout ? maxSpeed * 0.5 : maxSpeed;
 
+        // Skip access-restricted roads (private estates, gated communities)
+        const accessTag = feature.properties?.access;
+        const motorVehicleTag = feature.properties?.motor_vehicle;
+        if (
+          accessTag === "private" ||
+          accessTag === "no" ||
+          motorVehicleTag === "private" ||
+          motorVehicleTag === "no"
+        ) {
+          return; // skip this feature entirely
+        }
+
         // Initialize or get existing road
         if (!this.roads.has(streetName)) {
           this.roads.set(streetName, {
@@ -287,6 +315,7 @@ export class RoadNetwork extends EventEmitter {
         const road = this.roads.get(streetName)!;
 
         road.streets.push(coords as Street);
+
         // Build edges
         for (let i = 0; i < coords.length - 1; i++) {
           const [lon1, lat1] = coords[i];
@@ -340,6 +369,41 @@ export class RoadNetwork extends EventEmitter {
           }
         }
       }
+    });
+
+    // Second pass: parse OSM turn restriction relations
+    data.features.forEach((feature) => {
+      const props = feature.properties ?? {};
+      // Match relation features: osmium exports them as type=restriction features
+      if (props["type"] !== "restriction" && props["@type"] !== "restriction") return;
+
+      const fromWayId = String(props["from"] ?? props["from:way"] ?? "");
+      // Snap the via node ID to match the snapped coordinate format used in the graph
+      const rawVia = String(props["via"] ?? props["via:node"] ?? "");
+      const viaParts = rawVia.split(",");
+      const viaNodeId =
+        viaParts.length === 2 && !isNaN(Number(viaParts[0])) && !isNaN(Number(viaParts[1]))
+          ? this.makeNodeKey(Number(viaParts[0]), Number(viaParts[1]))
+          : rawVia;
+      const toWayId = String(props["to"] ?? props["to:way"] ?? "");
+      const restrictionValue = String(
+        props["restriction"] ?? props["restriction:motor_vehicle"] ?? ""
+      );
+
+      if (!fromWayId || !viaNodeId || !toWayId || !restrictionValue) return;
+
+      const isProhibitory = restrictionValue.startsWith("no_");
+      const isMandatory = restrictionValue.startsWith("only_");
+      if (!isProhibitory && !isMandatory) return;
+
+      const key = `${fromWayId}|${viaNodeId}`;
+      const typeKey = `${key}|type`;
+
+      if (!this.turnRestrictions.has(key)) {
+        this.turnRestrictions.set(key, new Set());
+        this.turnRestrictionTypes.set(typeKey, isProhibitory ? "prohibitory" : "mandatory");
+      }
+      this.turnRestrictions.get(key)!.add(toWayId);
     });
   }
 
@@ -556,6 +620,20 @@ export class RoadNetwork extends EventEmitter {
       for (const edge of currentNode.connections) {
         if (closedSet.has(edge.end.id)) continue;
 
+        // Check turn restrictions: if we arrived at current via a known edge,
+        // verify the turn onto `edge` is permitted
+        const arrivalEdge = cameFrom.get(current.id)?.edge;
+        if (arrivalEdge && this.turnRestrictions.size > 0) {
+          const key = `${arrivalEdge.streetId}|${current.id}`;
+          const restricted = this.turnRestrictions.get(key);
+          if (restricted) {
+            const typeKey = `${key}|type`;
+            const rtype = this.turnRestrictionTypes.get(typeKey);
+            if (rtype === "prohibitory" && restricted.has(edge.streetId)) continue;
+            if (rtype === "mandatory" && !restricted.has(edge.streetId)) continue;
+          }
+        }
+
         // Apply incident-based edge cost penalties
         const incidentFactor = this.incidentEdges.get(edge.id);
         if (incidentFactor !== undefined && incidentFactor === 0) continue; // closure — skip edge
@@ -580,6 +658,11 @@ export class RoadNetwork extends EventEmitter {
       }
     }
     return null;
+  }
+
+  /** Expose turn restrictions for testing. Returns a shallow copy of the map. */
+  public getTurnRestrictions(): Map<string, Set<string>> {
+    return new Map(this.turnRestrictions);
   }
 
   /** Clear all cached routes. Useful for testing or when the network topology changes. */
@@ -628,11 +711,22 @@ export class RoadNetwork extends EventEmitter {
       this.pathfindingPool = new PathfindingPool(this.geojsonPath);
     }
 
+    const restrictions =
+      this.turnRestrictions.size > 0
+        ? Object.fromEntries([...this.turnRestrictions.entries()].map(([k, v]) => [k, [...v]]))
+        : undefined;
+    const restrictionTypes =
+      this.turnRestrictions.size > 0
+        ? Object.fromEntries(this.turnRestrictionTypes.entries())
+        : undefined;
+
     const result = await this.pathfindingPool.findRoute(
       start.id,
       end.id,
       this.incidentEdges.size > 0 ? this.incidentEdges : undefined,
-      restrictedHighways
+      restrictedHighways,
+      restrictions,
+      restrictionTypes
     );
     if (!result) return null;
 
@@ -681,8 +775,8 @@ export class RoadNetwork extends EventEmitter {
   }
 
   private calculateHeuristic(from: Node, to: Node): number {
-    // Optimistic estimate: straight-line distance at max possible speed (110 km/h)
-    return utils.calculateDistance(from.coordinates, to.coordinates) / 110;
+    // Optimistic estimate: straight-line distance at max possible speed in this network
+    return utils.calculateDistance(from.coordinates, to.coordinates) / this.maxNetworkSpeed;
   }
 
   public searchByName(query: string): Array<{
@@ -737,7 +831,7 @@ export class RoadNetwork extends EventEmitter {
     return {
       ...this.data,
       // remove the points of interest
-      features: this.data.features.filter((feature) => feature.geometry.type === "LineString"),
+      features: this.data.features.filter((feature) => feature.geometry?.type === "LineString"),
     };
   }
 }
