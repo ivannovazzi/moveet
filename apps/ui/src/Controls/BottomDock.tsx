@@ -156,7 +156,6 @@ function ReplayDock({
 interface BottomDockProps {
   status: SimulationStatus;
   connected: boolean;
-  vehicleCount: number;
   replayStatus: ReplayStatus;
   onPauseReplay: () => Promise<void>;
   onResumeReplay: () => Promise<void>;
@@ -171,7 +170,6 @@ interface BottomDockProps {
 export default function BottomDock({
   status,
   connected,
-  vehicleCount,
   replayStatus,
   onPauseReplay,
   onResumeReplay,
@@ -271,10 +269,6 @@ export default function BottomDock({
         ))}
       </div>
 
-      <span className={styles.vehicleCount}>
-        <span className={styles.vehicleCountValue}>{vehicleCount}</span>
-        <span className={styles.vehicleCountLabel}>fleet</span>
-      </span>
     </div>
   );
 }

@@ -393,7 +393,6 @@ export default function App() {
             <BottomDock
               status={status}
               connected={connected}
-              vehicleCount={vehicles.length}
               replayStatus={replay.replayStatus}
               onPauseReplay={replay.pauseReplay}
               onResumeReplay={replay.resumeReplay}
