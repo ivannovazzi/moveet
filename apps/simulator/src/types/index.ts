@@ -26,6 +26,7 @@ export type {
   AnalyticsSummary,
   FleetAnalytics,
   AnalyticsSnapshot,
+  SubscribeFilter,
 } from "@moveet/shared-types";
 
 // Re-export ExportVehicle under its old name for backwards compatibility
