@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { EventEmitter } from "events";
 import { wireEvents } from "../../setup/eventWiring";
 import type { EventWiringContext } from "../../setup/eventWiring";
+import { GeoFenceManager } from "../../modules/GeoFenceManager";
 
 function createMockEmitter() {
   return new EventEmitter();
@@ -30,7 +31,8 @@ describe("wireEvents", () => {
   let simulationController: EventEmitter;
   let broadcaster: ReturnType<typeof createMockBroadcaster>;
   let recordingManager: ReturnType<typeof createMockRecordingManager>;
-  let result: { trafficBroadcastInterval: NodeJS.Timeout };
+  let geoFenceManager: GeoFenceManager;
+  let result: { trafficBroadcastInterval: NodeJS.Timeout; analyticsBroadcastInterval: NodeJS.Timeout };
 
   beforeEach(() => {
     network = createMockEmitter();
@@ -40,6 +42,7 @@ describe("wireEvents", () => {
     simulationController = createMockEmitter();
     broadcaster = createMockBroadcaster();
     recordingManager = createMockRecordingManager();
+    geoFenceManager = new GeoFenceManager();
 
     const ctx: EventWiringContext = {
       network: network as unknown as EventWiringContext["network"],
@@ -52,6 +55,7 @@ describe("wireEvents", () => {
       simulationController:
         simulationController as unknown as EventWiringContext["simulationController"],
       broadcaster,
+      geoFenceManager,
     };
 
     result = wireEvents(ctx);
@@ -59,6 +63,7 @@ describe("wireEvents", () => {
 
   afterEach(() => {
     clearInterval(result.trafficBroadcastInterval);
+    clearInterval(result.analyticsBroadcastInterval);
   });
 
   it("should return a traffic broadcast interval", () => {

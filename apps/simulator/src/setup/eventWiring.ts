@@ -5,6 +5,8 @@ import type { IncidentManager } from "../modules/IncidentManager";
 import type { RecordingManager } from "../modules/RecordingManager";
 import type { SimulationController } from "../modules/SimulationController";
 import type { WebSocketBroadcaster } from "../modules/WebSocketBroadcaster";
+import type { GeoFenceManager } from "../modules/GeoFenceManager";
+import type { VehicleDTO } from "../types";
 
 export interface EventWiringContext {
   network: RoadNetwork;
@@ -14,6 +16,7 @@ export interface EventWiringContext {
   recordingManager: RecordingManager;
   simulationController: SimulationController;
   broadcaster: WebSocketBroadcaster;
+  geoFenceManager: GeoFenceManager;
 }
 
 /** Default analytics broadcast interval in ms (5 seconds). */
@@ -36,12 +39,22 @@ export function wireEvents(ctx: EventWiringContext): {
     recordingManager,
     simulationController,
     broadcaster,
+    geoFenceManager,
   } = ctx;
 
   // ─── Vehicle updates (batched by the broadcaster) ───────────────────
+  // Accumulate per-tick vehicle updates and run geofence checks once per flush
+  const vehicleBatch: Map<string, VehicleDTO> = new Map();
+
   vehicleManager.on("update", (data) => {
     broadcaster.queueVehicleUpdate(data);
     recordingManager.captureVehicleSnapshot([data]);
+    vehicleBatch.set(data.id, data);
+  });
+
+  // ─── Geofence event → WS broadcaster ───────────────────────────────
+  geoFenceManager.on("geofence-event", (event) => {
+    broadcaster.broadcast("geofence-event", event);
   });
 
   // ─── Non-vehicle events (broadcast immediately) ─────────────────────
@@ -62,10 +75,16 @@ export function wireEvents(ctx: EventWiringContext): {
   incidentManager.on("incident:cleared", (data) => broadcaster.broadcast("incident:cleared", data));
   vehicleManager.on("vehicle:rerouted", (data) => broadcaster.broadcast("vehicle:rerouted", data));
 
-  // ─── Traffic congestion snapshot every 2 seconds ────────────────────
+  // ─── Traffic congestion snapshot + geofence checks every 2 seconds ──
   const trafficBroadcastInterval = setInterval(() => {
     const traffic = vehicleManager.getTrafficSnapshot();
     broadcaster.broadcast("traffic", traffic);
+
+    // Run geofence checks against the vehicles accumulated since last tick
+    if (vehicleBatch.size > 0) {
+      geoFenceManager.checkVehicles(Array.from(vehicleBatch.values()));
+      vehicleBatch.clear();
+    }
   }, 2000);
 
   // ─── Recording events ──────────────────────────────────────────────

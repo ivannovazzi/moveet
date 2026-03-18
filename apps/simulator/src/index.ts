@@ -10,6 +10,7 @@ import { FleetManager } from "./modules/FleetManager";
 import { IncidentManager } from "./modules/IncidentManager";
 import { RecordingManager } from "./modules/RecordingManager";
 import { SimulationController } from "./modules/SimulationController";
+import { GeoFenceManager } from "./modules/GeoFenceManager";
 import { config, verifyConfig, logConfig } from "./utils/config";
 import { generalRateLimiter } from "./middleware/rateLimiter";
 import { correlationIdMiddleware } from "./middleware/correlationId";
@@ -24,6 +25,7 @@ import {
   createFleetRoutes,
   createAnalyticsRoutes,
 } from "./routes";
+import { createGeofenceRoutes } from "./routes/geofences";
 import type { RouteContext } from "./routes";
 import { setupWebSocket, wireEvents, registerGracefulShutdown } from "./setup";
 
@@ -51,6 +53,7 @@ const incidentManager = new IncidentManager();
 const vehicleManager = new VehicleManager(network, fleetManager);
 const simulationController = new SimulationController(vehicleManager, incidentManager);
 const recordingManager = new RecordingManager();
+const geoFenceManager = new GeoFenceManager();
 
 // ─── Route context shared by all route modules ──────────────────────
 
@@ -86,6 +89,7 @@ app.use(createRecordingRoutes(ctx));
 app.use(createReplayRoutes(ctx));
 app.use(createFleetRoutes(ctx));
 app.use(createAnalyticsRoutes(ctx));
+app.use(createGeofenceRoutes(geoFenceManager));
 
 // ─── API documentation ──────────────────────────────────────────────
 
@@ -118,6 +122,7 @@ async function main() {
   const { trafficBroadcastInterval, analyticsBroadcastInterval } = wireEvents({
     ...ctx,
     broadcaster,
+    geoFenceManager,
   });
 
   registerGracefulShutdown({
