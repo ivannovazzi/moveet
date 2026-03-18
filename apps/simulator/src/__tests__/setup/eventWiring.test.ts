@@ -32,7 +32,10 @@ describe("wireEvents", () => {
   let broadcaster: ReturnType<typeof createMockBroadcaster>;
   let recordingManager: ReturnType<typeof createMockRecordingManager>;
   let geoFenceManager: GeoFenceManager;
-  let result: { trafficBroadcastInterval: NodeJS.Timeout; analyticsBroadcastInterval: NodeJS.Timeout };
+  let result: {
+    trafficBroadcastInterval: NodeJS.Timeout;
+    analyticsBroadcastInterval: NodeJS.Timeout;
+  };
 
   beforeEach(() => {
     network = createMockEmitter();

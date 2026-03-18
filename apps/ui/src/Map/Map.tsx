@@ -101,9 +101,7 @@ export default function Map({
       >
         {/* <Selection /> */}
         {/* Geofence zones — rendered between roads and vehicles */}
-        {fences.length > 0 && (
-          <GeofenceLayer fences={fences} selectedFenceId={selectedFenceId} />
-        )}
+        {fences.length > 0 && <GeofenceLayer fences={fences} selectedFenceId={selectedFenceId} />}
         <Direction selected={filters.selected} hovered={filters.hovered} />
         {modifiers.showBreadcrumbs && (
           <Suspense fallback={null}>

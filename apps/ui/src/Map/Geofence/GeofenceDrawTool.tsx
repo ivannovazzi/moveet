@@ -8,11 +8,7 @@ interface GeofenceDrawToolProps {
   onCancel: () => void;
 }
 
-export default function GeofenceDrawTool({
-  active,
-  onComplete,
-  onCancel,
-}: GeofenceDrawToolProps) {
+export default function GeofenceDrawTool({ active, onComplete, onCancel }: GeofenceDrawToolProps) {
   const { map: svgRef, projection, transform } = useMapContext();
 
   // Vertices in SVG display space
@@ -43,10 +39,7 @@ export default function GeofenceDrawTool({
     // Draw polygon preview (filled) if >= 3 points
     if (verts.length >= 3) {
       const polygon = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
-      polygon.setAttribute(
-        "points",
-        verts.map(([x, y]) => `${x},${y}`).join(" ")
-      );
+      polygon.setAttribute("points", verts.map(([x, y]) => `${x},${y}`).join(" "));
       polygon.setAttribute("fill", "rgba(59,130,246,0.15)");
       polygon.setAttribute("stroke", "rgb(59,130,246)");
       polygon.setAttribute("stroke-width", "1");

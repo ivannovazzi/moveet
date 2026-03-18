@@ -35,9 +35,7 @@ function getStroke(fence: GeoFence): string {
 
 function polygonToPath(points: [number, number][]): string {
   if (points.length === 0) return "";
-  return (
-    points.map(([x, y], i) => `${i === 0 ? "M" : "L"} ${x} ${y}`).join(" ") + " Z"
-  );
+  return points.map(([x, y], i) => `${i === 0 ? "M" : "L"} ${x} ${y}`).join(" ") + " Z";
 }
 
 function centroid(points: [number, number][]): [number, number] {

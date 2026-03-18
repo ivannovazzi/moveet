@@ -27,7 +27,11 @@ function typeBadgeColor(type: GeoFence["type"]): string {
 function formatTimestamp(iso: string): string {
   try {
     const d = new Date(iso);
-    return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    return d.toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
   } catch {
     return iso;
   }
@@ -104,7 +108,10 @@ export default function GeofencePanel({
                       backgroundColor: fence.color ?? typeBadgeColor(fence.type),
                     }}
                   />
-                  <span className={styles.typeBadge} style={{ color: fence.color ?? typeBadgeColor(fence.type) }}>
+                  <span
+                    className={styles.typeBadge}
+                    style={{ color: fence.color ?? typeBadgeColor(fence.type) }}
+                  >
                     {fence.type}
                   </span>
                   <span className={styles.fenceName}>{fence.name}</span>
@@ -112,7 +119,9 @@ export default function GeofencePanel({
                     <Switch
                       isSelected={fence.active}
                       onChange={() => onFenceToggle(fence.id)}
-                      aria-label={fence.active ? `Deactivate ${fence.name}` : `Activate ${fence.name}`}
+                      aria-label={
+                        fence.active ? `Deactivate ${fence.name}` : `Activate ${fence.name}`
+                      }
                     />
                     <SquaredButton
                       icon={<span aria-hidden="true">×</span>}
@@ -133,15 +142,17 @@ export default function GeofencePanel({
       {tab === "alerts" && (
         <PanelBody className={styles.body}>
           {alerts.length === 0 ? (
-            <PanelEmptyState>No events yet. Events appear when vehicles cross zone boundaries.</PanelEmptyState>
+            <PanelEmptyState>
+              No events yet. Events appear when vehicles cross zone boundaries.
+            </PanelEmptyState>
           ) : (
             <div className={styles.list}>
               {alerts.map((alert, i) => (
-                <div key={`${alert.fenceId}-${alert.vehicleId}-${alert.timestamp}-${i}`} className={styles.alertRow}>
-                  <span
-                    className={styles.eventBadge}
-                    data-event={alert.event}
-                  >
+                <div
+                  key={`${alert.fenceId}-${alert.vehicleId}-${alert.timestamp}-${i}`}
+                  className={styles.alertRow}
+                >
+                  <span className={styles.eventBadge} data-event={alert.event}>
                     {alert.event}
                   </span>
                   <div className={styles.alertInfo}>

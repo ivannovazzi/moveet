@@ -17,8 +17,7 @@ function pointInPolygon(point: [number, number], polygon: [number, number][]): b
     const [xi, yi] = polygon[i];
     const [xj, yj] = polygon[j];
 
-    const intersects =
-      yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi;
+    const intersects = yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi;
 
     if (intersects) {
       inside = !inside;

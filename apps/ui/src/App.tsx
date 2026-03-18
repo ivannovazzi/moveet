@@ -247,16 +247,13 @@ export default function App() {
     fetchFences();
   }, [fetchFences]);
 
-  const onFenceToggle = useCallback(
-    (id: string) => {
-      client.toggleGeofence(id).then((response) => {
-        if (response.data) {
-          setFences((prev) => prev.map((f) => (f.id === id ? response.data! : f)));
-        }
-      });
-    },
-    []
-  );
+  const onFenceToggle = useCallback((id: string) => {
+    client.toggleGeofence(id).then((response) => {
+      if (response.data) {
+        setFences((prev) => prev.map((f) => (f.id === id ? response.data! : f)));
+      }
+    });
+  }, []);
 
   const onFenceDelete = useCallback((id: string) => {
     client.deleteGeofence(id).then(() => {
@@ -274,17 +271,14 @@ export default function App() {
     setPendingPolygon(null);
   }, []);
 
-  const onCreateZone = useCallback(
-    (req: CreateGeoFenceRequest) => {
-      client.createGeofence(req).then((response) => {
-        if (response.data) {
-          setFences((prev) => [...prev, response.data!]);
-        }
-        setPendingPolygon(null);
-      });
-    },
-    []
-  );
+  const onCreateZone = useCallback((req: CreateGeoFenceRequest) => {
+    client.createGeofence(req).then((response) => {
+      if (response.data) {
+        setFences((prev) => [...prev, response.data!]);
+      }
+      setPendingPolygon(null);
+    });
+  }, []);
 
   useEffect(() => {
     client.onConnect(() => {

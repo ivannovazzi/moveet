@@ -34,7 +34,12 @@ export default function CreateZoneDialog({ polygon, onSubmit, onClose }: CreateZ
   };
 
   return (
-    <div className={styles.overlay} role="dialog" aria-modal="true" aria-label="Create geofence zone">
+    <div
+      className={styles.overlay}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Create geofence zone"
+    >
       <div className={styles.dialog}>
         <div className={styles.header}>
           <h2 className={styles.title}>Create Zone</h2>
@@ -88,11 +93,7 @@ export default function CreateZoneDialog({ polygon, onSubmit, onClose }: CreateZ
                 onChange={(e) => setColor(e.target.value)}
               />
               {color && (
-                <button
-                  type="button"
-                  className={styles.clearColor}
-                  onClick={() => setColor("")}
-                >
+                <button type="button" className={styles.clearColor} onClick={() => setColor("")}>
                   Use default
                 </button>
               )}
