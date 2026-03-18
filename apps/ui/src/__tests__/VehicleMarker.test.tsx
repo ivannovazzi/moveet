@@ -184,7 +184,7 @@ describe("VehicleMarker memo", () => {
     );
 
     const polygon = container.querySelector("polygon") as SVGPolygonElement;
-    expect(polygon.style.fill).toBe("#ff0000");
+    expect(polygon.style.fill).toBe("rgb(255, 0, 0)");
   });
 
   it("re-renders when onClick reference changes", () => {

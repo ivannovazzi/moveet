@@ -32,7 +32,7 @@ export default class Adapter {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error(`Error from adapter: ${errorMessage}`);
-      throw new Error(`Adapter request to ${path} failed: ${errorMessage}`);
+      throw new Error(`Adapter request to ${path} failed: ${errorMessage}`, { cause: error });
     }
   }
 

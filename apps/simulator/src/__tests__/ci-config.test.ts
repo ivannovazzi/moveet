@@ -60,11 +60,11 @@ describe("CI workflow configuration", () => {
     expect(unique).toHaveLength(1);
   });
 
-  it("all jobs use actions/checkout@v4", () => {
+  it("all jobs use actions/checkout@v6", () => {
     const checkoutMatches = ciContent.match(/uses:\s*actions\/checkout@v\d+/g);
     expect(checkoutMatches).not.toBeNull();
     for (const match of checkoutMatches!) {
-      expect(match).toContain("actions/checkout@v4");
+      expect(match).toContain("actions/checkout@v6");
     }
   });
 });

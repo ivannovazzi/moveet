@@ -77,7 +77,7 @@ export class PathfindingPool {
         }
       });
 
-      worker.on("error", (err) => {
+      worker.on("error", (err: Error) => {
         logger.error(`Pathfinding worker ${i} error: ${err.message}`);
         this.rejectPendingForWorker(i, `Pathfinding worker ${i} crashed: ${err.message}`);
       });
