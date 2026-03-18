@@ -94,6 +94,7 @@ export interface Node {
   id: string;
   coordinates: Position;
   connections: Edge[];
+  trafficSignal?: boolean; // true when OSM highway=traffic_signals node
 }
 
 export interface Edge {
@@ -108,6 +109,9 @@ export interface Edge {
   maxSpeed: number;
   surface: string;
   oneway: boolean;
+  lanes?: number; // OSM lanes count (default 1)
+  capacity?: number; // lanes × 1800 veh/hour (HCM standard)
+  smoothnessFactor?: number; // 0.3–1.0 speed multiplier from OSM smoothness tag
 }
 
 export interface Route {

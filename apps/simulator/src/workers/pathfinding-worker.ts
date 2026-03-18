@@ -26,6 +26,9 @@ interface WorkerEdge {
   maxSpeed: number;
   surface: string;
   highway: string;
+  lanes: number;
+  capacity: number;
+  smoothnessFactor: number;
 }
 
 interface WorkerNode {
@@ -33,6 +36,7 @@ interface WorkerNode {
   lat: number;
   lon: number;
   edges: WorkerEdge[];
+  trafficSignal?: boolean;
 }
 
 interface PathNode {
@@ -109,6 +113,22 @@ function parseMaxSpeed(raw: string | undefined, highway: HighwayType): number {
   return isNaN(parsed) ? DEFAULT_SPEEDS[highway] : parsed;
 }
 
+const SMOOTHNESS_FACTORS: Record<string, number> = {
+  excellent: 1.0,
+  good: 0.9,
+  intermediate: 0.75,
+  bad: 0.6,
+  very_bad: 0.45,
+  horrible: 0.3,
+  very_horrible: 0.2,
+  impassable: 0.0,
+};
+
+function parseSmoothness(raw: string | undefined): number {
+  if (!raw) return 1.0;
+  return SMOOTHNESS_FACTORS[raw] ?? 1.0;
+}
+
 function calculateDistance(p1: [number, number], p2: [number, number]): number {
   const R = 6371;
   const [lat1, lon1] = p1.map((x) => (x * Math.PI) / 180);
@@ -162,6 +182,10 @@ function buildGraph(geojsonPath: string): Map<string, WorkerNode> {
     const effectiveMaxSpeed = isRoundabout ? maxSpeed * 0.5 : maxSpeed;
     const streetId: string =
       feature.properties?.streetId || feature.properties?.id || feature.properties?.["@id"] || "";
+    const smoothnessFactor = parseSmoothness(feature.properties?.smoothness);
+    const rawLanes = parseInt(feature.properties?.lanes ?? "1", 10);
+    const lanes = isNaN(rawLanes) || rawLanes < 1 ? 1 : rawLanes;
+    const capacity = lanes * 1800; // HCM: 1800 veh/hour per lane
 
     for (let i = 0; i < coords.length - 1; i++) {
       const [lon1, lat1] = coords[i];
@@ -186,6 +210,9 @@ function buildGraph(geojsonPath: string): Map<string, WorkerNode> {
           maxSpeed: effectiveMaxSpeed,
           surface,
           highway,
+          lanes,
+          capacity,
+          smoothnessFactor,
         });
       }
 
@@ -200,6 +227,9 @@ function buildGraph(geojsonPath: string): Map<string, WorkerNode> {
           maxSpeed: effectiveMaxSpeed,
           surface,
           highway,
+          lanes,
+          capacity,
+          smoothnessFactor,
         });
       }
     }
@@ -213,6 +243,25 @@ function buildGraph(geojsonPath: string): Map<string, WorkerNode> {
     }
   }
   _maxNetworkSpeed = maxSpeed > 0 ? maxSpeed : 110;
+
+  // Second pass: mark traffic signal nodes
+  for (const feature of data.features) {
+    if (feature.geometry.type !== "Point") continue;
+    const props = feature.properties ?? {};
+    if (props.highway !== "traffic_signals") continue;
+    const [lon, lat] = (feature.geometry as { type: "Point"; coordinates: number[] }).coordinates;
+    // Find nearest node by linear scan
+    let nearest: WorkerNode | null = null;
+    let minDist = Infinity;
+    for (const node of nodes.values()) {
+      const d = calculateDistance([lat, lon], [node.lat, node.lon]);
+      if (d < minDist) {
+        minDist = d;
+        nearest = node;
+      }
+    }
+    if (nearest) nearest.trafficSignal = true;
+  }
 
   return nodes;
 }
@@ -336,10 +385,25 @@ function findRoute(
       const incidentFactor = incidentEdges?.[edge.id];
       if (incidentFactor !== undefined && incidentFactor === 0) continue; // closure — skip edge
 
+      // Skip impassable roads (smoothnessFactor === 0)
+      if (edge.smoothnessFactor === 0) continue;
+
       const surfacePenalty = edge.surface === "unpaved" || edge.surface === "dirt" ? 1.3 : 1.0;
-      let travelTime = (edge.distance / edge.maxSpeed) * surfacePenalty;
+      // smoothnessFactor applied via edge.smoothnessFactor (see 9ozi.3)
+      const smoothnessPenalty = 1 / ((edge.smoothnessFactor ?? 1.0) || 1.0); // avoid div-by-zero for impassable=0
+      const flow = currentNode.edges.length; // proxy for observed flow (outbound edges from current node)
+      const bprCongestion = 1 + 0.15 * Math.pow(flow / (edge.capacity ?? 1800), 4);
+      let travelTime =
+        (edge.distance / edge.maxSpeed) * surfacePenalty * smoothnessPenalty * bprCongestion;
       if (incidentFactor !== undefined && incidentFactor < 1) {
         travelTime = travelTime / incidentFactor;
+      }
+      // Add intersection delay for signalized nodes
+      const SIGNAL_DELAY_S = 45; // seconds — midpoint of 30-90s signal cycle
+      const SIGNAL_DELAY_H = SIGNAL_DELAY_S / 3600;
+      const endNode = nodes.get(edge.endNodeId);
+      if (endNode?.trafficSignal) {
+        travelTime += SIGNAL_DELAY_H;
       }
       const tentativeCost = current.gScore + travelTime;
       const existingCost = gScore.get(edge.endNodeId);

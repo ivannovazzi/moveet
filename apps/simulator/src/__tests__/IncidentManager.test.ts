@@ -355,22 +355,23 @@ describe("A* pathfinding with incidents", () => {
     }
   });
 
-  it("should clear route cache when incident edges change", () => {
+  it("should not clear route cache when incident edges change (fingerprint-keyed)", () => {
     const start = network.findNearestNode([45.5017, -73.5673]);
     const end = network.findNearestNode([45.5029, -73.5661]);
 
-    // Warm cache
+    // Warm cache (no-incident state)
     network.findRoute(start, end);
-    expect(network.routeCacheStats().size).toBeGreaterThan(0);
+    const statsBefore = network.routeCacheStats();
+    expect(statsBefore.size).toBeGreaterThan(0);
 
-    // Set incidents — should clear cache
+    // Set incidents — cache is NOT cleared; old entry stays under its old fingerprint key
     const edgeSpeedFactors = new Map<string, number>();
     edgeSpeedFactors.set("some-edge", 0.5);
     network.setIncidentEdges(edgeSpeedFactors);
 
-    const stats2 = network.routeCacheStats();
-    // Cache should have been cleared (size = 0 or misses increase)
-    expect(stats2.size).toBe(0);
+    const statsAfter = network.routeCacheStats();
+    // Old entry is preserved; new route with incident fingerprint is a separate key
+    expect(statsAfter.size).toBeGreaterThanOrEqual(statsBefore.size);
   });
 });
 
