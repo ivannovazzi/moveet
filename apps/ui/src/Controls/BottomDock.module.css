@@ -9,10 +9,10 @@
   gap: var(--space-5);
   height: var(--control-xl);
   padding: 0 var(--space-6);
-  background: var(--panel-surface-strong);
+  background: var(--glass-bg);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
-  border: var(--panel-border);
+  border: var(--glass-border);
   border-radius: var(--radius-xl);
   box-shadow: var(--glass-shadow);
 }

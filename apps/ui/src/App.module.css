@@ -25,8 +25,8 @@
   visibility: hidden;
   pointer-events: none;
   will-change: transform, opacity;
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   transition:
     opacity 220ms ease,
     transform 280ms cubic-bezier(0.22, 1, 0.36, 1),

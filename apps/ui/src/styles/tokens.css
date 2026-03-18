@@ -1,8 +1,8 @@
 :root {
   /* Neutrals */
-  --color-bg-app: #242424;
-  --color-bg-dark: #111;
-  --color-bg-dark-2: #222;
+  --color-bg-app: #080a10;
+  --color-bg-dark: #060810;
+  --color-bg-dark-2: #0e1018;
   --color-bg-dark-3: #333;
   --color-bg-dark-4: #444;
   --color-gray: #666;
@@ -33,8 +33,8 @@
   --color-poi-default: #666;
 
   /* Map */
-  --color-map-road-highway: #222;
-  --color-map-road-default: #444;
+  --color-map-road-highway: #1a1d28;
+  --color-map-road-default: #2a2e3e;
   --color-map-polyline: #4488ff;
   --color-map-polyline-hovered: #f93;
   --color-map-polyline-selected: #39f;
@@ -88,18 +88,19 @@
   --text-xl: 17px;
   --text-2xl: 21px;
 
-  /* Glass surfaces */
-  --glass-bg: rgba(7, 9, 13, 0.88);
-  --glass-blur: blur(16px);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  /* Glass surfaces — elevated elements (dock, search bar) */
+  --glass-bg: rgba(26, 32, 50, 0.78);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.13);
+  --glass-blur: blur(28px);
+  --glass-shadow: 0 16px 48px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 
-  /* Panel surfaces */
-  --panel-surface: rgba(7, 9, 13, 0.74);
-  --panel-surface-strong: rgba(7, 9, 13, 0.88);
-  --panel-border: 1px solid var(--color-overlay-1);
-  --panel-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  /* Panel surfaces — sidebar & rail (darker, more anchored) */
+  --panel-surface: rgba(10, 14, 22, 0.85);
+  --panel-surface-strong: rgba(16, 20, 32, 0.92);
+  --panel-border: 1px solid rgba(255, 255, 255, 0.09);
+  --panel-shadow: 0 24px 60px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.04);
   --panel-header-bg:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0)),
     var(--panel-surface-strong);
 
   /* Status colors */

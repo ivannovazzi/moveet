@@ -1,5 +1,5 @@
 .searchBar {
-  background: var(--glass-bg);
+  background: var(--glass-bg); /* elevated glass — lighter than map */
   left: 50%;
   transform: translateX(-50%);
   width: min(640px, calc(100% - 56px));
@@ -10,11 +10,11 @@
   flex-direction: row;
   align-items: stretch;
   gap: 0;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: var(--glass-border);
   border-radius: var(--radius-lg);
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   transition: border-color var(--transition-fast);
 }
 
