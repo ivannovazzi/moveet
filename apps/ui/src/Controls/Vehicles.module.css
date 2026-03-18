@@ -16,8 +16,8 @@
 .filterInput {
   width: 100%;
   box-sizing: border-box;
-  height: var(--control-lg);
-  padding: 0 44px 0 40px;
+  height: var(--control);
+  padding: 0 40px 0 36px;
   font-size: var(--text-base);
   font-weight: 400;
   color: var(--color-gray-lightest);
@@ -90,14 +90,14 @@
     "name speed"
     "route route"
     "bar bar";
-  row-gap: var(--space-3);
-  column-gap: var(--space-4);
+  row-gap: var(--space-1);
+  column-gap: var(--space-3);
   border: var(--surface-border);
   border-radius: var(--radius-md);
   cursor: pointer;
   flex-shrink: 0;
   width: 100%;
-  padding: var(--space-4) var(--space-4) var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-2);
   text-align: left;
   color: inherit;
   background: rgba(255, 255, 255, 0.03);

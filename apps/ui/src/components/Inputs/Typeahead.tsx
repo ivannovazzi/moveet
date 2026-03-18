@@ -65,7 +65,7 @@ export function Typeahead<T>({
         const found = items.find((item) => item.key === key);
         if (found) onChange(found.option);
       }}
-      menuTrigger="focus"
+      menuTrigger="input"
     >
       {label && <Label className={styles.comboLabel}>{label}</Label>}
       <Input

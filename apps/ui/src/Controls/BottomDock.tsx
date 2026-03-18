@@ -124,8 +124,6 @@ function ReplayDock({
         />
       </div>
 
-      <div className={styles.divider} />
-
       <div ref={progressRef} className={styles.progressWrap} onClick={handleProgressClick}>
         <div className={styles.progressTrack}>
           <div className={styles.progressFill} style={{ width: `${progress * 100}%` }} />
@@ -135,8 +133,6 @@ function ReplayDock({
       <span className={styles.time}>
         {formatTime(displayTime / 1000)} / {formatTime(duration / 1000)}
       </span>
-
-      <div className={styles.divider} />
 
       <div className={styles.speedGroup}>
         {SPEEDS.map((s) => (
@@ -257,8 +253,6 @@ export default function BottomDock({
         />
       </div>
 
-      <div className={styles.divider} />
-
       <Button
         className={classNames(styles.recordBtn, { [styles.recordBtnActive]: isRecording })}
         onPress={isRecording ? onStopRecording : onStartRecording}
@@ -268,9 +262,7 @@ export default function BottomDock({
         {isRecording && <span className={styles.recordTime}>{formatTime(elapsed)}</span>}
       </Button>
 
-      <div className={styles.divider} />
-
-      <div className={styles.group}>
+      <div className={styles.chips}>
         {statusChips.map(({ key, label, active }) => (
           <span key={key} className={classNames(styles.chip, { [styles.chipActive]: active })}>
             <span className={classNames(styles.led, { [styles.ledOn]: active })} />
@@ -278,8 +270,6 @@ export default function BottomDock({
           </span>
         ))}
       </div>
-
-      <div className={styles.divider} />
 
       <span className={styles.vehicleCount}>
         <span className={styles.vehicleCountValue}>{vehicleCount}</span>
