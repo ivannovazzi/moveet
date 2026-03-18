@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import type { Modifiers } from "@/types";
 import { Switch, Range } from "@/components/Inputs";
 import { vehicleStore } from "@/hooks/vehicleStore";
@@ -33,7 +33,7 @@ function readStoredTrailLength(): number {
   return 60;
 }
 
-export default function TogglesPanel({ modifiers, onChangeModifiers }: TogglesPanelProps) {
+export default memo(function TogglesPanel({ modifiers, onChangeModifiers }: TogglesPanelProps) {
   const [trailLength, setTrailLength] = useState(() => {
     const initial = readStoredTrailLength();
     vehicleStore.setTrailCapacity(initial);
@@ -82,4 +82,4 @@ export default function TogglesPanel({ modifiers, onChangeModifiers }: TogglesPa
       </PanelBody>
     </>
   );
-}
+});

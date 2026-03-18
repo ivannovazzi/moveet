@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { memo, useEffect } from "react";
 import type { StartOptions } from "@/types";
 import { Range } from "@/components/Inputs";
 import { useOptions } from "@/hooks/useOptions";
@@ -22,7 +22,7 @@ interface SpeedPanelProps {
   maxSpeedRef: React.MutableRefObject<number>;
 }
 
-export default function SpeedPanel({ maxSpeedRef }: SpeedPanelProps) {
+export default memo(function SpeedPanel({ maxSpeedRef }: SpeedPanelProps) {
   const { options, updateOption } = useOptions(300);
 
   useEffect(() => {
@@ -54,4 +54,4 @@ export default function SpeedPanel({ maxSpeedRef }: SpeedPanelProps) {
       </PanelBody>
     </>
   );
-}
+});

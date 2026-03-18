@@ -25,7 +25,7 @@ export function Range({ label, value, min = 0, max = 100, step = 1, onChange }: 
         <span className={styles.rangeValue}>{value}</span>
       </div>
       <SliderTrack className={styles.rangeTrack}>
-        <SliderThumb className={styles.rangeThumb} />
+        <SliderThumb className={styles.rangeThumb} aria-label={label} />
       </SliderTrack>
     </Slider>
   );

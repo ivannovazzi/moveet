@@ -17,6 +17,7 @@ interface TypeaheadItem<T> {
 
 interface TypeaheadProps<T> {
   label?: string;
+  "aria-label"?: string;
   value?: T | null;
   options: T[];
   renderOption?: (option: T) => ReactNode;
@@ -30,6 +31,7 @@ interface TypeaheadProps<T> {
 
 export function Typeahead<T>({
   label,
+  "aria-label": ariaLabel,
   options,
   renderLabel,
   renderOption,
@@ -56,6 +58,7 @@ export function Typeahead<T>({
   return (
     <ComboBox<TypeaheadItem<T>>
       className={styles.comboBoxRoot}
+      aria-label={ariaLabel ?? (!label ? "Search" : undefined)}
       defaultItems={items}
       value={selectedKey}
       onChange={(key) => {
