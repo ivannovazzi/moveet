@@ -138,6 +138,7 @@ export function useVehicles(): UseVehicle {
     showVehicles: true,
     showPOIs: false,
     showTrafficOverlay: true,
+    showBreadcrumbs: false,
   });
 
   const lowerCaseFilter = useMemo(() => filters.filter.toLowerCase(), [filters.filter]);

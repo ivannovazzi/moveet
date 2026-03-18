@@ -1,6 +1,8 @@
+import { useState } from "react";
 import type { Modifiers } from "@/types";
-import { Switch } from "@/components/Inputs";
+import { Switch, Range } from "@/components/Inputs";
 import { eValue } from "@/utils/form";
+import { vehicleStore } from "@/hooks/vehicleStore";
 import { PanelBody, PanelHeader } from "./PanelPrimitives";
 import styles from "./TogglesPanel.module.css";
 
@@ -16,9 +18,40 @@ const toggles: { key: keyof Modifiers; label: string }[] = [
   { key: "showHeatmap", label: "Heatmap" },
   { key: "showHeatzones", label: "Zones" },
   { key: "showPOIs", label: "POIs" },
+  { key: "showBreadcrumbs", label: "Trails" },
 ];
 
+function readStoredTrailLength(): number {
+  try {
+    const stored = localStorage.getItem("trailLength");
+    if (stored) {
+      const n = Number(stored);
+      if (n >= 10 && n <= 120) return n;
+    }
+  } catch {
+    // ignore localStorage errors
+  }
+  return 60;
+}
+
 export default function TogglesPanel({ modifiers, onChangeModifiers }: TogglesPanelProps) {
+  const [trailLength, setTrailLength] = useState(() => {
+    const initial = readStoredTrailLength();
+    vehicleStore.setTrailCapacity(initial);
+    return initial;
+  });
+
+  const handleTrailLengthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = Number(e.target.value);
+    setTrailLength(value);
+    vehicleStore.setTrailCapacity(value);
+    try {
+      localStorage.setItem("trailLength", String(value));
+    } catch {
+      // ignore localStorage errors
+    }
+  };
+
   return (
     <>
       <PanelHeader
@@ -36,6 +69,18 @@ export default function TogglesPanel({ modifiers, onChangeModifiers }: TogglesPa
             />
           </label>
         ))}
+        {modifiers.showBreadcrumbs && (
+          <div className={styles.row}>
+            <Range
+              label="Trail Length"
+              value={trailLength}
+              min={10}
+              max={120}
+              step={10}
+              onChange={handleTrailLengthChange}
+            />
+          </div>
+        )}
       </PanelBody>
     </>
   );

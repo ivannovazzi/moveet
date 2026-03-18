@@ -40,6 +40,7 @@ describe("useVehicles", () => {
       showVehicles: true,
       showPOIs: false,
       showTrafficOverlay: true,
+      showBreadcrumbs: false,
     });
   });
 
@@ -120,6 +121,7 @@ describe("useVehicles", () => {
       showVehicles: true,
       showPOIs: true,
       showTrafficOverlay: true,
+      showBreadcrumbs: false,
     });
   });
 });
