@@ -25,6 +25,22 @@ interface Road {
   streets: Street[];
 }
 
+const SMOOTHNESS_FACTORS: Record<string, number> = {
+  excellent: 1.0,
+  good: 0.9,
+  intermediate: 0.75,
+  bad: 0.6,
+  very_bad: 0.45,
+  horrible: 0.3,
+  very_horrible: 0.2,
+  impassable: 0.0,
+};
+
+function parseSmoothness(raw: string | undefined): number {
+  if (!raw) return 1.0;
+  return SMOOTHNESS_FACTORS[raw] ?? 1.0;
+}
+
 const DEFAULT_SPEEDS: Record<HighwayType, number> = {
   motorway: 110,
   trunk: 80,
@@ -304,6 +320,11 @@ export class RoadNetwork extends EventEmitter {
           return; // skip this feature entirely
         }
 
+        const smoothnessFactor = parseSmoothness(feature.properties?.smoothness);
+        const rawLanes = parseInt(feature.properties?.lanes ?? "1", 10);
+        const lanes = isNaN(rawLanes) || rawLanes < 1 ? 1 : rawLanes;
+        const capacity = lanes * 1800; // HCM: 1800 veh/hour per lane
+
         // Initialize or get existing road
         if (!this.roads.has(streetName)) {
           this.roads.set(streetName, {
@@ -344,6 +365,9 @@ export class RoadNetwork extends EventEmitter {
               maxSpeed: effectiveMaxSpeed,
               surface,
               oneway: effectiveOneway === "forward",
+              lanes,
+              capacity,
+              smoothnessFactor,
             };
             this.edges.set(forwardEdge.id, forwardEdge);
             node1.connections.push(forwardEdge);
@@ -363,6 +387,9 @@ export class RoadNetwork extends EventEmitter {
               maxSpeed: effectiveMaxSpeed,
               surface,
               oneway: effectiveOneway === "reverse",
+              lanes,
+              capacity,
+              smoothnessFactor,
             };
             this.edges.set(reverseEdge.id, reverseEdge);
             node2.connections.push(reverseEdge);
@@ -404,6 +431,17 @@ export class RoadNetwork extends EventEmitter {
         this.turnRestrictionTypes.set(typeKey, isProhibitory ? "prohibitory" : "mandatory");
       }
       this.turnRestrictions.get(key)!.add(toWayId);
+    });
+
+    // Third pass: mark traffic signal nodes
+    data.features.forEach((feature) => {
+      if (feature.geometry?.type === "Point") {
+        const props = feature.properties ?? {};
+        if (props.highway !== "traffic_signals") return;
+        const [lon, lat] = feature.geometry.coordinates as [number, number];
+        const nearest = this.findNearestNode([lat, lon]);
+        if (nearest) nearest.trafficSignal = true;
+      }
     });
   }
 
@@ -554,7 +592,7 @@ export class RoadNetwork extends EventEmitter {
    */
   public findRoute(start: Node, end: Node): Route | null {
     // Check cache first
-    const cacheKey = `${start.id}|${end.id}`;
+    const cacheKey = `${start.id}|${end.id}|${this.incidentFingerprint()}`;
     const cached = this.routeCache.get(cacheKey);
     if (cached) return { edges: [...cached.edges], distance: cached.distance };
 
@@ -638,10 +676,23 @@ export class RoadNetwork extends EventEmitter {
         const incidentFactor = this.incidentEdges.get(edge.id);
         if (incidentFactor !== undefined && incidentFactor === 0) continue; // closure — skip edge
 
+        // Skip impassable roads (smoothnessFactor === 0)
+        if (edge.smoothnessFactor === 0) continue;
+
         const surfacePenalty = edge.surface === "unpaved" || edge.surface === "dirt" ? 1.3 : 1.0;
-        let travelTime = (edge.distance / edge.maxSpeed) * surfacePenalty;
+        // smoothnessFactor applied via edge.smoothnessFactor (see 9ozi.3)
+        const smoothnessPenalty = 1 / ((edge.smoothnessFactor ?? 1.0) || 1.0); // avoid div-by-zero for impassable=0
+        const flow = edge.start.connections.length; // proxy for observed flow
+        const bprCongestion = 1 + 0.15 * Math.pow(flow / (edge.capacity ?? 1800), 4);
+        let travelTime = (edge.distance / edge.maxSpeed) * surfacePenalty * smoothnessPenalty * bprCongestion;
         if (incidentFactor !== undefined && incidentFactor < 1) {
           travelTime = travelTime / incidentFactor;
+        }
+        // Add intersection delay for signalized nodes
+        const SIGNAL_DELAY_S = 45; // seconds — midpoint of 30-90s signal cycle
+        const SIGNAL_DELAY_H = SIGNAL_DELAY_S / 3600;
+        if (edge.end.trafficSignal) {
+          travelTime += SIGNAL_DELAY_H;
         }
         const tentativeCost = current.gScore + travelTime;
         const existingCost = gScore.get(edge.end.id);
@@ -670,16 +721,20 @@ export class RoadNetwork extends EventEmitter {
     this.routeCache.clear();
   }
 
-  /** Replace incident edge speed factors and invalidate route cache. */
-  public setIncidentEdges(edgeSpeedFactors: Map<string, number>): void {
-    this.incidentEdges = edgeSpeedFactors;
-    this.routeCache.clear();
+  /** Compute a lightweight fingerprint of the current incident edge set for cache keying. */
+  private incidentFingerprint(): string {
+    if (this.incidentEdges.size === 0) return "";
+    return Array.from(this.incidentEdges.keys()).sort().join(",");
   }
 
-  /** Clear all incident edge data and invalidate route cache. */
+  /** Replace incident edge speed factors. Cache invalidation is handled by the fingerprint key. */
+  public setIncidentEdges(edgeSpeedFactors: Map<string, number>): void {
+    this.incidentEdges = edgeSpeedFactors;
+  }
+
+  /** Clear all incident edge data. Cache invalidation is handled by the fingerprint key. */
   public clearIncidentEdges(): void {
     this.incidentEdges.clear();
-    this.routeCache.clear();
   }
 
   /** Return hit/miss statistics for the route cache. */

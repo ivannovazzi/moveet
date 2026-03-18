@@ -64,6 +64,17 @@
         "type": "Point",
         "coordinates": [-73.5670, 45.5020]
       }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "signal-1",
+        "highway": "traffic_signals"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-73.5667, 45.5023]
+      }
     }
   ]
 }
