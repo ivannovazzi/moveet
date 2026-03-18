@@ -124,3 +124,5 @@ program
 export function runCLI(): void {
   program.parse();
 }
+
+runCLI();
