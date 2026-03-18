@@ -272,13 +272,13 @@
 
 /* Vehicle type badge */
 .typeBadge {
-  font-size: 0.65rem;
-  padding: 0.05rem 0.3rem;
-  border-radius: 3px;
-  background: var(--color-surface-2, rgba(255, 255, 255, 0.1));
-  color: var(--color-text-secondary, #999);
+  font-size: var(--text-xs);
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-xs);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--color-text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  margin-left: 0.3rem;
+  margin-left: var(--space-2);
   font-weight: 500;
 }

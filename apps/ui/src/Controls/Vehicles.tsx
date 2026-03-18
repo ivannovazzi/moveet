@@ -108,6 +108,11 @@ export default function VehicleList({
             : `${vehicles.length} tracked units`
         }
         badge={<PanelBadge>{visibleVehicles.length}</PanelBadge>}
+      />
+
+      <PanelBody
+        padded={false}
+        className={classNames(styles.vehicles, { [styles.dimmed]: isDispatch })}
       >
         <SearchField
           value={filter}
@@ -124,12 +129,6 @@ export default function VehicleList({
             </Button>
           )}
         </SearchField>
-      </PanelHeader>
-
-      <PanelBody
-        padded={false}
-        className={classNames(styles.vehicles, { [styles.dimmed]: isDispatch })}
-      >
         {visibleVehicles.length === 0 ? (
           <PanelEmptyState>
             {filter ? `No vehicles match "${filter}"` : "No vehicles"}

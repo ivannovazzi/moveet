@@ -233,7 +233,7 @@
   border: none;
   background: var(--surface-bg);
   color: var(--color-gray-light);
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
   font-family: inherit;
   font-weight: 500;
   cursor: pointer;

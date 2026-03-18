@@ -44,16 +44,16 @@ export default function Fleets({ fleets, onCreateFleet, onDeleteFleet }: FleetsP
             : `${fleets.length} fleet ${fleets.length === 1 ? "group" : "groups"} available`
         }
         badge={<PanelBadge>{fleets.length}</PanelBadge>}
-        actions={
-          fleets.length < 10 ? (
-            <Button className={styles.addButton} onClick={() => setIsAdding(true)} type="button">
-              + New
-            </Button>
-          ) : null
-        }
       />
 
       <PanelBody className={styles.body}>
+        {fleets.length < 10 ? (
+          <div className={styles.controlRow}>
+            <Button className={styles.addButton} onClick={() => setIsAdding(true)} type="button">
+              + New fleet
+            </Button>
+          </div>
+        ) : null}
         {fleets.length === 0 && !isAdding ? (
           <PanelEmptyState>No fleets defined</PanelEmptyState>
         ) : null}

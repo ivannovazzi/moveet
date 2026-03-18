@@ -25,7 +25,8 @@
 }
 
 .primaryButton {
-  padding: var(--space-2) var(--space-4);
+  height: var(--control-sm);
+  padding: 0 var(--space-4);
   font-size: var(--text-sm);
   font-weight: 600;
   font-family: inherit;
@@ -56,7 +57,8 @@
 }
 
 .secondaryButton {
-  padding: var(--space-2) var(--space-4);
+  height: var(--control-sm);
+  padding: 0 var(--space-4);
   font-size: var(--text-sm);
   font-family: inherit;
   color: var(--color-gray-light);

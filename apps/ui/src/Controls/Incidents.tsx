@@ -64,28 +64,26 @@ export default function Incidents({ incidents, createRandom, remove }: Incidents
             : `${incidents.length} active disruptions on the network`
         }
         badge={<PanelBadge>{incidents.length}</PanelBadge>}
-        actions={
-          <>
-            <label className={styles.autoLabel}>
-              <Switch
-                isSelected={autoGenerate}
-                onChange={toggleAutoGenerate}
-                aria-label="Auto-generate incidents"
-              />
-              <span className={styles.autoText}>Auto</span>
-            </label>
-            <SquaredButton
-              icon={<span aria-hidden="true">+</span>}
-              variant="surface"
-              aria-label="Create incident"
-              title="Create incident"
-              onClick={createRandom}
-            />
-          </>
-        }
       />
 
       <PanelBody className={styles.body}>
+        <div className={styles.controlRow}>
+          <label className={styles.autoLabel}>
+            <Switch
+              isSelected={autoGenerate}
+              onChange={toggleAutoGenerate}
+              aria-label="Auto-generate incidents"
+            />
+            <span className={styles.autoText}>Auto</span>
+          </label>
+          <SquaredButton
+            icon={<span aria-hidden="true">+</span>}
+            variant="surface"
+            aria-label="Create incident"
+            title="Create incident"
+            onClick={createRandom}
+          />
+        </div>
         {incidents.length === 0 ? <PanelEmptyState>No active incidents</PanelEmptyState> : null}
 
         <div className={styles.list}>

@@ -109,8 +109,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: var(--control-height);
-  height: var(--control-height);
+  min-width: var(--control);
+  height: var(--control);
   padding: 0 var(--space-4);
   border-radius: 999px;
   font-size: var(--text-xs);
@@ -397,8 +397,8 @@
   padding: 0 var(--space-3);
   border-radius: var(--radius-xs);
   font-size: var(--text-sm);
-  height: 24px;
-  line-height: 24px;
+  height: var(--control-xs);
+  line-height: var(--control-xs);
   color: var(--color-gray-lightest);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -466,7 +466,7 @@ input[type="number"].input::-webkit-inner-spin-button {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  height: 24px;
+  height: var(--control-xs);
   padding: 0 var(--space-3);
   border-radius: var(--radius-xs);
   background: rgba(255, 255, 255, 0.06);
@@ -500,7 +500,7 @@ input[type="number"].input::-webkit-inner-spin-button {
 .submitBtn {
   position: relative;
   width: 100%;
-  height: 24px;
+  height: var(--control-xs);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -690,8 +690,8 @@ input[type="number"].input::-webkit-inner-spin-button {
   padding: 0 var(--space-3);
   border-radius: var(--radius-xs);
   font-size: var(--text-sm);
-  height: 24px;
-  line-height: 24px;
+  height: var(--control-xs);
+  line-height: var(--control-xs);
   color: var(--color-gray-lightest);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.08);

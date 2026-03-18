@@ -172,6 +172,11 @@
 
 /* ─── Reset Button ─────────────────────────────────── */
 
+.controlRow {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .resetButton {
   height: var(--control-sm);
   padding: 0 var(--space-4);

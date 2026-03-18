@@ -175,13 +175,13 @@ export default function AnalyticsPanel({
       <PanelHeader
         title="Analytics"
         subtitle={`${summary.activeVehicles} of ${summary.totalVehicles} vehicles active`}
-        actions={
+      />
+      <PanelBody className={styles.body}>
+        <div className={styles.controlRow}>
           <Button className={styles.resetButton} onClick={handleReset} type="button">
             Reset
           </Button>
-        }
-      />
-      <PanelBody className={styles.body}>
+        </div>
         <div className={styles.summary}>
           <KpiCard label="Vehicles" value={summary.activeVehicles} total={summary.totalVehicles} />
           <KpiCard label="Avg Speed" value={formatSpeed(summary.avgSpeed)} unit="km/h" />
