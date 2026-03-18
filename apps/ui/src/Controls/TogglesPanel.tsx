@@ -1,7 +1,6 @@
 import { useState } from "react";
 import type { Modifiers } from "@/types";
 import { Switch, Range } from "@/components/Inputs";
-import { eValue } from "@/utils/form";
 import { vehicleStore } from "@/hooks/vehicleStore";
 import { PanelBody, PanelHeader } from "./PanelPrimitives";
 import styles from "./TogglesPanel.module.css";
@@ -41,8 +40,7 @@ export default function TogglesPanel({ modifiers, onChangeModifiers }: TogglesPa
     return initial;
   });
 
-  const handleTrailLengthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = Number(e.target.value);
+  const handleTrailLengthChange = (value: number) => {
     setTrailLength(value);
     vehicleStore.setTrailCapacity(value);
     try {
@@ -63,8 +61,8 @@ export default function TogglesPanel({ modifiers, onChangeModifiers }: TogglesPa
           <label key={key} className={styles.row}>
             <span className={styles.label}>{label}</span>
             <Switch
-              checked={modifiers[key]}
-              onChange={eValue(onChangeModifiers(key))}
+              isSelected={modifiers[key]}
+              onChange={onChangeModifiers(key)}
               aria-label={label}
             />
           </label>

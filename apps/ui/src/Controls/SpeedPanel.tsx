@@ -29,8 +29,8 @@ export default function SpeedPanel({ maxSpeedRef }: SpeedPanelProps) {
     maxSpeedRef.current = options.maxSpeed;
   }, [options.maxSpeed, maxSpeedRef]);
 
-  const handleChange = (field: keyof StartOptions) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    updateOption(field, Number(e.target.value) as StartOptions[typeof field]);
+  const handleChange = (field: keyof StartOptions) => (value: number) => {
+    updateOption(field, value as StartOptions[typeof field]);
   };
 
   return (

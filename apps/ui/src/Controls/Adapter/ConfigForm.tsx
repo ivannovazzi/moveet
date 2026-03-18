@@ -88,7 +88,7 @@ function renderInput(
       return (
         <span className={styles.switchField}>
           <span className={styles.switchLabel}>{value === true ? "Enabled" : "Disabled"}</span>
-          <Switch checked={Boolean(value)} onChange={(e) => set(field.name, e.target.checked)} />
+          <Switch isSelected={Boolean(value)} onChange={(selected) => set(field.name, selected)} />
         </span>
       );
     case "number":

@@ -32,7 +32,7 @@ export default function Incidents({ incidents, createRandom, remove }: Incidents
   const [, setTick] = useState(0);
   const [autoGenerate, setAutoGenerate] = useState(false);
 
-  const toggleAutoGenerate = useCallback(() => setAutoGenerate((prev) => !prev), []);
+  const toggleAutoGenerate = useCallback((selected: boolean) => setAutoGenerate(selected), []);
 
   useEffect(() => {
     if (incidents.length === 0) return;
@@ -68,7 +68,7 @@ export default function Incidents({ incidents, createRandom, remove }: Incidents
           <>
             <label className={styles.autoLabel}>
               <Switch
-                checked={autoGenerate}
+                isSelected={autoGenerate}
                 onChange={toggleAutoGenerate}
                 aria-label="Auto-generate incidents"
               />

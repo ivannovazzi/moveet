@@ -1,26 +1,32 @@
-import React from "react";
+import { Slider, SliderTrack, SliderThumb, Label } from "react-aria-components";
 import styles from "./Inputs.module.css";
 
-interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+interface RangeProps {
   label?: string;
+  value: number;
+  min?: number;
+  max?: number;
+  step?: number;
+  onChange: (value: number) => void;
 }
 
-export function Range({ label, value, min, max, step, onChange }: InputProps) {
+export function Range({ label, value, min = 0, max = 100, step = 1, onChange }: RangeProps) {
   return (
-    <label className={styles.label}>
-      <span className={styles.rangeHeader}>
-        <span>{label}</span>
+    <Slider
+      value={value}
+      minValue={min}
+      maxValue={max}
+      step={step}
+      onChange={onChange}
+      className={styles.rangeRoot}
+    >
+      <div className={styles.rangeHeader}>
+        <Label className={styles.label}>{label}</Label>
         <span className={styles.rangeValue}>{value}</span>
-      </span>
-      <input
-        type="range"
-        value={value}
-        min={min}
-        max={max}
-        step={step}
-        onChange={onChange}
-        className={styles.range}
-      />
-    </label>
+      </div>
+      <SliderTrack className={styles.rangeTrack}>
+        <SliderThumb className={styles.rangeThumb} />
+      </SliderTrack>
+    </Slider>
   );
 }
