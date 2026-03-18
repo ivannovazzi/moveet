@@ -38,7 +38,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.4",
+    "@eslint/js": "^10.0.1",
     "@moveet/eslint-config": "*",
     "@types/compression": "^1.8.1",
     "@types/cors": "^2.8.19",
