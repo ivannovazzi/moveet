@@ -15,15 +15,22 @@
     border-color var(--transition-fast);
 }
 
-.button:hover {
+.button:hover,
+.button[data-hovered] {
   background: var(--surface-bg-hover);
   border-color: rgba(255, 255, 255, 0.14);
 }
 
-.button:focus-visible {
+.button:focus-visible,
+.button[data-focus-visible] {
   outline: none;
   border-color: var(--focus-border);
   box-shadow: var(--focus-ring);
+}
+
+.button[data-pressed] {
+  background: var(--surface-bg-active);
+  transform: scale(0.98);
 }
 
 .squaredButton {
@@ -79,16 +86,22 @@
   color: var(--color-gray-light);
 }
 
-.squaredButton:hover {
+.squaredButton:hover,
+.squaredButton[data-hovered] {
   background: var(--surface-bg-hover);
   border-color: rgba(255, 255, 255, 0.14);
   color: var(--color-white);
 }
 
-.squaredButton:focus-visible {
+.squaredButton:focus-visible,
+.squaredButton[data-focus-visible] {
   outline: none;
   border-color: var(--focus-border);
   box-shadow: var(--focus-ring);
+}
+
+.squaredButton[data-pressed] {
+  transform: scale(0.95);
 }
 
 .squaredButtonActive.squaredButtonToneActive {
@@ -115,7 +128,8 @@
   color: var(--color-danger);
 }
 
-.squaredButton:disabled {
+.squaredButton:disabled,
+.squaredButton[data-disabled] {
   opacity: 0.5;
   cursor: not-allowed;
 }
