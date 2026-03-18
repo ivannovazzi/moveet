@@ -1,0 +1,12 @@
+{
+  "nairobi":      { "bbox": [36.65,  -1.45,  37.10,  -1.15], "geofabrik": "africa/kenya",               "label": "Nairobi, Kenya" },
+  "lagos":        { "bbox": [3.08,    6.35,   3.75,   6.85],  "geofabrik": "africa/nigeria",             "label": "Lagos, Nigeria" },
+  "cairo":        { "bbox": [31.10,  29.90,  31.70,  30.20],  "geofabrik": "africa/egypt",               "label": "Cairo, Egypt" },
+  "london":       { "bbox": [-0.51,  51.28,   0.33,  51.69],  "geofabrik": "europe/great-britain",       "label": "London, UK" },
+  "berlin":       { "bbox": [13.09,  52.34,  13.76,  52.68],  "geofabrik": "europe/germany",             "label": "Berlin, Germany" },
+  "paris":        { "bbox": [2.22,   48.81,   2.57,  48.91],  "geofabrik": "europe/france",              "label": "Paris, France" },
+  "mumbai":       { "bbox": [72.77,  18.89,  73.02,  19.27],  "geofabrik": "asia/india",                 "label": "Mumbai, India" },
+  "jakarta":      { "bbox": [106.69, -6.37, 107.01,  -6.09],  "geofabrik": "asia/indonesia",             "label": "Jakarta, Indonesia" },
+  "mexico-city":  { "bbox": [-99.33,  19.21, -98.95,  19.59], "geofabrik": "north-america/mexico",       "label": "Mexico City, Mexico" },
+  "new-york":     { "bbox": [-74.26,  40.49, -73.70,  40.92], "geofabrik": "north-america/us/new-york",  "label": "New York, USA" }
+}
