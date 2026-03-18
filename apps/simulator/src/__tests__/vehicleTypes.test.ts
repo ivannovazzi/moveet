@@ -379,8 +379,8 @@ describe("Vehicle Types", () => {
 
     it("findRoute finds a route between connected nodes", () => {
       // Use known start/end from the test network (road-1 + road-2 form a path)
-      const startId = "45.5017,-73.5673";
-      const endId = "45.5029,-73.5661";
+      const startId = "45.5017000,-73.5673000";
+      const endId = "45.5029000,-73.5661000";
       const route = findRoute(nodes, startId, endId);
       expect(route).not.toBeNull();
       expect(route!.edgeIds.length).toBeGreaterThan(0);
@@ -388,8 +388,8 @@ describe("Vehicle Types", () => {
     });
 
     it("restricting all highway types yields no route", () => {
-      const startId = "45.5017,-73.5673";
-      const endId = "45.5029,-73.5661";
+      const startId = "45.5017000,-73.5673000";
+      const endId = "45.5029000,-73.5661000";
       // Block all road types in the test network
       const route = findRoute(nodes, startId, endId, undefined, [
         "primary",
@@ -400,8 +400,8 @@ describe("Vehicle Types", () => {
     });
 
     it("restricting unused highway types still finds a route", () => {
-      const startId = "45.5017,-73.5673";
-      const endId = "45.5029,-73.5661";
+      const startId = "45.5017000,-73.5673000";
+      const endId = "45.5029000,-73.5661000";
       // "residential" doesn't exist in test network, so restriction has no effect
       const route = findRoute(nodes, startId, endId, undefined, ["residential"]);
       expect(route).not.toBeNull();
@@ -411,8 +411,8 @@ describe("Vehicle Types", () => {
     it("restricting 'primary' forces an alternate route or returns null", () => {
       // road-1 is primary, road-2 is secondary, road-3 is tertiary
       // Start at road-1 start, end at road-2 end — primary is needed to enter the network
-      const startId = "45.5017,-73.5673";
-      const endId = "45.5029,-73.5661";
+      const startId = "45.5017000,-73.5673000";
+      const endId = "45.5029000,-73.5661000";
 
       // With primary restricted, the start node's only forward edge is blocked (oneway primary)
       const restricted = findRoute(nodes, startId, endId, undefined, ["primary"]);
@@ -429,8 +429,8 @@ describe("Vehicle Types", () => {
 
     it("worker fallback: route found without restrictions when restricted returns null", () => {
       // Simulate the worker fallback logic
-      const startId = "45.5017,-73.5673";
-      const endId = "45.5029,-73.5661";
+      const startId = "45.5017000,-73.5673000";
+      const endId = "45.5029000,-73.5661000";
       const heavyRestrictions = ["primary", "secondary", "tertiary"];
 
       let route = findRoute(nodes, startId, endId, undefined, heavyRestrictions);

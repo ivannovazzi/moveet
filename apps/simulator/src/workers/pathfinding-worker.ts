@@ -44,7 +44,15 @@ interface PathNode {
 // Graph building
 // ---------------------------------------------------------------------------
 
-type HighwayType = "motorway" | "trunk" | "primary" | "secondary" | "tertiary" | "residential";
+type HighwayType =
+  | "motorway"
+  | "trunk"
+  | "primary"
+  | "secondary"
+  | "tertiary"
+  | "residential"
+  | "unclassified"
+  | "living_street";
 
 const DEFAULT_SPEEDS: Record<HighwayType, number> = {
   motorway: 110,
@@ -53,6 +61,8 @@ const DEFAULT_SPEEDS: Record<HighwayType, number> = {
   secondary: 50,
   tertiary: 40,
   residential: 30,
+  unclassified: 35,
+  living_street: 20,
 };
 
 const VALID_HIGHWAYS = new Set<string>([
@@ -62,7 +72,26 @@ const VALID_HIGHWAYS = new Set<string>([
   "secondary",
   "tertiary",
   "residential",
+  "unclassified",
+  "living_street",
 ]);
+
+// Coordinate snapping to deduplicate near-identical intersection nodes
+const COORD_SNAP_EPSILON = 1e-7;
+
+function snapCoord(val: number): string {
+  return (Math.round(val / COORD_SNAP_EPSILON) * COORD_SNAP_EPSILON).toFixed(7);
+}
+
+function makeNodeKey(lat: number, lon: number): string {
+  return `${snapCoord(lat)},${snapCoord(lon)}`;
+}
+
+function parseOneway(value: string | undefined | null): "forward" | "reverse" | false {
+  if (!value || value === "no" || value === "false" || value === "0") return false;
+  if (value === "-1" || value === "reverse") return "reverse";
+  return "forward"; // yes, true, 1
+}
 
 function parseMaxSpeed(raw: string | undefined, highway: HighwayType): number {
   if (!raw) return DEFAULT_SPEEDS[highway];
@@ -111,37 +140,44 @@ function buildGraph(geojsonPath: string): Map<string, WorkerNode> {
       : "residential";
     const maxSpeed = parseMaxSpeed(feature.properties?.maxspeed, highway);
     const surface: string = feature.properties?.surface || "unknown";
-    const isOneway = feature.properties?.oneway === "yes";
+    const onewayDir = parseOneway(feature.properties?.oneway);
+    const isRoundabout = feature.properties?.junction === "roundabout";
+    const effectiveOneway = isRoundabout ? "forward" : onewayDir;
+    const effectiveMaxSpeed = isRoundabout ? maxSpeed * 0.5 : maxSpeed;
 
     for (let i = 0; i < coords.length - 1; i++) {
       const [lon1, lat1] = coords[i];
       const [lon2, lat2] = coords[i + 1];
 
-      const id1 = `${lat1},${lon1}`;
-      const id2 = `${lat2},${lon2}`;
+      const id1 = makeNodeKey(lat1, lon1);
+      const id2 = makeNodeKey(lat2, lon2);
 
       const node1 = getOrCreate(id1, lat1, lon1);
       const node2 = getOrCreate(id2, lat2, lon2);
 
       const distance = calculateDistance([lat1, lon1], [lat2, lon2]);
-      const forwardEdgeId = `${id1}-${id2}`;
 
-      node1.edges.push({
-        id: forwardEdgeId,
-        endNodeId: id2,
-        distance,
-        maxSpeed,
-        surface,
-        highway,
-      });
+      // Forward edge (node1 → node2): skip if reverse one-way
+      if (effectiveOneway !== "reverse") {
+        const forwardEdgeId = `${id1}-${id2}`;
+        node1.edges.push({
+          id: forwardEdgeId,
+          endNodeId: id2,
+          distance,
+          maxSpeed: effectiveMaxSpeed,
+          surface,
+          highway,
+        });
+      }
 
-      if (!isOneway) {
+      // Reverse edge (node2 → node1): skip if forward one-way
+      if (effectiveOneway !== "forward") {
         const reverseEdgeId = `${id2}-${id1}`;
         node2.edges.push({
           id: reverseEdgeId,
           endNodeId: id1,
           distance,
-          maxSpeed,
+          maxSpeed: effectiveMaxSpeed,
           surface,
           highway,
         });
