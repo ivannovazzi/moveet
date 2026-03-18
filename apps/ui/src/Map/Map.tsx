@@ -26,6 +26,7 @@ const Heatmap = lazy(() => import("./Heatmap"));
 const POIs = lazy(() => import("./POIs"));
 const TrafficZones = lazy(() => import("./TrafficZones"));
 const TrafficOverlay = lazy(() => import("./TrafficOverlay"));
+const BreadcrumbLayer = lazy(() => import("./Breadcrumb/BreadcrumbLayer"));
 
 interface MapProps {
   filters: Filters;
@@ -87,6 +88,16 @@ export default function Map({
       >
         {/* <Selection /> */}
         <Direction selected={filters.selected} hovered={filters.hovered} />
+        {modifiers.showBreadcrumbs && (
+          <Suspense fallback={null}>
+            <BreadcrumbLayer
+              selectedId={filters.selected}
+              showAll={false}
+              vehicleFleetMap={vehicleFleetMap}
+              hiddenFleetIds={hiddenFleetIds}
+            />
+          </Suspense>
+        )}
         {modifiers.showHeatzones && (
           <Suspense fallback={null}>
             <TrafficZones visible={modifiers.showHeatzones} />
