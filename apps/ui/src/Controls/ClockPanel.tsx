@@ -2,6 +2,7 @@ import type { TimeOfDay } from "@/types";
 import { useClock } from "@/hooks/useClock";
 import { PanelBody } from "./PanelPrimitives";
 import styles from "./ClockPanel.module.css";
+import { Slider, SliderTrack, SliderThumb, Button } from "react-aria-components";
 
 const TIME_OF_DAY_LABELS: Record<TimeOfDay, string> = {
   morning_rush: "Morning Rush",
@@ -51,8 +52,8 @@ export default function ClockPanel() {
   const sliderValue = multiplierToSlider(clock.speedMultiplier);
   const isRealTime = clock.speedMultiplier === 1;
 
-  function handleSliderChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setSpeedMultiplier(sliderToMultiplier(Number(e.target.value)));
+  function handleSliderChange(value: number) {
+    setSpeedMultiplier(sliderToMultiplier(value));
   }
 
   return (
@@ -67,15 +68,18 @@ export default function ClockPanel() {
       <PanelBody className={styles.body}>
         <div className={styles.speedSection}>
           <span className={styles.sectionLabel}>SIMULATION SPEED</span>
-          <input
-            type="range"
+          <Slider
             className={styles.slider}
-            min={0}
-            max={100}
+            minValue={0}
+            maxValue={100}
             value={sliderValue}
             onChange={handleSliderChange}
             aria-label="Speed multiplier"
-          />
+          >
+            <SliderTrack className={styles.sliderTrack}>
+              <SliderThumb className={styles.sliderThumb} aria-label="Speed multiplier" />
+            </SliderTrack>
+          </Slider>
           <div className={styles.speedSummary}>
             <span className={isRealTime ? styles.speedValueNeutral : styles.speedValueAccent}>
               {clock.speedMultiplier}×
@@ -87,14 +91,13 @@ export default function ClockPanel() {
 
         <div className={styles.presets}>
           {SPEED_PRESETS.map(({ label, value }) => (
-            <button
+            <Button
               key={value}
-              type="button"
               className={`${styles.presetBtn} ${clock.speedMultiplier === value ? styles.presetBtnActive : ""}`}
-              onClick={() => setSpeedMultiplier(value)}
+              onPress={() => setSpeedMultiplier(value)}
             >
               {label}
-            </button>
+            </Button>
           ))}
         </div>
       </PanelBody>

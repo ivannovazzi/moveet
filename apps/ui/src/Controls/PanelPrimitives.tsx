@@ -15,12 +15,10 @@ export function PanelShell({ children, className, ...props }: PanelShellProps) {
 }
 
 interface PanelHeaderProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
-  children?: ReactNode;
   eyebrow?: ReactNode;
   title: ReactNode;
   subtitle?: ReactNode;
   badge?: ReactNode;
-  actions?: ReactNode;
   titleAs?: "h2" | "h3";
 }
 
@@ -29,8 +27,6 @@ export function PanelHeader({
   title,
   subtitle,
   badge,
-  actions,
-  children,
   titleAs = "h2",
   className,
   ...props
@@ -39,18 +35,12 @@ export function PanelHeader({
 
   return (
     <div {...props} className={classNames(styles.panelHeader, className)}>
-      <div className={styles.headerRow}>
-        <div className={styles.headerCopy}>
-          {eyebrow ? <div className={styles.eyebrow}>{eyebrow}</div> : null}
-          <div className={styles.headingRow}>
-            <TitleTag className={styles.panelTitle}>{title}</TitleTag>
-            {badge ? <div className={styles.headerMeta}>{badge}</div> : null}
-          </div>
-          {subtitle ? <p className={styles.panelSubtitle}>{subtitle}</p> : null}
-        </div>
-        {actions ? <div className={styles.headerActions}>{actions}</div> : null}
+      {eyebrow ? <div className={styles.eyebrow}>{eyebrow}</div> : null}
+      <div className={styles.headingRow}>
+        <TitleTag className={styles.panelTitle}>{title}</TitleTag>
+        {badge ? <div className={styles.headerMeta}>{badge}</div> : null}
       </div>
-      {children ? <div className={styles.headerContent}>{children}</div> : null}
+      {subtitle ? <p className={styles.panelSubtitle}>{subtitle}</p> : null}
     </div>
   );
 }

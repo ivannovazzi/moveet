@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import classNames from "classnames";
+import { Button } from "react-aria-components";
 import client from "@/utils/client";
 import type { ReplayStatus, SimulationStatus } from "@/types";
 import { Flame, Pause, Play, Record, Reset, Stop } from "@/components/Icons";
@@ -123,8 +124,6 @@ function ReplayDock({
         />
       </div>
 
-      <div className={styles.divider} />
-
       <div ref={progressRef} className={styles.progressWrap} onClick={handleProgressClick}>
         <div className={styles.progressTrack}>
           <div className={styles.progressFill} style={{ width: `${progress * 100}%` }} />
@@ -135,20 +134,17 @@ function ReplayDock({
         {formatTime(displayTime / 1000)} / {formatTime(duration / 1000)}
       </span>
 
-      <div className={styles.divider} />
-
       <div className={styles.speedGroup}>
         {SPEEDS.map((s) => (
-          <button
+          <Button
             key={s}
-            type="button"
             className={classNames(styles.speedBtn, {
               [styles.speedBtnActive]: (replayStatus.speed ?? 1) === s,
             })}
-            onClick={() => handleSpeedChange(s)}
+            onPress={() => handleSpeedChange(s)}
           >
             {s}x
-          </button>
+          </Button>
         ))}
       </div>
     </div>
@@ -160,7 +156,6 @@ function ReplayDock({
 interface BottomDockProps {
   status: SimulationStatus;
   connected: boolean;
-  vehicleCount: number;
   replayStatus: ReplayStatus;
   onPauseReplay: () => Promise<void>;
   onResumeReplay: () => Promise<void>;
@@ -175,7 +170,6 @@ interface BottomDockProps {
 export default function BottomDock({
   status,
   connected,
-  vehicleCount,
   replayStatus,
   onPauseReplay,
   onResumeReplay,
@@ -257,21 +251,16 @@ export default function BottomDock({
         />
       </div>
 
-      <div className={styles.divider} />
-
-      <button
-        type="button"
+      <Button
         className={classNames(styles.recordBtn, { [styles.recordBtnActive]: isRecording })}
-        onClick={isRecording ? onStopRecording : onStartRecording}
+        onPress={isRecording ? onStopRecording : onStartRecording}
         aria-label={isRecording ? "Stop recording" : "Start recording"}
       >
         <Record className={styles.recordIcon} />
         {isRecording && <span className={styles.recordTime}>{formatTime(elapsed)}</span>}
-      </button>
+      </Button>
 
-      <div className={styles.divider} />
-
-      <div className={styles.group}>
+      <div className={styles.chips}>
         {statusChips.map(({ key, label, active }) => (
           <span key={key} className={classNames(styles.chip, { [styles.chipActive]: active })}>
             <span className={classNames(styles.led, { [styles.ledOn]: active })} />
@@ -279,13 +268,6 @@ export default function BottomDock({
           </span>
         ))}
       </div>
-
-      <div className={styles.divider} />
-
-      <span className={styles.vehicleCount}>
-        <span className={styles.vehicleCountValue}>{vehicleCount}</span>
-        <span className={styles.vehicleCountLabel}>fleet</span>
-      </span>
     </div>
   );
 }

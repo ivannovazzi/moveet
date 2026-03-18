@@ -3,6 +3,7 @@ import type { Fleet } from "@/types";
 import { Button, SquaredButton } from "@/components/Inputs";
 import { PanelBadge, PanelBody, PanelEmptyState, PanelHeader } from "./PanelPrimitives";
 import styles from "./Fleets.module.css";
+import { TextField, Input } from "react-aria-components";
 
 interface FleetsProps {
   fleets: Fleet[];
@@ -43,16 +44,16 @@ export default function Fleets({ fleets, onCreateFleet, onDeleteFleet }: FleetsP
             : `${fleets.length} fleet ${fleets.length === 1 ? "group" : "groups"} available`
         }
         badge={<PanelBadge>{fleets.length}</PanelBadge>}
-        actions={
-          fleets.length < 10 ? (
-            <Button className={styles.addButton} onClick={() => setIsAdding(true)} type="button">
-              + New
-            </Button>
-          ) : null
-        }
       />
 
       <PanelBody className={styles.body}>
+        {fleets.length < 10 ? (
+          <div className={styles.controlRow}>
+            <Button className={styles.addButton} onClick={() => setIsAdding(true)} type="button">
+              + New
+            </Button>
+          </div>
+        ) : null}
         {fleets.length === 0 && !isAdding ? (
           <PanelEmptyState>No fleets defined</PanelEmptyState>
         ) : null}
@@ -83,17 +84,16 @@ export default function Fleets({ fleets, onCreateFleet, onDeleteFleet }: FleetsP
         </div>
 
         {isAdding ? (
-          <input
-            className={styles.newFleetInput}
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onBlur={() => {
-              if (!newName.trim()) setIsAdding(false);
-            }}
-            placeholder="Fleet name..."
-            autoFocus
-          />
+          <TextField value={newName} onChange={setNewName} aria-label="New fleet name" autoFocus>
+            <Input
+              className={styles.newFleetInput}
+              onKeyDown={handleKeyDown}
+              onBlur={() => {
+                if (!newName.trim()) setIsAdding(false);
+              }}
+              placeholder="Fleet name..."
+            />
+          </TextField>
         ) : null}
       </PanelBody>
     </>

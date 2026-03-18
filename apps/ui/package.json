@@ -32,6 +32,7 @@
     "classnames": "^2.5.1",
     "d3": "^7.9.0",
     "react": "^19.2.4",
+    "react-aria-components": "^1.16.0",
     "react-dom": "^19.2.4",
     "the-new-css-reset": "^1.11.3"
   },

@@ -1,6 +1,6 @@
 /* ── Clock header (custom, not using PanelHeader) ───── */
 .clockHeader {
-  padding: var(--space-5) var(--space-5) 0;
+  padding: var(--space-4) var(--space-5) 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
@@ -80,37 +80,54 @@
 
 .slider {
   width: 100%;
-  height: 4px;
-  -webkit-appearance: none;
-  appearance: none;
-  background: var(--surface-bg-active);
-  border-radius: var(--radius-full);
-  outline: none;
-  cursor: pointer;
+  display: flex;
+  flex-direction: column;
 }
 
-.slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--color-accent);
+.sliderTrack {
+  position: relative;
+  height: 20px;
+  width: 100%;
+  display: flex;
+  align-items: center;
   cursor: pointer;
+  padding: 0 6px;
+  box-sizing: border-box;
+}
+
+.sliderTrack::before {
+  content: "";
+  display: block;
+  position: absolute;
+  background: var(--color-overlay-2);
+  height: 4px;
+  width: calc(100% - 12px);
+  border-radius: var(--radius-full);
+  left: 6px;
+}
+
+.sliderThumb {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-full);
+  background: var(--color-gray-light);
+  cursor: grab;
   transition: background var(--transition-fast);
 }
 
-.slider::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--color-accent);
-  border: none;
-  cursor: pointer;
+.sliderThumb[data-hovered] {
+  background: var(--color-gray-lightest);
 }
 
-.slider:hover::-webkit-slider-thumb {
-  background: var(--color-white);
+.sliderThumb[data-dragging] {
+  background: var(--color-accent);
+  cursor: grabbing;
+}
+
+.sliderThumb[data-focus-visible] {
+  outline: 2px solid var(--focus-border);
+  outline-offset: 2px;
+  box-shadow: var(--focus-ring);
 }
 
 .speedSummary {
@@ -172,9 +189,19 @@
     border-color var(--transition-fast);
 }
 
-.presetBtn:hover {
+.presetBtn:hover,
+.presetBtn[data-hovered] {
   background: var(--surface-bg-hover);
   color: var(--color-text-primary);
+}
+
+.presetBtn[data-pressed] {
+  background: var(--surface-bg-active);
+}
+
+.presetBtn[data-focus-visible] {
+  outline: 2px solid var(--focus-border);
+  outline-offset: 2px;
 }
 
 .presetBtnActive {
@@ -183,6 +210,7 @@
   color: var(--color-accent);
 }
 
-.presetBtnActive:hover {
+.presetBtnActive:hover,
+.presetBtnActive[data-hovered] {
   background: rgba(51, 153, 255, 0.22);
 }

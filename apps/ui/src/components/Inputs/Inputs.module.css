@@ -15,15 +15,22 @@
     border-color var(--transition-fast);
 }
 
-.button:hover {
+.button:hover,
+.button[data-hovered] {
   background: var(--surface-bg-hover);
   border-color: rgba(255, 255, 255, 0.14);
 }
 
-.button:focus-visible {
+.button:focus-visible,
+.button[data-focus-visible] {
   outline: none;
   border-color: var(--focus-border);
   box-shadow: var(--focus-ring);
+}
+
+.button[data-pressed] {
+  background: var(--surface-bg-active);
+  transform: scale(0.98);
 }
 
 .squaredButton {
@@ -79,16 +86,22 @@
   color: var(--color-gray-light);
 }
 
-.squaredButton:hover {
+.squaredButton:hover,
+.squaredButton[data-hovered] {
   background: var(--surface-bg-hover);
   border-color: rgba(255, 255, 255, 0.14);
   color: var(--color-white);
 }
 
-.squaredButton:focus-visible {
+.squaredButton:focus-visible,
+.squaredButton[data-focus-visible] {
   outline: none;
   border-color: var(--focus-border);
   box-shadow: var(--focus-ring);
+}
+
+.squaredButton[data-pressed] {
+  transform: scale(0.95);
 }
 
 .squaredButtonActive.squaredButtonToneActive {
@@ -115,7 +128,8 @@
   color: var(--color-danger);
 }
 
-.squaredButton:disabled {
+.squaredButton:disabled,
+.squaredButton[data-disabled] {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -141,8 +155,8 @@
 .label {
   display: flex;
   flex-direction: column;
-  font-size: var(--text-base);
-  color: var(--color-gray-lighter);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
 }
 
 .label span {
@@ -153,10 +167,14 @@
   display: flex;
   justify-content: space-between;
   align-items: baseline;
+  margin-bottom: var(--space-1);
 }
 
 .rangeValue {
   font-variant-numeric: tabular-nums;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-gray-lightest);
   min-width: 2.5ch;
   text-align: right;
 }
@@ -198,55 +216,61 @@
   box-shadow: var(--focus-ring);
 }
 
-/* Range slider */
-.range {
-  -webkit-appearance: none;
-  appearance: none;
+/* Range slider — React Aria */
+.rangeRoot {
+  display: flex;
+  flex-direction: column;
   width: 100%;
+}
+
+.rangeTrack {
+  position: relative;
   height: 20px;
-  padding: 0;
-  background: transparent;
+  width: 100%;
+  display: flex;
+  align-items: center;
   cursor: pointer;
 }
 
-.range::-webkit-slider-runnable-track {
-  height: 4px;
+.rangeTrack::before {
+  content: "";
+  display: block;
+  position: absolute;
   background: var(--color-overlay-2);
+  height: 4px;
+  width: 100%;
   border-radius: 2px;
+  left: 0;
 }
 
-.range::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
+.rangeThumb {
   width: 12px;
   height: 12px;
   border-radius: var(--radius-full);
   background: var(--color-gray-light);
-  margin-top: -4px;
-  cursor: pointer;
+  cursor: grab;
+  transition: background var(--transition-fast);
 }
 
-.range::-webkit-slider-thumb:hover {
+.rangeThumb[data-hovered] {
   background: var(--color-gray-lightest);
 }
 
-.range::-webkit-slider-thumb:active {
+.rangeThumb[data-dragging] {
   background: var(--color-accent);
+  cursor: grabbing;
 }
 
-.range:focus {
-  outline: none;
-}
-
-.range:focus::-webkit-slider-thumb {
+.rangeThumb[data-focus-visible] {
+  outline: 2px solid var(--focus-border);
+  outline-offset: 2px;
   box-shadow: var(--focus-ring);
 }
 
-/* Switch toggle */
+/* Switch — React Aria renders: label[data-selected] > hidden input + .switchIndicator */
 .switch {
-  appearance: none;
-  -webkit-appearance: none;
-  position: relative;
+  display: inline-flex;
+  align-items: center;
   width: 28px;
   height: 16px;
   background-color: var(--color-overlay-2);
@@ -254,30 +278,34 @@
   cursor: pointer;
   transition: background-color var(--transition-fast);
   flex-shrink: 0;
+  position: relative;
 }
 
-.switch:disabled {
+.switch[data-disabled] {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.switch::before {
-  content: "";
-  position: absolute;
-  width: 12px;
-  height: 12px;
-  border-radius: var(--radius-full);
-  top: 2px;
-  left: 2px;
-  background-color: var(--color-gray-lighter);
-  transition: transform var(--transition-fast);
-}
-
-.switch:checked {
+.switch[data-selected] {
   background-color: var(--color-accent-dark);
 }
 
-.switch:checked::before {
+.switch[data-focus-visible] {
+  outline: 2px solid var(--focus-border);
+  outline-offset: 2px;
+}
+
+.switchIndicator {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-gray-lighter);
+  margin-left: 2px;
+  transition: transform var(--transition-fast);
+  pointer-events: none;
+}
+
+.switch[data-selected] .switchIndicator {
   transform: translateX(12px);
 }
 
@@ -321,4 +349,53 @@
 
 .option:hover {
   background: var(--color-active-bg);
+}
+
+/* ComboBox (Typeahead) — React Aria */
+.comboBoxRoot {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.comboLabel {
+  font-size: var(--text-base);
+  color: var(--color-gray-lighter);
+  margin-bottom: var(--space-1);
+}
+
+.listBox {
+  list-style: none;
+  padding: var(--space-2);
+  margin: 0;
+  max-height: 400px;
+  overflow-y: auto;
+  outline: none;
+}
+
+.listBox::-webkit-scrollbar {
+  width: 5px;
+}
+
+.listBox::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.listBox::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.option[data-focused] {
+  background: var(--color-active-bg);
+}
+
+.option[data-focus-visible] {
+  outline: 2px solid var(--focus-border);
+  outline-offset: -2px;
+}
+
+.option[data-selected] {
+  background: var(--color-active-bg);
+  color: var(--color-white);
 }

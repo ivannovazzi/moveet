@@ -19,11 +19,12 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  height: var(--control-sm);
   background: none;
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--color-gray-light);
   font-size: var(--text-sm);
-  padding: var(--space-2) var(--space-3);
+  padding: 0 var(--space-3);
   border-radius: var(--radius-sm);
   cursor: pointer;
   font-family: inherit;
@@ -33,9 +34,14 @@
     border-color var(--transition-fast);
 }
 
-.recordButton:hover {
+.recordButton:hover,
+.recordButton[data-hovered] {
   background: var(--surface-bg-hover);
   color: var(--color-white);
+}
+
+.recordButton[data-pressed] {
+  background: var(--surface-bg-active);
 }
 
 .recordButtonActive {
@@ -44,7 +50,8 @@
   color: var(--color-white);
 }
 
-.recordButtonActive:hover {
+.recordButtonActive:hover,
+.recordButtonActive[data-hovered] {
   background: rgba(255, 68, 68, 0.14);
 }
 
@@ -109,9 +116,14 @@
     border-color var(--transition-fast);
 }
 
-.recordingItem:hover {
+.recordingItem:hover,
+.recordingItem[data-hovered] {
   background: var(--surface-bg-hover);
   border-color: rgba(255, 255, 255, 0.14);
+}
+
+.recordingItem[data-pressed] {
+  background: var(--surface-bg-active);
 }
 
 .recordingItemActive {
@@ -120,7 +132,8 @@
   cursor: default;
 }
 
-.recordingItemActive:hover {
+.recordingItemActive:hover,
+.recordingItemActive[data-hovered] {
   background: rgba(57, 153, 255, 0.08);
   border-color: rgba(57, 153, 255, 0.25);
 }

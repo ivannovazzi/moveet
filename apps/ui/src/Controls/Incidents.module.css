@@ -2,6 +2,12 @@
   gap: var(--space-3);
 }
 
+.controlRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .autoLabel {
   display: inline-flex;
   align-items: center;

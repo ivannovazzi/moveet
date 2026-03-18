@@ -10,7 +10,7 @@
 }
 
 .panelHeader {
-  padding: var(--space-5) var(--space-5) var(--space-4);
+  padding: var(--space-4) var(--space-5) var(--space-4);
   border-bottom: var(--panel-border);
   background: var(--panel-header-bg);
   flex-shrink: 0;

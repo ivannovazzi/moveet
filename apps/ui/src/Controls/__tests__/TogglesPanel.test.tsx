@@ -56,13 +56,13 @@ describe("TogglesPanel", () => {
     renderPanel(defaultModifiers({ showBreadcrumbs: true } as Partial<Modifiers>));
 
     // When trails are enabled, a trail length slider should be visible
-    expect(screen.getByLabelText(/trail length/i)).toBeInTheDocument();
+    expect(screen.getByRole("slider", { name: /trail length/i })).toBeInTheDocument();
   });
 
   it("trail length slider is hidden when showBreadcrumbs is false", () => {
     renderPanel(defaultModifiers({ showBreadcrumbs: false } as Partial<Modifiers>));
 
     // When trails are disabled, no trail length slider should be present
-    expect(screen.queryByLabelText(/trail length/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("slider", { name: /trail length/i })).not.toBeInTheDocument();
   });
 });

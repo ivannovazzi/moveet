@@ -9,10 +9,10 @@
   gap: var(--space-5);
   height: var(--control-xl);
   padding: 0 var(--space-6);
-  background: var(--panel-surface-strong);
+  background: var(--glass-bg);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
-  border: var(--panel-border);
+  border: var(--glass-border);
   border-radius: var(--radius-xl);
   box-shadow: var(--glass-shadow);
 }
@@ -20,16 +20,17 @@
 .group {
   display: flex;
   align-items: center;
-  gap: 1px;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
+  gap: var(--space-1);
 }
 
-.divider {
-  width: 1px;
-  height: var(--control-sm);
-  background: var(--color-overlay-1);
-  flex-shrink: 0;
+.chips {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.dockBtn {
+  border-color: transparent !important;
 }
 
 .btnIcon {
@@ -43,8 +44,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  height: var(--control-sm);
-  padding: 0 var(--space-3);
+  padding: 0 var(--space-2);
   font-size: var(--text-xs);
   color: var(--color-gray-light);
 }
@@ -93,8 +93,13 @@
   transition: background var(--transition-fast);
 }
 
-.recordBtn:hover {
+.recordBtn:hover,
+.recordBtn[data-hovered] {
   background: var(--surface-bg-hover);
+}
+
+.recordBtn[data-pressed]:not(.recordBtnActive) {
+  background: var(--surface-bg-active, var(--surface-bg-hover));
 }
 
 .recordIcon {
@@ -108,7 +113,12 @@
   background: var(--color-danger-bg);
 }
 
-.recordBtnActive:hover {
+.recordBtnActive:hover,
+.recordBtnActive[data-hovered] {
+  background: var(--color-danger-bg-hover);
+}
+
+.recordBtnActive[data-pressed] {
   background: var(--color-danger-bg-hover);
 }
 
@@ -223,7 +233,7 @@
   border: none;
   background: var(--surface-bg);
   color: var(--color-gray-light);
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
   font-family: inherit;
   font-weight: 500;
   cursor: pointer;
@@ -232,8 +242,13 @@
     color var(--transition-fast);
 }
 
-.speedBtn:hover {
+.speedBtn:hover,
+.speedBtn[data-hovered] {
   background: var(--surface-bg-hover);
+}
+
+.speedBtn[data-pressed] {
+  background: var(--surface-bg-active, var(--surface-bg-hover));
 }
 
 .speedBtnActive {

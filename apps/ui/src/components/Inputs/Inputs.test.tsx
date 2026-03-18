@@ -66,46 +66,60 @@ describe("Input", () => {
 });
 
 describe("Switch", () => {
-  it("renders as checkbox", () => {
-    render(<Switch checked={false} onChange={() => {}} />);
-    expect(screen.getByRole("checkbox")).toBeInTheDocument();
+  it("renders as switch role", () => {
+    render(<Switch isSelected={false} onChange={() => {}} />);
+    expect(screen.getByRole("switch")).toBeInTheDocument();
   });
 
-  it("reflects checked state", () => {
-    render(<Switch checked={true} onChange={() => {}} />);
-    expect(screen.getByRole("checkbox")).toBeChecked();
+  it("reflects selected state", () => {
+    render(<Switch isSelected={true} onChange={() => {}} />);
+    expect(screen.getByRole("switch")).toBeChecked();
   });
 
-  it("reflects unchecked state", () => {
-    render(<Switch checked={false} onChange={() => {}} />);
-    expect(screen.getByRole("checkbox")).not.toBeChecked();
+  it("reflects unselected state", () => {
+    render(<Switch isSelected={false} onChange={() => {}} />);
+    expect(screen.getByRole("switch")).not.toBeChecked();
   });
 
-  it("calls onChange when clicked", async () => {
+  it("calls onChange with boolean when clicked", async () => {
     const onChange = vi.fn();
     const user = userEvent.setup();
-    render(<Switch checked={false} onChange={onChange} />);
-    await user.click(screen.getByRole("checkbox"));
-    expect(onChange).toHaveBeenCalledOnce();
+    render(<Switch isSelected={false} onChange={onChange} />);
+    await user.click(screen.getByRole("switch"));
+    expect(onChange).toHaveBeenCalledWith(true);
+  });
+
+  it("does not call onChange when disabled", async () => {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    render(<Switch isSelected={false} onChange={onChange} isDisabled />);
+    await user.click(screen.getByRole("switch"));
+    expect(onChange).not.toHaveBeenCalled();
   });
 });
 
 describe("Range", () => {
-  it("renders range input with label", () => {
+  it("renders slider with label", () => {
     render(<Range label="Accel:" value={5} min={1} max={10} onChange={() => {}} />);
     expect(screen.getByText("Accel:")).toBeInTheDocument();
     expect(screen.getByRole("slider")).toBeInTheDocument();
   });
 
-  it("displays the current value", () => {
+  it("has correct aria-valuenow", () => {
     render(<Range label="Speed:" value={7} min={0} max={10} onChange={() => {}} />);
-    expect(screen.getByRole("slider")).toHaveValue("7");
+    expect(screen.getByRole("slider")).toHaveAttribute("value", "7");
   });
 
-  it("respects min and max attributes", () => {
+  it("has correct aria-valuemin and aria-valuemax", () => {
     render(<Range label="Speed:" value={5} min={1} max={10} onChange={() => {}} />);
     const slider = screen.getByRole("slider");
     expect(slider).toHaveAttribute("min", "1");
     expect(slider).toHaveAttribute("max", "10");
+  });
+
+  it("shows the current value as text", () => {
+    render(<Range label="Speed:" value={7} min={0} max={10} onChange={() => {}} />);
+    // The range value is displayed as text next to the label
+    expect(screen.getByText("7")).toBeInTheDocument();
   });
 });

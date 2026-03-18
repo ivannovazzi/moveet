@@ -109,8 +109,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: var(--control-height);
-  height: var(--control-height);
+  min-width: var(--control);
+  height: var(--control);
   padding: 0 var(--space-4);
   border-radius: 999px;
   font-size: var(--text-xs);
@@ -169,7 +169,8 @@
     color var(--transition-fast);
 }
 
-.closeBtn:hover {
+.closeBtn:hover,
+.closeBtn[data-hovered] {
   background: var(--surface-bg-active);
   color: var(--color-gray-lightest);
 }
@@ -218,7 +219,8 @@
     border-color var(--transition-fast);
 }
 
-.tab:hover {
+.tab:hover,
+.tab[data-hovered] {
   color: var(--color-gray-lightest);
 }
 
@@ -395,8 +397,8 @@
   padding: 0 var(--space-3);
   border-radius: var(--radius-xs);
   font-size: var(--text-sm);
-  height: 24px;
-  line-height: 24px;
+  height: var(--control-xs);
+  line-height: var(--control-xs);
   color: var(--color-gray-lightest);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -464,7 +466,7 @@ input[type="number"].input::-webkit-inner-spin-button {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  height: 24px;
+  height: var(--control-xs);
   padding: 0 var(--space-3);
   border-radius: var(--radius-xs);
   background: rgba(255, 255, 255, 0.06);
@@ -498,7 +500,7 @@ input[type="number"].input::-webkit-inner-spin-button {
 .submitBtn {
   position: relative;
   width: 100%;
-  height: 24px;
+  height: var(--control-xs);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -515,16 +517,19 @@ input[type="number"].input::-webkit-inner-spin-button {
     border-color var(--transition-fast);
 }
 
-.submitBtn:hover:not(:disabled) {
+.submitBtn:hover:not(:disabled),
+.submitBtn[data-hovered]:not([data-disabled]) {
   background: rgba(57, 153, 255, 0.28);
   border-color: rgba(57, 153, 255, 0.45);
 }
 
-.submitBtn:active:not(:disabled) {
+.submitBtn:active:not(:disabled),
+.submitBtn[data-pressed] {
   background: rgba(57, 153, 255, 0.35);
 }
 
-.submitBtn:disabled {
+.submitBtn:disabled,
+.submitBtn[data-disabled] {
   opacity: 0.4;
   cursor: default;
 }
@@ -586,7 +591,8 @@ input[type="number"].input::-webkit-inner-spin-button {
     background var(--transition-fast);
 }
 
-.removeBtn:hover {
+.removeBtn:hover,
+.removeBtn[data-hovered] {
   color: var(--color-status-offline);
   background: var(--color-danger-bg);
 }
@@ -668,4 +674,109 @@ input[type="number"].input::-webkit-inner-spin-button {
   align-items: center;
   font-size: var(--text-base);
   color: var(--color-gray-lightest);
+}
+
+/* ── React Aria Select ── */
+
+.selectRoot {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.selectTrigger {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-xs);
+  font-size: var(--text-sm);
+  height: var(--control-xs);
+  line-height: var(--control-xs);
+  color: var(--color-gray-lightest);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.selectTrigger[data-hovered] {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.selectTrigger[data-focus-visible] {
+  outline: none;
+  border-color: rgba(57, 153, 255, 0.5);
+  box-shadow: 0 0 0 2px rgba(57, 153, 255, 0.1);
+}
+
+.selectTrigger[data-pressed] {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.selectValue {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selectChevron {
+  font-size: 10px;
+  color: var(--color-gray-light);
+  flex-shrink: 0;
+  margin-left: var(--space-2);
+}
+
+.selectPopover {
+  z-index: 1000;
+  background: rgba(12, 14, 18, 0.92);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.selectListBox {
+  list-style: none;
+  padding: var(--space-1);
+  margin: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  outline: none;
+}
+
+.selectItem {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-gray-lightest);
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  outline: none;
+}
+
+.selectItem[data-focused],
+.selectItem[data-hovered] {
+  background: rgba(57, 153, 255, 0.15);
+}
+
+.selectItem[data-selected] {
+  background: rgba(57, 153, 255, 0.2);
+  color: var(--color-white);
+}
+
+.selectItem[data-focus-visible] {
+  outline: 2px solid var(--focus-border);
+  outline-offset: -2px;
 }

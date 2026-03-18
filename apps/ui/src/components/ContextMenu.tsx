@@ -1,5 +1,7 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { FocusScope } from "@react-aria/focus";
+import styles from "./ContextMenu.module.css";
 
 export default function ContextMenu({
   position,
@@ -12,77 +14,43 @@ export default function ContextMenu({
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
+  // Close on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        onClose?.();
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [onClose]);
+
+  // Close on Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
         onClose?.();
-        return;
       }
-
-      if (e.key === "Tab") {
-        const menu = menuRef.current;
-        if (!menu) return;
-
-        const focusable = menu.querySelectorAll<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-        );
-        if (focusable.length === 0) return;
-
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-
-        if (e.shiftKey) {
-          if (document.activeElement === first) {
-            e.preventDefault();
-            last.focus();
-          }
-        } else {
-          if (document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-          }
-        }
-      }
-    },
-    [onClose]
-  );
-
-  // Focus the first focusable element when the menu opens
-  useEffect(() => {
-    const menu = menuRef.current;
-    if (!menu) return;
-
-    const focusable = menu.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    );
-    if (focusable.length > 0) {
-      focusable[0].focus();
-    }
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [handleKeyDown]);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   if (!position) return null;
-  const portal = createPortal(
-    <div
-      ref={menuRef}
-      role="menu"
-      aria-label="Context menu"
-      style={{
-        position: "fixed",
-        top: position.y,
-        left: position.x,
-        zIndex: 1000,
-      }}
-    >
-      {children}
-    </div>,
+
+  return createPortal(
+    <FocusScope autoFocus contain restoreFocus>
+      <div
+        ref={menuRef}
+        role="menu"
+        aria-label="Context menu"
+        className={styles.menu}
+        style={{ position: "fixed", top: position.y, left: position.x, zIndex: 1000 }}
+      >
+        {children}
+      </div>
+    </FocusScope>,
     document.body
   );
-
-  return portal;
 }
