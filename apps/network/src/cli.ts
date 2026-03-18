@@ -6,6 +6,7 @@ import { extract } from "./commands/extract.js";
 import { filter, DEFAULT_ROAD_CLASSES } from "./commands/filter.js";
 import { exportNetwork } from "./commands/export.js";
 import { validate } from "./commands/validate.js";
+import { diff } from "./commands/diff.js";
 import path from "path";
 
 const CACHE_DIR = path.resolve("apps/network/.cache");
@@ -90,6 +91,14 @@ program
   .action((opts: { input: string }) => {
     const report = validate(opts.input);
     if (!report.passed) process.exit(1);
+  });
+
+program
+  .command("diff <old> <new>")
+  .description("Compare two network GeoJSON files")
+  .action((oldPath: string, newPath: string) => {
+    const result = diff(oldPath, newPath);
+    if (!result.identical) process.exit(1);
   });
 
 program.parse();
