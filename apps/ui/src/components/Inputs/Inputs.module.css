@@ -370,7 +370,11 @@
 
 .option[data-focused] {
   background: var(--color-active-bg);
-  outline: none;
+}
+
+.option[data-focus-visible] {
+  outline: 2px solid var(--focus-border);
+  outline-offset: -2px;
 }
 
 .option[data-selected] {

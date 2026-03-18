@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, type ReactNode } from "react";
 import {
   ComboBox,
   Input,
@@ -19,7 +19,7 @@ interface TypeaheadProps<T> {
   label?: string;
   value?: T | null;
   options: T[];
-  renderOption?: (option: T) => React.ReactNode;
+  renderOption?: (option: T) => ReactNode;
   renderLabel?: (option: T) => string;
   onChange: (option: T) => void;
   onOptionHover?: (option: T) => void;
@@ -50,10 +50,8 @@ export function Typeahead<T>({
     [options, getLabel]
   );
 
-  const selectedKey =
-    value != null
-      ? `${getLabel(value)}-${options.indexOf(value)}`
-      : null;
+  const selectedIdx = value != null ? options.indexOf(value) : -1;
+  const selectedKey = selectedIdx !== -1 ? `${getLabel(value!)}-${selectedIdx}` : null;
 
   return (
     <ComboBox<TypeaheadItem<T>>
