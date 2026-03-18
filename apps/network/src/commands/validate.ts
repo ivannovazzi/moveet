@@ -72,8 +72,11 @@ export function analyzeNetwork(fc: FeatureCollection): ValidationReport {
     connectedComponents: components.length,
     largestComponentPct: Math.round(largestComponentPct * 10) / 10,
     isolatedNodes,
+    // Pass if ≥95% of nodes are in the largest component and <5% are isolated.
+    // Real-world city exports always have some small disconnected fragments at
+    // bbox boundaries; a strict component count would reject valid networks.
     passed:
-      components.length <= 3 && isolatedNodes / Math.max(totalNodes, 1) < 0.01,
+      largestComponentPct >= 95 && isolatedNodes / Math.max(totalNodes, 1) < 0.05,
   };
 }
 

@@ -1,12 +1,13 @@
 import type { MouseEventHandler } from "react";
 import React, { useEffect, useState, useRef, useCallback } from "react";
-import { select, geoMercator, geoPath, geoLength, zoom, pointer, zoomIdentity } from "d3";
+import { select, geoMercator, geoPath, zoom, pointer, zoomIdentity } from "d3";
 import type { GeoProjection, ZoomTransform, ZoomBehavior } from "d3";
 import type { Position, RoadNetwork } from "@/types";
 import { useResizeObserver } from "@/hooks/useResizeObserver";
 import { MapControlsProvider } from "../providers/ControlsContextProvider";
 import { MapContextProvider } from "../providers/MapContextProvider";
 import { OverlayProvider } from "../providers/OverlayContextProvider";
+
 interface RoadNetworkMapProps {
   data: RoadNetwork;
   strokeColor?: string;
@@ -31,77 +32,111 @@ export const RoadNetworkMap: React.FC<RoadNetworkMapProps> = ({
   cursor = "grab",
 }) => {
   const htmlItemsRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [svgRef, setSvgRef] = useState<SVGSVGElement | null>(null);
   const [projection, setProjection] = useState<GeoProjection | null>(null);
   const [transform, setTransform] = useState<ZoomTransform>(zoomIdentity);
   const [zoomState, setZoomState] = useState<ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const [containerRef, size] = useResizeObserver();
 
+  // Pre-baked Path2D objects — built once per data/size, reused every frame
+  const roadPathRef = useRef<Path2D | null>(null);
+  const highwayPathRef = useRef<Path2D | null>(null);
+  const projectionRef = useRef<GeoProjection | null>(null);
+  const rafRef = useRef<number | null>(null);
+
+  const drawRoads = useCallback(
+    (t: ZoomTransform) => {
+      const canvas = canvasRef.current;
+      if (!canvas || !roadPathRef.current || !highwayPathRef.current) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Apply zoom transform as a canvas matrix — no coordinate re-projection per frame
+      ctx.save();
+      ctx.transform(t.k, 0, 0, t.k, t.x, t.y);
+
+      ctx.globalAlpha = strokeOpacity;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      // Keep line width constant in screen pixels regardless of zoom
+      ctx.lineWidth = strokeWidth / t.k;
+
+      ctx.strokeStyle = strokeColor;
+      ctx.stroke(roadPathRef.current);
+
+      ctx.strokeStyle = "#444";
+      ctx.lineWidth = (strokeWidth * 2) / t.k;
+      ctx.stroke(highwayPathRef.current);
+
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    },
+    [strokeColor, strokeWidth, strokeOpacity]
+  );
+
   useEffect(() => {
     if (!svgRef || !size.width || !size.height || !data) return;
 
     const svg = select(svgRef);
-    svg.selectAll("g.roads").remove();
     svg.attr("width", size.width).attr("height", size.height);
 
+    const canvas = canvasRef.current;
+    if (canvas) {
+      canvas.width = size.width;
+      canvas.height = size.height;
+    }
+
     const proj = geoMercator().fitSize([size.width, size.height], data);
-    const pathGen = geoPath().projection(proj);
     setProjection(() => proj);
+    projectionRef.current = proj;
 
-    const roadsGroup = svg
-      .insert("g", ":first-child")
-      .attr("class", "roads")
-      .attr("opacity", strokeOpacity);
+    // Pre-bake all road geometry into Path2D objects at the base projection.
+    // geoPath() without a canvas context returns SVG path strings which Path2D accepts.
+    const pathGen = geoPath().projection(proj);
+    const roadPath = new Path2D();
+    const highwayPath = new Path2D();
+    for (const feature of data.features) {
+      const d = pathGen(feature);
+      if (!d) continue;
+      if (feature.properties.type === "highway") {
+        highwayPath.addPath(new Path2D(d));
+      } else {
+        roadPath.addPath(new Path2D(d));
+      }
+    }
+    roadPathRef.current = roadPath;
+    highwayPathRef.current = highwayPath;
 
-    // Filter and cache long main roads first
-    const mainRoads = data.features.filter((d) => {
-      if (!d.properties.name) return false;
-      if (d.properties.highway === "primary") return true;
-      const length = geoLength(d);
-      return length > 0.0001; // Stricter threshold
-    });
-
-    // Add roads
-    roadsGroup
-      .selectAll("path")
-      .data(data.features)
-      .enter()
-      .append("path")
-      .attr("d", pathGen)
-      .attr("fill", "none")
-      .attr("stroke", (d) => (d.properties.type === "highway" ? "#222" : strokeColor))
-      .attr("stroke-width", (d) =>
-        d.properties.type === "highway" ? strokeWidth * 2 : strokeWidth
-      )
-      .attr("stroke-linejoin", "round")
-      .attr("stroke-linecap", "round")
-      .attr("id", (d, i) => (mainRoads.includes(d) ? `road-${i}` : null));
-
-    const labelsGroup = roadsGroup.append("g").attr("class", "street-labels").style("opacity", 0.4);
+    drawRoads(zoomIdentity);
 
     const markersGroup = svg.select<SVGGElement>("g.markers");
 
-    // Simplified zoom handler
     const zoomBehavior = zoom<SVGSVGElement, unknown>()
       .scaleExtent([1, 15])
       .on("zoom", (evt) => {
-        requestAnimationFrame(() => {
-          roadsGroup.attr("transform", evt.transform.toString());
-          markersGroup.attr("transform", evt.transform.toString());
-          labelsGroup.style("opacity", evt.transform.k > 6 ? 0.9 : 0);
+        const t: ZoomTransform = evt.transform;
+
+        if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+        rafRef.current = requestAnimationFrame(() => {
+          drawRoads(t);
+
+          markersGroup.attr("transform", t.toString());
 
           if (htmlItemsRef.current) {
             htmlItemsRef.current.style.transformOrigin = "0% 0%";
-            htmlItemsRef.current.style.transform = `translate(${evt.transform.x}px, ${evt.transform.y}px) scale(${evt.transform.k})`;
+            htmlItemsRef.current.style.transform = `translate(${t.x}px, ${t.y}px) scale(${t.k})`;
           }
 
-          setTransform(evt.transform);
+          setTransform(t);
         });
       });
 
     setZoomState(() => zoomBehavior);
     svg.call(zoomBehavior);
-  }, [data, size, strokeColor, strokeWidth, strokeOpacity, svgRef]);
+  }, [data, size, svgRef, drawRoads]);
 
   const getBoundingBox = useCallback(() => {
     let boundingBox = [
@@ -146,7 +181,6 @@ export const RoadNetworkMap: React.FC<RoadNetworkMapProps> = ({
 
   const onSvgKeyDown = useCallback(
     (evt: React.KeyboardEvent<SVGSVGElement>) => {
-      // Shift+F10 or the ContextMenu key opens the context menu
       const isShiftF10 = evt.key === "F10" && evt.shiftKey;
       const isContextMenuKey = evt.key === "ContextMenu";
       if (!isShiftF10 && !isContextMenuKey) return;
@@ -154,7 +188,6 @@ export const RoadNetworkMap: React.FC<RoadNetworkMapProps> = ({
 
       evt.preventDefault();
 
-      // Use the center of the SVG as the context position
       const rect = svgRef.getBoundingClientRect();
       const cx = rect.width / 2;
       const cy = rect.height / 2;
@@ -162,7 +195,6 @@ export const RoadNetworkMap: React.FC<RoadNetworkMapProps> = ({
       const coords = projection.invert?.([mx, my]);
       if (!coords) return;
 
-      // Create a synthetic mouse event for the context menu handler
       const syntheticEvent = {
         ...evt,
         clientX: rect.left + cx,
@@ -191,12 +223,24 @@ export const RoadNetworkMap: React.FC<RoadNetworkMapProps> = ({
           getRef={() => containerRef.current}
         >
           <div ref={containerRef} style={{ width: "100%", height: "100%", position: "relative" }}>
+            <canvas
+              ref={canvasRef}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                pointerEvents: "none",
+                background: "#111",
+              }}
+            />
             <svg
               ref={setSvgRef}
               style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
                 width: "100%",
                 height: "100%",
-                background: "#111",
                 display: "block",
                 cursor,
               }}
