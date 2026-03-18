@@ -878,7 +878,10 @@ describe("RoadNetwork", () => {
     ];
 
     function writeTmpNetwork(features: object[]): string {
-      const tmpPath = path.join(os.tmpdir(), `turn-restriction-${Date.now()}-${Math.random()}.geojson`);
+      const tmpPath = path.join(
+        os.tmpdir(),
+        `turn-restriction-${Date.now()}-${Math.random()}.geojson`
+      );
       fs.writeFileSync(tmpPath, JSON.stringify({ type: "FeatureCollection", features }));
       return tmpPath;
     }
@@ -1631,7 +1634,7 @@ describe("RoadNetwork", () => {
               type: "LineString",
               coordinates: [
                 [-73.5673, 45.5017],
-                [-73.5670, 45.5020],
+                [-73.567, 45.502],
                 [-73.5667, 45.5023],
               ],
             },
@@ -1671,7 +1674,7 @@ describe("RoadNetwork", () => {
               type: "LineString",
               coordinates: [
                 [-73.5673, 45.5017],
-                [-73.5670, 45.5020],
+                [-73.567, 45.502],
                 [-73.5667, 45.5023],
               ],
             },
@@ -1723,7 +1726,7 @@ describe("RoadNetwork", () => {
               type: "LineString",
               coordinates: [
                 [-73.5673, 45.5017],
-                [-73.5670, 45.5020],
+                [-73.567, 45.502],
               ],
             },
           },
@@ -1807,7 +1810,7 @@ describe("RoadNetwork", () => {
             geometry: {
               type: "LineString",
               coordinates: [
-                [-73.5680, 45.5010],
+                [-73.568, 45.501],
                 [-73.5673, 45.5017],
               ],
             },
@@ -1848,7 +1851,7 @@ describe("RoadNetwork", () => {
       fs.writeFileSync(tmpPath, JSON.stringify(geojson));
       try {
         const partialNetwork = new RoadNetwork(tmpPath);
-        const start = partialNetwork.findNearestNode([45.5010, -73.5680]);
+        const start = partialNetwork.findNearestNode([45.501, -73.568]);
         const end = partialNetwork.findNearestNode([45.5029, -73.5661]);
         // Private bridge is the only connection between public segments
         // Start is connected to node [45.5017,-73.5673], end to [45.5023,-73.5667]
@@ -1883,7 +1886,7 @@ describe("RoadNetwork", () => {
               type: "LineString",
               coordinates: [
                 [-73.5673, 45.5017],
-                [-73.5670, 45.5020],
+                [-73.567, 45.502],
                 [-73.5667, 45.5023],
               ],
             },
@@ -1900,7 +1903,7 @@ describe("RoadNetwork", () => {
               type: "LineString",
               coordinates: [
                 [-73.5673, 45.5017],
-                [-73.5676, 45.5020],
+                [-73.5676, 45.502],
               ],
             },
           },

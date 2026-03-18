@@ -113,7 +113,9 @@ export class PathfindingPool {
     startId: string,
     endId: string,
     incidentEdges?: Map<string, number>,
-    restrictedHighways?: string[]
+    restrictedHighways?: string[],
+    turnRestrictions?: Record<string, string[]>,
+    turnRestrictionTypes?: Record<string, string>
   ): Promise<PathfindingResult | null> {
     if (this.workers.length === 0) {
       return Promise.resolve(null);
@@ -143,6 +145,12 @@ export class PathfindingPool {
       }
       if (restrictedHighways && restrictedHighways.length > 0) {
         msg.restrictedHighways = restrictedHighways;
+      }
+      if (turnRestrictions) {
+        msg.turnRestrictions = turnRestrictions;
+      }
+      if (turnRestrictionTypes) {
+        msg.turnRestrictionTypes = turnRestrictionTypes;
       }
       worker.postMessage(msg);
     });

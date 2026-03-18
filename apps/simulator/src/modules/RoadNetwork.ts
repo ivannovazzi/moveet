@@ -388,7 +388,9 @@ export class RoadNetwork extends EventEmitter {
           ? this.makeNodeKey(Number(viaParts[0]), Number(viaParts[1]))
           : rawVia;
       const toWayId = String(props["to"] ?? props["to:way"] ?? "");
-      const restrictionValue = String(props["restriction"] ?? props["restriction:motor_vehicle"] ?? "");
+      const restrictionValue = String(
+        props["restriction"] ?? props["restriction:motor_vehicle"] ?? ""
+      );
 
       if (!fromWayId || !viaNodeId || !toWayId || !restrictionValue) return;
 
@@ -711,12 +713,14 @@ export class RoadNetwork extends EventEmitter {
       this.pathfindingPool = new PathfindingPool(this.geojsonPath);
     }
 
-    const restrictions = this.turnRestrictions.size > 0
-      ? Object.fromEntries([...this.turnRestrictions.entries()].map(([k, v]) => [k, [...v]]))
-      : undefined;
-    const restrictionTypes = this.turnRestrictions.size > 0
-      ? Object.fromEntries(this.turnRestrictionTypes.entries())
-      : undefined;
+    const restrictions =
+      this.turnRestrictions.size > 0
+        ? Object.fromEntries([...this.turnRestrictions.entries()].map(([k, v]) => [k, [...v]]))
+        : undefined;
+    const restrictionTypes =
+      this.turnRestrictions.size > 0
+        ? Object.fromEntries(this.turnRestrictionTypes.entries())
+        : undefined;
 
     const result = await this.pathfindingPool.findRoute(
       start.id,

@@ -141,8 +141,10 @@ function buildGraph(geojsonPath: string): Map<string, WorkerNode> {
     const accessTag = feature.properties?.access;
     const motorVehicleTag = feature.properties?.motor_vehicle;
     if (
-      accessTag === "private" || accessTag === "no" ||
-      motorVehicleTag === "private" || motorVehicleTag === "no"
+      accessTag === "private" ||
+      accessTag === "no" ||
+      motorVehicleTag === "private" ||
+      motorVehicleTag === "no"
     ) {
       continue; // skip this feature entirely
     }
@@ -159,10 +161,7 @@ function buildGraph(geojsonPath: string): Map<string, WorkerNode> {
     const effectiveOneway = isRoundabout ? "forward" : onewayDir;
     const effectiveMaxSpeed = isRoundabout ? maxSpeed * 0.5 : maxSpeed;
     const streetId: string =
-      feature.properties?.streetId ||
-      feature.properties?.id ||
-      feature.properties?.["@id"] ||
-      "";
+      feature.properties?.streetId || feature.properties?.id || feature.properties?.["@id"] || "";
 
     for (let i = 0; i < coords.length - 1; i++) {
       const [lon1, lat1] = coords[i];
@@ -236,7 +235,10 @@ function findRoute(
   if (!startNode || !endNode) return null;
 
   const closedSet = new Set<string>();
-  const cameFrom = new Map<string, { prevId: string; edgeId: string; edgeDistance: number; edgeStreetId: string }>();
+  const cameFrom = new Map<
+    string,
+    { prevId: string; edgeId: string; edgeDistance: number; edgeStreetId: string }
+  >();
   const gScore = new Map<string, number>();
 
   // Min-heap
