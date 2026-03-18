@@ -7,6 +7,7 @@ import { useResizeObserver } from "@/hooks/useResizeObserver";
 import { MapControlsProvider } from "../providers/ControlsContextProvider";
 import { MapContextProvider } from "../providers/MapContextProvider";
 import { OverlayProvider } from "../providers/OverlayContextProvider";
+
 interface RoadNetworkMapProps {
   data: RoadNetwork;
   strokeColor?: string;
@@ -38,48 +39,40 @@ export const RoadNetworkMap: React.FC<RoadNetworkMapProps> = ({
   const [zoomState, setZoomState] = useState<ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const [containerRef, size] = useResizeObserver();
 
-  // Refs so the zoom handler always sees latest values without re-registering
+  // Pre-baked Path2D objects — built once per data/size, reused every frame
+  const roadPathRef = useRef<Path2D | null>(null);
+  const highwayPathRef = useRef<Path2D | null>(null);
   const projectionRef = useRef<GeoProjection | null>(null);
-  const dataRef = useRef<RoadNetwork | null>(null);
   const rafRef = useRef<number | null>(null);
 
   const drawRoads = useCallback(
-    (proj: GeoProjection, t: ZoomTransform, network: RoadNetwork) => {
+    (t: ZoomTransform) => {
       const canvas = canvasRef.current;
-      if (!canvas) return;
+      if (!canvas || !roadPathRef.current || !highwayPathRef.current) return;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Bake the zoom transform into the projection so coordinates map to screen pixels
-      const scaled = geoMercator()
-        .translate([proj.translate()[0] * t.k + t.x, proj.translate()[1] * t.k + t.y])
-        .scale(proj.scale() * t.k);
-
-      const pathGen = geoPath().projection(scaled).context(ctx);
+      // Apply zoom transform as a canvas matrix — no coordinate re-projection per frame
+      ctx.save();
+      ctx.transform(t.k, 0, 0, t.k, t.x, t.y);
 
       ctx.globalAlpha = strokeOpacity;
       ctx.lineJoin = "round";
       ctx.lineCap = "round";
+      // Keep line width constant in screen pixels regardless of zoom
+      ctx.lineWidth = strokeWidth / t.k;
 
       ctx.strokeStyle = strokeColor;
-      ctx.lineWidth = strokeWidth;
-      ctx.beginPath();
-      for (const feature of network.features) {
-        if (feature.properties.type !== "highway") pathGen(feature);
-      }
-      ctx.stroke();
+      ctx.stroke(roadPathRef.current);
 
       ctx.strokeStyle = "#444";
-      ctx.lineWidth = strokeWidth * 2;
-      ctx.beginPath();
-      for (const feature of network.features) {
-        if (feature.properties.type === "highway") pathGen(feature);
-      }
-      ctx.stroke();
+      ctx.lineWidth = (strokeWidth * 2) / t.k;
+      ctx.stroke(highwayPathRef.current);
 
       ctx.globalAlpha = 1;
+      ctx.restore();
     },
     [strokeColor, strokeWidth, strokeOpacity]
   );
@@ -99,9 +92,25 @@ export const RoadNetworkMap: React.FC<RoadNetworkMapProps> = ({
     const proj = geoMercator().fitSize([size.width, size.height], data);
     setProjection(() => proj);
     projectionRef.current = proj;
-    dataRef.current = data;
 
-    drawRoads(proj, zoomIdentity, data);
+    // Pre-bake all road geometry into Path2D objects at the base projection.
+    // geoPath() without a canvas context returns SVG path strings which Path2D accepts.
+    const pathGen = geoPath().projection(proj);
+    const roadPath = new Path2D();
+    const highwayPath = new Path2D();
+    for (const feature of data.features) {
+      const d = pathGen(feature);
+      if (!d) continue;
+      if (feature.properties.type === "highway") {
+        highwayPath.addPath(new Path2D(d));
+      } else {
+        roadPath.addPath(new Path2D(d));
+      }
+    }
+    roadPathRef.current = roadPath;
+    highwayPathRef.current = highwayPath;
+
+    drawRoads(zoomIdentity);
 
     const markersGroup = svg.select<SVGGElement>("g.markers");
 
@@ -112,10 +121,7 @@ export const RoadNetworkMap: React.FC<RoadNetworkMapProps> = ({
 
         if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
         rafRef.current = requestAnimationFrame(() => {
-          // Redraw roads directly at the new transform — crisp at every zoom level
-          if (projectionRef.current && dataRef.current) {
-            drawRoads(projectionRef.current, t, dataRef.current);
-          }
+          drawRoads(t);
 
           markersGroup.attr("transform", t.toString());
 
@@ -175,7 +181,6 @@ export const RoadNetworkMap: React.FC<RoadNetworkMapProps> = ({
 
   const onSvgKeyDown = useCallback(
     (evt: React.KeyboardEvent<SVGSVGElement>) => {
-      // Shift+F10 or the ContextMenu key opens the context menu
       const isShiftF10 = evt.key === "F10" && evt.shiftKey;
       const isContextMenuKey = evt.key === "ContextMenu";
       if (!isShiftF10 && !isContextMenuKey) return;
@@ -183,7 +188,6 @@ export const RoadNetworkMap: React.FC<RoadNetworkMapProps> = ({
 
       evt.preventDefault();
 
-      // Use the center of the SVG as the context position
       const rect = svgRef.getBoundingClientRect();
       const cx = rect.width / 2;
       const cy = rect.height / 2;
@@ -191,7 +195,6 @@ export const RoadNetworkMap: React.FC<RoadNetworkMapProps> = ({
       const coords = projection.invert?.([mx, my]);
       if (!coords) return;
 
-      // Create a synthetic mouse event for the context menu handler
       const syntheticEvent = {
         ...evt,
         clientX: rect.left + cx,
