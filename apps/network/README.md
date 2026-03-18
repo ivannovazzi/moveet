@@ -4,7 +4,9 @@ CLI pipeline that downloads OSM road data from Geofabrik, extracts a city boundi
 
 ## Prerequisites
 
-Install [osmium-tool](https://osmcode.org/osmium-tool/):
+### osmium-tool
+
+[osmium-tool](https://osmcode.org/osmium-tool/) is the backbone of the pipeline. It handles three of the four steps: extracting a bounding box from a country PBF, filtering by road class, and exporting to GeoJSON. You must have it installed locally — Docker is no longer used.
 
 ```bash
 # macOS
@@ -12,9 +14,14 @@ brew install osmium-tool
 
 # Ubuntu / Debian
 sudo apt install osmium-tool
+
+# Verify
+osmium version   # should print 1.x.x
 ```
 
-Docker is no longer required — the CLI uses the local `osmium` binary directly.
+**Minimum version: 1.14.** The pipeline uses `osmium extract`, `osmium tags-filter`, and `osmium export`.
+
+> **Note on the `~` regex operator.** osmium ≥ 1.16 silently matches nothing when a tags-filter expression uses the `~` regex operator (e.g. `w/highway~"^primary$"`). This pipeline works around that by issuing one `w/highway=<class>` expression per road class instead of a single regex. If you run osmium commands manually, prefer `=` over `~`.
 
 ## Quick start
 
