@@ -62,11 +62,18 @@ export async function download(opts: DownloadOptions): Promise<string> {
   return dest;
 }
 
-function getEtag(url: string): Promise<string | null> {
+function getEtag(url: string, redirects = 0): Promise<string | null> {
+  if (redirects > 5) return Promise.resolve(null);
   return new Promise((resolve, reject) => {
     const parsedUrl = new URL(url);
     const mod = parsedUrl.protocol === "https:" ? https : http;
     const req = mod.request(url, { method: "HEAD" }, (res) => {
+      if (res.statusCode && [301, 302, 307, 308].includes(res.statusCode)) {
+        const location = res.headers["location"];
+        if (!location) { resolve(null); return; }
+        resolve(getEtag(location, redirects + 1));
+        return;
+      }
       resolve((res.headers["etag"] as string) ?? null);
     });
     req.on("error", reject);
@@ -74,13 +81,22 @@ function getEtag(url: string): Promise<string | null> {
   });
 }
 
-function streamDownload(url: string, dest: string): Promise<void> {
+function streamDownload(url: string, dest: string, redirects = 0): Promise<void> {
+  if (redirects > 5) return Promise.reject(new Error(`Too many redirects downloading ${url}`));
   return new Promise((resolve, reject) => {
     const parsedUrl = new URL(url);
     const mod = parsedUrl.protocol === "https:" ? https : http;
     const file = fs.createWriteStream(dest);
     mod
       .get(url, (res) => {
+        if (res.statusCode && [301, 302, 307, 308].includes(res.statusCode)) {
+          file.close();
+          fs.unlinkSync(dest);
+          const location = res.headers["location"];
+          if (!location) { reject(new Error(`Redirect with no Location header from ${url}`)); return; }
+          resolve(streamDownload(location, dest, redirects + 1));
+          return;
+        }
         if (res.statusCode && res.statusCode >= 400) {
           file.close();
           reject(new Error(`HTTP ${res.statusCode} downloading ${url}`));

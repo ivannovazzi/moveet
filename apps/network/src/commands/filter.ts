@@ -22,11 +22,12 @@ export interface FilterOptions {
 
 export function buildFilterArgs(opts: FilterOptions): string[] {
   const classes = opts.classes ?? DEFAULT_ROAD_CLASSES;
-  const highwayExpr = `w/highway~"^(${[...classes].join("|")})$"`;
+  // Use one expression per class (osmium tags-filter ~regex is broken in v1.19+)
+  const highwayExprs = [...classes].map((c) => `w/highway=${c}`);
   return [
     "tags-filter",
     path.basename(opts.input),
-    highwayExpr,
+    ...highwayExprs,
     "w/junction=roundabout",
     "-o", path.basename(opts.output),
     "--overwrite",
