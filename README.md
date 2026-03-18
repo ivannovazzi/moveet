@@ -6,7 +6,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](apps/simulator/compose.yml)
 
-A real-time vehicle fleet simulator that runs vehicles on actual road networks with A\* pathfinding, realistic motion physics, incident-based rerouting, session recording, and a custom browser-side map rendering engine — no map tile provider required.
+A real-time vehicle fleet simulator that runs vehicles on actual road networks with A\* pathfinding, realistic motion physics, BPR traffic congestion, time-of-day patterns, geofencing, incident-based rerouting, session recording, and a custom browser-side map rendering engine — no map tile provider required.
 
 <!-- Screenshot goes here -->
 
@@ -17,6 +17,7 @@ A real-time vehicle fleet simulator that runs vehicles on actual road networks w
 - [Features](#features)
 - [Quick start](#quick-start)
 - [Architecture](#architecture)
+- [Network CLI](#network-cli)
 - [Simulator API](#simulator-api)
 - [WebSocket events](#websocket-events)
 - [Adapter plugins](#adapter-plugins)
@@ -32,16 +33,20 @@ A real-time vehicle fleet simulator that runs vehicles on actual road networks w
 | | |
 |---|---|
 | 🗺 **Road-network agnostic** | Ingests any GeoJSON/OSM-derived road graph — swap the file to simulate a different city |
-| 🔀 **A\* pathfinding** | Haversine heuristic over bidirectional road segments; supports single-destination and chained multi-stop waypoint routes; 500-entry LRU route cache |
-| 🚗 **Realistic physics** | Per-vehicle speed variation, acceleration, deceleration, and turn-speed reduction; vehicles slow for heat zones |
-| 🎨 **Custom map renderer** | D3 SVG scene with a Mercator projection (1×–15× zoom, pan); dedicated layers for roads, vehicles, POIs, heat-zone contours, incident markers, and dispatch routes — no Leaflet or Mapbox |
-| 📡 **Real-time WebSocket** | 100 ms batched broadcast with backpressure handling; streams vehicle positions, routes, heat zones, incidents, fleet events, and replay frames |
+| 🌐 **Network CLI** | `apps/network` pipeline: download OSM data from Geofabrik, extract a bbox, filter road classes, export GeoJSON, validate topology, and diff versions — one `prepare` command does it all |
+| 🔀 **A\* pathfinding** | Haversine heuristic over bidirectional road segments; respects turn restrictions, roundabouts, and road-class access rules; incident-aware route cache |
+| 🚗 **Vehicle types** | Five types (car, truck, motorcycle, ambulance, bus) with distinct speed profiles, acceleration curves, road restrictions, and special behaviours (e.g. ambulances ignore heat-zone penalties) |
+| 🚦 **Traffic realism** | BPR congestion model (flow/capacity), time-of-day rush-hour/night demand multipliers, traffic-signal intersection delays, surface-smoothness speed factors |
+| 🎨 **Custom map renderer** | D3 SVG scene with a Mercator projection (1×–15× zoom, pan); dedicated layers for roads, vehicles, POIs, heat-zone contours, incident markers, geofences, breadcrumb trails, and dispatch routes — no Leaflet or Mapbox |
+| 📡 **Real-time WebSocket** | 100 ms batched broadcast with backpressure handling; streams vehicle positions, routes, heat zones, incidents, geofence events, fleet events, and replay frames |
 | 🔥 **Heat zones** | Contour density map (green → red, 50 thresholds) derived from road-network intersection density |
+| 🔲 **Geofencing** | Draw custom polygons on the map; monitor vehicles crossing zone boundaries; enter/exit events broadcast in real time |
 | ⚠️ **Incidents & rerouting** | Operator-created road incidents trigger live A\* rerouting for all affected vehicles |
 | 🎬 **Recording & replay** | NDJSON session recording; replay with pause, seek, and 1×/2×/4× speed controls and interpolated progress bar |
+| 🚘 **Breadcrumb trails** | Per-vehicle position history rendered as fading path overlays on the map |
 | 🚦 **Fleet management** | Group vehicles into named, colour-coded fleets; assign/unassign at runtime |
 | 🔍 **POI + road search** | Typeahead combining road names and points of interest; dispatches selected vehicles to result |
-| 🖥 **Operator UI** | Icon-rail sidebar (Vehicles · Fleets · Incidents · Recordings · Visibility · Speed · Adapter) + bottom dock with live and replay controls |
+| 🖥 **Operator UI** | Icon-rail sidebar (Vehicles · Fleets · Incidents · Geofences · Recordings · Visibility · Speed · Adapter) + bottom dock with live and replay controls |
 | 🔌 **Adapter plugins** | Hot-swappable source and sink plugins; configure via env vars or REST API at runtime |
 
 ---
@@ -77,25 +82,36 @@ npm run dev:ui       # UI only         :5012
 npm run dev:adapter  # adapter only    :5011
 ```
 
+To prepare a road network for a new city:
+
+```bash
+cd apps/network
+npm run dev -- prepare nairobi   # or any region in regions.json
+```
+
 ---
 
 ## Architecture
 
 ```mermaid
 flowchart TD
+    NET["<b>apps/network</b><br/>OSM CLI pipeline<br/>(offline, one-time)"]
     UI["<b>apps/ui</b><br/>React 19 · D3 · Vite<br/>:5012"]
     SIM["<b>apps/simulator</b><br/>Express · ws · Turf.js<br/>:5010"]
     ADP["<b>apps/adapter</b><br/>Express · plugin manager<br/>:5011"]
     EXT["External system<br/><i>GraphQL · Kafka · REST · …</i>"]
 
+    NET -- "GeoJSON road network" --> SIM
     UI -- "REST + WebSocket" --> SIM
     SIM -- "GET /vehicles<br/>POST /sync" --> ADP
     ADP -- "source / sink plugins" --> EXT
 ```
 
+**Network** is an offline CLI that turns raw OpenStreetMap data into a simulator-ready GeoJSON road network. Run it once per city; the output drops straight into `apps/simulator/data/`.
+
 **Simulator** is the core — it builds a routable graph from GeoJSON, runs vehicles with per-vehicle interval timers, and serves a REST API + WebSocket feed. It works completely standalone.
 
-**UI** is a React app that renders everything in an SVG canvas using D3 with a Mercator projection. It has no map-tile dependency — roads, routes, heat-zone contours, POIs, incidents, and vehicles are all drawn from GeoJSON/API data.
+**UI** is a React app that renders everything in an SVG canvas using D3 with a Mercator projection. It has no map-tile dependency — roads, routes, heat-zone contours, POIs, incidents, geofences, breadcrumb trails, and vehicles are all drawn from GeoJSON/API data.
 
 **Adapter** is optional — only needed when you want to push data to an external fleet management system. It hot-swaps source and sink plugins at runtime via its own REST API.
 
@@ -104,14 +120,46 @@ flowchart TD
 ```mermaid
 flowchart LR
     GJ[GeoJSON<br/>road network] --> RN[RoadNetwork<br/>graph + A*]
-    RN --> VM[VehicleManager<br/>movement · routing]
+    RN --> VM[VehicleManager<br/>movement · routing · types]
     VM --> SC[SimulationController<br/>start · stop · options]
     SC --> RM[RecordingManager]
     SC --> RP[ReplayManager]
     SC --> IM[IncidentManager<br/>rerouting]
     SC --> FM[FleetManager]
+    SC --> GF[GeoFenceManager<br/>enter / exit events]
+    SC --> TM[TrafficManager<br/>BPR · time-of-day]
     SC --> WS[WebSocket<br/>broadcaster]
 ```
+
+---
+
+## Network CLI
+
+`apps/network` is a standalone CLI that turns raw OpenStreetMap data into a simulator-ready GeoJSON road network. It requires [Docker](https://www.docker.com/) (for osmium) and runs entirely offline after the initial Geofabrik download.
+
+### One-command setup
+
+```bash
+cd apps/network
+npm run dev -- prepare nairobi        # interactive wizard if region omitted
+npm run dev -- prepare --output apps/simulator/data/network.geojson
+```
+
+The `prepare` command runs the full pipeline: **download → extract → filter → export → validate**.
+
+### Individual commands
+
+| Command | Description |
+|---|---|
+| `network download` | Download country PBF from Geofabrik (cached after first run) |
+| `network extract` | Clip a bounding box from the country PBF using osmium (Docker) |
+| `network filter` | Keep only drivable road classes from the extracted PBF |
+| `network export` | Convert filtered PBF to GeoJSON via osmium |
+| `network validate` | Run topology checks: orphan nodes, duplicate edges, disconnected components |
+| `network diff <old> <new>` | Compare two network GeoJSON files and report changes |
+| `network prepare [region]` | Full pipeline in one step |
+
+Regions are defined in `regions.json` (covers major cities globally). Pass `--bbox w,s,e,n` for a custom area or `--geofabrik <path>` for a Geofabrik sub-path.
 
 ---
 
@@ -170,6 +218,23 @@ flowchart LR
 | `DELETE` | `/incidents/:id` | Clear an incident |
 | `POST` | `/incidents/random` | Create a random incident |
 
+### Geofences
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/geofences` | List all geofence zones |
+| `POST` | `/geofences` | Create a geofence (GeoJSON polygon + metadata) |
+| `GET` | `/geofences/:id` | Get a geofence |
+| `PUT` | `/geofences/:id` | Update a geofence |
+| `DELETE` | `/geofences/:id` | Delete a geofence |
+| `PATCH` | `/geofences/:id/toggle` | Enable / disable a geofence |
+
+### Health
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/health` | Uptime and subsystem status |
+
 ### Recording & replay
 
 | Method | Path | Description |
@@ -207,6 +272,7 @@ Connect to `ws://localhost:5010`. On connect the server sends a `status` and `op
 | `incident:created` | server → client | New incident + affected vehicles |
 | `incident:cleared` | server → client | Incident resolved |
 | `vehicle:rerouted` | server → client | Vehicle rerouted around incident |
+| `geofence:event` | server → client | Vehicle entered or exited a geofence zone |
 
 ---
 
@@ -314,16 +380,17 @@ SINK_WEBHOOK_CONFIG='{"url":"https://hooks.example.com/fleet"}'
 
 ## Testing
 
-Tests use [Vitest](https://vitest.dev/) across all three projects (~445 tests total).
+Tests use [Vitest](https://vitest.dev/) across all four packages. CI enforces 50 % coverage thresholds.
 
 ```bash
-npm test                          # all projects via Turborepo
-cd apps/simulator && npm test     # simulator (~290 tests)
-cd apps/ui && npm test            # UI (~75 tests)
-cd apps/adapter && npm test       # adapter (~80 tests)
+npm test                          # all packages via Turborepo
+cd apps/simulator && npm test     # simulator
+cd apps/ui && npm test            # UI
+cd apps/adapter && npm test       # adapter
+cd apps/network && npm test       # network CLI
 ```
 
-Simulator test coverage includes: road-network graph, A\* pathfinding, vehicle movement, heat zones, fleet management, incident rerouting, recording/replay lifecycle, rate limiter, geospatial helpers, serializer, config validation, and `SimulationController` lifecycle.
+Simulator test coverage includes: road-network graph, A\* pathfinding, vehicle types and profiles, turn restrictions, BPR traffic manager, time-of-day clock, geofence manager, heat zones, fleet management, incident rerouting, recording/replay lifecycle, rate limiter, geospatial helpers, serializer, config validation, and `SimulationController` lifecycle.
 
 ---
 
@@ -358,6 +425,7 @@ cd apps/simulator && docker compose up
 
 | Package | Path | Tech | Port |
 |---|---|---|---|
+| **network** | [`apps/network/`](apps/network/) | Node.js 24 · Commander · osmium (Docker) | CLI |
 | **simulator** | [`apps/simulator/`](apps/simulator/) | Node.js 24 · Express 4 · ws 8 · Turf.js 7 | 5010 |
 | **adapter** | [`apps/adapter/`](apps/adapter/) | Node.js 24 · Express 4 | 5011 |
 | **ui** | [`apps/ui/`](apps/ui/) | React 19 · D3 7 · Vite · TypeScript 5.8 · CSS Modules | 5012 |
