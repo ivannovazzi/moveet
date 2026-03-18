@@ -43,43 +43,46 @@ export const RoadNetworkMap: React.FC<RoadNetworkMapProps> = ({
   const dataRef = useRef<RoadNetwork | null>(null);
   const rafRef = useRef<number | null>(null);
 
-  const drawRoads = useCallback((proj: GeoProjection, t: ZoomTransform, network: RoadNetwork) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+  const drawRoads = useCallback(
+    (proj: GeoProjection, t: ZoomTransform, network: RoadNetwork) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Bake the zoom transform into the projection so coordinates map to screen pixels
-    const scaled = geoMercator()
-      .translate([proj.translate()[0] * t.k + t.x, proj.translate()[1] * t.k + t.y])
-      .scale(proj.scale() * t.k);
+      // Bake the zoom transform into the projection so coordinates map to screen pixels
+      const scaled = geoMercator()
+        .translate([proj.translate()[0] * t.k + t.x, proj.translate()[1] * t.k + t.y])
+        .scale(proj.scale() * t.k);
 
-    const pathGen = geoPath().projection(scaled).context(ctx);
+      const pathGen = geoPath().projection(scaled).context(ctx);
 
-    ctx.globalAlpha = strokeOpacity;
-    ctx.lineJoin = "round";
-    ctx.lineCap = "round";
+      ctx.globalAlpha = strokeOpacity;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
 
-    ctx.strokeStyle = strokeColor;
-    ctx.lineWidth = strokeWidth;
-    ctx.beginPath();
-    for (const feature of network.features) {
-      if (feature.properties.type !== "highway") pathGen(feature);
-    }
-    ctx.stroke();
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = strokeWidth;
+      ctx.beginPath();
+      for (const feature of network.features) {
+        if (feature.properties.type !== "highway") pathGen(feature);
+      }
+      ctx.stroke();
 
-    ctx.strokeStyle = "#444";
-    ctx.lineWidth = strokeWidth * 2;
-    ctx.beginPath();
-    for (const feature of network.features) {
-      if (feature.properties.type === "highway") pathGen(feature);
-    }
-    ctx.stroke();
+      ctx.strokeStyle = "#444";
+      ctx.lineWidth = strokeWidth * 2;
+      ctx.beginPath();
+      for (const feature of network.features) {
+        if (feature.properties.type === "highway") pathGen(feature);
+      }
+      ctx.stroke();
 
-    ctx.globalAlpha = 1;
-  }, [strokeColor, strokeWidth, strokeOpacity]);
+      ctx.globalAlpha = 1;
+    },
+    [strokeColor, strokeWidth, strokeOpacity]
+  );
 
   useEffect(() => {
     if (!svgRef || !size.width || !size.height || !data) return;
