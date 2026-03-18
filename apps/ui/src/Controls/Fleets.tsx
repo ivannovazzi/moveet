@@ -50,7 +50,7 @@ export default function Fleets({ fleets, onCreateFleet, onDeleteFleet }: FleetsP
         {fleets.length < 10 ? (
           <div className={styles.controlRow}>
             <Button className={styles.addButton} onClick={() => setIsAdding(true)} type="button">
-              + New fleet
+              + New
             </Button>
           </div>
         ) : null}
