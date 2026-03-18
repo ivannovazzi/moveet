@@ -6,6 +6,7 @@ import { Typeahead } from "@/components/Inputs";
 import styles from "./SearchBar.module.css";
 import { isRoad } from "@/utils/typeGuards";
 import { useCallback } from "react";
+import { Button } from "react-aria-components";
 
 function Option({ item }: { item: Road | POI }) {
   const icon = isRoad(item) ? <RoadIcon /> : <POIIcon />;
@@ -48,15 +49,14 @@ export default function SearchBar({
         placeholder="Search..."
       />
 
-      <button
-        type="button"
-        onClick={onDestinationClick}
-        disabled={!selectedItem}
+      <Button
+        onPress={onDestinationClick}
+        isDisabled={!selectedItem}
         className={styles.destinationButton}
         aria-label="Get directions"
       >
         <Directions />
-      </button>
+      </Button>
     </div>
   );
 }

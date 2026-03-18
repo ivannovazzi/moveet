@@ -1,4 +1,12 @@
 import { useState } from "react";
+import {
+  Button,
+  Select,
+  SelectValue,
+  Popover,
+  ListBox,
+  ListBoxItem,
+} from "react-aria-components";
 import type { HealthResponse, ConfigResponse } from "./adapterClient";
 import ConfigForm from "./ConfigForm";
 import styles from "./AdapterDrawer.module.css";
@@ -30,23 +38,41 @@ export default function SourceTab({ health, config, loading, onConnect }: Source
       </section>
 
       <section className={styles.sectionCard}>
-        <label className={styles.field}>
+        <div className={styles.field}>
           <span className={styles.fieldLabel}>Source Type</span>
           <span className={styles.fieldHint}>Select the upstream vehicle feed.</span>
-          <select
-            className={styles.input}
-            value={selectedType}
-            onChange={(e) => setSelectedType(e.target.value)}
+          <Select
+            selectedKey={selectedType}
+            onSelectionChange={(key) => setSelectedType(String(key))}
+            className={styles.selectRoot}
+            aria-label="Source Type"
           >
-            <option value="">-- select --</option>
-            {health.availableSources.map((s) => (
-              <option key={s.type} value={s.type}>
-                {s.type}
-                {health.source?.type === s.type ? " (active)" : ""}
-              </option>
-            ))}
-          </select>
-        </label>
+            <Button className={styles.selectTrigger}>
+              <SelectValue className={styles.selectValue}>
+                {({ selectedText }) => selectedText || "-- select --"}
+              </SelectValue>
+              <span aria-hidden className={styles.selectChevron}>▾</span>
+            </Button>
+            <Popover className={styles.selectPopover}>
+              <ListBox className={styles.selectListBox}>
+                <ListBoxItem id="" textValue="-- select --" className={styles.selectItem}>
+                  -- select --
+                </ListBoxItem>
+                {health.availableSources.map((s) => (
+                  <ListBoxItem
+                    key={s.type}
+                    id={s.type}
+                    textValue={s.type}
+                    className={styles.selectItem}
+                  >
+                    {s.type}
+                    {health.source?.type === s.type ? " (active)" : ""}
+                  </ListBoxItem>
+                ))}
+              </ListBox>
+            </Popover>
+          </Select>
+        </div>
       </section>
 
       {plugin && plugin.configSchema.length > 0 && (
@@ -68,13 +94,13 @@ export default function SourceTab({ health, config, loading, onConnect }: Source
 
       {plugin && plugin.configSchema.length === 0 && (
         <section className={styles.sectionCard}>
-          <button
+          <Button
             className={styles.submitBtn}
-            disabled={loading}
-            onClick={() => onConnect(selectedType)}
+            isDisabled={loading}
+            onPress={() => onConnect(selectedType)}
           >
             {loading ? "Connecting..." : "Connect source"}
-          </button>
+          </Button>
         </section>
       )}
 

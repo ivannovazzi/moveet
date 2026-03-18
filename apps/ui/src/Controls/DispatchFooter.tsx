@@ -1,3 +1,4 @@
+import { Button } from "react-aria-components";
 import type { DispatchAssignment, DirectionResult } from "@/types";
 import { DispatchState } from "@/hooks/useDispatchState";
 import styles from "./DispatchFooter.module.css";
@@ -36,9 +37,9 @@ export default function DispatchFooter({
             : "Select vehicles to dispatch"}
         </span>
         <div className={styles.buttons}>
-          <button type="button" className={styles.secondaryButton} onClick={onClear}>
+          <Button className={styles.secondaryButton} onPress={onClear}>
             Exit
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -55,17 +56,16 @@ export default function DispatchFooter({
           {stopCount !== 1 ? "s" : ""}
         </span>
         <div className={styles.buttons}>
-          <button type="button" className={styles.secondaryButton} onClick={onClear}>
+          <Button className={styles.secondaryButton} onPress={onClear}>
             Clear
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
             className={styles.primaryButton}
-            onClick={onDispatch}
-            disabled={assignments.length === 0}
+            onPress={onDispatch}
+            isDisabled={assignments.length === 0}
           >
             Dispatch
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -79,12 +79,12 @@ export default function DispatchFooter({
           Dispatching...
         </span>
         <div className={styles.buttons}>
-          <button type="button" className={styles.secondaryButton} disabled>
+          <Button className={styles.secondaryButton} isDisabled>
             Clear
-          </button>
-          <button type="button" className={styles.primaryButton} disabled>
+          </Button>
+          <Button className={styles.primaryButton} isDisabled>
             Dispatch
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -101,13 +101,13 @@ export default function DispatchFooter({
         <span className={styles.text}>{text}</span>
         <div className={styles.buttons}>
           {failures > 0 && (
-            <button type="button" className={styles.secondaryButton} onClick={onRetryFailed}>
+            <Button className={styles.secondaryButton} onPress={onRetryFailed}>
               Retry Failed
-            </button>
+            </Button>
           )}
-          <button type="button" className={styles.primaryButton} onClick={onDone}>
+          <Button className={styles.primaryButton} onPress={onDone}>
             Done
-          </button>
+          </Button>
         </div>
       </div>
     );

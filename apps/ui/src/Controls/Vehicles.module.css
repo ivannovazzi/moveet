@@ -36,12 +36,14 @@
   color: var(--color-gray);
 }
 
-.filterInput:hover {
+.filterInput:hover,
+.filterInputWrapper[data-hovered] .filterInput {
   border-color: rgba(255, 255, 255, 0.14);
   background: var(--surface-bg-hover);
 }
 
-.filterInput:focus {
+.filterInput:focus,
+.filterInputWrapper[data-focus-within] .filterInput {
   border-color: var(--focus-border);
   background: var(--focus-bg);
   box-shadow: var(--focus-ring);
@@ -69,7 +71,8 @@
     color var(--transition-fast);
 }
 
-.filterClear:hover {
+.filterClear:hover,
+.filterClear[data-hovered] {
   background: var(--surface-bg-active);
   border-color: rgba(255, 255, 255, 0.14);
   color: var(--color-gray-lightest);

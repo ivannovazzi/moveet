@@ -93,8 +93,13 @@
   transition: background var(--transition-fast);
 }
 
-.recordBtn:hover {
+.recordBtn:hover,
+.recordBtn[data-hovered] {
   background: var(--surface-bg-hover);
+}
+
+.recordBtn[data-pressed]:not(.recordBtnActive) {
+  background: var(--surface-bg-active, var(--surface-bg-hover));
 }
 
 .recordIcon {
@@ -108,7 +113,12 @@
   background: var(--color-danger-bg);
 }
 
-.recordBtnActive:hover {
+.recordBtnActive:hover,
+.recordBtnActive[data-hovered] {
+  background: var(--color-danger-bg-hover);
+}
+
+.recordBtnActive[data-pressed] {
   background: var(--color-danger-bg-hover);
 }
 
@@ -232,8 +242,13 @@
     color var(--transition-fast);
 }
 
-.speedBtn:hover {
+.speedBtn:hover,
+.speedBtn[data-hovered] {
   background: var(--surface-bg-hover);
+}
+
+.speedBtn[data-pressed] {
+  background: var(--surface-bg-active, var(--surface-bg-hover));
 }
 
 .speedBtnActive {

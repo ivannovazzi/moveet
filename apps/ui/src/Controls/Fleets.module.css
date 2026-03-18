@@ -85,12 +85,14 @@
   color: var(--color-gray);
 }
 
-.newFleetInput:hover {
+.newFleetInput:hover,
+.newFleetInput[data-hovered] {
   background: var(--surface-bg-hover);
   border-color: rgba(255, 255, 255, 0.14);
 }
 
-.newFleetInput:focus {
+.newFleetInput:focus,
+.newFleetInput[data-focused] {
   border-color: var(--focus-border);
   box-shadow: var(--focus-ring);
   background: var(--focus-bg);

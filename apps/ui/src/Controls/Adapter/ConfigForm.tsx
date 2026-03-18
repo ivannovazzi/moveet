@@ -1,4 +1,14 @@
 import { useState } from "react";
+import {
+  TextField,
+  Input as AriaInput,
+  Select,
+  SelectValue,
+  Button,
+  Popover,
+  ListBox,
+  ListBoxItem,
+} from "react-aria-components";
 import { Switch } from "@/components/Inputs";
 import type { ConfigField } from "./adapterClient";
 import styles from "./AdapterDrawer.module.css";
@@ -93,40 +103,66 @@ function renderInput(
       );
     case "number":
       return (
-        <input
-          type="number"
-          className={cls}
-          value={value as number}
-          placeholder={field.placeholder}
-          required={field.required}
-          onChange={(e) => set(field.name, Number(e.target.value))}
-        />
+        <TextField
+          value={String(value as number)}
+          onChange={(val) => set(field.name, Number(val))}
+          aria-label={field.label}
+        >
+          <AriaInput
+            type="number"
+            className={cls}
+            placeholder={field.placeholder}
+            required={field.required}
+          />
+        </TextField>
       );
     case "password":
       return (
-        <input
-          type="password"
-          className={cls}
+        <TextField
           value={value as string}
-          placeholder={field.placeholder}
-          required={field.required}
-          onChange={(e) => set(field.name, e.target.value)}
-        />
+          onChange={(val) => set(field.name, val)}
+          aria-label={field.label}
+        >
+          <AriaInput
+            type="password"
+            className={cls}
+            placeholder={field.placeholder}
+            required={field.required}
+          />
+        </TextField>
       );
     case "select":
       return (
-        <select
-          className={cls}
-          value={value as string}
-          onChange={(e) => set(field.name, e.target.value)}
+        <Select
+          selectedKey={value as string}
+          onSelectionChange={(key) => set(field.name, String(key))}
+          className={styles.selectRoot}
+          aria-label={field.label}
         >
-          <option value="">--</option>
-          {field.options?.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
+          <Button className={styles.selectTrigger}>
+            <SelectValue className={styles.selectValue}>
+              {({ selectedText }) => selectedText || "--"}
+            </SelectValue>
+            <span aria-hidden className={styles.selectChevron}>▾</span>
+          </Button>
+          <Popover className={styles.selectPopover}>
+            <ListBox className={styles.selectListBox}>
+              <ListBoxItem id="" textValue="--" className={styles.selectItem}>
+                --
+              </ListBoxItem>
+              {field.options?.map((o) => (
+                <ListBoxItem
+                  key={o.value}
+                  id={o.value}
+                  textValue={o.label}
+                  className={styles.selectItem}
+                >
+                  {o.label}
+                </ListBoxItem>
+              ))}
+            </ListBox>
+          </Popover>
+        </Select>
       );
     case "json":
       return (
@@ -142,14 +178,18 @@ function renderInput(
       );
     default:
       return (
-        <input
-          type="text"
-          className={cls}
+        <TextField
           value={value as string}
-          placeholder={field.placeholder}
-          required={field.required}
-          onChange={(e) => set(field.name, e.target.value)}
-        />
+          onChange={(val) => set(field.name, val)}
+          aria-label={field.label}
+        >
+          <AriaInput
+            type="text"
+            className={cls}
+            placeholder={field.placeholder}
+            required={field.required}
+          />
+        </TextField>
       );
   }
 }

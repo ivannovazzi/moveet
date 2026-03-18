@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import classNames from "classnames";
+import { Button } from "react-aria-components";
 import client from "@/utils/client";
 import type { ReplayStatus, SimulationStatus } from "@/types";
 import { Flame, Pause, Play, Record, Reset, Stop } from "@/components/Icons";
@@ -139,16 +140,15 @@ function ReplayDock({
 
       <div className={styles.speedGroup}>
         {SPEEDS.map((s) => (
-          <button
+          <Button
             key={s}
-            type="button"
             className={classNames(styles.speedBtn, {
               [styles.speedBtnActive]: (replayStatus.speed ?? 1) === s,
             })}
-            onClick={() => handleSpeedChange(s)}
+            onPress={() => handleSpeedChange(s)}
           >
             {s}x
-          </button>
+          </Button>
         ))}
       </div>
     </div>
@@ -259,15 +259,14 @@ export default function BottomDock({
 
       <div className={styles.divider} />
 
-      <button
-        type="button"
+      <Button
         className={classNames(styles.recordBtn, { [styles.recordBtnActive]: isRecording })}
-        onClick={isRecording ? onStopRecording : onStartRecording}
+        onPress={isRecording ? onStopRecording : onStartRecording}
         aria-label={isRecording ? "Stop recording" : "Start recording"}
       >
         <Record className={styles.recordIcon} />
         {isRecording && <span className={styles.recordTime}>{formatTime(elapsed)}</span>}
-      </button>
+      </Button>
 
       <div className={styles.divider} />
 

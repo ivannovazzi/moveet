@@ -5,6 +5,7 @@ import { useDirectionContext } from "@/data/useData";
 import { PanelBadge, PanelBody, PanelEmptyState, PanelHeader } from "./PanelPrimitives";
 import styles from "./Vehicles.module.css";
 import { Search } from "@/components/Icons";
+import { SearchField, Input, Button } from "react-aria-components";
 
 function SpeedBar({ speed, maxSpeed }: { speed: number; maxSpeed: number }) {
   const width = maxSpeed > 0 ? Math.min((speed / maxSpeed) * 100, 100) : 0;
@@ -108,26 +109,21 @@ export default function VehicleList({
         }
         badge={<PanelBadge>{visibleVehicles.length}</PanelBadge>}
       >
-        <div className={styles.filterInputWrapper}>
+        <SearchField
+          value={filter}
+          onChange={onFilterChange}
+          onClear={() => onFilterChange("")}
+          className={styles.filterInputWrapper}
+          aria-label="Search vehicles"
+        >
           <Search className={styles.filterIcon} aria-hidden="true" />
-          <input
-            type="text"
-            value={filter}
-            onChange={(e) => onFilterChange(e.target.value)}
-            placeholder="Search vehicles…"
-            className={styles.filterInput}
-          />
-          {filter ? (
-            <button
-              className={styles.filterClear}
-              onClick={() => onFilterChange("")}
-              aria-label="Clear search"
-              type="button"
-            >
+          <Input placeholder="Search vehicles…" className={styles.filterInput} />
+          {filter && (
+            <Button slot="clear" className={styles.filterClear} aria-label="Clear search">
               ×
-            </button>
-          ) : null}
-        </div>
+            </Button>
+          )}
+        </SearchField>
       </PanelHeader>
 
       <PanelBody
