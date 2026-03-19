@@ -14,19 +14,36 @@ function loadSpec(): Record<string, unknown> {
 }
 
 /**
- * Extracts all "METHOD /path" strings from the Express index.ts source code.
- * Matches app.get, app.post, app.delete, app.put, app.patch patterns.
+ * Infrastructure routes served directly from index.ts that are intentionally
+ * excluded from the OpenAPI spec (health check, raw spec download, Scalar UI).
+ */
+const EXCLUDED_ROUTES = new Set(["GET /health", "GET /api-docs.yaml"]);
+
+/**
+ * Extracts all "METHOD /path" strings from Express route handler source files.
+ * Scans index.ts and all files under src/routes/.
  */
 function extractRoutesFromSource(): Set<string> {
+  const routesDir = path.resolve(__dirname, "../routes");
   const indexPath = path.resolve(__dirname, "../index.ts");
-  const source = fs.readFileSync(indexPath, "utf-8");
-  const routeRegex = /app\.(get|post|put|patch|delete)\(\s*["'`]([^"'`]+)["'`]/g;
+
+  const files = [
+    indexPath,
+    ...fs.readdirSync(routesDir).map((f) => path.join(routesDir, f)),
+  ].filter((f) => f.endsWith(".ts"));
+
+  const routeRegex = /\.(get|post|put|patch|delete)\(\s*["'`]([^"'`]+)["'`]/g;
   const routes = new Set<string>();
-  let match: RegExpExecArray | null;
-  while ((match = routeRegex.exec(source)) !== null) {
-    const method = match[1].toUpperCase();
-    const routePath = match[2];
-    routes.add(`${method} ${routePath}`);
+
+  for (const file of files) {
+    const source = fs.readFileSync(file, "utf-8");
+    let match: RegExpExecArray | null;
+    while ((match = routeRegex.exec(source)) !== null) {
+      const method = match[1].toUpperCase();
+      const routePath = match[2];
+      const key = `${method} ${routePath}`;
+      if (!EXCLUDED_ROUTES.has(key)) routes.add(key);
+    }
   }
   return routes;
 }
