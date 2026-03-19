@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import Fleets from "./Fleets";
-import type { Fleet } from "@/types";
+import type { Fleet, Vehicle } from "@/types";
 
 const mockFleet = (overrides?: Partial<Fleet>): Fleet => ({
   id: "fleet-1",
@@ -12,7 +12,29 @@ const mockFleet = (overrides?: Partial<Fleet>): Fleet => ({
   ...overrides,
 });
 
+const mockVehicle = (overrides?: Partial<Vehicle>): Vehicle => ({
+  id: "v1",
+  name: "Vehicle 1",
+  speed: 30,
+  position: [36.8, -1.3],
+  heading: 0,
+  status: "moving",
+  visible: true,
+  selected: false,
+  hovered: false,
+  ...overrides,
+});
+
 const noop = vi.fn(() => Promise.resolve());
+
+const defaultProps = {
+  fleets: [] as Fleet[],
+  vehicles: [] as Vehicle[],
+  onCreateFleet: noop,
+  onDeleteFleet: noop,
+  onAssignVehicle: noop,
+  onUnassignVehicle: noop,
+};
 
 describe("Fleets", () => {
   beforeEach(() => {
@@ -20,12 +42,12 @@ describe("Fleets", () => {
   });
 
   it("renders header with title", () => {
-    render(<Fleets fleets={[]} onCreateFleet={noop} onDeleteFleet={noop} />);
+    render(<Fleets {...defaultProps} />);
     expect(screen.getByRole("heading", { name: "Fleets" })).toBeInTheDocument();
   });
 
   it("shows empty state when no fleets", () => {
-    render(<Fleets fleets={[]} onCreateFleet={noop} onDeleteFleet={noop} />);
+    render(<Fleets {...defaultProps} />);
     expect(screen.getByText("No fleets defined")).toBeInTheDocument();
   });
 
@@ -34,7 +56,7 @@ describe("Fleets", () => {
       mockFleet({ id: "f1", name: "Alpha", vehicleIds: ["v1", "v2"] }),
       mockFleet({ id: "f2", name: "Bravo", vehicleIds: ["v3"] }),
     ];
-    render(<Fleets fleets={fleets} onCreateFleet={noop} onDeleteFleet={noop} />);
+    render(<Fleets {...defaultProps} fleets={fleets} />);
     expect(screen.getByText("Alpha")).toBeInTheDocument();
     expect(screen.getByText("Bravo")).toBeInTheDocument();
     expect(screen.getByText("2 fleet groups available")).toBeInTheDocument();
@@ -44,13 +66,13 @@ describe("Fleets", () => {
 
   it("shows delete button for local fleets", () => {
     const fleets = [mockFleet({ source: "local" })];
-    render(<Fleets fleets={fleets} onCreateFleet={noop} onDeleteFleet={noop} />);
+    render(<Fleets {...defaultProps} fleets={fleets} />);
     expect(screen.getByTitle("Delete fleet")).toBeInTheDocument();
   });
 
   it("shows 'ext' label for external fleets", () => {
     const fleets = [mockFleet({ source: "external" })];
-    render(<Fleets fleets={fleets} onCreateFleet={noop} onDeleteFleet={noop} />);
+    render(<Fleets {...defaultProps} fleets={fleets} />);
     expect(screen.getByText("ext")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Delete fleet" })).not.toBeInTheDocument();
   });
@@ -58,14 +80,14 @@ describe("Fleets", () => {
   it("calls onDeleteFleet when delete clicked", async () => {
     const onDelete = vi.fn(() => Promise.resolve());
     const fleets = [mockFleet({ id: "fleet-42" })];
-    render(<Fleets fleets={fleets} onCreateFleet={noop} onDeleteFleet={onDelete} />);
+    render(<Fleets {...defaultProps} fleets={fleets} onDeleteFleet={onDelete} />);
 
     await userEvent.click(screen.getByTitle("Delete fleet"));
     expect(onDelete).toHaveBeenCalledWith("fleet-42");
   });
 
   it("shows input when '+ New' clicked", async () => {
-    render(<Fleets fleets={[]} onCreateFleet={noop} onDeleteFleet={noop} />);
+    render(<Fleets {...defaultProps} />);
 
     await userEvent.click(screen.getByRole("button", { name: "+ New" }));
     expect(screen.getByPlaceholderText("Fleet name...")).toBeInTheDocument();
@@ -73,7 +95,7 @@ describe("Fleets", () => {
 
   it("calls onCreateFleet on Enter", async () => {
     const onCreate = vi.fn(() => Promise.resolve());
-    render(<Fleets fleets={[]} onCreateFleet={onCreate} onDeleteFleet={noop} />);
+    render(<Fleets {...defaultProps} onCreateFleet={onCreate} />);
 
     await userEvent.click(screen.getByRole("button", { name: "+ New" }));
     const input = screen.getByPlaceholderText("Fleet name...");
@@ -82,7 +104,7 @@ describe("Fleets", () => {
   });
 
   it("hides input on Escape", async () => {
-    render(<Fleets fleets={[]} onCreateFleet={noop} onDeleteFleet={noop} />);
+    render(<Fleets {...defaultProps} />);
 
     await userEvent.click(screen.getByRole("button", { name: "+ New" }));
     const input = screen.getByPlaceholderText("Fleet name...");
@@ -96,7 +118,94 @@ describe("Fleets", () => {
     const fleets = Array.from({ length: 10 }, (_, i) =>
       mockFleet({ id: `fleet-${i}`, name: `Fleet ${i}` })
     );
-    render(<Fleets fleets={fleets} onCreateFleet={noop} onDeleteFleet={noop} />);
+    render(<Fleets {...defaultProps} fleets={fleets} />);
     expect(screen.queryByRole("button", { name: "+ New" })).not.toBeInTheDocument();
+  });
+
+  // ─── Vehicle assignment tests ──────────────────────────────────────
+
+  it("expands fleet to show vehicle assignment when clicked", async () => {
+    const fleets = [mockFleet({ id: "f1", name: "Alpha", vehicleIds: [] })];
+    const vehicles = [mockVehicle({ id: "v1", name: "Vehicle 1" })];
+    render(<Fleets {...defaultProps} fleets={fleets} vehicles={vehicles} />);
+
+    // Click the fleet row to expand
+    await userEvent.click(screen.getByLabelText("Alpha, 0 vehicles"));
+
+    // Should show the add vehicles section
+    expect(screen.getByText("Add vehicles")).toBeInTheDocument();
+    expect(screen.getByText("Vehicle 1")).toBeInTheDocument();
+  });
+
+  it("shows assigned vehicles in expanded fleet", async () => {
+    const fleets = [mockFleet({ id: "f1", name: "Alpha", vehicleIds: ["v1"] })];
+    const vehicles = [mockVehicle({ id: "v1", name: "Vehicle 1" })];
+    render(<Fleets {...defaultProps} fleets={fleets} vehicles={vehicles} />);
+
+    await userEvent.click(screen.getByLabelText("Alpha, 1 vehicles"));
+
+    expect(screen.getByText("Assigned")).toBeInTheDocument();
+    expect(screen.getByLabelText("Remove Vehicle 1")).toBeInTheDocument();
+  });
+
+  it("calls onAssignVehicle when add button clicked", async () => {
+    const onAssign = vi.fn(() => Promise.resolve());
+    const fleets = [mockFleet({ id: "f1", name: "Alpha", vehicleIds: [] })];
+    const vehicles = [mockVehicle({ id: "v1", name: "Vehicle 1" })];
+    render(
+      <Fleets {...defaultProps} fleets={fleets} vehicles={vehicles} onAssignVehicle={onAssign} />
+    );
+
+    await userEvent.click(screen.getByLabelText("Alpha, 0 vehicles"));
+    await userEvent.click(screen.getByLabelText("Add Vehicle 1"));
+
+    expect(onAssign).toHaveBeenCalledWith("f1", "v1");
+  });
+
+  it("calls onUnassignVehicle when remove button clicked", async () => {
+    const onUnassign = vi.fn(() => Promise.resolve());
+    const fleets = [mockFleet({ id: "f1", name: "Alpha", vehicleIds: ["v1"] })];
+    const vehicles = [mockVehicle({ id: "v1", name: "Vehicle 1" })];
+    render(
+      <Fleets
+        {...defaultProps}
+        fleets={fleets}
+        vehicles={vehicles}
+        onUnassignVehicle={onUnassign}
+      />
+    );
+
+    await userEvent.click(screen.getByLabelText("Alpha, 1 vehicles"));
+    await userEvent.click(screen.getByLabelText("Remove Vehicle 1"));
+
+    expect(onUnassign).toHaveBeenCalledWith("f1", "v1");
+  });
+
+  it("hides already-assigned vehicles from unassigned list", async () => {
+    const fleets = [mockFleet({ id: "f1", name: "Alpha", vehicleIds: ["v1"] })];
+    const vehicles = [
+      mockVehicle({ id: "v1", name: "Vehicle 1" }),
+      mockVehicle({ id: "v2", name: "Vehicle 2" }),
+    ];
+    render(<Fleets {...defaultProps} fleets={fleets} vehicles={vehicles} />);
+
+    await userEvent.click(screen.getByLabelText("Alpha, 1 vehicles"));
+
+    // v1 is assigned, so "Add Vehicle 1" should not exist, only "Add Vehicle 2"
+    expect(screen.queryByLabelText("Add Vehicle 1")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Add Vehicle 2")).toBeInTheDocument();
+  });
+
+  it("collapses fleet on second click", async () => {
+    const fleets = [mockFleet({ id: "f1", name: "Alpha", vehicleIds: [] })];
+    const vehicles = [mockVehicle({ id: "v1", name: "Vehicle 1" })];
+    render(<Fleets {...defaultProps} fleets={fleets} vehicles={vehicles} />);
+
+    const fleetButton = screen.getByLabelText("Alpha, 0 vehicles");
+    await userEvent.click(fleetButton);
+    expect(screen.getByText("Add vehicles")).toBeInTheDocument();
+
+    await userEvent.click(fleetButton);
+    expect(screen.queryByText("Add vehicles")).not.toBeInTheDocument();
   });
 });

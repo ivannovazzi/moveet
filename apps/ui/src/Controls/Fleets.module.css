@@ -19,22 +19,40 @@
   gap: var(--space-2);
 }
 
+.fleetCard {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-sm);
+  background: var(--surface-bg);
+  border: var(--surface-border);
+  overflow: hidden;
+  transition: border-color var(--transition-fast);
+}
+
+.fleetCard:hover {
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
 .fleet {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3);
-  border-radius: var(--radius-sm);
-  background: var(--surface-bg);
-  border: var(--surface-border);
-  transition:
-    background var(--transition-fast),
-    border-color var(--transition-fast);
+  background: transparent;
+  border: none;
+  width: 100%;
+  cursor: pointer;
+  color: inherit;
+  font-family: inherit;
+  transition: background var(--transition-fast);
 }
 
 .fleet:hover {
   background: var(--surface-bg-hover);
-  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.fleetExpanded {
+  background: var(--surface-bg-hover);
 }
 
 .colorDot {
@@ -101,4 +119,124 @@
   border-color: var(--focus-border);
   box-shadow: var(--focus-ring);
   background: var(--focus-bg);
+}
+
+/* ─── Vehicle assignment section ─────────────────────────────────── */
+
+.vehicleSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.sectionLabel {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-gray);
+  padding-bottom: var(--space-1);
+}
+
+.memberList,
+.addVehicleSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.unassignedList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.memberRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-xs);
+  transition: background var(--transition-fast);
+}
+
+.memberRow:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.memberName {
+  font-size: var(--text-sm);
+  color: var(--color-gray-lightest);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.removeButton,
+.assignButton {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-xs);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-gray);
+  font-size: var(--text-base);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.removeButton:hover {
+  background: rgba(255, 80, 80, 0.12);
+  border-color: rgba(255, 80, 80, 0.2);
+  color: rgba(255, 80, 80, 0.9);
+}
+
+.assignButton:hover {
+  background: rgba(80, 220, 80, 0.12);
+  border-color: rgba(80, 220, 80, 0.2);
+  color: rgba(80, 220, 80, 0.9);
+}
+
+.vehicleFilterInput {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 var(--space-3);
+  height: var(--control-sm);
+  font-size: var(--text-sm);
+  color: var(--color-gray-lightest);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-xs);
+  outline: none;
+  font-family: inherit;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.vehicleFilterInput::placeholder {
+  color: var(--color-gray);
+}
+
+.vehicleFilterInput:focus {
+  border-color: var(--focus-border);
+  background: var(--focus-bg);
+}
+
+.noVehicles {
+  font-size: var(--text-xs);
+  color: var(--color-gray);
+  padding: var(--space-2) 0;
 }

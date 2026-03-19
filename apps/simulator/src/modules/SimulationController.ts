@@ -27,7 +27,7 @@ interface ResetPayload {
 type EventEmitterMap = {
   updateStatus: [SimulationStatus];
   reset: [ResetPayload];
-  replayStatus: [ReplayStatus];
+  "replay:status": [ReplayStatus];
   replayVehicle: [unknown];
   replayDirection: [unknown];
   "replayIncident:created": [unknown];
@@ -439,7 +439,7 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
       this.replayManager = undefined;
     }
     this._mode = "live";
-    this.emit("replayStatus", { mode: "live" });
+    this.emit("replay:status", { mode: "live" });
   }
 
   /**
@@ -495,8 +495,8 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
       });
     }
 
-    rm.on("replayStatus", (status: ReplayStatus) => {
-      this.emit("replayStatus", status);
+    rm.on("replay:status", (status: ReplayStatus) => {
+      this.emit("replay:status", status);
     });
 
     rm.on("replayEnd", () => {
