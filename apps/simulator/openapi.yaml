@@ -38,6 +38,8 @@ tags:
     description: Fleet and vehicle performance analytics
   - name: Geofences
     description: Geofence zone CRUD and toggle
+  - name: Scenarios
+    description: Scenario management — load, start, pause, stop, status
 
 paths:
   # ─── Simulation ──────────────────────────────────────────────────────
@@ -1324,6 +1326,112 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  # ─── Scenarios ──────────────────────────────────────────────────────
+  /scenarios:
+    get:
+      operationId: listScenarios
+      summary: List available scenario files
+      tags: [Scenarios]
+      responses:
+        "200":
+          description: Array of scenario file info
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScenarioFile"
+
+  /scenarios/load:
+    post:
+      operationId: loadScenario
+      summary: Upload and load a scenario from JSON body
+      tags: [Scenarios]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScenarioInput"
+      responses:
+        "200":
+          description: Scenario loaded
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, scenario]
+                properties:
+                  status:
+                    type: string
+                    enum: [loaded]
+                  scenario:
+                    $ref: "#/components/schemas/ScenarioSummary"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+
+  /scenarios/start:
+    post:
+      operationId: startScenario
+      summary: Start the loaded scenario
+      tags: [Scenarios]
+      responses:
+        "200":
+          description: Scenario status after starting
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScenarioStatus"
+        "409":
+          description: No scenario loaded or already running
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /scenarios/pause:
+    post:
+      operationId: pauseScenario
+      summary: Pause the running scenario
+      tags: [Scenarios]
+      responses:
+        "200":
+          description: Scenario status after pausing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScenarioStatus"
+
+  /scenarios/stop:
+    post:
+      operationId: stopScenario
+      summary: Stop the running scenario
+      tags: [Scenarios]
+      responses:
+        "200":
+          description: Scenario status after stopping
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScenarioStatus"
+
+  /scenarios/status:
+    get:
+      operationId: getScenarioStatus
+      summary: Get current scenario execution status
+      tags: [Scenarios]
+      responses:
+        "200":
+          description: Current scenario status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScenarioStatus"
+
 components:
   schemas:
     # ─── Core types ──────────────────────────────────────────────────
@@ -2062,3 +2170,99 @@ components:
             $ref: "#/components/schemas/CoordinatePair"
         color:
           type: string
+
+    # ─── Scenarios ──────────────────────────────────────────────────
+    ScenarioFile:
+      type: object
+      required: [fileName, fileSize, modifiedAt]
+      properties:
+        fileName:
+          type: string
+        fileSize:
+          type: integer
+          description: File size in bytes
+        modifiedAt:
+          type: string
+          format: date-time
+
+    ScenarioInput:
+      type: object
+      required: [name, duration, events]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        city:
+          type: string
+        duration:
+          type: number
+          description: Total scenario duration in seconds
+        version:
+          type: integer
+          enum: [1]
+          default: 1
+        variables:
+          type: object
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: number
+        events:
+          type: array
+          items:
+            type: object
+            required: [at, action]
+            properties:
+              at:
+                type: number
+                description: Seconds from scenario start
+              action:
+                type: object
+                required: [type]
+                properties:
+                  type:
+                    type: string
+                    enum: [spawn_vehicles, create_incident, dispatch, set_traffic_profile, clear_incidents, set_options]
+
+    ScenarioSummary:
+      type: object
+      required: [name, duration, eventCount]
+      properties:
+        name:
+          type: string
+        duration:
+          type: number
+        eventCount:
+          type: integer
+
+    ScenarioStatus:
+      type: object
+      required: [state, scenario, elapsed, eventIndex, eventsExecuted, upcomingEvents]
+      properties:
+        state:
+          type: string
+          enum: [idle, running, paused]
+        scenario:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/ScenarioSummary"
+        elapsed:
+          type: number
+          description: Elapsed time in seconds
+        eventIndex:
+          type: integer
+          description: Index of next event to execute
+        eventsExecuted:
+          type: integer
+        upcomingEvents:
+          type: array
+          items:
+            type: object
+            required: [at, type]
+            properties:
+              at:
+                type: number
+              type:
+                type: string

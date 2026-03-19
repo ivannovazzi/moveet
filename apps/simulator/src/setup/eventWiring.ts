@@ -6,6 +6,7 @@ import type { RecordingManager } from "../modules/RecordingManager";
 import type { SimulationController } from "../modules/SimulationController";
 import type { WebSocketBroadcaster } from "../modules/WebSocketBroadcaster";
 import type { GeoFenceManager } from "../modules/GeoFenceManager";
+import type { ScenarioManager } from "../modules/scenario";
 import type { VehicleDTO } from "../types";
 
 export interface EventWiringContext {
@@ -17,6 +18,7 @@ export interface EventWiringContext {
   simulationController: SimulationController;
   broadcaster: WebSocketBroadcaster;
   geoFenceManager: GeoFenceManager;
+  scenarioManager: ScenarioManager;
 }
 
 /** Default analytics broadcast interval in ms (5 seconds). */
@@ -40,6 +42,7 @@ export function wireEvents(ctx: EventWiringContext): {
     simulationController,
     broadcaster,
     geoFenceManager,
+    scenarioManager,
   } = ctx;
 
   // ─── Vehicle updates (batched by the broadcaster) ───────────────────
@@ -129,6 +132,16 @@ export function wireEvents(ctx: EventWiringContext): {
     broadcaster.broadcast("vehicle:rerouted", data)
   );
   simulationController.on("replayStatus", (data) => broadcaster.broadcast("replayStatus", data));
+
+  // ─── Scenario events → WS broadcaster ─────────────────────────────
+  scenarioManager.on("scenario:started", (data) => broadcaster.broadcast("scenario:started", data));
+  scenarioManager.on("scenario:event", (data) => broadcaster.broadcast("scenario:event", data));
+  scenarioManager.on("scenario:paused", (data) => broadcaster.broadcast("scenario:paused", data));
+  scenarioManager.on("scenario:resumed", (data) => broadcaster.broadcast("scenario:resumed", data));
+  scenarioManager.on("scenario:completed", (data) =>
+    broadcaster.broadcast("scenario:completed", data)
+  );
+  scenarioManager.on("scenario:stopped", (data) => broadcaster.broadcast("scenario:stopped", data));
 
   // ─── Analytics snapshot broadcast ─────────────────────────────────
   const analyticsIntervalMs = process.env.ANALYTICS_INTERVAL

@@ -49,6 +49,7 @@ function createMockContext(): RouteContext {
         mode: "live",
       }),
     } as unknown as RouteContext["simulationController"],
+    scenarioManager: {} as RouteContext["scenarioManager"],
   };
 }
 
