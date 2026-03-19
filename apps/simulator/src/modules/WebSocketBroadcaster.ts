@@ -158,7 +158,13 @@ export class WebSocketBroadcaster {
   private getClientState(client: WebSocket): ClientState {
     let state = this.clientStates.get(client);
     if (!state) {
-      state = { lastSent: new Map(), droppedFlushes: 0, lastPong: 0, lastPingSent: 0, filter: undefined };
+      state = {
+        lastSent: new Map(),
+        droppedFlushes: 0,
+        lastPong: 0,
+        lastPingSent: 0,
+        filter: undefined,
+      };
       this.clientStates.set(client, state);
     }
     return state;
