@@ -55,6 +55,33 @@ export function createScenarioRoutes(ctx: RouteContext): Router {
     })
   );
 
+  // ─── Load a scenario by filename from data/scenarios/ ─────────────
+  router.post(
+    "/scenarios/load/:fileName",
+    expensiveRateLimiter.middleware(),
+    asyncHandler(async (req, res) => {
+      const fileName = req.params.fileName as string;
+      const filePath = path.join(SCENARIOS_DIR, fileName);
+
+      if (!fs.existsSync(filePath)) {
+        res.status(404).json({ error: `Scenario file not found: ${fileName}` });
+        return;
+      }
+
+      const raw = fs.readFileSync(filePath, "utf-8");
+      const parsed = JSON.parse(raw);
+      const scenario = scenarioManager.loadScenarioFromJSON(parsed);
+      res.json({
+        status: "loaded",
+        scenario: {
+          name: scenario.name,
+          duration: scenario.duration,
+          eventCount: scenario.events.length,
+        },
+      });
+    })
+  );
+
   // ─── Start loaded scenario ────────────────────────────────────────
   router.post(
     "/scenarios/start",
@@ -73,8 +100,13 @@ export function createScenarioRoutes(ctx: RouteContext): Router {
   router.post(
     "/scenarios/pause",
     asyncHandler(async (_req, res) => {
-      scenarioManager.pause();
-      res.json(scenarioManager.getStatus());
+      try {
+        scenarioManager.pause();
+        res.json(scenarioManager.getStatus());
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to pause scenario";
+        res.status(409).json({ error: message });
+      }
     })
   );
 
@@ -82,8 +114,13 @@ export function createScenarioRoutes(ctx: RouteContext): Router {
   router.post(
     "/scenarios/stop",
     asyncHandler(async (_req, res) => {
-      scenarioManager.stop();
-      res.json(scenarioManager.getStatus());
+      try {
+        scenarioManager.stop();
+        res.json(scenarioManager.getStatus());
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to stop scenario";
+        res.status(409).json({ error: message });
+      }
     })
   );
 

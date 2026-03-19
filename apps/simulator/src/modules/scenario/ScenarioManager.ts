@@ -87,9 +87,12 @@ export class ScenarioManager extends EventEmitter {
 
   /**
    * Pauses scenario execution. Independent of simulation pause.
+   * @throws {Error} If no scenario is currently running
    */
   pause(): void {
-    if (this.state !== "running") return;
+    if (this.state !== "running") {
+      throw new Error("No scenario is running");
+    }
 
     this.pausedAt = this.elapsed();
     this.clearTimers();
@@ -120,9 +123,12 @@ export class ScenarioManager extends EventEmitter {
 
   /**
    * Stops scenario execution and resets to idle.
+   * @throws {Error} If no scenario is currently running or paused
    */
   stop(): void {
-    if (this.state === "idle") return;
+    if (this.state === "idle") {
+      throw new Error("No scenario is running");
+    }
 
     const name = this.scenario?.name ?? "";
     const executed = this.eventsExecuted;

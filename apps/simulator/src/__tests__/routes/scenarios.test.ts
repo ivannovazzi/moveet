@@ -25,7 +25,7 @@ vi.mock("../../middleware/rateLimiter", () => ({
   },
 }));
 
-// Mock fs for scenario file listing
+// Mock fs for scenario file listing and reading
 vi.mock("fs", async (importOriginal) => {
   const actual: typeof import("fs") = await importOriginal();
   return {
@@ -38,6 +38,14 @@ vi.mock("fs", async (importOriginal) => {
         size: 2048,
         mtime: new Date("2026-03-18T00:00:00Z"),
       }),
+      readFileSync: vi.fn().mockReturnValue(
+        JSON.stringify({
+          name: "Rush Hour",
+          description: "A rush hour scenario",
+          duration: 120,
+          events: [{ at: 5, action: { type: "spawn_vehicles", count: 3 } }],
+        })
+      ),
     },
   };
 });
@@ -153,6 +161,27 @@ describe("Scenario routes", () => {
     });
   });
 
+  // ─── POST /scenarios/load/:fileName ─────────────────────────────────────
+
+  describe("POST /scenarios/load/:fileName", () => {
+    it("should load a scenario file by name and return loaded status", async () => {
+      const res = await request(app).post("/scenarios/load/rush-hour.json");
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe("loaded");
+      expect(res.body.scenario.name).toBe("Test Scenario");
+      expect(ctx.scenarioManager.loadScenarioFromJSON).toHaveBeenCalled();
+    });
+
+    it("should return 404 when scenario file does not exist", async () => {
+      const fs = await import("fs");
+      (fs.default.existsSync as ReturnType<typeof vi.fn>).mockReturnValueOnce(false);
+
+      const res = await request(app).post("/scenarios/load/nonexistent.json");
+      expect(res.status).toBe(404);
+      expect(res.body.error).toContain("nonexistent.json");
+    });
+  });
+
   // ─── POST /scenarios/start ───────────────────────────────────────────
 
   describe("POST /scenarios/start", () => {
@@ -211,6 +240,16 @@ describe("Scenario routes", () => {
       expect(res.body.state).toBe("paused");
       expect(ctx.scenarioManager.pause).toHaveBeenCalled();
     });
+
+    it("should return 409 when no scenario is running", async () => {
+      (ctx.scenarioManager.pause as ReturnType<typeof vi.fn>).mockImplementation(() => {
+        throw new Error("No scenario is running");
+      });
+
+      const res = await request(app).post("/scenarios/pause");
+      expect(res.status).toBe(409);
+      expect(res.body.error).toBe("No scenario is running");
+    });
   });
 
   // ─── POST /scenarios/stop ────────────────────────────────────────────
@@ -221,6 +260,16 @@ describe("Scenario routes", () => {
       expect(res.status).toBe(200);
       expect(res.body.state).toBe("idle");
       expect(ctx.scenarioManager.stop).toHaveBeenCalled();
+    });
+
+    it("should return 409 when no scenario is running", async () => {
+      (ctx.scenarioManager.stop as ReturnType<typeof vi.fn>).mockImplementation(() => {
+        throw new Error("No scenario is running");
+      });
+
+      const res = await request(app).post("/scenarios/stop");
+      expect(res.status).toBe(409);
+      expect(res.body.error).toBe("No scenario is running");
     });
   });
 

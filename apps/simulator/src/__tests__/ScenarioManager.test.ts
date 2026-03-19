@@ -70,7 +70,11 @@ describe("ScenarioManager", () => {
   });
 
   afterEach(() => {
-    manager.stop();
+    try {
+      manager.stop();
+    } catch {
+      // Ignore — may already be idle
+    }
     vi.useRealTimers();
   });
 
@@ -347,13 +351,16 @@ describe("ScenarioManager", () => {
       expect(resumeSpy).toHaveBeenCalledWith(expect.objectContaining({ nextEventIndex: 0 }));
     });
 
-    it("should be a no-op to pause when not running", () => {
-      const pauseSpy = vi.fn();
-      manager.on("scenario:paused", pauseSpy);
-
+    it("should throw when pausing while not running", () => {
       manager.loadScenario(makeScenario());
-      manager.pause(); // idle — should not emit
-      expect(pauseSpy).not.toHaveBeenCalled();
+      expect(() => manager.pause()).toThrow("No scenario is running");
+    });
+
+    it("should throw when pausing while paused", () => {
+      manager.loadScenario(makeScenario({ duration: 30 }));
+      manager.start();
+      manager.pause();
+      expect(() => manager.pause()).toThrow("No scenario is running");
     });
 
     it("should be a no-op to resume when not paused", () => {
@@ -416,13 +423,9 @@ describe("ScenarioManager", () => {
       });
     });
 
-    it("should be a no-op when already idle", () => {
-      const stopSpy = vi.fn();
-      manager.on("scenario:stopped", stopSpy);
-
+    it("should throw when stopping while already idle", () => {
       manager.loadScenario(makeScenario());
-      manager.stop();
-      expect(stopSpy).not.toHaveBeenCalled();
+      expect(() => manager.stop()).toThrow("No scenario is running");
     });
   });
 

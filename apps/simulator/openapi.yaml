@@ -1374,6 +1374,39 @@ paths:
               schema:
                 $ref: "#/components/schemas/ValidationError"
 
+  /scenarios/load/{fileName}:
+    post:
+      operationId: loadScenarioByFileName
+      summary: Load a built-in scenario file by filename
+      tags: [Scenarios]
+      parameters:
+        - name: fileName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Scenario JSON filename from GET /scenarios
+      responses:
+        "200":
+          description: Scenario loaded
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, scenario]
+                properties:
+                  status:
+                    type: string
+                    enum: [loaded]
+                  scenario:
+                    $ref: "#/components/schemas/ScenarioSummary"
+        "404":
+          description: Scenario file not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /scenarios/start:
     post:
       operationId: startScenario
@@ -1405,6 +1438,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ScenarioStatus"
+        "409":
+          description: No scenario is running
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /scenarios/stop:
     post:
@@ -1418,6 +1457,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ScenarioStatus"
+        "409":
+          description: No scenario is running
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /scenarios/status:
     get:
