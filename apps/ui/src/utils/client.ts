@@ -384,7 +384,7 @@ class SimulationService {
   }
 
   onReplayStatus(handler: (data: ReplayStatus) => void): void {
-    this.ws.on("replayStatus", handler);
+    this.ws.on("replay:status", handler);
   }
 
   // ─── Simulation Clock ──────────────────────────────────────────
@@ -455,11 +455,11 @@ class SimulationService {
   }
 
   onGeofenceEvent(handler: (event: GeoFenceEvent) => void): void {
-    this.ws.on("geofence-event", handler);
+    this.ws.on("geofence:event", handler);
   }
 
   offGeofenceEvent(): void {
-    this.ws.off("geofence-event");
+    this.ws.off("geofence:event");
   }
 
   subscribe(filter: SubscribeFilter | null): void {

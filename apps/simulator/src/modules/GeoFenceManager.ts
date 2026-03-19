@@ -31,7 +31,7 @@ function pointInPolygon(point: [number, number], polygon: [number, number][]): b
  * Manages geofence zones and emits enter/exit events as vehicles cross zone
  * boundaries. Uses ray-casting for point-in-polygon checks.
  *
- * Emits: 'geofence-event' (GeoFenceEvent) on each enter/exit transition.
+ * Emits: 'geofence:event' (GeoFenceEvent) on each enter/exit transition.
  */
 export class GeoFenceManager extends EventEmitter {
   /** Active and inactive zones keyed by fence id. */
@@ -93,7 +93,7 @@ export class GeoFenceManager extends EventEmitter {
 
   /**
    * Checks all active zones for each vehicle and detects enter/exit
-   * transitions. Emits `"geofence-event"` for each transition detected.
+   * transitions. Emits `"geofence:event"` for each transition detected.
    *
    * Vehicle position is [lat, lng]; polygon coordinates are [lng, lat].
    * We reorder to [lng, lat] before passing to pointInPolygon.
@@ -119,7 +119,7 @@ export class GeoFenceManager extends EventEmitter {
           // Enter transition
           vehicleFences.add(zone.id);
           const event: GeoFenceEvent = {
-            type: "geofence-event",
+            type: "geofence:event",
             fenceId: zone.id,
             fenceName: zone.name,
             vehicleId: vehicle.id,
@@ -127,12 +127,12 @@ export class GeoFenceManager extends EventEmitter {
             event: "enter",
             timestamp: new Date().toISOString(),
           };
-          this.emit("geofence-event", event);
+          this.emit("geofence:event", event);
         } else if (!isInside && wasInside) {
           // Exit transition
           vehicleFences.delete(zone.id);
           const event: GeoFenceEvent = {
-            type: "geofence-event",
+            type: "geofence:event",
             fenceId: zone.id,
             fenceName: zone.name,
             vehicleId: vehicle.id,
@@ -140,7 +140,7 @@ export class GeoFenceManager extends EventEmitter {
             event: "exit",
             timestamp: new Date().toISOString(),
           };
-          this.emit("geofence-event", event);
+          this.emit("geofence:event", event);
         }
       }
     }

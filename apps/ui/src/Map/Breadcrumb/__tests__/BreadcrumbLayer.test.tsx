@@ -93,8 +93,11 @@ beforeEach(() => {
     (pos: Position) => [pos[0] * 10, pos[1] * 10] as [number, number]
   );
 
-  // Create a fresh SVG element for the map
+  // Create a fresh SVG element for the map with a markers group inside
   mockMapEl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  const markersGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  markersGroup.setAttribute("class", "markers");
+  mockMapEl.appendChild(markersGroup);
 
   // Mock RAF to capture callbacks
   rafCallbacks = [];

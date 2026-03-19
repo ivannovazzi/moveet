@@ -52,5 +52,8 @@
       "prettier --write"
     ]
   },
+  "overrides": {
+    "flatted": "3.4.2"
+  },
   "packageManager": "npm@11.11.1"
 }

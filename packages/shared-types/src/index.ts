@@ -223,7 +223,7 @@ export interface GeoFence {
 }
 
 export interface GeoFenceEvent {
-  type: "geofence-event";
+  type: "geofence:event";
   fenceId: string;
   fenceName: string;
   vehicleId: string;

@@ -17,7 +17,7 @@ type ReplayEventMap = {
   "simulation:start": [unknown];
   "simulation:stop": [unknown];
   "simulation:reset": [unknown];
-  replayStatus: [ReplayStatus];
+  "replay:status": [ReplayStatus];
   replayEnd: [];
 };
 
@@ -342,7 +342,7 @@ export class ReplayManager extends EventEmitter<ReplayEventMap> {
    * Emits the current replay status.
    */
   private emitStatus(): void {
-    this.emit("replayStatus", this.getStatus());
+    this.emit("replay:status", this.getStatus());
   }
 
   /**
