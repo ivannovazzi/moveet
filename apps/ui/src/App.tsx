@@ -5,6 +5,7 @@ import Vehicles from "./Controls/Vehicles";
 import Fleets from "./Controls/Fleets";
 import Incidents from "./Controls/Incidents";
 import RecordReplay from "./Controls/RecordReplay";
+import ScenariosPanel from "./Controls/ScenariosPanel";
 import DispatchFooter from "./Controls/DispatchFooter";
 import IconRail from "./Controls/IconRail";
 import BottomDock from "./Controls/BottomDock";
@@ -403,6 +404,7 @@ export default function App() {
                   onStartReplay={replay.startReplay}
                 />
               )}
+              {activePanel === "scenarios" && <ScenariosPanel />}
               {activePanel === "toggles" && (
                 <TogglesPanel modifiers={modifiers} onChangeModifiers={onChangeModifiers} />
               )}

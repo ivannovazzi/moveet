@@ -10,6 +10,7 @@ import {
   ClockIcon,
   ChartIcon,
   GeofenceIcon,
+  ScenarioIcon,
 } from "@/components/Icons";
 import styles from "./IconRail.module.css";
 
@@ -18,6 +19,7 @@ export type PanelId =
   | "fleets"
   | "incidents"
   | "recordings"
+  | "scenarios"
   | "toggles"
   | "speed"
   | "clock"
@@ -37,6 +39,7 @@ const topItems: { id: PanelId; Icon: React.FC<React.SVGProps<SVGSVGElement>>; la
   { id: "incidents", Icon: AlertIcon, label: "Incidents" },
   { id: "geofences", Icon: GeofenceIcon, label: "Geofences" },
   { id: "recordings", Icon: RecordCircleIcon, label: "Recordings" },
+  { id: "scenarios", Icon: ScenarioIcon, label: "Scenarios" },
   { id: "toggles", Icon: EyeIcon, label: "Visibility" },
   { id: "speed", Icon: GaugeIcon, label: "Speed" },
   { id: "clock", Icon: ClockIcon, label: "Simulation Clock" },
