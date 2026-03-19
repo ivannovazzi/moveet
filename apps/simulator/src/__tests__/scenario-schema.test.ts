@@ -340,6 +340,26 @@ describe("createIncidentActionSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("accepts incident with both edgeIds and position", () => {
+    const result = createIncidentActionSchema.safeParse({
+      type: "create_incident",
+      edgeIds: ["e1"],
+      position: { lat: -1.286, lng: 36.817 },
+      incidentType: "accident",
+      duration: 60,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects incident with neither edgeIds nor position", () => {
+    const result = createIncidentActionSchema.safeParse({
+      type: "create_incident",
+      incidentType: "accident",
+      duration: 60,
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 // ─── Action: dispatch ───────────────────────────────────────────────

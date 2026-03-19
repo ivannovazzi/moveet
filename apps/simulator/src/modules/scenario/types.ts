@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { incidentTypeEnum, waypointRequestSchema } from "../../middleware/schemas";
+import {
+  incidentTypeEnum,
+  optionsSchema,
+  trafficProfileSchema,
+  waypointRequestSchema,
+} from "../../middleware/schemas";
 
 // ─── Timeline event actions ─────────────────────────────────────────
 
@@ -9,7 +14,7 @@ export const spawnVehiclesActionSchema = z.object({
   vehicleTypes: z.record(z.string(), z.number().int().nonnegative()).optional(),
 });
 
-export const createIncidentActionSchema = z.object({
+const createIncidentBaseSchema = z.object({
   type: z.literal("create_incident"),
   edgeIds: z.array(z.string()).optional(),
   position: z
@@ -23,6 +28,11 @@ export const createIncidentActionSchema = z.object({
   severity: z.number().min(0).max(1).optional(),
 });
 
+export const createIncidentActionSchema = createIncidentBaseSchema.refine(
+  (data) => data.edgeIds !== undefined || data.position !== undefined,
+  { message: "At least one of 'edgeIds' or 'position' must be provided" }
+);
+
 export const dispatchActionSchema = z.object({
   type: z.literal("dispatch"),
   vehicleId: z.string().min(1, "vehicleId must be a non-empty string"),
@@ -32,14 +42,7 @@ export const dispatchActionSchema = z.object({
 export const setTrafficProfileActionSchema = z.object({
   type: z.literal("set_traffic_profile"),
   name: z.string().min(1, "name must be a non-empty string"),
-  timeRanges: z.array(
-    z.object({
-      start: z.number(),
-      end: z.number(),
-      demandMultiplier: z.number(),
-      affectedHighways: z.array(z.string()),
-    })
-  ),
+  timeRanges: trafficProfileSchema.shape.timeRanges,
 });
 
 export const clearIncidentsActionSchema = z.object({
@@ -49,23 +52,14 @@ export const clearIncidentsActionSchema = z.object({
 
 export const setOptionsActionSchema = z.object({
   type: z.literal("set_options"),
-  options: z.object({
-    minSpeed: z.number().optional(),
-    maxSpeed: z.number().optional(),
-    speedVariation: z.number().min(0).max(1).optional(),
-    acceleration: z.number().optional(),
-    deceleration: z.number().optional(),
-    turnThreshold: z.number().optional(),
-    heatZoneSpeedFactor: z.number().min(0).max(1).optional(),
-    updateInterval: z.number().positive().optional(),
-  }),
+  options: optionsSchema.partial(),
 });
 
 // ─── Discriminated union of all actions ─────────────────────────────
 
 export const scenarioActionSchema = z.discriminatedUnion("type", [
   spawnVehiclesActionSchema,
-  createIncidentActionSchema,
+  createIncidentBaseSchema,
   dispatchActionSchema,
   setTrafficProfileActionSchema,
   clearIncidentsActionSchema,
@@ -74,10 +68,18 @@ export const scenarioActionSchema = z.discriminatedUnion("type", [
 
 // ─── Timeline event ─────────────────────────────────────────────────
 
-export const scenarioEventSchema = z.object({
-  at: z.number().nonnegative("at must be a non-negative number (seconds from start)"),
-  action: scenarioActionSchema,
-});
+export const scenarioEventSchema = z
+  .object({
+    at: z.number().nonnegative("at must be a non-negative number (seconds from start)"),
+    action: scenarioActionSchema,
+  })
+  .refine(
+    (event) => {
+      if (event.action.type !== "create_incident") return true;
+      return event.action.edgeIds !== undefined || event.action.position !== undefined;
+    },
+    { message: "At least one of 'edgeIds' or 'position' must be provided", path: ["action"] }
+  );
 
 // ─── Scenario metadata ──────────────────────────────────────────────
 
