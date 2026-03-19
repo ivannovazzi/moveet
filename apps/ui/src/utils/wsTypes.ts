@@ -9,7 +9,9 @@ import type {
   ReplayStatus,
   ClockState,
   TrafficEdge,
+  ScenarioEventPayload,
 } from "@/types";
+import type { GeoFenceEvent } from "@moveet/shared-types";
 import type { AnalyticsSnapshot } from "@/hooks/analyticsStore";
 
 export interface ResetPayload {
@@ -57,10 +59,17 @@ export type WebSocketMessage =
   | { type: "incident:created"; data: IncidentDTO }
   | { type: "incident:cleared"; data: IncidentClearedPayload }
   | { type: "vehicle:rerouted"; data: VehicleReroutedPayload }
-  | { type: "replayStatus"; data: ReplayStatus }
+  | { type: "replay:status"; data: ReplayStatus }
   | { type: "clock"; data: ClockState }
   | { type: "traffic"; data: TrafficEdge[] }
-  | { type: "analytics"; data: AnalyticsSnapshot };
+  | { type: "analytics"; data: AnalyticsSnapshot }
+  | { type: "geofence:event"; data: GeoFenceEvent }
+  | { type: "scenario:started"; data: ScenarioEventPayload }
+  | { type: "scenario:event"; data: ScenarioEventPayload }
+  | { type: "scenario:paused"; data: ScenarioEventPayload }
+  | { type: "scenario:resumed"; data: ScenarioEventPayload }
+  | { type: "scenario:completed"; data: ScenarioEventPayload }
+  | { type: "scenario:stopped"; data: ScenarioEventPayload };
 
 /**
  * Type guard to validate WebSocket message structure
@@ -93,10 +102,17 @@ export function isValidMessage(msg: unknown): msg is WebSocketMessage {
     case "incident:created":
     case "incident:cleared":
     case "vehicle:rerouted":
-    case "replayStatus":
+    case "replay:status":
     case "clock":
     case "traffic":
     case "analytics":
+    case "geofence:event":
+    case "scenario:started":
+    case "scenario:event":
+    case "scenario:paused":
+    case "scenario:resumed":
+    case "scenario:completed":
+    case "scenario:stopped":
       return "data" in message;
     default:
       return false;

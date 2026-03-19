@@ -308,8 +308,8 @@ describe("wireEvents", () => {
 
     it("should broadcast replay status events", () => {
       const data = { mode: "replay", progress: 0.5 };
-      simulationController.emit("replayStatus", data);
-      expect(broadcaster.broadcast).toHaveBeenCalledWith("replayStatus", data);
+      simulationController.emit("replay:status", data);
+      expect(broadcaster.broadcast).toHaveBeenCalledWith("replay:status", data);
     });
   });
 

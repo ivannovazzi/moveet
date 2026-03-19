@@ -135,7 +135,7 @@ describe("GeoFenceManager", () => {
     it("detects a vehicle inside the polygon and emits 'enter'", () => {
       manager.addZone(makeFence());
       const listener = vi.fn();
-      manager.on("geofence-event", listener);
+      manager.on("geofence:event", listener);
 
       const inside = makeVehicle("v1", [0.5, 0.5]); // lat=0.5, lng=0.5 → inside
       manager.checkVehicles([inside]);
@@ -145,13 +145,13 @@ describe("GeoFenceManager", () => {
       expect(event.event).toBe("enter");
       expect(event.vehicleId).toBe("v1");
       expect(event.fenceId).toBe("fence-1");
-      expect(event.type).toBe("geofence-event");
+      expect(event.type).toBe("geofence:event");
     });
 
     it("does not emit for a vehicle outside the polygon", () => {
       manager.addZone(makeFence());
       const listener = vi.fn();
-      manager.on("geofence-event", listener);
+      manager.on("geofence:event", listener);
 
       const outside = makeVehicle("v2", [2.0, 2.0]); // lat=2, lng=2 → outside
       manager.checkVehicles([outside]);
@@ -162,7 +162,7 @@ describe("GeoFenceManager", () => {
     it("emits 'exit' when a vehicle leaves the polygon", () => {
       manager.addZone(makeFence());
       const events: GeoFenceEvent[] = [];
-      manager.on("geofence-event", (e) => events.push(e));
+      manager.on("geofence:event", (e) => events.push(e));
 
       const vehicle = makeVehicle("v3", [0.5, 0.5]); // inside
       manager.checkVehicles([vehicle]);
@@ -179,7 +179,7 @@ describe("GeoFenceManager", () => {
     it("does not emit when a vehicle stays inside across ticks", () => {
       manager.addZone(makeFence());
       const listener = vi.fn();
-      manager.on("geofence-event", listener);
+      manager.on("geofence:event", listener);
 
       const vehicle = makeVehicle("v4", [0.5, 0.5]);
       manager.checkVehicles([vehicle]);
@@ -190,7 +190,7 @@ describe("GeoFenceManager", () => {
     it("does not emit when a vehicle stays outside across ticks", () => {
       manager.addZone(makeFence());
       const listener = vi.fn();
-      manager.on("geofence-event", listener);
+      manager.on("geofence:event", listener);
 
       const vehicle = makeVehicle("v5", [2.0, 2.0]);
       manager.checkVehicles([vehicle]);
@@ -201,7 +201,7 @@ describe("GeoFenceManager", () => {
     it("ignores inactive zones", () => {
       manager.addZone(makeFence({ active: false }));
       const listener = vi.fn();
-      manager.on("geofence-event", listener);
+      manager.on("geofence:event", listener);
 
       const inside = makeVehicle("v6", [0.5, 0.5]);
       manager.checkVehicles([inside]);
@@ -220,7 +220,7 @@ describe("GeoFenceManager", () => {
       manager.addZone(makeFence({ id: "z2", polygon: polygon2 }));
 
       const events: GeoFenceEvent[] = [];
-      manager.on("geofence-event", (e) => events.push(e));
+      manager.on("geofence:event", (e) => events.push(e));
 
       // Vehicle inside zone z1 only
       manager.checkVehicles([makeVehicle("v7", [0.5, 0.5])]);
@@ -233,7 +233,7 @@ describe("GeoFenceManager", () => {
     it("cleans up zone membership when a zone is removed", () => {
       manager.addZone(makeFence());
       const events: GeoFenceEvent[] = [];
-      manager.on("geofence-event", (e) => events.push(e));
+      manager.on("geofence:event", (e) => events.push(e));
 
       manager.checkVehicles([makeVehicle("v8", [0.5, 0.5])]); // enter
       expect(events).toHaveLength(1);

@@ -56,8 +56,8 @@ export function wireEvents(ctx: EventWiringContext): {
   });
 
   // ─── Geofence event → WS broadcaster ───────────────────────────────
-  geoFenceManager.on("geofence-event", (event) => {
-    broadcaster.broadcast("geofence-event", event);
+  geoFenceManager.on("geofence:event", (event) => {
+    broadcaster.broadcast("geofence:event", event);
   });
 
   // ─── Non-vehicle events (broadcast immediately) ─────────────────────
@@ -131,7 +131,7 @@ export function wireEvents(ctx: EventWiringContext): {
   simulationController.on("replayVehicle:rerouted", (data) =>
     broadcaster.broadcast("vehicle:rerouted", data)
   );
-  simulationController.on("replayStatus", (data) => broadcaster.broadcast("replayStatus", data));
+  simulationController.on("replay:status", (data) => broadcaster.broadcast("replay:status", data));
 
   // ─── Scenario events → WS broadcaster ─────────────────────────────
   scenarioManager.on("scenario:started", (data) => broadcaster.broadcast("scenario:started", data));

@@ -260,10 +260,10 @@ describe("SimulationController lifecycle", () => {
   // ─── stopReplay without an active replay ──────────────────────────
 
   describe("stopReplay without active replay", () => {
-    it("transitions mode back to live and emits replayStatus", () => {
+    it("transitions mode back to live and emits replay:status", () => {
       (controller as unknown as Record<string, unknown>)._mode = "replay";
       const handler = vi.fn();
-      controller.on("replayStatus", handler);
+      controller.on("replay:status", handler);
       controller.stopReplay();
       expect(controller.mode).toBe("live");
       expect(handler).toHaveBeenCalledWith({ mode: "live" });
@@ -359,13 +359,13 @@ describe("SimulationController lifecycle", () => {
   // ─── Event forwarding from ReplayManager ─────────────────────────
 
   describe("replay event forwarding", () => {
-    it("forwards replayStatus events to listeners", async () => {
+    it("forwards replay:status events to listeners", async () => {
       const filePath = tmpFile("test7.ndjson");
       writeTestRecording(filePath);
       const handler = vi.fn();
-      controller.on("replayStatus", handler);
+      controller.on("replay:status", handler);
       await controller.startReplay(filePath);
-      // startReplay calls replay.startReplay which emits replayStatus
+      // startReplay calls replay.startReplay which emits replay:status
       expect(handler).toHaveBeenCalled();
     });
   });

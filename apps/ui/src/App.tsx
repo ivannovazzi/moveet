@@ -93,7 +93,15 @@ export default function App() {
     onFilterChange,
   } = useVehicles();
 
-  const { fleets, createFleet, deleteFleet, hiddenFleetIds, toggleFleetVisibility } = useFleets();
+  const {
+    fleets,
+    createFleet,
+    deleteFleet,
+    assignVehicle,
+    unassignVehicle,
+    hiddenFleetIds,
+    toggleFleetVisibility,
+  } = useFleets();
   const { hiddenVehicleTypes, toggleVehicleType } = useVehicleTypeFilter();
 
   useSubscribeFilter(fleets, hiddenFleetIds, hiddenVehicleTypes);
@@ -394,7 +402,14 @@ export default function App() {
                 </>
               )}
               {activePanel === "fleets" && (
-                <Fleets fleets={fleets} onCreateFleet={createFleet} onDeleteFleet={deleteFleet} />
+                <Fleets
+                  fleets={fleets}
+                  vehicles={vehicles}
+                  onCreateFleet={createFleet}
+                  onDeleteFleet={deleteFleet}
+                  onAssignVehicle={assignVehicle}
+                  onUnassignVehicle={unassignVehicle}
+                />
               )}
               {activePanel === "incidents" && (
                 <Incidents

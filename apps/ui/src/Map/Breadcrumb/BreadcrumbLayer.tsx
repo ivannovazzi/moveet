@@ -53,10 +53,12 @@ export default function BreadcrumbLayer({
   useEffect(() => {
     if (!projection || !map) return;
 
-    // Create the SVG <g> element inside the map's SVG
+    // Create the SVG <g> element inside the markers group (which receives the zoom transform)
+    const markersGroup = map.querySelector("g.markers");
+    if (!markersGroup) return;
     const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
     g.setAttribute("data-layer", "breadcrumbs");
-    map.appendChild(g);
+    markersGroup.appendChild(g);
     gRef.current = g;
 
     let rafId: number;
