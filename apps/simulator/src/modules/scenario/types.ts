@@ -114,3 +114,16 @@ export type ScenarioAction = z.infer<typeof scenarioActionSchema>;
 export type ScenarioEvent = z.infer<typeof scenarioEventSchema>;
 export type ScenarioVariables = z.infer<typeof scenarioVariablesSchema>;
 export type Scenario = z.infer<typeof scenarioSchema>;
+
+// ─── Runtime status ─────────────────────────────────────────────────
+
+export type ScenarioState = "idle" | "running" | "paused";
+
+export interface ScenarioStatus {
+  state: ScenarioState;
+  scenario: { name: string; duration: number; eventCount: number } | null;
+  elapsed: number; // seconds elapsed
+  eventIndex: number; // next event index
+  eventsExecuted: number;
+  upcomingEvents: Array<{ at: number; type: string }>; // next 5 events
+}
