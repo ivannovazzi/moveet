@@ -209,7 +209,7 @@ Connect to `ws://localhost:5010` for real-time updates.
 
 ```bash
 docker build -t moveet-simulator .
-docker run -p 5010:3000 -v $(pwd)/export.geojson:/app/export.geojson moveet-simulator
+docker run -p 5010:3000 -v $(pwd)/data/network.geojson:/app/data/network.geojson moveet-simulator
 ```
 
 ### Using Docker Compose
@@ -279,7 +279,7 @@ npm run lint
 **Check GeoJSON file exists:**
 
 ```bash
-ls -la export.geojson
+ls -la data/network.geojson
 ```
 
 **Verify environment variables:**

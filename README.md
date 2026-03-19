@@ -350,21 +350,21 @@ SINK_WEBHOOK_CONFIG='{"url":"https://hooks.example.com/fleet"}'
 
 ### Simulator (`apps/simulator/.env`)
 
-| Variable                | Default            | Description                                        |
-| ----------------------- | ------------------ | -------------------------------------------------- |
-| `PORT`                  | `5010`             | HTTP / WebSocket port                              |
-| `GEOJSON_PATH`          | `./export.geojson` | Path to the road-network GeoJSON file              |
-| `VEHICLE_COUNT`         | `70`               | Number of vehicles to spawn                        |
-| `UPDATE_INTERVAL`       | `500`              | Position broadcast interval (ms)                   |
-| `MIN_SPEED`             | `20`               | Minimum vehicle speed (km/h)                       |
-| `MAX_SPEED`             | `60`               | Maximum vehicle speed (km/h)                       |
-| `ACCELERATION`          | `5`                | Acceleration rate (km/h per tick)                  |
-| `DECELERATION`          | `7`                | Deceleration rate (km/h per tick)                  |
-| `TURN_THRESHOLD`        | `30`               | Bearing change (°) that triggers slowdown          |
-| `SPEED_VARIATION`       | `0.1`              | Random speed jitter factor `[0, 1]`                |
-| `HEATZONE_SPEED_FACTOR` | `0.5`              | Speed multiplier inside heat zones                 |
-| `ADAPTER_URL`           | _(empty)_          | Enable adapter sync (e.g. `http://localhost:5011`) |
-| `SYNC_ADAPTER_TIMEOUT`  | `5000`             | Adapter sync timeout (ms)                          |
+| Variable                | Default                  | Description                                        |
+| ----------------------- | ------------------------ | -------------------------------------------------- |
+| `PORT`                  | `5010`                   | HTTP / WebSocket port                              |
+| `GEOJSON_PATH`          | `./data/network.geojson` | Path to the road-network GeoJSON file              |
+| `VEHICLE_COUNT`         | `70`                     | Number of vehicles to spawn                        |
+| `UPDATE_INTERVAL`       | `500`                    | Position broadcast interval (ms)                   |
+| `MIN_SPEED`             | `20`                     | Minimum vehicle speed (km/h)                       |
+| `MAX_SPEED`             | `60`                     | Maximum vehicle speed (km/h)                       |
+| `ACCELERATION`          | `5`                      | Acceleration rate (km/h per tick)                  |
+| `DECELERATION`          | `7`                      | Deceleration rate (km/h per tick)                  |
+| `TURN_THRESHOLD`        | `30`                     | Bearing change (°) that triggers slowdown          |
+| `SPEED_VARIATION`       | `0.1`                    | Random speed jitter factor `[0, 1]`                |
+| `HEATZONE_SPEED_FACTOR` | `0.5`                    | Speed multiplier inside heat zones                 |
+| `ADAPTER_URL`           | _(empty)_                | Enable adapter sync (e.g. `http://localhost:5011`) |
+| `SYNC_ADAPTER_TIMEOUT`  | `5000`                   | Adapter sync timeout (ms)                          |
 
 ### Adapter (`apps/adapter/.env`)
 
