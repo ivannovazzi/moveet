@@ -1,0 +1,370 @@
+{
+  "name": "Fleet Rebalancing",
+  "description": "Demonstrates fleet rebalancing by first spreading 20 vehicles across Nairobi, then converging them to the central Ngara/CBD zone, and finally redistributing outward. Ends with an evening rush traffic profile.",
+  "city": "nairobi",
+  "version": 1,
+  "duration": 360,
+  "variables": {
+    "fleetSize": 20,
+    "centralLat": -1.285,
+    "centralLng": 36.8235
+  },
+  "events": [
+    {
+      "at": 0,
+      "action": {
+        "type": "spawn_vehicles",
+        "count": 20,
+        "vehicleTypes": { "car": 14, "truck": 4, "bus": 2 }
+      }
+    },
+    {
+      "at": 30,
+      "action": {
+        "type": "set_options",
+        "options": { "minSpeed": 25, "maxSpeed": 55 }
+      }
+    },
+    {
+      "at": 60,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-0",
+        "waypoints": [{ "lat": -1.285, "lng": 36.8235, "label": "Central zone" }]
+      }
+    },
+    {
+      "at": 60,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-1",
+        "waypoints": [{ "lat": -1.287, "lng": 36.822, "label": "Central zone" }]
+      }
+    },
+    {
+      "at": 60,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-2",
+        "waypoints": [{ "lat": -1.283, "lng": 36.825, "label": "Central zone" }]
+      }
+    },
+    {
+      "at": 60,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-3",
+        "waypoints": [{ "lat": -1.286, "lng": 36.824, "label": "Central zone" }]
+      }
+    },
+    {
+      "at": 60,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-4",
+        "waypoints": [{ "lat": -1.284, "lng": 36.823, "label": "Central zone" }]
+      }
+    },
+    {
+      "at": 60,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-5",
+        "waypoints": [{ "lat": -1.2855, "lng": 36.8225, "label": "Central zone" }]
+      }
+    },
+    {
+      "at": 60,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-6",
+        "waypoints": [{ "lat": -1.2845, "lng": 36.8245, "label": "Central zone" }]
+      }
+    },
+    {
+      "at": 60,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-7",
+        "waypoints": [{ "lat": -1.2865, "lng": 36.8215, "label": "Central zone" }]
+      }
+    },
+    {
+      "at": 60,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-8",
+        "waypoints": [{ "lat": -1.2835, "lng": 36.8255, "label": "Central zone" }]
+      }
+    },
+    {
+      "at": 60,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-9",
+        "waypoints": [{ "lat": -1.2875, "lng": 36.821, "label": "Central zone" }]
+      }
+    },
+    {
+      "at": 62,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-10",
+        "waypoints": [{ "lat": -1.285, "lng": 36.824, "label": "Central zone" }]
+      }
+    },
+    {
+      "at": 62,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-11",
+        "waypoints": [{ "lat": -1.286, "lng": 36.823, "label": "Central zone" }]
+      }
+    },
+    {
+      "at": 62,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-12",
+        "waypoints": [{ "lat": -1.284, "lng": 36.822, "label": "Central zone" }]
+      }
+    },
+    {
+      "at": 62,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-13",
+        "waypoints": [{ "lat": -1.287, "lng": 36.825, "label": "Central zone" }]
+      }
+    },
+    {
+      "at": 62,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-14",
+        "waypoints": [{ "lat": -1.2845, "lng": 36.8235, "label": "Central zone" }]
+      }
+    },
+    {
+      "at": 62,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-15",
+        "waypoints": [{ "lat": -1.2855, "lng": 36.8245, "label": "Central zone" }]
+      }
+    },
+    {
+      "at": 62,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-16",
+        "waypoints": [{ "lat": -1.2865, "lng": 36.8225, "label": "Central zone" }]
+      }
+    },
+    {
+      "at": 62,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-17",
+        "waypoints": [{ "lat": -1.2835, "lng": 36.8215, "label": "Central zone" }]
+      }
+    },
+    {
+      "at": 62,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-18",
+        "waypoints": [{ "lat": -1.285, "lng": 36.825, "label": "Central zone" }]
+      }
+    },
+    {
+      "at": 62,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-19",
+        "waypoints": [{ "lat": -1.287, "lng": 36.8235, "label": "Central zone" }]
+      }
+    },
+    {
+      "at": 180,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-0",
+        "waypoints": [{ "lat": -1.2635, "lng": 36.8029, "label": "Westlands" }]
+      }
+    },
+    {
+      "at": 180,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-1",
+        "waypoints": [{ "lat": -1.3015, "lng": 36.8484, "label": "Industrial Area" }]
+      }
+    },
+    {
+      "at": 180,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-2",
+        "waypoints": [{ "lat": -1.2979, "lng": 36.8138, "label": "Upper Hill" }]
+      }
+    },
+    {
+      "at": 180,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-3",
+        "waypoints": [{ "lat": -1.3235, "lng": 36.7142, "label": "Karen" }]
+      }
+    },
+    {
+      "at": 180,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-4",
+        "waypoints": [{ "lat": -1.3235, "lng": 36.8882, "label": "Embakasi" }]
+      }
+    },
+    {
+      "at": 180,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-5",
+        "waypoints": [{ "lat": -1.2635, "lng": 36.8029, "label": "Westlands" }]
+      }
+    },
+    {
+      "at": 180,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-6",
+        "waypoints": [{ "lat": -1.3015, "lng": 36.8484, "label": "Industrial Area" }]
+      }
+    },
+    {
+      "at": 180,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-7",
+        "waypoints": [{ "lat": -1.2773, "lng": 36.825, "label": "Ngara" }]
+      }
+    },
+    {
+      "at": 180,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-8",
+        "waypoints": [{ "lat": -1.2979, "lng": 36.8138, "label": "Upper Hill" }]
+      }
+    },
+    {
+      "at": 180,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-9",
+        "waypoints": [{ "lat": -1.2921, "lng": 36.8219, "label": "CBD" }]
+      }
+    },
+    {
+      "at": 182,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-10",
+        "waypoints": [{ "lat": -1.2635, "lng": 36.8029, "label": "Westlands" }]
+      }
+    },
+    {
+      "at": 182,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-11",
+        "waypoints": [{ "lat": -1.3235, "lng": 36.7142, "label": "Karen" }]
+      }
+    },
+    {
+      "at": 182,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-12",
+        "waypoints": [{ "lat": -1.3015, "lng": 36.8484, "label": "Industrial Area" }]
+      }
+    },
+    {
+      "at": 182,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-13",
+        "waypoints": [{ "lat": -1.3235, "lng": 36.8882, "label": "Embakasi" }]
+      }
+    },
+    {
+      "at": 182,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-14",
+        "waypoints": [{ "lat": -1.2773, "lng": 36.825, "label": "Ngara" }]
+      }
+    },
+    {
+      "at": 182,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-15",
+        "waypoints": [{ "lat": -1.2921, "lng": 36.8219, "label": "CBD" }]
+      }
+    },
+    {
+      "at": 182,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-16",
+        "waypoints": [{ "lat": -1.2979, "lng": 36.8138, "label": "Upper Hill" }]
+      }
+    },
+    {
+      "at": 182,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-17",
+        "waypoints": [{ "lat": -1.2635, "lng": 36.8029, "label": "Westlands" }]
+      }
+    },
+    {
+      "at": 182,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-18",
+        "waypoints": [{ "lat": -1.3235, "lng": 36.7142, "label": "Karen" }]
+      }
+    },
+    {
+      "at": 182,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-19",
+        "waypoints": [{ "lat": -1.3015, "lng": 36.8484, "label": "Industrial Area" }]
+      }
+    },
+    {
+      "at": 300,
+      "action": {
+        "type": "set_traffic_profile",
+        "name": "evening_rush",
+        "timeRanges": [
+          {
+            "start": 17,
+            "end": 19,
+            "demandMultiplier": 2.2,
+            "affectedHighways": ["primary", "secondary"]
+          },
+          {
+            "start": 19,
+            "end": 21,
+            "demandMultiplier": 1.5,
+            "affectedHighways": ["primary"]
+          }
+        ]
+      }
+    }
+  ]
+}
