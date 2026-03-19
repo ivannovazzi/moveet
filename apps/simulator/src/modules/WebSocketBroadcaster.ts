@@ -1,5 +1,5 @@
 import type { WebSocketServer, WebSocket } from "ws";
-import type { VehicleDTO } from "../types";
+import type { VehicleDTO, SubscribeFilter } from "../types";
 import { WS_BROADCASTER } from "../constants";
 
 /** @deprecated Import from constants.ts instead. Re-exported for backwards compatibility. */
@@ -38,6 +38,8 @@ interface ClientState {
   lastPong: number;
   /** Timestamp (ms) of the last ping sent to this client. 0 means no ping sent yet. */
   lastPingSent: number;
+  /** Optional subscribe filter. When set, only matching vehicles are sent. */
+  filter?: SubscribeFilter;
 }
 
 /**
@@ -120,6 +122,15 @@ export class WebSocketBroadcaster {
   }
 
   /**
+   * Sets or clears a subscribe filter for a specific client.
+   * Passing null removes the filter (client receives all vehicle updates).
+   */
+  setClientFilter(client: WebSocket, filter: SubscribeFilter | null): void {
+    const state = this.getClientState(client);
+    state.filter = filter ?? undefined;
+  }
+
+  /**
    * Sends a non-vehicle message immediately to all connected clients.
    */
   broadcast<T>(type: string, data: T): void {
@@ -147,7 +158,13 @@ export class WebSocketBroadcaster {
   private getClientState(client: WebSocket): ClientState {
     let state = this.clientStates.get(client);
     if (!state) {
-      state = { lastSent: new Map(), droppedFlushes: 0, lastPong: 0, lastPingSent: 0 };
+      state = {
+        lastSent: new Map(),
+        droppedFlushes: 0,
+        lastPong: 0,
+        lastPingSent: 0,
+        filter: undefined,
+      };
       this.clientStates.set(client, state);
     }
     return state;
@@ -209,6 +226,26 @@ export class WebSocketBroadcaster {
   }
 
   /**
+   * Returns true if the vehicle passes the client's subscribe filter.
+   * A missing filter always passes.
+   */
+  private passesFilter(vehicle: VehicleDTO, filter: SubscribeFilter | undefined): boolean {
+    if (!filter) return true;
+    if (filter.fleetIds?.length) {
+      if (!vehicle.fleetId || !filter.fleetIds.includes(vehicle.fleetId)) return false;
+    }
+    if (filter.vehicleTypes?.length) {
+      if (!filter.vehicleTypes.includes(vehicle.type)) return false;
+    }
+    if (filter.bbox) {
+      const [lat, lng] = vehicle.position;
+      const { minLat, maxLat, minLng, maxLng } = filter.bbox;
+      if (lat < minLat || lat > maxLat || lng < minLng || lng > maxLng) return false;
+    }
+    return true;
+  }
+
+  /**
    * Flushes all queued vehicle updates to connected clients, applying
    * backpressure checks and delta filtering per client.
    */
@@ -237,13 +274,16 @@ export class WebSocketBroadcaster {
       // Delta filtering: only send vehicles whose position changed above threshold
       const changed = vehicles.filter((v) => this.hasPositionChanged(v, state.lastSent));
 
-      if (changed.length === 0) continue;
+      // Subscribe filter: only send vehicles matching this client's filter criteria
+      const toSend = changed.filter((v) => this.passesFilter(v, state.filter));
 
-      const message = JSON.stringify({ type: "vehicles", data: changed });
+      if (toSend.length === 0) continue;
+
+      const message = JSON.stringify({ type: "vehicles", data: toSend });
       client.send(message);
 
       // Update last-sent positions and reset dropped counter
-      for (const v of changed) {
+      for (const v of toSend) {
         state.lastSent.set(v.id, [v.position[0], v.position[1]]);
       }
       state.droppedFlushes = 0;

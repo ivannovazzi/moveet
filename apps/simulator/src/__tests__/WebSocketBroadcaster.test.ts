@@ -1063,6 +1063,242 @@ describe("WebSocketBroadcaster", () => {
     });
   });
 
+  describe("subscribe filters", () => {
+    it("no filter → all vehicles sent (backwards compatibility)", () => {
+      const client = createMockClient();
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
+        flushIntervalMs: 100,
+      });
+      broadcaster.start();
+
+      broadcaster.queueVehicleUpdate(makeVehicle("v1", { fleetId: "fleet-a" }));
+      broadcaster.queueVehicleUpdate(makeVehicle("v2", { fleetId: "fleet-b" }));
+      broadcaster.queueVehicleUpdate(makeVehicle("v3"));
+
+      vi.advanceTimersByTime(100);
+
+      expect(client.send).toHaveBeenCalledTimes(1);
+      const parsed = JSON.parse(client.send.mock.calls[0][0] as string);
+      expect(parsed.type).toBe("vehicles");
+      expect(parsed.data).toHaveLength(3);
+      expect(parsed.data.map((v: VehicleDTO) => v.id)).toEqual(["v1", "v2", "v3"]);
+
+      broadcaster.stop();
+    });
+
+    it("filter by fleetId → only matching vehicles sent", () => {
+      const client = createMockClient();
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
+        flushIntervalMs: 100,
+      });
+      broadcaster.start();
+      broadcaster.setClientFilter(client as unknown as WebSocket, { fleetIds: ["fleet-a"] });
+
+      broadcaster.queueVehicleUpdate(makeVehicle("v1", { fleetId: "fleet-a" }));
+      broadcaster.queueVehicleUpdate(makeVehicle("v2", { fleetId: "fleet-b" }));
+      broadcaster.queueVehicleUpdate(makeVehicle("v3")); // no fleetId
+
+      vi.advanceTimersByTime(100);
+
+      expect(client.send).toHaveBeenCalledTimes(1);
+      const parsed = JSON.parse(client.send.mock.calls[0][0] as string);
+      expect(parsed.data).toHaveLength(1);
+      expect(parsed.data[0].id).toBe("v1");
+
+      broadcaster.stop();
+    });
+
+    it("filter by vehicleType → only matching types sent", () => {
+      const client = createMockClient();
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
+        flushIntervalMs: 100,
+      });
+      broadcaster.start();
+      broadcaster.setClientFilter(client as unknown as WebSocket, { vehicleTypes: ["truck"] });
+
+      broadcaster.queueVehicleUpdate(makeVehicle("v1", { type: "car" }));
+      broadcaster.queueVehicleUpdate(makeVehicle("v2", { type: "truck" }));
+
+      vi.advanceTimersByTime(100);
+
+      expect(client.send).toHaveBeenCalledTimes(1);
+      const parsed = JSON.parse(client.send.mock.calls[0][0] as string);
+      expect(parsed.data).toHaveLength(1);
+      expect(parsed.data[0].id).toBe("v2");
+
+      broadcaster.stop();
+    });
+
+    it("filter by bounding box → only in-bounds vehicles sent", () => {
+      const client = createMockClient();
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
+        flushIntervalMs: 100,
+      });
+      broadcaster.start();
+      broadcaster.setClientFilter(client as unknown as WebSocket, {
+        bbox: { minLat: -2, maxLat: 0, minLng: 36, maxLng: 37 },
+      });
+
+      broadcaster.queueVehicleUpdate(makeVehicle("v1", { position: [-1.5, 36.5] })); // in bounds
+      broadcaster.queueVehicleUpdate(makeVehicle("v2", { position: [1.0, 36.5] })); // out of bounds (lat > maxLat)
+
+      vi.advanceTimersByTime(100);
+
+      expect(client.send).toHaveBeenCalledTimes(1);
+      const parsed = JSON.parse(client.send.mock.calls[0][0] as string);
+      expect(parsed.data).toHaveLength(1);
+      expect(parsed.data[0].id).toBe("v1");
+
+      broadcaster.stop();
+    });
+
+    it("combined filters use AND logic → vehicle must match all criteria", () => {
+      const client = createMockClient();
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
+        flushIntervalMs: 100,
+      });
+      broadcaster.start();
+      broadcaster.setClientFilter(client as unknown as WebSocket, {
+        fleetIds: ["fleet-a"],
+        vehicleTypes: ["truck"],
+      });
+
+      broadcaster.queueVehicleUpdate(makeVehicle("v1", { type: "truck", fleetId: "fleet-a" })); // passes both
+      broadcaster.queueVehicleUpdate(makeVehicle("v2", { type: "car", fleetId: "fleet-a" })); // fails type
+      broadcaster.queueVehicleUpdate(makeVehicle("v3", { type: "truck", fleetId: "fleet-b" })); // fails fleet
+      broadcaster.queueVehicleUpdate(makeVehicle("v4", { type: "car", fleetId: "fleet-b" })); // fails both
+
+      vi.advanceTimersByTime(100);
+
+      expect(client.send).toHaveBeenCalledTimes(1);
+      const parsed = JSON.parse(client.send.mock.calls[0][0] as string);
+      expect(parsed.data).toHaveLength(1);
+      expect(parsed.data[0].id).toBe("v1");
+
+      broadcaster.stop();
+    });
+
+    it("setClientFilter with null removes filter → all vehicles sent", () => {
+      const client = createMockClient();
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
+        flushIntervalMs: 100,
+      });
+      broadcaster.start();
+
+      // First set a restrictive filter
+      broadcaster.setClientFilter(client as unknown as WebSocket, { fleetIds: ["fleet-a"] });
+
+      // Then remove it
+      broadcaster.setClientFilter(client as unknown as WebSocket, null);
+
+      broadcaster.queueVehicleUpdate(makeVehicle("v1", { fleetId: "fleet-a" }));
+      broadcaster.queueVehicleUpdate(makeVehicle("v2", { fleetId: "fleet-b" }));
+      broadcaster.queueVehicleUpdate(makeVehicle("v3"));
+
+      vi.advanceTimersByTime(100);
+
+      expect(client.send).toHaveBeenCalledTimes(1);
+      const parsed = JSON.parse(client.send.mock.calls[0][0] as string);
+      expect(parsed.data).toHaveLength(3);
+
+      broadcaster.stop();
+    });
+
+    it("empty fleetIds array → no fleet filtering (all vehicles pass)", () => {
+      const client = createMockClient();
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
+        flushIntervalMs: 100,
+      });
+      broadcaster.start();
+
+      // Empty fleetIds means no restriction (filter.fleetIds?.length is falsy)
+      broadcaster.setClientFilter(client as unknown as WebSocket, { fleetIds: [] });
+
+      broadcaster.queueVehicleUpdate(makeVehicle("v1", { fleetId: "fleet-a" }));
+      broadcaster.queueVehicleUpdate(makeVehicle("v2", { fleetId: "fleet-b" }));
+      broadcaster.queueVehicleUpdate(makeVehicle("v3")); // no fleetId
+
+      vi.advanceTimersByTime(100);
+
+      expect(client.send).toHaveBeenCalledTimes(1);
+      const parsed = JSON.parse(client.send.mock.calls[0][0] as string);
+      expect(parsed.data).toHaveLength(3);
+
+      broadcaster.stop();
+    });
+
+    it("vehicle on bbox boundary → included (boundary is inclusive)", () => {
+      const client = createMockClient();
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
+        flushIntervalMs: 100,
+      });
+      broadcaster.start();
+      broadcaster.setClientFilter(client as unknown as WebSocket, {
+        bbox: { minLat: -1.5, maxLat: -1.5, minLng: 36.5, maxLng: 36.5 },
+      });
+
+      broadcaster.queueVehicleUpdate(makeVehicle("v1", { position: [-1.5, 36.5] })); // exactly on boundary
+
+      vi.advanceTimersByTime(100);
+
+      expect(client.send).toHaveBeenCalledTimes(1);
+      const parsed = JSON.parse(client.send.mock.calls[0][0] as string);
+      expect(parsed.data).toHaveLength(1);
+      expect(parsed.data[0].id).toBe("v1");
+
+      broadcaster.stop();
+    });
+
+    it("delta filter and subscribe filter both apply independently", () => {
+      const client = createMockClient();
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
+        flushIntervalMs: 100,
+      });
+      broadcaster.start();
+      broadcaster.setClientFilter(client as unknown as WebSocket, { fleetIds: ["fleet-a"] });
+
+      // First flush: send both vehicles to establish lastSent positions
+      broadcaster.queueVehicleUpdate(
+        makeVehicle("v1", { position: [-1.286, 36.817], fleetId: "fleet-a" })
+      );
+      broadcaster.queueVehicleUpdate(
+        makeVehicle("v2", { position: [-1.3, 36.83], fleetId: "fleet-a" })
+      );
+      vi.advanceTimersByTime(100);
+      expect(client.send).toHaveBeenCalledTimes(1);
+
+      // Second flush:
+      // - v1: same position → skipped by delta filter (never reaches subscribe filter)
+      // - v2: new vehicle matching filter → passes both filters
+      broadcaster.queueVehicleUpdate(
+        makeVehicle("v1", { position: [-1.286, 36.817], fleetId: "fleet-a" }) // unchanged position
+      );
+      broadcaster.queueVehicleUpdate(
+        makeVehicle("v2", {
+          position: [-1.3 + POSITION_DELTA_THRESHOLD * 3, 36.83],
+          fleetId: "fleet-a",
+        }) // moved significantly
+      );
+      vi.advanceTimersByTime(100);
+
+      expect(client.send).toHaveBeenCalledTimes(2);
+      const batch2 = JSON.parse(client.send.mock.calls[1][0] as string);
+      expect(batch2.data).toHaveLength(1);
+      expect(batch2.data[0].id).toBe("v2");
+
+      broadcaster.stop();
+    });
+  });
+
   describe("exported constants", () => {
     it("should export BACKPRESSURE_THRESHOLD as 64KB", () => {
       expect(BACKPRESSURE_THRESHOLD).toBe(64 * 1024);

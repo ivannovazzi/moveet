@@ -248,6 +248,29 @@ export interface UpdateGeoFenceRequest {
   active?: boolean;
 }
 
+// ─── WebSocket Subscribe Filters ─────────────────────────────────────
+
+/** Geographic bounding box for spatial filtering. */
+export interface BoundingBox {
+  minLat: number;
+  maxLat: number;
+  minLng: number;
+  maxLng: number;
+}
+
+/**
+ * Filter criteria for a WebSocket client's vehicle update subscription.
+ * All specified criteria must match (AND logic). Omitted fields are not filtered.
+ */
+export interface SubscribeFilter {
+  /** Only send vehicles assigned to these fleet IDs. Vehicles with no fleetId are excluded. */
+  fleetIds?: string[];
+  /** Only send vehicles of these types. */
+  vehicleTypes?: VehicleType[];
+  /** Only send vehicles whose position is within this bounding box. */
+  bbox?: BoundingBox;
+}
+
 // ─── Recording & Replay ────────────────────────────────────────────
 
 export interface RecordingMetadata {
