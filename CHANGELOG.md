@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.6](https://github.com/ivannovazzi/moveet/compare/v0.0.5...v0.0.6) (2026-03-19)
+
+
+### Bug Fixes
+
+* **docker:** mount network GeoJSON at runtime ([#75](https://github.com/ivannovazzi/moveet/issues/75)) ([67faeeb](https://github.com/ivannovazzi/moveet/commit/67faeeb422965f2fd84bbd6119a3c036c32ced56))
+
 ## [0.0.5](https://github.com/ivannovazzi/moveet/compare/v0.0.4...v0.0.5) (2026-03-19)
 
 
