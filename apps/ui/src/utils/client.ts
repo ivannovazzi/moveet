@@ -147,8 +147,16 @@ class SimulationService {
     this.ws.on("connect", () => handler());
   }
 
+  offConnect(): void {
+    this.ws.off("connect");
+  }
+
   onDisconnect(handler: () => void): void {
     this.ws.on("disconnect", () => handler());
+  }
+
+  offDisconnect(): void {
+    this.ws.off("disconnect");
   }
 
   onConnectionStateChange(listener: ConnectionStateListener): () => void {
@@ -171,6 +179,10 @@ class SimulationService {
     this.ws.on("status", handler);
   }
 
+  offStatus(): void {
+    this.ws.off("status");
+  }
+
   onOptions(handler: (opts: StartOptions) => void): void {
     this.ws.on("options", handler);
   }
@@ -185,6 +197,10 @@ class SimulationService {
 
   onReset(handler: (data: ResetPayload) => void): void {
     this.ws.on("reset", handler);
+  }
+
+  offReset(): void {
+    this.ws.off("reset");
   }
 
   async start(options: StartOptions): Promise<ApiResponse<void>> {
@@ -418,6 +434,10 @@ class SimulationService {
 
   onAnalytics(handler: (data: AnalyticsSnapshot) => void): void {
     this.ws.on("analytics", handler);
+  }
+
+  offAnalytics(): void {
+    this.ws.off("analytics");
   }
 
   async getAnalyticsSummary(): Promise<ApiResponse<AnalyticsSummary>> {
