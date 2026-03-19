@@ -27,7 +27,7 @@ function validEnv(overrides: Record<string, string> = {}): Record<string, string
     HEATZONE_SPEED_FACTOR: "0.5",
     SYNC_ADAPTER_TIMEOUT: "5000",
     VEHICLE_COUNT: "70",
-    GEOJSON_PATH: "./export.geojson",
+    GEOJSON_PATH: "./data/network.geojson",
     ADAPTER_URL: "",
     ...overrides,
   };
@@ -52,7 +52,7 @@ describe("envSchema / parseEnv", () => {
     expect(cfg.MIN_SPEED).toBe(20);
     expect(cfg.MAX_SPEED).toBe(60);
     expect(cfg.VEHICLE_COUNT).toBe(70);
-    expect(cfg.GEOJSON_PATH).toBe("./export.geojson");
+    expect(cfg.GEOJSON_PATH).toBe("./data/network.geojson");
     expect(cfg.ADAPTER_URL).toBe("");
   });
 

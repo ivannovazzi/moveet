@@ -16,7 +16,6 @@ export class StaticSource implements DataSource {
     this.vehicles = Array.from({ length: count }, (_, i) => ({
       id: `static-${i}`,
       name: `Test Vehicle ${i + 1}`,
-      position: [-1.28 + Math.random() * 0.1, 36.8 + Math.random() * 0.1] as [number, number],
       type: vehicleTypes[i % vehicleTypes.length],
     }));
 

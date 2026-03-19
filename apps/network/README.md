@@ -37,18 +37,18 @@ This runs the full pipeline and writes the result to `apps/simulator/export.geoj
 
 ## Built-in regions
 
-| Region key    | City                  |
-|---------------|-----------------------|
-| `nairobi`     | Nairobi, Kenya        |
-| `cairo`       | Cairo, Egypt          |
-| `lagos`       | Lagos, Nigeria        |
-| `london`      | London, UK            |
-| `berlin`      | Berlin, Germany       |
-| `paris`       | Paris, France         |
-| `mumbai`      | Mumbai, India         |
-| `jakarta`     | Jakarta, Indonesia    |
-| `mexico-city` | Mexico City, Mexico   |
-| `new-york`    | New York, USA         |
+| Region key    | City                |
+| ------------- | ------------------- |
+| `nairobi`     | Nairobi, Kenya      |
+| `cairo`       | Cairo, Egypt        |
+| `lagos`       | Lagos, Nigeria      |
+| `london`      | London, UK          |
+| `berlin`      | Berlin, Germany     |
+| `paris`       | Paris, France       |
+| `mumbai`      | Mumbai, India       |
+| `jakarta`     | Jakarta, Indonesia  |
+| `mexico-city` | Mexico City, Mexico |
+| `new-york`    | New York, USA       |
 
 ```bash
 npx tsx src/cli.ts prepare nairobi
@@ -75,7 +75,7 @@ npx tsx src/cli.ts prepare cairo --output /tmp/cairo.geojson
 
 ## Pipeline steps
 
-The `prepare` command chains four steps. You can also run them individually:
+The `prepare` command chains six steps. You can also run them individually:
 
 ```bash
 # 1. Download country PBF (cached by ETag)
@@ -98,7 +98,10 @@ npx tsx src/cli.ts export \
   --output apps/simulator/export.geojson \
   --region cairo
 
-# 5. Validate topology
+# 5. Prune disconnected components (keeps largest)
+npx tsx src/cli.ts prune --input apps/simulator/export.geojson
+
+# 6. Validate topology
 npx tsx src/cli.ts validate --input apps/simulator/export.geojson
 ```
 
@@ -110,10 +113,18 @@ Downloaded PBF files are stored in `apps/network/.cache/` and reused on subseque
 
 `motorway`, `motorway_link`, `trunk`, `trunk_link`, `primary`, `primary_link`, `secondary`, `secondary_link`, `tertiary`, `tertiary_link`, `unclassified`, `residential`, `living_street`, plus `junction=roundabout`.
 
+## Pruning
+
+The `prune` step removes all features not connected to the largest component. Real-world city exports always include small disconnected fragments at bounding-box boundaries (e.g. Cairo had 1,130 components before pruning). Pruning runs automatically in the `prepare` pipeline before validation.
+
+```bash
+npx tsx src/cli.ts prune --input network.geojson
+npx tsx src/cli.ts prune --input network.geojson --output pruned.geojson
+```
+
 ## Validation thresholds
 
 The `validate` command passes when:
+
 - ≥ 95% of nodes are in the largest connected component
 - < 5% of nodes are isolated (degree 0)
-
-Real-world city exports always include small disconnected fragments at bounding-box boundaries; a strict component-count limit would reject valid networks.

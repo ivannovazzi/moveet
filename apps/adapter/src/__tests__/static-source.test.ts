@@ -28,9 +28,8 @@ describe("StaticSource", () => {
     const [vehicle] = await source.getVehicles();
     expect(vehicle.id).toBe("static-0");
     expect(vehicle.name).toBe("Test Vehicle 1");
-    expect(vehicle.position).toHaveLength(2);
-    expect(typeof vehicle.position[0]).toBe("number");
-    expect(typeof vehicle.position[1]).toBe("number");
+    expect(vehicle.type).toBeDefined();
+    expect(vehicle.position).toBeUndefined();
   });
 
   it("clears vehicles on disconnect", async () => {

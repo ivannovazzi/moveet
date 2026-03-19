@@ -28,22 +28,16 @@ describe("StaticSource", () => {
 
     expect(vehicle).toHaveProperty("id");
     expect(vehicle).toHaveProperty("name");
-    expect(vehicle.position).toHaveLength(2);
-    expect(typeof vehicle.position[0]).toBe("number");
-    expect(typeof vehicle.position[1]).toBe("number");
+    expect(vehicle).toHaveProperty("type");
   });
 
-  it("generates vehicles around Nairobi coordinates", async () => {
+  it("generates vehicles without hardcoded positions", async () => {
     const source = new StaticSource();
     await source.connect({ count: 10 });
     const vehicles = await source.getVehicles();
 
     for (const v of vehicles) {
-      const [lat, lng] = v.position;
-      expect(lat).toBeGreaterThanOrEqual(-1.28);
-      expect(lat).toBeLessThan(-1.18);
-      expect(lng).toBeGreaterThanOrEqual(36.8);
-      expect(lng).toBeLessThan(36.9);
+      expect(v.position).toBeUndefined();
     }
   });
 

@@ -45,7 +45,7 @@ export const envSchema = z
     VEHICLE_COUNT: z.coerce.number().int().min(1).default(70),
 
     /** Path to the GeoJSON road network file */
-    GEOJSON_PATH: z.string().default("./export.geojson"),
+    GEOJSON_PATH: z.string().default("./data/network.geojson"),
 
     /** URL of the adapter service (empty = disabled) */
     ADAPTER_URL: z.string().default(""),

@@ -35,7 +35,7 @@ ENV NODE_ENV=production \
     ACCELERATION=5 \
     DECELERATION=7 \
     TURN_THRESHOLD=30 \
-    GEOJSON_PATH=/app/export.geojson
+    GEOJSON_PATH=/app/data/network.geojson
 
 USER nodejs
 
