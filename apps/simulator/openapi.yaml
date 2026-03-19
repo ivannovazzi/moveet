@@ -34,81 +34,12 @@ tags:
     description: Traffic congestion data and profiles
   - name: Fleets
     description: Fleet grouping and vehicle assignment
+  - name: Analytics
+    description: Fleet and vehicle performance analytics
+  - name: Geofences
+    description: Geofence zone CRUD and toggle
 
 paths:
-  # ─── Meta ────────────────────────────────────────────────────────────
-  /api-docs:
-    get:
-      operationId: getApiDocs
-      summary: Serve the OpenAPI specification as YAML
-      tags: [Simulation]
-      responses:
-        "200":
-          description: OpenAPI YAML specification
-          content:
-            text/yaml:
-              schema:
-                type: string
-        "404":
-          description: Spec file not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-
-  /metrics:
-    get:
-      operationId: getMetrics
-      summary: Get simulation performance metrics
-      description: |
-        Returns performance metrics (histograms, counters, gauges) in JSON format by default.
-        Send Accept: text/plain to receive Prometheus text exposition format.
-      tags: [Simulation]
-      responses:
-        "200":
-          description: Performance metrics snapshot
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  histograms:
-                    type: object
-                    additionalProperties:
-                      type: object
-                      properties:
-                        count:
-                          type: number
-                        sum:
-                          type: number
-                        avg:
-                          type: number
-                        min:
-                          type: number
-                        max:
-                          type: number
-                        p50:
-                          type: number
-                        p95:
-                          type: number
-                        p99:
-                          type: number
-                  counters:
-                    type: object
-                    additionalProperties:
-                      type: number
-                  gauges:
-                    type: object
-                    additionalProperties:
-                      type: number
-                  timestamp:
-                    type: string
-                    format: date-time
-            text/plain:
-              schema:
-                type: string
-                description: Prometheus text exposition format
-
   # ─── Simulation ──────────────────────────────────────────────────────
   /status:
     get:
@@ -1197,6 +1128,202 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  # ─── Analytics ───────────────────────────────────────────────────────
+  /analytics/summary:
+    get:
+      operationId: getAnalyticsSummary
+      summary: Get aggregate analytics across all vehicles
+      tags: [Analytics]
+      responses:
+        "200":
+          description: Analytics summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsSummary"
+
+  /analytics/fleet/{id}:
+    get:
+      operationId: getFleetAnalytics
+      summary: Get analytics for a specific fleet
+      tags: [Analytics]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Fleet analytics with per-vehicle breakdown
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FleetAnalytics"
+
+  /analytics/reset:
+    post:
+      operationId: resetAnalytics
+      summary: Reset all accumulated analytics data
+      tags: [Analytics]
+      responses:
+        "200":
+          description: Analytics reset
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+
+  # ─── Geofences ───────────────────────────────────────────────────────
+  /geofences:
+    get:
+      operationId: getGeofences
+      summary: List all geofence zones
+      tags: [Geofences]
+      responses:
+        "200":
+          description: Array of geofence zones
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GeoFence"
+    post:
+      operationId: createGeofence
+      summary: Create a new geofence zone
+      tags: [Geofences]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGeoFenceRequest"
+      responses:
+        "201":
+          description: Geofence zone created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeoFence"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /geofences/{id}:
+    get:
+      operationId: getGeofence
+      summary: Get a single geofence zone
+      tags: [Geofences]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Geofence zone
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeoFence"
+        "404":
+          description: Zone not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    put:
+      operationId: updateGeofence
+      summary: Full replace of a geofence zone
+      tags: [Geofences]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGeoFenceRequest"
+      responses:
+        "200":
+          description: Updated geofence zone
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeoFence"
+        "404":
+          description: Zone not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: deleteGeofence
+      summary: Delete a geofence zone
+      tags: [Geofences]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Zone removed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [removed]
+        "404":
+          description: Zone not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /geofences/{id}/toggle:
+    patch:
+      operationId: toggleGeofence
+      summary: Toggle the active flag of a geofence zone
+      tags: [Geofences]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Updated geofence zone
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeoFence"
+        "404":
+          description: Zone not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
 components:
   schemas:
     # ─── Core types ──────────────────────────────────────────────────
@@ -1821,3 +1948,117 @@ components:
           type: array
           items:
             type: string
+
+    # ─── Analytics ───────────────────────────────────────────────────
+    AnalyticsSummary:
+      type: object
+      required: [totalVehicles, activeVehicles, totalDistanceTraveled, avgSpeed, totalIdleTime, avgRouteEfficiency, timestamp]
+      properties:
+        totalVehicles:
+          type: number
+        activeVehicles:
+          type: number
+        totalDistanceTraveled:
+          type: number
+          description: Total distance traveled in km
+        avgSpeed:
+          type: number
+          description: Average speed in km/h across all vehicles
+        totalIdleTime:
+          type: number
+          description: Total idle time in seconds
+        avgRouteEfficiency:
+          type: number
+          description: Ratio of optimal to actual distance (1.0 = perfect)
+        timestamp:
+          type: number
+
+    VehicleStats:
+      type: object
+      required: [distanceTraveled, idleTime, activeTime, avgSpeed, optimalDistance, actualDistance, waypointsReached, lastUpdated]
+      properties:
+        distanceTraveled:
+          type: number
+          description: Distance traveled in km
+        idleTime:
+          type: number
+          description: Seconds spent idle
+        activeTime:
+          type: number
+          description: Seconds spent moving
+        avgSpeed:
+          type: number
+          description: Rolling average speed in km/h
+        optimalDistance:
+          type: number
+          description: Shortest-path distance in km
+        actualDistance:
+          type: number
+          description: Actual distance traveled in km
+        waypointsReached:
+          type: number
+        lastUpdated:
+          type: number
+
+    FleetAnalytics:
+      type: object
+      required: [fleetId, vehicleCount, activeCount, totalDistance, avgSpeed, totalIdleTime, routeEfficiency, vehicles]
+      properties:
+        fleetId:
+          type: string
+        vehicleCount:
+          type: number
+        activeCount:
+          type: number
+        totalDistance:
+          type: number
+        avgSpeed:
+          type: number
+        totalIdleTime:
+          type: number
+        routeEfficiency:
+          type: number
+        vehicles:
+          type: array
+          items:
+            $ref: "#/components/schemas/VehicleStats"
+
+    # ─── Geofences ───────────────────────────────────────────────────
+    GeoFenceType:
+      type: string
+      enum: [restricted, delivery, monitoring]
+
+    GeoFence:
+      type: object
+      required: [id, name, type, polygon, active]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          $ref: "#/components/schemas/GeoFenceType"
+        polygon:
+          type: array
+          items:
+            $ref: "#/components/schemas/CoordinatePair"
+          description: Array of [longitude, latitude] pairs forming a closed polygon
+        color:
+          type: string
+        active:
+          type: boolean
+
+    CreateGeoFenceRequest:
+      type: object
+      required: [name, type, polygon]
+      properties:
+        name:
+          type: string
+        type:
+          $ref: "#/components/schemas/GeoFenceType"
+        polygon:
+          type: array
+          items:
+            $ref: "#/components/schemas/CoordinatePair"
+        color:
+          type: string

@@ -107,6 +107,8 @@ describe("OpenAPI specification", () => {
       "Clock",
       "Traffic",
       "Fleets",
+      "Analytics",
+      "Geofences",
     ];
     for (const tag of expectedTags) {
       expect(tags).toContain(tag);
@@ -235,6 +237,12 @@ describe("OpenAPI specification", () => {
         "ReplayStatus",
         "WaypointRequest",
         "Waypoint",
+        "AnalyticsSummary",
+        "VehicleStats",
+        "FleetAnalytics",
+        "GeoFenceType",
+        "GeoFence",
+        "CreateGeoFenceRequest",
       ];
 
       for (const name of expected) {
