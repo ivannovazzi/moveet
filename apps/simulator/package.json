@@ -1,6 +1,6 @@
 {
   "name": "@moveet/simulator",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Vehicle location simulator for fleet management systems using real road networks from OpenStreetMap",
   "type": "module",
   "main": "dist/index.js",

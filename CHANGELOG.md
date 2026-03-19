@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.0.5](https://github.com/ivannovazzi/moveet/compare/v0.0.4...v0.0.5) (2026-03-19)
+
+
+### Features
+
+* add lint-staged to pre-commit hook for auto-formatting and linting ([#72](https://github.com/ivannovazzi/moveet/issues/72)) ([a368bf7](https://github.com/ivannovazzi/moveet/commit/a368bf7c1792d095bde38d000476be60c3efa70c))
+* apps/network — OSM road network CLI pipeline ([#64](https://github.com/ivannovazzi/moveet/issues/64)) ([54f62bd](https://github.com/ivannovazzi/moveet/commit/54f62bd9118292f2dd3f58e1e6b59a6ae463c948))
+* geofencing system with zone drawing and alerts (fleetsim-all-8xl) ([#63](https://github.com/ivannovazzi/moveet/issues/63)) ([800fbe3](https://github.com/ivannovazzi/moveet/commit/800fbe3b992d41488263cf8ee2ebd9eafc09d38e))
+* **network:** prune disconnected components, fix city-agnostic spawning ([#73](https://github.com/ivannovazzi/moveet/issues/73)) ([0b1844d](https://github.com/ivannovazzi/moveet/commit/0b1844de09c2d0e1078dd1efdc17bd69535df7b3))
+* phase 1 stability & quality improvements ([#57](https://github.com/ivannovazzi/moveet/issues/57)) ([a4ae737](https://github.com/ivannovazzi/moveet/commit/a4ae73703a27e8f0f0357e87448c73d7c807fcb8))
+* **sim:** simulation realism — BPR congestion, smoothness, traffic signals, incident cache ([#69](https://github.com/ivannovazzi/moveet/issues/69)) ([7b35cad](https://github.com/ivannovazzi/moveet/commit/7b35cadfa397ade48efc5acdfe494ed1d4dbcfb9))
+* time-of-day traffic patterns (fleetsim-all-pv8) ([#16](https://github.com/ivannovazzi/moveet/issues/16)) ([6073126](https://github.com/ivannovazzi/moveet/commit/60731269c64489711f589a2c1250c771dd720f2e))
+* **ui:** migrate interactive components to react-aria-components ([#62](https://github.com/ivannovazzi/moveet/issues/62)) ([0aa0d07](https://github.com/ivannovazzi/moveet/commit/0aa0d0740140d8a8af985fc9a945d547aa80b7ba))
+* vehicle breadcrumb trails on map ([#61](https://github.com/ivannovazzi/moveet/issues/61)) ([479046b](https://github.com/ivannovazzi/moveet/commit/479046b803b7b1c7c671de015508351025be12b5))
+* vehicle types with differentiated behavior ([#18](https://github.com/ivannovazzi/moveet/issues/18)) ([6c5e6b0](https://github.com/ivannovazzi/moveet/commit/6c5e6b0699c8e75dea672eff82a542636b4847a5))
+* **ws:** WebSocket subscribe filters for targeted vehicle updates ([#71](https://github.com/ivannovazzi/moveet/issues/71)) ([33887ca](https://github.com/ivannovazzi/moveet/commit/33887ca84769eaeb6651b9d80523d951b1d71f01))
+
+
+### Bug Fixes
+
+* **network:** call runCLI() so CLI actually starts ([#65](https://github.com/ivannovazzi/moveet/issues/65)) ([373209c](https://github.com/ivannovazzi/moveet/commit/373209ce1e3f677dc688936522c5e640ca2f4674))
+* **network:** make the network download pipeline fully working ([#70](https://github.com/ivannovazzi/moveet/issues/70)) ([062743b](https://github.com/ivannovazzi/moveet/commit/062743ba5f47f50cb88df2050e7f2ebe92afaa9d))
+* **network:** road topology bugs — epsilon dedup, oneway=-1, roundabouts, road classes ([#67](https://github.com/ivannovazzi/moveet/issues/67)) ([d1c1e58](https://github.com/ivannovazzi/moveet/commit/d1c1e5877045e8d46cfee192f11c9236a80b3736))
+* **routing:** P1 routing quality — turn restrictions, heuristic, access filter, roundabouts ([#68](https://github.com/ivannovazzi/moveet/issues/68)) ([3461860](https://github.com/ivannovazzi/moveet/commit/346186029e7f654d7f2ddef5255af624cdfb0cac))
+* **ui:** resolve geofence draw offset, add confirm button, move draw zone control to panel ([#74](https://github.com/ivannovazzi/moveet/issues/74)) ([48c6ccd](https://github.com/ivannovazzi/moveet/commit/48c6ccdcf91d78799ef51628b1bc0af4ecb72380))
+
 ## [0.0.4](https://github.com/ivannovazzi/moveet/compare/v0.0.3...v0.0.4) (2026-03-16)
 
 
