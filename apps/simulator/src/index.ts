@@ -99,7 +99,7 @@ app.use(createGeofenceRoutes(geoFenceManager));
 
 // ─── API documentation ──────────────────────────────────────────────
 
-const specPath = path.join(__dirname, "..", "openapi.yaml");
+const specPath = path.resolve("openapi.yaml");
 app.get("/api-docs.yaml", (_req, res) => {
   if (!fs.existsSync(specPath)) {
     res.status(404).json({ error: "OpenAPI spec not found" });
