@@ -1,0 +1,267 @@
+.body {
+  gap: var(--space-4);
+}
+
+/* ── Scenario file list ── */
+
+.scenarioList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.scenarioItem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.03);
+  border: var(--surface-border);
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.scenarioItem:hover,
+.scenarioItem[data-hovered] {
+  background: var(--surface-bg-hover);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.scenarioItem[data-pressed] {
+  background: var(--surface-bg-active);
+}
+
+.scenarioItemActive {
+  background: rgba(57, 153, 255, 0.08);
+  border-color: rgba(57, 153, 255, 0.25);
+  cursor: default;
+}
+
+.scenarioItemActive:hover,
+.scenarioItemActive[data-hovered] {
+  background: rgba(57, 153, 255, 0.08);
+  border-color: rgba(57, 153, 255, 0.25);
+}
+
+.scenarioInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.scenarioName {
+  font-size: var(--text-base);
+  color: var(--color-gray-lightest);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.scenarioMeta {
+  display: flex;
+  gap: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--color-gray);
+  margin-top: var(--space-1);
+}
+
+/* ── Loaded scenario info ── */
+
+.loadedInfo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: rgba(57, 153, 255, 0.06);
+  border: 1px solid rgba(57, 153, 255, 0.15);
+}
+
+.loadedName {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--color-gray-lightest);
+}
+
+.loadedMeta {
+  display: flex;
+  gap: var(--space-4);
+  font-size: var(--text-xs);
+  color: var(--color-gray-light);
+}
+
+/* ── Controls ── */
+
+.controls {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+}
+
+.controlButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: var(--control-sm);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-sm);
+  border: var(--surface-border);
+  background: var(--surface-bg);
+  color: var(--color-gray-light);
+  font-size: var(--text-sm);
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.controlButton:hover,
+.controlButton[data-hovered] {
+  background: var(--surface-bg-hover);
+  color: var(--color-white);
+}
+
+.controlButton[data-pressed] {
+  background: var(--surface-bg-active);
+}
+
+.controlButtonPrimary {
+  background: rgba(57, 153, 255, 0.14);
+  border-color: rgba(57, 153, 255, 0.22);
+  color: var(--color-accent);
+}
+
+.controlButtonPrimary:hover,
+.controlButtonPrimary[data-hovered] {
+  background: rgba(57, 153, 255, 0.22);
+  color: var(--color-white);
+}
+
+.controlButtonDanger {
+  background: rgba(244, 67, 54, 0.08);
+  border-color: rgba(244, 67, 54, 0.18);
+  color: var(--color-danger);
+}
+
+.controlButtonDanger:hover,
+.controlButtonDanger[data-hovered] {
+  background: rgba(244, 67, 54, 0.14);
+  color: var(--color-white);
+}
+
+.controlIcon {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+/* ── Progress bar ── */
+
+.progressSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.progressLabel {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-xs);
+  color: var(--color-gray-light);
+  font-variant-numeric: tabular-nums;
+}
+
+.progressBar {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--color-accent);
+  transition: width 300ms linear;
+}
+
+/* ── Upcoming events ── */
+
+.upcomingList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.upcomingItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-gray-light);
+  border-radius: var(--radius-xs);
+}
+
+.upcomingTime {
+  font-variant-numeric: tabular-nums;
+  min-width: 40px;
+  color: var(--color-gray);
+}
+
+.upcomingType {
+  color: var(--color-gray-lightest);
+}
+
+/* ── Event log ── */
+
+.eventLog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.eventLogItem {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+  border-radius: var(--radius-xs);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.eventLogTime {
+  font-variant-numeric: tabular-nums;
+  min-width: 40px;
+  color: var(--color-gray);
+}
+
+.eventLogType {
+  color: var(--color-gray-light);
+}
+
+/* ── State label ── */
+
+.stateLabel {
+  font-weight: 500;
+}
+
+.stateRunning {
+  color: var(--color-success);
+}
+
+.statePaused {
+  color: #ffb347;
+}
+
+.stateIdle {
+  color: var(--color-gray);
+}

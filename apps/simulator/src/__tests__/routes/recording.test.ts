@@ -64,6 +64,7 @@ function createMockContext(): RouteContext {
       getOptions: vi.fn().mockReturnValue({ minSpeed: 20, maxSpeed: 60 }),
       getVehicles: vi.fn().mockReturnValue([{ id: "v1" }, { id: "v2" }]),
     } as unknown as RouteContext["simulationController"],
+    scenarioManager: {} as RouteContext["scenarioManager"],
   };
 }
 

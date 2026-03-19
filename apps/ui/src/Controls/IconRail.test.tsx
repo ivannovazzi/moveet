@@ -7,12 +7,13 @@ describe("IconRail", () => {
     render(<IconRail activePanel={null} onPanelChange={() => {}} />);
 
     const buttons = screen.getAllByRole("button");
-    expect(buttons).toHaveLength(10);
+    expect(buttons).toHaveLength(11);
 
     expect(screen.getByLabelText("Vehicles")).toBeInTheDocument();
     expect(screen.getByLabelText("Fleets")).toBeInTheDocument();
     expect(screen.getByLabelText("Incidents")).toBeInTheDocument();
     expect(screen.getByLabelText("Recordings")).toBeInTheDocument();
+    expect(screen.getByLabelText("Scenarios")).toBeInTheDocument();
     expect(screen.getByLabelText("Visibility")).toBeInTheDocument();
     expect(screen.getByLabelText("Speed")).toBeInTheDocument();
     expect(screen.getByLabelText("Analytics")).toBeInTheDocument();

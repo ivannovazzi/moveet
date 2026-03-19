@@ -77,6 +77,7 @@ function createMockContext(): RouteContext {
     } as unknown as RouteContext["incidentManager"],
     recordingManager: {} as RouteContext["recordingManager"],
     simulationController: {} as RouteContext["simulationController"],
+    scenarioManager: {} as RouteContext["scenarioManager"],
   };
 }
 

@@ -42,6 +42,7 @@ function createMockContext(): RouteContext {
       getTrafficProfile: vi.fn().mockReturnValue({ name: "default", timeRanges: [] }),
       setTrafficProfile: vi.fn(),
     } as unknown as RouteContext["simulationController"],
+    scenarioManager: {} as RouteContext["scenarioManager"],
   };
 }
 

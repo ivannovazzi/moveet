@@ -21,6 +21,10 @@ import type {
   ReplayStatus,
   ClockState,
   TrafficEdge,
+  ScenarioFile,
+  ScenarioLoadResponse,
+  ScenarioStatus,
+  ScenarioEventPayload,
 } from "@/types";
 import type { AnalyticsSnapshot, AnalyticsSummary, FleetAnalytics } from "@/hooks/analyticsStore";
 import type {
@@ -111,6 +115,15 @@ class SimulationService {
     this.resetAnalytics = this.resetAnalytics.bind(this);
     // connection state
     this.onConnectionStateChange = this.onConnectionStateChange.bind(this);
+    // scenarios
+    this.getScenarios = this.getScenarios.bind(this);
+    this.loadScenarioByName = this.loadScenarioByName.bind(this);
+    this.startScenario = this.startScenario.bind(this);
+    this.pauseScenario = this.pauseScenario.bind(this);
+    this.stopScenario = this.stopScenario.bind(this);
+    this.getScenarioStatus = this.getScenarioStatus.bind(this);
+    this.onScenarioEvent = this.onScenarioEvent.bind(this);
+    this.offScenarioEvent = this.offScenarioEvent.bind(this);
     // geofences
     this.getGeofences = this.getGeofences.bind(this);
     this.createGeofence = this.createGeofence.bind(this);
@@ -451,6 +464,52 @@ class SimulationService {
 
   subscribe(filter: SubscribeFilter | null): void {
     this.ws.send({ type: "subscribe", filter });
+  }
+
+  // ─── Scenarios ────────────────────────────────────────────────────
+
+  async getScenarios(): Promise<ApiResponse<ScenarioFile[]>> {
+    return this.http.get<ScenarioFile[]>("/scenarios");
+  }
+
+  async loadScenarioByName(fileName: string): Promise<ApiResponse<ScenarioLoadResponse>> {
+    return this.http.post<undefined, ScenarioLoadResponse>(
+      `/scenarios/load/${encodeURIComponent(fileName)}`
+    );
+  }
+
+  async startScenario(): Promise<ApiResponse<ScenarioStatus>> {
+    return this.http.post<undefined, ScenarioStatus>("/scenarios/start");
+  }
+
+  async pauseScenario(): Promise<ApiResponse<ScenarioStatus>> {
+    return this.http.post<undefined, ScenarioStatus>("/scenarios/pause");
+  }
+
+  async stopScenario(): Promise<ApiResponse<ScenarioStatus>> {
+    return this.http.post<undefined, ScenarioStatus>("/scenarios/stop");
+  }
+
+  async getScenarioStatus(): Promise<ApiResponse<ScenarioStatus>> {
+    return this.http.get<ScenarioStatus>("/scenarios/status");
+  }
+
+  onScenarioEvent(handler: (data: ScenarioEventPayload) => void): void {
+    this.ws.on("scenario:event", handler);
+    this.ws.on("scenario:started", handler);
+    this.ws.on("scenario:completed", handler);
+    this.ws.on("scenario:paused", handler);
+    this.ws.on("scenario:resumed", handler);
+    this.ws.on("scenario:stopped", handler);
+  }
+
+  offScenarioEvent(): void {
+    this.ws.off("scenario:event");
+    this.ws.off("scenario:started");
+    this.ws.off("scenario:completed");
+    this.ws.off("scenario:paused");
+    this.ws.off("scenario:resumed");
+    this.ws.off("scenario:stopped");
   }
 }
 

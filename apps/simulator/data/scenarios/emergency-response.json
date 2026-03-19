@@ -1,0 +1,78 @@
+{
+  "name": "Emergency Response",
+  "description": "Simulates emergency vehicle dispatch to major incidents in Nairobi. Two incidents occur sequentially near CBD and Upper Hill, with ambulances dispatched to each. Tests priority routing and incident lifecycle management.",
+  "city": "nairobi",
+  "version": 1,
+  "duration": 300,
+  "variables": {
+    "regularVehicles": 5,
+    "emergencyVehicles": 2,
+    "incidentSeverity": 0.9
+  },
+  "events": [
+    {
+      "at": 0,
+      "action": {
+        "type": "spawn_vehicles",
+        "count": 5,
+        "vehicleTypes": { "car": 3, "bus": 2 }
+      }
+    },
+    {
+      "at": 0,
+      "action": {
+        "type": "spawn_vehicles",
+        "count": 2,
+        "vehicleTypes": { "ambulance": 2 }
+      }
+    },
+    {
+      "at": 30,
+      "action": {
+        "type": "create_incident",
+        "position": { "lat": -1.2921, "lng": 36.8219 },
+        "incidentType": "closure",
+        "duration": 210,
+        "severity": 0.9
+      }
+    },
+    {
+      "at": 45,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-5",
+        "waypoints": [
+          { "lat": -1.29, "lng": 36.821, "label": "Approach CBD incident" },
+          { "lat": -1.2921, "lng": 36.8219, "dwellTime": 120, "label": "CBD Incident Site" }
+        ]
+      }
+    },
+    {
+      "at": 120,
+      "action": {
+        "type": "create_incident",
+        "position": { "lat": -1.2979, "lng": 36.8138 },
+        "incidentType": "accident",
+        "duration": 180,
+        "severity": 0.8
+      }
+    },
+    {
+      "at": 150,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-6",
+        "waypoints": [
+          { "lat": -1.296, "lng": 36.815, "label": "Approach Upper Hill incident" },
+          { "lat": -1.2979, "lng": 36.8138, "dwellTime": 90, "label": "Upper Hill Incident Site" }
+        ]
+      }
+    },
+    {
+      "at": 240,
+      "action": {
+        "type": "clear_incidents"
+      }
+    }
+  ]
+}

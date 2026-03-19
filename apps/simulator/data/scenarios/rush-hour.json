@@ -1,0 +1,108 @@
+{
+  "name": "Rush Hour Stress Test",
+  "description": "Simulates Nairobi morning rush hour with 100 vehicles, traffic congestion profiles, and random incidents on major corridors. Tests simulator performance under high vehicle density and dynamic incident conditions.",
+  "city": "nairobi",
+  "version": 1,
+  "duration": 600,
+  "variables": {
+    "initialVehicles": 50,
+    "secondWave": 30,
+    "thirdWave": 20,
+    "peakDemandMultiplier": 2.5
+  },
+  "events": [
+    {
+      "at": 0,
+      "action": {
+        "type": "set_traffic_profile",
+        "name": "morning_rush",
+        "timeRanges": [
+          {
+            "start": 6,
+            "end": 8,
+            "demandMultiplier": 1.8,
+            "affectedHighways": ["primary", "secondary", "tertiary"]
+          },
+          {
+            "start": 8,
+            "end": 10,
+            "demandMultiplier": 2.5,
+            "affectedHighways": ["primary", "secondary"]
+          }
+        ]
+      }
+    },
+    {
+      "at": 0,
+      "action": {
+        "type": "spawn_vehicles",
+        "count": 50,
+        "vehicleTypes": { "car": 30, "truck": 10, "bus": 7, "motorcycle": 3 }
+      }
+    },
+    {
+      "at": 30,
+      "action": {
+        "type": "set_options",
+        "options": { "minSpeed": 15, "maxSpeed": 70 }
+      }
+    },
+    {
+      "at": 60,
+      "action": {
+        "type": "create_incident",
+        "position": { "lat": -1.2921, "lng": 36.8219 },
+        "incidentType": "accident",
+        "duration": 240,
+        "severity": 0.7
+      }
+    },
+    {
+      "at": 120,
+      "action": {
+        "type": "spawn_vehicles",
+        "count": 30,
+        "vehicleTypes": { "car": 22, "truck": 5, "bus": 3 }
+      }
+    },
+    {
+      "at": 180,
+      "action": {
+        "type": "create_incident",
+        "position": { "lat": -1.3015, "lng": 36.8484 },
+        "incidentType": "construction",
+        "duration": 300,
+        "severity": 0.5
+      }
+    },
+    {
+      "at": 300,
+      "action": {
+        "type": "clear_incidents"
+      }
+    },
+    {
+      "at": 400,
+      "action": {
+        "type": "set_traffic_profile",
+        "name": "normal",
+        "timeRanges": [
+          {
+            "start": 0,
+            "end": 24,
+            "demandMultiplier": 1.0,
+            "affectedHighways": ["primary", "secondary", "tertiary"]
+          }
+        ]
+      }
+    },
+    {
+      "at": 500,
+      "action": {
+        "type": "spawn_vehicles",
+        "count": 20,
+        "vehicleTypes": { "car": 15, "truck": 3, "bus": 2 }
+      }
+    }
+  ]
+}

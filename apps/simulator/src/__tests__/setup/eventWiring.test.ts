@@ -32,6 +32,7 @@ describe("wireEvents", () => {
   let broadcaster: ReturnType<typeof createMockBroadcaster>;
   let recordingManager: ReturnType<typeof createMockRecordingManager>;
   let geoFenceManager: GeoFenceManager;
+  let scenarioManager: EventEmitter;
   let result: {
     trafficBroadcastInterval: NodeJS.Timeout;
     analyticsBroadcastInterval: NodeJS.Timeout;
@@ -46,6 +47,7 @@ describe("wireEvents", () => {
     broadcaster = createMockBroadcaster();
     recordingManager = createMockRecordingManager();
     geoFenceManager = new GeoFenceManager();
+    scenarioManager = createMockEmitter();
 
     const ctx: EventWiringContext = {
       network: network as unknown as EventWiringContext["network"],
@@ -59,6 +61,7 @@ describe("wireEvents", () => {
         simulationController as unknown as EventWiringContext["simulationController"],
       broadcaster,
       geoFenceManager,
+      scenarioManager: scenarioManager as unknown as EventWiringContext["scenarioManager"],
     };
 
     result = wireEvents(ctx);
@@ -307,6 +310,46 @@ describe("wireEvents", () => {
       const data = { mode: "replay", progress: 0.5 };
       simulationController.emit("replayStatus", data);
       expect(broadcaster.broadcast).toHaveBeenCalledWith("replayStatus", data);
+    });
+  });
+
+  // ─── Scenario events ──────────────────────────────────────────────
+
+  describe("scenario events", () => {
+    it("should broadcast scenario:started events", () => {
+      const data = { name: "test", eventCount: 3 };
+      scenarioManager.emit("scenario:started", data);
+      expect(broadcaster.broadcast).toHaveBeenCalledWith("scenario:started", data);
+    });
+
+    it("should broadcast scenario:event events", () => {
+      const data = { index: 0, at: 5, action: { type: "spawn_vehicles" } };
+      scenarioManager.emit("scenario:event", data);
+      expect(broadcaster.broadcast).toHaveBeenCalledWith("scenario:event", data);
+    });
+
+    it("should broadcast scenario:paused events", () => {
+      const data = { elapsed: 5000, nextEventIndex: 1 };
+      scenarioManager.emit("scenario:paused", data);
+      expect(broadcaster.broadcast).toHaveBeenCalledWith("scenario:paused", data);
+    });
+
+    it("should broadcast scenario:resumed events", () => {
+      const data = { elapsed: 5000, nextEventIndex: 1 };
+      scenarioManager.emit("scenario:resumed", data);
+      expect(broadcaster.broadcast).toHaveBeenCalledWith("scenario:resumed", data);
+    });
+
+    it("should broadcast scenario:completed events", () => {
+      const data = { name: "test", eventsExecuted: 3, elapsed: 60 };
+      scenarioManager.emit("scenario:completed", data);
+      expect(broadcaster.broadcast).toHaveBeenCalledWith("scenario:completed", data);
+    });
+
+    it("should broadcast scenario:stopped events", () => {
+      const data = { name: "test", eventsExecuted: 2 };
+      scenarioManager.emit("scenario:stopped", data);
+      expect(broadcaster.broadcast).toHaveBeenCalledWith("scenario:stopped", data);
     });
   });
 });

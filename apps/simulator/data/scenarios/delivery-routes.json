@@ -1,0 +1,166 @@
+{
+  "name": "Delivery Route Optimization",
+  "description": "Dispatches 10 delivery trucks to multi-stop routes across Nairobi. Each vehicle visits 3-5 waypoints with dwell times for package drop-off. A mid-scenario road closure forces dynamic rerouting.",
+  "city": "nairobi",
+  "version": 1,
+  "duration": 480,
+  "variables": {
+    "fleetSize": 10,
+    "avgStopsPerRoute": 4,
+    "dwellTimeSeconds": 45
+  },
+  "events": [
+    {
+      "at": 0,
+      "action": {
+        "type": "spawn_vehicles",
+        "count": 10,
+        "vehicleTypes": { "truck": 10 }
+      }
+    },
+    {
+      "at": 10,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-0",
+        "waypoints": [
+          { "lat": -1.2773, "lng": 36.825, "dwellTime": 45, "label": "Ngara Depot" },
+          { "lat": -1.2921, "lng": 36.8219, "dwellTime": 30, "label": "CBD Drop 1" },
+          { "lat": -1.2979, "lng": 36.8138, "dwellTime": 30, "label": "Upper Hill Drop 2" },
+          { "lat": -1.2635, "lng": 36.8029, "dwellTime": 45, "label": "Westlands Drop 3" }
+        ]
+      }
+    },
+    {
+      "at": 15,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-1",
+        "waypoints": [
+          { "lat": -1.3015, "lng": 36.8484, "dwellTime": 60, "label": "Industrial Area Pickup" },
+          { "lat": -1.2921, "lng": 36.8219, "dwellTime": 30, "label": "CBD Delivery" },
+          { "lat": -1.2773, "lng": 36.825, "dwellTime": 30, "label": "Ngara Delivery" }
+        ]
+      }
+    },
+    {
+      "at": 20,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-2",
+        "waypoints": [
+          { "lat": -1.2635, "lng": 36.8029, "dwellTime": 45, "label": "Westlands Pickup" },
+          { "lat": -1.2773, "lng": 36.825, "dwellTime": 30, "label": "Ngara Stop" },
+          { "lat": -1.3015, "lng": 36.8484, "dwellTime": 45, "label": "Industrial Delivery" },
+          { "lat": -1.2921, "lng": 36.8219, "dwellTime": 30, "label": "CBD Return" }
+        ]
+      }
+    },
+    {
+      "at": 25,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-3",
+        "waypoints": [
+          { "lat": -1.2921, "lng": 36.8219, "dwellTime": 30, "label": "CBD Start" },
+          { "lat": -1.2979, "lng": 36.8138, "dwellTime": 45, "label": "Upper Hill Stop" },
+          { "lat": -1.3235, "lng": 36.7142, "dwellTime": 60, "label": "Karen Delivery" }
+        ]
+      }
+    },
+    {
+      "at": 30,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-4",
+        "waypoints": [
+          { "lat": -1.2773, "lng": 36.825, "dwellTime": 30, "label": "Ngara Hub" },
+          { "lat": -1.2635, "lng": 36.8029, "dwellTime": 45, "label": "Westlands Drop" },
+          { "lat": -1.2921, "lng": 36.8219, "dwellTime": 30, "label": "CBD Drop" },
+          { "lat": -1.3015, "lng": 36.8484, "dwellTime": 45, "label": "Industrial Drop" },
+          { "lat": -1.2773, "lng": 36.825, "dwellTime": 30, "label": "Ngara Return" }
+        ]
+      }
+    },
+    {
+      "at": 35,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-5",
+        "waypoints": [
+          { "lat": -1.3015, "lng": 36.8484, "dwellTime": 45, "label": "Industrial Pickup" },
+          { "lat": -1.3235, "lng": 36.8882, "dwellTime": 60, "label": "Embakasi Delivery" },
+          { "lat": -1.2921, "lng": 36.8219, "dwellTime": 30, "label": "CBD Return" }
+        ]
+      }
+    },
+    {
+      "at": 40,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-6",
+        "waypoints": [
+          { "lat": -1.2635, "lng": 36.8029, "dwellTime": 30, "label": "Westlands Start" },
+          { "lat": -1.2979, "lng": 36.8138, "dwellTime": 45, "label": "Upper Hill" },
+          { "lat": -1.2921, "lng": 36.8219, "dwellTime": 30, "label": "CBD" },
+          { "lat": -1.2773, "lng": 36.825, "dwellTime": 45, "label": "Ngara Final" }
+        ]
+      }
+    },
+    {
+      "at": 45,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-7",
+        "waypoints": [
+          { "lat": -1.2921, "lng": 36.8219, "dwellTime": 45, "label": "CBD Pickup" },
+          { "lat": -1.3235, "lng": 36.7142, "dwellTime": 60, "label": "Karen Drop" },
+          { "lat": -1.2979, "lng": 36.8138, "dwellTime": 30, "label": "Upper Hill Drop" },
+          { "lat": -1.2635, "lng": 36.8029, "dwellTime": 30, "label": "Westlands Final" }
+        ]
+      }
+    },
+    {
+      "at": 50,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-8",
+        "waypoints": [
+          { "lat": -1.2773, "lng": 36.825, "dwellTime": 30, "label": "Ngara Start" },
+          { "lat": -1.3015, "lng": 36.8484, "dwellTime": 45, "label": "Industrial Area" },
+          { "lat": -1.3235, "lng": 36.8882, "dwellTime": 60, "label": "Embakasi" }
+        ]
+      }
+    },
+    {
+      "at": 55,
+      "action": {
+        "type": "dispatch",
+        "vehicleId": "scenario-9",
+        "waypoints": [
+          { "lat": -1.2979, "lng": 36.8138, "dwellTime": 45, "label": "Upper Hill Pickup" },
+          { "lat": -1.2921, "lng": 36.8219, "dwellTime": 30, "label": "CBD Delivery" },
+          { "lat": -1.2635, "lng": 36.8029, "dwellTime": 45, "label": "Westlands Delivery" },
+          { "lat": -1.2773, "lng": 36.825, "dwellTime": 30, "label": "Ngara Delivery" },
+          { "lat": -1.3015, "lng": 36.8484, "dwellTime": 45, "label": "Industrial Final" }
+        ]
+      }
+    },
+    {
+      "at": 240,
+      "action": {
+        "type": "create_incident",
+        "position": { "lat": -1.288, "lng": 36.82 },
+        "incidentType": "closure",
+        "duration": 120,
+        "severity": 0.9
+      }
+    },
+    {
+      "at": 360,
+      "action": {
+        "type": "clear_incidents"
+      }
+    }
+  ]
+}

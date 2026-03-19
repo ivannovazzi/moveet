@@ -130,3 +130,36 @@ export interface RecordingFile {
   fileSize: number;
   modifiedAt: string;
 }
+
+// ─── Scenarios ────────────────────────────────────────────────────
+
+export interface ScenarioFile {
+  fileName: string;
+  fileSize: number;
+  modifiedAt: string;
+}
+
+export interface ScenarioLoadResponse {
+  status: string;
+  scenario: { name: string; duration: number; eventCount: number };
+}
+
+export interface ScenarioStatus {
+  state: "idle" | "running" | "paused";
+  scenario: { name: string; duration: number; eventCount: number } | null;
+  elapsed: number;
+  eventIndex: number;
+  eventsExecuted: number;
+  upcomingEvents: Array<{ at: number; type: string }>;
+}
+
+export interface ScenarioEventPayload {
+  type?: string;
+  index?: number;
+  at?: number;
+  action?: { type: string };
+  name?: string;
+  eventCount?: number;
+  elapsed?: number;
+  eventsExecuted?: number;
+}

@@ -4,6 +4,7 @@ import type { FleetManager } from "../modules/FleetManager";
 import type { IncidentManager } from "../modules/IncidentManager";
 import type { RecordingManager } from "../modules/RecordingManager";
 import type { SimulationController } from "../modules/SimulationController";
+import type { ScenarioManager } from "../modules/scenario";
 
 /**
  * Shared context passed to each route module.
@@ -16,4 +17,5 @@ export interface RouteContext {
   incidentManager: IncidentManager;
   recordingManager: RecordingManager;
   simulationController: SimulationController;
+  scenarioManager: ScenarioManager;
 }
