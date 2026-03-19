@@ -136,13 +136,13 @@ describe("Plugin flow integration tests", () => {
       const vehicles = await manager.getVehicles();
       expect(vehicles).toHaveLength(5);
       expect(vehicles[0]).toHaveProperty("id");
-      expect(vehicles[0]).toHaveProperty("position");
+      expect(vehicles[0]).toHaveProperty("name");
 
       // Convert to updates and publish
       const updates: VehicleUpdate[] = vehicles.map((v) => ({
         id: v.id,
-        latitude: v.position[0],
-        longitude: v.position[1],
+        latitude: v.position?.[0] ?? 0,
+        longitude: v.position?.[1] ?? 0,
         type: v.type,
       }));
 
@@ -169,8 +169,8 @@ describe("Plugin flow integration tests", () => {
       const vehicles = await manager.getVehicles();
       const updates: VehicleUpdate[] = vehicles.map((v) => ({
         id: v.id,
-        latitude: v.position[0],
-        longitude: v.position[1],
+        latitude: v.position?.[0] ?? 0,
+        longitude: v.position?.[1] ?? 0,
       }));
 
       const result = await manager.publishUpdates(updates);
@@ -405,8 +405,8 @@ describe("Plugin flow integration tests", () => {
 
       const updates: VehicleUpdate[] = vehicles.map((v) => ({
         id: v.id,
-        latitude: v.position[0],
-        longitude: v.position[1],
+        latitude: v.position?.[0] ?? 0,
+        longitude: v.position?.[1] ?? 0,
       }));
 
       const result = await manager.publishUpdates(updates);

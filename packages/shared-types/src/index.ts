@@ -28,7 +28,7 @@ export interface VehicleDTO {
 export interface ExportVehicle {
   id: string;
   name: string;
-  position: Position;
+  position?: Position;
   type?: VehicleType;
 }
 

@@ -5,6 +5,7 @@ import { download } from "./commands/download.js";
 import { extract } from "./commands/extract.js";
 import { filter, DEFAULT_ROAD_CLASSES } from "./commands/filter.js";
 import { exportNetwork } from "./commands/export.js";
+import { prune } from "./commands/prune.js";
 import { validate } from "./commands/validate.js";
 import { diff } from "./commands/diff.js";
 import { prepare } from "./commands/prepare.js";
@@ -87,6 +88,15 @@ program
       bbox: [0, 0, 0, 0],
       classes: [],
     });
+  });
+
+program
+  .command("prune")
+  .description("Remove disconnected components, keeping only the largest")
+  .requiredOption("--input <path>", "GeoJSON file to prune")
+  .option("--output <path>", "Output path (defaults to overwriting input)")
+  .action((opts: { input: string; output?: string }) => {
+    prune(opts.input, opts.output);
   });
 
 program

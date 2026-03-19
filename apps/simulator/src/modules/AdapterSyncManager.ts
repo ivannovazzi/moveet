@@ -16,7 +16,7 @@ export class AdapterSyncManager {
    * Must be called after construction when ADAPTER_URL is configured.
    */
   async initFromAdapter(
-    addVehicle: (id: string, name: string, position: [number, number]) => void,
+    addVehicle: (id: string, name: string, position?: [number, number]) => void,
     loadFallback: () => void
   ): Promise<void> {
     if (!config.adapterURL) return;

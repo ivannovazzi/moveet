@@ -6,7 +6,7 @@ Vehicle location simulator for fleet management systems. Simulates multiple vehi
 
 - **Real Road Networks**: Uses OpenStreetMap GeoJSON data for realistic vehicle movement
 - **Heat Zones**: Dynamic areas that affect vehicle behavior and speed
-- **A* Pathfinding**: Intelligent routing between locations
+- **A\* Pathfinding**: Intelligent routing between locations
 - **WebSocket Support**: Real-time vehicle updates
 - **External Adapter**: Integration with external fleet management systems
 - **Rate Limiting**: Built-in protection against API abuse
@@ -37,34 +37,36 @@ cp .env.example .env
 Edit `.env` with your configuration. **Required variables:**
 
 ```bash
-GEOJSON_PATH=./export.geojson
+GEOJSON_PATH=./data/network.geojson
 ```
 
 ## Configuration Options
 
-| Variable                | Description                                    | Default           |
-| ----------------------- | ---------------------------------------------- | ----------------- |
-| `PORT`                  | HTTP server port                               | 5010              |
-| `GEOJSON_PATH`          | Path to OpenStreetMap GeoJSON file             | ./export.geojson  |
-| `UPDATE_INTERVAL`       | Vehicle position update frequency (ms)         | 500               |
-| `MIN_SPEED`             | Minimum vehicle speed (km/h)                   | 20                |
-| `MAX_SPEED`             | Maximum vehicle speed (km/h)                   | 60                |
-| `ACCELERATION`          | Speed increase rate (km/h/update)              | 5                 |
-| `DECELERATION`          | Speed decrease rate (km/h/update)              | 7                 |
-| `TURN_THRESHOLD`        | Angle to trigger turn behavior (degrees)       | 30                |
-| `SPEED_VARIATION`       | Speed randomization factor (0.0-1.0)           | 0.1               |
-| `HEATZONE_SPEED_FACTOR` | Speed reduction in heat zones (0.0-1.0)        | 0.5               |
-| `ADAPTER_URL`           | URL of external adapter service (enables adapter when set) | -    |
-| `SYNC_ADAPTER_TIMEOUT`  | Interval for syncing vehicle positions to adapter (ms) | 5000       |
+| Variable                | Description                                                | Default                |
+| ----------------------- | ---------------------------------------------------------- | ---------------------- |
+| `PORT`                  | HTTP server port                                           | 5010                   |
+| `GEOJSON_PATH`          | Path to OpenStreetMap GeoJSON file                         | ./data/network.geojson |
+| `UPDATE_INTERVAL`       | Vehicle position update frequency (ms)                     | 500                    |
+| `MIN_SPEED`             | Minimum vehicle speed (km/h)                               | 20                     |
+| `MAX_SPEED`             | Maximum vehicle speed (km/h)                               | 60                     |
+| `ACCELERATION`          | Speed increase rate (km/h/update)                          | 5                      |
+| `DECELERATION`          | Speed decrease rate (km/h/update)                          | 7                      |
+| `TURN_THRESHOLD`        | Angle to trigger turn behavior (degrees)                   | 30                     |
+| `SPEED_VARIATION`       | Speed randomization factor (0.0-1.0)                       | 0.1                    |
+| `HEATZONE_SPEED_FACTOR` | Speed reduction in heat zones (0.0-1.0)                    | 0.5                    |
+| `ADAPTER_URL`           | URL of external adapter service (enables adapter when set) | -                      |
+| `SYNC_ADAPTER_TIMEOUT`  | Interval for syncing vehicle positions to adapter (ms)     | 5000                   |
 
 ## API Endpoints
 
 ### Simulation Control
 
 #### `GET /status`
+
 Get current simulation status.
 
 **Response:**
+
 ```json
 {
   "isRunning": true,
@@ -74,9 +76,11 @@ Get current simulation status.
 ```
 
 #### `POST /start`
+
 Start the simulation with optional configuration.
 
 **Request Body:**
+
 ```json
 {
   "updateInterval": 500,
@@ -86,17 +90,21 @@ Start the simulation with optional configuration.
 ```
 
 #### `POST /stop`
+
 Stop the simulation.
 
 #### `POST /reset`
+
 Reset the simulation to initial state.
 
 ### Vehicle Management
 
 #### `GET /vehicles`
+
 Get all vehicles with their current state.
 
 **Response:**
+
 ```json
 [
   {
@@ -110,9 +118,11 @@ Get all vehicles with their current state.
 ```
 
 #### `POST /direction`
+
 Set destination for specific vehicles.
 
 **Request Body:**
+
 ```json
 [
   {
@@ -126,19 +136,23 @@ Set destination for specific vehicles.
 ### Network Queries
 
 #### `POST /find-node`
+
 Find the nearest road network node to coordinates. **Rate limited.**
 
 **Request Body:** `[longitude, latitude]`
 
 #### `POST /find-road`
+
 Find the nearest road to coordinates. **Rate limited.**
 
 **Request Body:** `[longitude, latitude]`
 
 #### `POST /search`
+
 Search for locations by name. **Rate limited.**
 
 **Request Body:**
+
 ```json
 {
   "query": "Main Street"
@@ -146,28 +160,35 @@ Search for locations by name. **Rate limited.**
 ```
 
 #### `GET /network`
+
 Get the entire road network (GeoJSON).
 
 #### `GET /roads`
+
 Get all roads in the network.
 
 #### `GET /pois`
+
 Get all points of interest.
 
 ### Heat Zones
 
 #### `POST /heatzones`
+
 Generate new heat zones.
 
 #### `GET /heatzones`
+
 Get current heat zones.
 
 ### Configuration
 
 #### `GET /options`
+
 Get current simulation options.
 
 #### `POST /options`
+
 Update simulation options.
 
 ## WebSocket API
@@ -175,6 +196,7 @@ Update simulation options.
 Connect to `ws://localhost:5010` for real-time updates.
 
 **Message Types:**
+
 - `vehicle`: Vehicle position update
 - `status`: Simulation status change
 - `heatzones`: Heat zone updates
@@ -199,21 +221,25 @@ docker compose up
 ## Development
 
 ### Start Development Server
+
 ```bash
 npm run dev
 ```
 
 ### Build
+
 ```bash
 npm run build
 ```
 
 ### Run Tests
+
 ```bash
 npm test
 ```
 
 ### Lint
+
 ```bash
 npm run lint
 ```
@@ -251,11 +277,13 @@ npm run lint
 ### Application won't start
 
 **Check GeoJSON file exists:**
+
 ```bash
 ls -la export.geojson
 ```
 
 **Verify environment variables:**
+
 ```bash
 cat .env
 ```

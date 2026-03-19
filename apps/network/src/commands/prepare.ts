@@ -5,6 +5,7 @@ import { download, getCachePath } from "./download.js";
 import { extract } from "./extract.js";
 import { filter, DEFAULT_ROAD_CLASSES } from "./filter.js";
 import { exportNetwork } from "./export.js";
+import { prune } from "./prune.js";
 import { validate } from "./validate.js";
 
 const CACHE_DIR = path.resolve("apps/network/.cache");
@@ -80,7 +81,8 @@ export async function prepare(opts: PrepareOptions): Promise<void> {
     console.log(`  2. extract   bbox [${region.bbox.join(", ")}] → ${pbfExtracted}`);
     console.log(`  3. filter    classes: ${classes.join(",")} → ${pbfFiltered}`);
     console.log(`  4. export    → ${output}`);
-    console.log(`  5. validate  ${output}\n`);
+    console.log(`  5. prune     keep largest connected component`);
+    console.log(`  6. validate  ${output}\n`);
     return;
   }
 
@@ -96,6 +98,7 @@ export async function prepare(opts: PrepareOptions): Promise<void> {
     bbox: region.bbox,
     classes,
   });
+  prune(output);
   const report = validate(output);
 
   if (!report.passed) {
