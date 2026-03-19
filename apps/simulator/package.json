@@ -35,6 +35,7 @@
   ],
   "dependencies": {
     "@moveet/shared-types": "*",
+    "@scalar/express-api-reference": "^0.9.4",
     "@turf/turf": "^7.3.4",
     "compression": "^1.8.1",
     "cors": "^2.8.6",

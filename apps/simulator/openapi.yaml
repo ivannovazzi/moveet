@@ -35,56 +35,11 @@ tags:
   - name: Fleets
     description: Fleet grouping and vehicle assignment
   - name: Analytics
-    description: Fleet analytics, summaries, and per-vehicle stats
+    description: Fleet and vehicle performance analytics
+  - name: Geofences
+    description: Geofence zone CRUD and toggle
 
 paths:
-  # ─── Meta ────────────────────────────────────────────────────────────
-  /api-docs:
-    get:
-      operationId: getApiDocs
-      summary: Serve the OpenAPI specification as YAML
-      tags: [Simulation]
-      responses:
-        "200":
-          description: OpenAPI YAML specification
-          content:
-            text/yaml:
-              schema:
-                type: string
-        "404":
-          description: Spec file not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-
-  /health:
-    get:
-      operationId: getHealth
-      summary: Health check for liveness/readiness probes
-      tags: [Simulation]
-      responses:
-        "200":
-          description: Service health status
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: ok
-                  uptime:
-                    type: integer
-                    description: Seconds since server start
-                  subsystems:
-                    type: object
-                    properties:
-                      roadNetwork:
-                        type: boolean
-                      simulation:
-                        type: boolean
-
   # ─── Simulation ──────────────────────────────────────────────────────
   /status:
     get:
@@ -1223,8 +1178,21 @@ paths:
                   ok:
                     type: boolean
 
-  # ─── Geofences ──────────────────────────────────────────────────
+  # ─── Geofences ───────────────────────────────────────────────────────
   /geofences:
+    get:
+      operationId: getGeofences
+      summary: List all geofence zones
+      tags: [Geofences]
+      responses:
+        "200":
+          description: Array of geofence zones
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GeoFence"
     post:
       operationId: createGeofence
       summary: Create a new geofence zone
@@ -1237,45 +1205,32 @@ paths:
               $ref: "#/components/schemas/CreateGeoFenceRequest"
       responses:
         "201":
-          description: Zone created
+          description: Geofence zone created
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/GeoFence"
         "400":
-          description: Invalid request body
+          description: Validation error
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-    get:
-      operationId: listGeofences
-      summary: List all geofence zones
-      tags: [Geofences]
-      responses:
-        "200":
-          description: List of zones
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/GeoFence"
 
   /geofences/{id}:
     get:
       operationId: getGeofence
-      summary: Get a single geofence zone by ID
+      summary: Get a single geofence zone
       tags: [Geofences]
       parameters:
-        - in: path
-          name: id
+        - name: id
+          in: path
           required: true
           schema:
             type: string
       responses:
         "200":
-          description: Zone found
+          description: Geofence zone
           content:
             application/json:
               schema:
@@ -1287,12 +1242,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     put:
-      operationId: replaceGeofence
+      operationId: updateGeofence
       summary: Full replace of a geofence zone
       tags: [Geofences]
       parameters:
-        - in: path
-          name: id
+        - name: id
+          in: path
           required: true
           schema:
             type: string
@@ -1304,7 +1259,7 @@ paths:
               $ref: "#/components/schemas/CreateGeoFenceRequest"
       responses:
         "200":
-          description: Zone updated
+          description: Updated geofence zone
           content:
             application/json:
               schema:
@@ -1320,8 +1275,8 @@ paths:
       summary: Delete a geofence zone
       tags: [Geofences]
       parameters:
-        - in: path
-          name: id
+        - name: id
+          in: path
           required: true
           schema:
             type: string
@@ -1336,6 +1291,7 @@ paths:
                 properties:
                   status:
                     type: string
+                    enum: [removed]
         "404":
           description: Zone not found
           content:
@@ -1346,17 +1302,17 @@ paths:
   /geofences/{id}/toggle:
     patch:
       operationId: toggleGeofence
-      summary: Flip the active flag of a geofence zone
+      summary: Toggle the active flag of a geofence zone
       tags: [Geofences]
       parameters:
-        - in: path
-          name: id
+        - name: id
+          in: path
           required: true
           schema:
             type: string
       responses:
         "200":
-          description: Zone updated
+          description: Updated geofence zone
           content:
             application/json:
               schema:
@@ -1993,22 +1949,37 @@ components:
           items:
             type: string
 
-    # ─── Analytics ─────────────────────────────────────────────────
+    # ─── Analytics ───────────────────────────────────────────────────
+    AnalyticsSummary:
+      type: object
+      required: [totalVehicles, activeVehicles, totalDistanceTraveled, avgSpeed, totalIdleTime, avgRouteEfficiency, timestamp]
+      properties:
+        totalVehicles:
+          type: number
+        activeVehicles:
+          type: number
+        totalDistanceTraveled:
+          type: number
+          description: Total distance traveled in km
+        avgSpeed:
+          type: number
+          description: Average speed in km/h across all vehicles
+        totalIdleTime:
+          type: number
+          description: Total idle time in seconds
+        avgRouteEfficiency:
+          type: number
+          description: Ratio of optimal to actual distance (1.0 = perfect)
+        timestamp:
+          type: number
+
     VehicleStats:
       type: object
-      required:
-        - distanceTraveled
-        - idleTime
-        - activeTime
-        - avgSpeed
-        - optimalDistance
-        - actualDistance
-        - waypointsReached
-        - lastUpdated
+      required: [distanceTraveled, idleTime, activeTime, avgSpeed, optimalDistance, actualDistance, waypointsReached, lastUpdated]
       properties:
         distanceTraveled:
           type: number
-          description: Total distance traveled in km
+          description: Distance traveled in km
         idleTime:
           type: number
           description: Seconds spent idle
@@ -2020,58 +1991,18 @@ components:
           description: Rolling average speed in km/h
         optimalDistance:
           type: number
-          description: Shortest-path distance for current route in km
+          description: Shortest-path distance in km
         actualDistance:
           type: number
-          description: Actual distance traveled on current route in km
+          description: Actual distance traveled in km
         waypointsReached:
           type: number
-          description: Count of waypoints reached
         lastUpdated:
-          type: number
-          description: Timestamp of last update
-
-    AnalyticsSummary:
-      type: object
-      required:
-        - totalVehicles
-        - activeVehicles
-        - totalDistanceTraveled
-        - avgSpeed
-        - totalIdleTime
-        - avgRouteEfficiency
-        - timestamp
-      properties:
-        totalVehicles:
-          type: number
-        activeVehicles:
-          type: number
-        totalDistanceTraveled:
-          type: number
-          description: Total km across all vehicles
-        avgSpeed:
-          type: number
-          description: Average speed in km/h across all vehicles
-        totalIdleTime:
-          type: number
-          description: Total idle seconds across all vehicles
-        avgRouteEfficiency:
-          type: number
-          description: "Average ratio of optimal/actual distance (1.0 = perfect)"
-        timestamp:
           type: number
 
     FleetAnalytics:
       type: object
-      required:
-        - fleetId
-        - vehicleCount
-        - activeCount
-        - totalDistance
-        - avgSpeed
-        - totalIdleTime
-        - routeEfficiency
-        - vehicles
+      required: [fleetId, vehicleCount, activeCount, totalDistance, avgSpeed, totalIdleTime, routeEfficiency, vehicles]
       properties:
         fleetId:
           type: string
@@ -2092,7 +2023,11 @@ components:
           items:
             $ref: "#/components/schemas/VehicleStats"
 
-    # ─── Geofencing ──────────────────────────────────────────────────
+    # ─── Geofences ───────────────────────────────────────────────────
+    GeoFenceType:
+      type: string
+      enum: [restricted, delivery, monitoring]
+
     GeoFence:
       type: object
       required: [id, name, type, polygon, active]
@@ -2102,17 +2037,12 @@ components:
         name:
           type: string
         type:
-          type: string
-          enum: [restricted, delivery, monitoring]
+          $ref: "#/components/schemas/GeoFenceType"
         polygon:
           type: array
           items:
-            type: array
-            items:
-              type: number
-            minItems: 2
-            maxItems: 2
-          description: Array of [longitude, latitude] coordinate pairs forming a closed polygon
+            $ref: "#/components/schemas/CoordinatePair"
+          description: Array of [longitude, latitude] pairs forming a closed polygon
         color:
           type: string
         active:
@@ -2125,15 +2055,10 @@ components:
         name:
           type: string
         type:
-          type: string
-          enum: [restricted, delivery, monitoring]
+          $ref: "#/components/schemas/GeoFenceType"
         polygon:
           type: array
           items:
-            type: array
-            items:
-              type: number
-            minItems: 2
-            maxItems: 2
+            $ref: "#/components/schemas/CoordinatePair"
         color:
           type: string

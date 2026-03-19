@@ -28,6 +28,7 @@ import {
 import { createGeofenceRoutes } from "./routes/geofences";
 import type { RouteContext } from "./routes";
 import { setupWebSocket, wireEvents, registerGracefulShutdown } from "./setup";
+import { apiReference } from "@scalar/express-api-reference";
 
 verifyConfig();
 logConfig();
@@ -93,14 +94,15 @@ app.use(createGeofenceRoutes(geoFenceManager));
 
 // ─── API documentation ──────────────────────────────────────────────
 
-app.get("/api-docs", (_req, res) => {
-  const specPath = path.join(__dirname, "..", "openapi.yaml");
+const specPath = path.join(__dirname, "..", "openapi.yaml");
+app.get("/api-docs.yaml", (_req, res) => {
   if (!fs.existsSync(specPath)) {
     res.status(404).json({ error: "OpenAPI spec not found" });
     return;
   }
   res.type("text/yaml").send(fs.readFileSync(specPath, "utf-8"));
 });
+app.use("/api-docs", apiReference({ url: "/api-docs.yaml" }));
 
 // Global error handler
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
