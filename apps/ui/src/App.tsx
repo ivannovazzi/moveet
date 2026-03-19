@@ -68,6 +68,8 @@ export default function App() {
   const [fences, setFences] = useState<GeoFence[]>([]);
   const [alerts, setAlerts] = useState<GeoFenceEvent[]>([]);
   const [drawingActive, setDrawingActive] = useState(false);
+  const [drawingVertexCount, setDrawingVertexCount] = useState(0);
+  const [drawConfirmId, setDrawConfirmId] = useState(0);
   const [pendingPolygon, setPendingPolygon] = useState<[number, number][] | null>(null);
 
   const dispatch = useDispatchFlow();
@@ -263,12 +265,18 @@ export default function App() {
 
   const onDrawComplete = useCallback((polygon: [number, number][]) => {
     setDrawingActive(false);
+    setDrawingVertexCount(0);
     setPendingPolygon(polygon);
   }, []);
 
   const onDrawCancel = useCallback(() => {
     setDrawingActive(false);
+    setDrawingVertexCount(0);
     setPendingPolygon(null);
+  }, []);
+
+  const onConfirmDraw = useCallback(() => {
+    setDrawConfirmId((n) => n + 1);
   }, []);
 
   const onCreateZone = useCallback((req: CreateGeoFenceRequest) => {
@@ -390,7 +398,7 @@ export default function App() {
               )}
               {activePanel === "recordings" && (
                 <RecordReplay
-                  recording={recording}
+                  recordings={recording.recordings}
                   replayStatus={replay.replayStatus}
                   onStartReplay={replay.startReplay}
                 />
@@ -413,6 +421,11 @@ export default function App() {
                   onFenceToggle={onFenceToggle}
                   onFenceDelete={onFenceDelete}
                   alerts={alerts}
+                  drawingActive={drawingActive}
+                  vertexCount={drawingVertexCount}
+                  onStartDrawing={() => setDrawingActive(true)}
+                  onCancelDrawing={onDrawCancel}
+                  onConfirmDrawing={onConfirmDraw}
                 />
               )}
               {activePanel === "adapter" && (
@@ -452,6 +465,8 @@ export default function App() {
               drawingActive={drawingActive}
               onDrawComplete={onDrawComplete}
               onDrawCancel={onDrawCancel}
+              onDrawVertexCountChange={setDrawingVertexCount}
+              drawConfirmId={drawConfirmId}
             />
             <SearchBar
               selectedItem={selectedItem}
@@ -478,18 +493,6 @@ export default function App() {
               onStartRecording={recording.startRecording}
               onStopRecording={recording.stopRecording}
             />
-            {/* Draw Zone toolbar button */}
-            <button
-              type="button"
-              className={classNames(styles.drawZoneButton, {
-                [styles.drawZoneButtonActive]: drawingActive,
-              })}
-              onClick={() => setDrawingActive((v) => !v)}
-              title={drawingActive ? "Cancel drawing (Esc)" : "Draw geofence zone"}
-              aria-pressed={drawingActive}
-            >
-              {drawingActive ? "Cancel Zone" : "Draw Zone"}
-            </button>
             <CreateZoneDialog
               polygon={pendingPolygon}
               onSubmit={onCreateZone}

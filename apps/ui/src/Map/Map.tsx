@@ -50,6 +50,8 @@ interface MapProps {
   drawingActive?: boolean;
   onDrawComplete?: (polygon: [number, number][]) => void;
   onDrawCancel?: () => void;
+  onDrawVertexCountChange?: (count: number) => void;
+  drawConfirmId?: number;
 }
 
 export default function Map({
@@ -71,6 +73,8 @@ export default function Map({
   drawingActive = false,
   onDrawComplete,
   onDrawCancel,
+  onDrawVertexCountChange,
+  drawConfirmId,
 }: MapProps) {
   const network = useNetwork();
 
@@ -147,6 +151,8 @@ export default function Map({
           active={drawingActive}
           onComplete={onDrawComplete ?? (() => {})}
           onCancel={onDrawCancel ?? (() => {})}
+          onVertexCountChange={onDrawVertexCountChange}
+          confirmRequestId={drawConfirmId}
         />
       </RoadNetworkMap>
     </>

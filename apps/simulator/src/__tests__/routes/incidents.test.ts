@@ -23,6 +23,10 @@ vi.mock("../../middleware/rateLimiter", () => ({
     middleware: () => (_req: unknown, _res: unknown, next: () => void) => next(),
     cleanup: vi.fn(),
   },
+  incidentRateLimiter: {
+    middleware: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+    cleanup: vi.fn(),
+  },
 }));
 
 const mockIncidentDTO = {

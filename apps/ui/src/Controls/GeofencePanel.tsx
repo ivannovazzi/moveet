@@ -9,6 +9,11 @@ interface GeofencePanelProps {
   onFenceToggle: (id: string) => void;
   onFenceDelete: (id: string) => void;
   alerts: GeoFenceEvent[];
+  drawingActive: boolean;
+  vertexCount: number;
+  onStartDrawing: () => void;
+  onCancelDrawing: () => void;
+  onConfirmDrawing: () => void;
 }
 
 type Tab = "zones" | "alerts";
@@ -42,8 +47,15 @@ export default function GeofencePanel({
   onFenceToggle,
   onFenceDelete,
   alerts,
+  drawingActive,
+  vertexCount,
+  onStartDrawing,
+  onCancelDrawing,
+  onConfirmDrawing,
 }: GeofencePanelProps) {
   const [tab, setTab] = useState<Tab>("zones");
+
+  const canConfirm = vertexCount >= 3;
 
   return (
     <>
@@ -94,9 +106,50 @@ export default function GeofencePanel({
 
       {tab === "zones" && (
         <PanelBody className={styles.body}>
+          {/* Drawing controls */}
+          {drawingActive ? (
+            <div className={styles.drawingBanner}>
+              <span className={styles.drawingHint}>
+                {vertexCount === 0
+                  ? "Click on the map to add points"
+                  : vertexCount < 3
+                    ? `${vertexCount} point${vertexCount === 1 ? "" : "s"} — need at least 3`
+                    : `${vertexCount} points — ready to confirm`}
+              </span>
+              <div className={styles.drawingActions}>
+                <button
+                  type="button"
+                  className={styles.confirmBtn}
+                  onClick={onConfirmDrawing}
+                  disabled={!canConfirm}
+                  title="Finish drawing and name the zone"
+                >
+                  Confirm
+                </button>
+                <button
+                  type="button"
+                  className={styles.cancelBtn}
+                  onClick={onCancelDrawing}
+                  title="Cancel drawing (Esc)"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className={styles.drawZoneBtn}
+              onClick={onStartDrawing}
+              title="Draw a geofence zone on the map"
+            >
+              + Draw Zone
+            </button>
+          )}
+
           {fences.length === 0 ? (
             <PanelEmptyState>
-              No zones yet. Use the &ldquo;Draw Zone&rdquo; button to create one.
+              No zones yet. Use the &ldquo;Draw Zone&rdquo; button above to create one.
             </PanelEmptyState>
           ) : (
             <div className={styles.list}>
