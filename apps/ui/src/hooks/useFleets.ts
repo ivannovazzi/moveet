@@ -10,16 +10,30 @@ export interface UseFleets {
   unassignVehicle: (fleetId: string, vehicleId: string) => Promise<void>;
   hiddenFleetIds: Set<string>;
   toggleFleetVisibility: (fleetId: string) => void;
+  error: string | null;
 }
 
 export function useFleets(): UseFleets {
   const [fleets, setFleets] = useState<Fleet[]>([]);
   const [hiddenFleetIds, setHiddenFleetIds] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    client.getFleets().then((res) => {
-      if (res.data) setFleets(res.data);
-    });
+    client
+      .getFleets()
+      .then((res) => {
+        if (res.error) {
+          setError(res.error);
+          console.warn("useFleets: failed to fetch fleets", res.error);
+          return;
+        }
+        if (res.data) setFleets(res.data);
+      })
+      .catch((e) => {
+        const msg = e instanceof Error ? e.message : "Unknown error";
+        setError(msg);
+        console.warn("useFleets: failed to fetch fleets", msg);
+      });
 
     client.onFleetCreated((fleet) => {
       setFleets((prev) => [...prev, fleet]);
@@ -48,19 +62,63 @@ export function useFleets(): UseFleets {
   }, []);
 
   const createFleet = useCallback(async (name: string) => {
-    await client.createFleet(name);
+    setError(null);
+    try {
+      const res = await client.createFleet(name);
+      if (res.error) {
+        setError(res.error);
+        console.warn("useFleets: createFleet failed", res.error);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      setError(msg);
+      console.warn("useFleets: createFleet failed", msg);
+    }
   }, []);
 
   const deleteFleet = useCallback(async (id: string) => {
-    await client.deleteFleet(id);
+    setError(null);
+    try {
+      const res = await client.deleteFleet(id);
+      if (res.error) {
+        setError(res.error);
+        console.warn("useFleets: deleteFleet failed", res.error);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      setError(msg);
+      console.warn("useFleets: deleteFleet failed", msg);
+    }
   }, []);
 
   const assignVehicle = useCallback(async (fleetId: string, vehicleId: string) => {
-    await client.assignVehicles(fleetId, [vehicleId]);
+    setError(null);
+    try {
+      const res = await client.assignVehicles(fleetId, [vehicleId]);
+      if (res.error) {
+        setError(res.error);
+        console.warn("useFleets: assignVehicle failed", res.error);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      setError(msg);
+      console.warn("useFleets: assignVehicle failed", msg);
+    }
   }, []);
 
   const unassignVehicle = useCallback(async (fleetId: string, vehicleId: string) => {
-    await client.unassignVehicles(fleetId, [vehicleId]);
+    setError(null);
+    try {
+      const res = await client.unassignVehicles(fleetId, [vehicleId]);
+      if (res.error) {
+        setError(res.error);
+        console.warn("useFleets: unassignVehicle failed", res.error);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      setError(msg);
+      console.warn("useFleets: unassignVehicle failed", msg);
+    }
   }, []);
 
   const toggleFleetVisibility = useCallback((fleetId: string) => {
@@ -80,5 +138,6 @@ export function useFleets(): UseFleets {
     unassignVehicle,
     hiddenFleetIds,
     toggleFleetVisibility,
+    error,
   };
 }

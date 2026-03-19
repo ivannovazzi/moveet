@@ -244,3 +244,83 @@ describe("useFleets", () => {
     expect(result.current.hiddenFleetIds.has("f2")).toBe(true);
   });
 });
+
+describe("useFleets error handling", () => {
+  it("createFleet sets error on API error response", async () => {
+    vi.mocked(client.createFleet).mockResolvedValue({ error: "Fleet name taken" });
+
+    const { result } = renderHook(() => useFleets());
+
+    await act(async () => {
+      await result.current.createFleet("Duplicate Fleet");
+    });
+
+    expect(result.current.error).toBe("Fleet name taken");
+  });
+
+  it("createFleet sets error on network exception", async () => {
+    vi.mocked(client.createFleet).mockRejectedValue(new Error("Network error"));
+
+    const { result } = renderHook(() => useFleets());
+
+    await act(async () => {
+      await result.current.createFleet("New Fleet");
+    });
+
+    expect(result.current.error).toBe("Network error");
+  });
+
+  it("deleteFleet sets error on failure", async () => {
+    vi.mocked(client.deleteFleet).mockResolvedValue({ error: "Fleet not found" });
+
+    const { result } = renderHook(() => useFleets());
+
+    await act(async () => {
+      await result.current.deleteFleet("nonexistent");
+    });
+
+    expect(result.current.error).toBe("Fleet not found");
+  });
+
+  it("assignVehicle sets error on failure", async () => {
+    vi.mocked(client.assignVehicles).mockResolvedValue({ error: "Vehicle already assigned" });
+
+    const { result } = renderHook(() => useFleets());
+
+    await act(async () => {
+      await result.current.assignVehicle("f1", "v1");
+    });
+
+    expect(result.current.error).toBe("Vehicle already assigned");
+  });
+
+  it("unassignVehicle sets error on failure", async () => {
+    vi.mocked(client.unassignVehicles).mockResolvedValue({ error: "Vehicle not in fleet" });
+
+    const { result } = renderHook(() => useFleets());
+
+    await act(async () => {
+      await result.current.unassignVehicle("f1", "v1");
+    });
+
+    expect(result.current.error).toBe("Vehicle not in fleet");
+  });
+
+  it("error clears on next successful operation", async () => {
+    vi.mocked(client.createFleet).mockResolvedValue({ error: "Some error" });
+
+    const { result } = renderHook(() => useFleets());
+
+    await act(async () => {
+      await result.current.createFleet("Fail");
+    });
+    expect(result.current.error).toBe("Some error");
+
+    vi.mocked(client.createFleet).mockResolvedValue({ data: undefined });
+
+    await act(async () => {
+      await result.current.createFleet("Success");
+    });
+    expect(result.current.error).toBeNull();
+  });
+});

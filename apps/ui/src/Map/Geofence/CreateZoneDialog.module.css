@@ -151,6 +151,13 @@
   content: "Polygon: ";
 }
 
+.validationError {
+  margin: 0;
+  font-size: var(--text-xs, 11px);
+  color: rgb(239, 68, 68);
+  line-height: 1.4;
+}
+
 .actions {
   display: flex;
   gap: var(--space-3, 8px);

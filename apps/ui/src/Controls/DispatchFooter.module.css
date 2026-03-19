@@ -52,7 +52,7 @@
 
 .primaryButton:disabled,
 .primaryButton[data-disabled] {
-  opacity: 0.4;
+  opacity: var(--disabled-opacity);
   cursor: not-allowed;
 }
 
@@ -83,8 +83,15 @@
 
 .secondaryButton:disabled,
 .secondaryButton[data-disabled] {
-  opacity: 0.4;
+  opacity: var(--disabled-opacity);
   cursor: not-allowed;
+}
+
+.errorText {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  color: var(--color-danger, #f44336);
+  line-height: 1.3;
 }
 
 .spinner {

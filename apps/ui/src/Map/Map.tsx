@@ -7,13 +7,13 @@ import type {
   POI,
   Position,
   Road,
+  RoadNetwork,
   Vehicle,
 } from "@/types";
 import type { GeoFence } from "@moveet/shared-types";
 import type { Filters } from "@/hooks/useVehicles";
 import { type DispatchState, cursorForDispatchState } from "@/hooks/useDispatchState";
 
-import { useNetwork } from "@/hooks/useNetwork";
 import { RoadNetworkMap } from "@/components/Map/components/RoadNetworkMap";
 import VehiclesLayer from "./Vehicle/VehiclesLayer";
 import Direction from "./Direction";
@@ -32,6 +32,7 @@ const TrafficOverlay = lazy(() => import("./TrafficOverlay"));
 const BreadcrumbLayer = lazy(() => import("./Breadcrumb/BreadcrumbLayer"));
 
 interface MapProps {
+  network: RoadNetwork;
   filters: Filters;
   vehicles: Vehicle[];
   modifiers: Modifiers;
@@ -55,6 +56,7 @@ interface MapProps {
 }
 
 export default function Map({
+  network,
   vehicles,
   modifiers,
   filters,
@@ -76,8 +78,6 @@ export default function Map({
   onDrawVertexCountChange,
   drawConfirmId,
 }: MapProps) {
-  const network = useNetwork();
-
   // Derive cursor: prefer dispatchState if provided, fall back to dispatchMode boolean
   const cursor = dispatchState ? cursorForDispatchState(dispatchState) : "grab";
 

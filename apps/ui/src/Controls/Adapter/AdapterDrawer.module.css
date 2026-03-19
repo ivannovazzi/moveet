@@ -28,15 +28,15 @@
 }
 
 .drawer::-webkit-scrollbar {
-  width: 5px;
+  width: var(--scrollbar-width);
 }
 
 .drawer::-webkit-scrollbar-track {
-  background: transparent;
+  background: var(--scrollbar-track);
 }
 
 .drawer::-webkit-scrollbar-thumb {
-  background: var(--color-overlay-1);
+  background: var(--scrollbar-thumb);
   border-radius: 3px;
 }
 
@@ -130,13 +130,13 @@
 .statusPill[data-status="healthy"] {
   background: rgba(68, 204, 68, 0.1);
   border-color: rgba(68, 204, 68, 0.18);
-  color: #6ed86e;
+  color: var(--color-status-healthy);
 }
 
 .statusPill[data-status="warning"] {
   background: rgba(255, 179, 71, 0.1);
   border-color: rgba(255, 179, 71, 0.18);
-  color: #ffb347;
+  color: var(--color-status-warning);
 }
 
 .subtitle {

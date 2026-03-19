@@ -152,3 +152,77 @@ describe("useReplay", () => {
     expect(result.current.replayStatus).toEqual({ mode: "live" });
   });
 });
+
+describe("useReplay error handling", () => {
+  it("startReplay sets error on API error", async () => {
+    vi.mocked(client.startReplay).mockResolvedValue({ error: "File not found" });
+
+    const { result } = renderHook(() => useReplay());
+
+    await act(async () => {
+      await result.current.startReplay("missing.json", 1);
+    });
+
+    expect(result.current.error).toBe("File not found");
+  });
+
+  it("pauseReplay sets error on failure", async () => {
+    vi.mocked(client.pauseReplay).mockResolvedValue({ error: "Not playing" });
+
+    const { result } = renderHook(() => useReplay());
+
+    await act(async () => {
+      await result.current.pauseReplay();
+    });
+
+    expect(result.current.error).toBe("Not playing");
+  });
+
+  it("resumeReplay sets error on failure", async () => {
+    vi.mocked(client.resumeReplay).mockResolvedValue({ error: "Not paused" });
+
+    const { result } = renderHook(() => useReplay());
+
+    await act(async () => {
+      await result.current.resumeReplay();
+    });
+
+    expect(result.current.error).toBe("Not paused");
+  });
+
+  it("stopReplay sets error on failure", async () => {
+    vi.mocked(client.stopReplay).mockResolvedValue({ error: "No replay active" });
+
+    const { result } = renderHook(() => useReplay());
+
+    await act(async () => {
+      await result.current.stopReplay();
+    });
+
+    expect(result.current.error).toBe("No replay active");
+  });
+
+  it("seekReplay sets error on failure", async () => {
+    vi.mocked(client.seekReplay).mockResolvedValue({ error: "Timestamp out of range" });
+
+    const { result } = renderHook(() => useReplay());
+
+    await act(async () => {
+      await result.current.seekReplay(999999);
+    });
+
+    expect(result.current.error).toBe("Timestamp out of range");
+  });
+
+  it("setReplaySpeed sets error on failure", async () => {
+    vi.mocked(client.setReplaySpeed).mockResolvedValue({ error: "Invalid speed" });
+
+    const { result } = renderHook(() => useReplay());
+
+    await act(async () => {
+      await result.current.setReplaySpeed(-1);
+    });
+
+    expect(result.current.error).toBe("Invalid speed");
+  });
+});

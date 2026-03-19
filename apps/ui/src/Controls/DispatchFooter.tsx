@@ -13,6 +13,7 @@ interface DispatchFooterProps {
   onDone: () => void;
   onRetryFailed: () => void;
   dispatching: boolean;
+  error?: string | null;
 }
 
 export default function DispatchFooter({
@@ -25,6 +26,7 @@ export default function DispatchFooter({
   onDone,
   onRetryFailed,
   dispatching: _dispatching,
+  error,
 }: DispatchFooterProps) {
   if (state === DispatchState.BROWSE) return null;
 
@@ -74,10 +76,13 @@ export default function DispatchFooter({
   if (state === DispatchState.DISPATCH) {
     return (
       <div className={styles.footer}>
-        <span className={styles.text}>
-          <span className={styles.spinner} />
-          Dispatching...
-        </span>
+        <div>
+          <span className={styles.text}>
+            <span className={styles.spinner} />
+            Dispatching...
+          </span>
+          {error && <p className={styles.errorText}>{error}</p>}
+        </div>
         <div className={styles.buttons}>
           <Button className={styles.secondaryButton} isDisabled>
             Clear
@@ -98,7 +103,10 @@ export default function DispatchFooter({
 
     return (
       <div className={styles.footer}>
-        <span className={styles.text}>{text}</span>
+        <div>
+          <span className={styles.text}>{text}</span>
+          {error && <p className={styles.errorText}>{error}</p>}
+        </div>
         <div className={styles.buttons}>
           {failures > 0 && (
             <Button className={styles.secondaryButton} onPress={onRetryFailed}>

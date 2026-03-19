@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { CreateGeoFenceRequest, GeoFenceType } from "@moveet/shared-types";
 import styles from "./CreateZoneDialog.module.css";
+import { isSelfIntersecting } from "./polygonValidation";
 
 interface CreateZoneDialogProps {
   polygon: [number, number][] | null;
@@ -14,12 +15,25 @@ export default function CreateZoneDialog({ polygon, onSubmit, onClose }: CreateZ
   const [name, setName] = useState("");
   const [type, setType] = useState<GeoFenceType>("monitoring");
   const [color, setColor] = useState("");
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   if (polygon === null) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setValidationError(null);
+
     if (!name.trim()) return;
+
+    if (polygon.length < 3) {
+      setValidationError("Polygon must have at least 3 vertices.");
+      return;
+    }
+
+    if (isSelfIntersecting(polygon)) {
+      setValidationError("Polygon edges must not cross each other.");
+      return;
+    }
 
     const req: CreateGeoFenceRequest = {
       name: name.trim(),
@@ -31,6 +45,7 @@ export default function CreateZoneDialog({ polygon, onSubmit, onClose }: CreateZ
     setName("");
     setType("monitoring");
     setColor("");
+    setValidationError(null);
   };
 
   return (
@@ -102,6 +117,11 @@ export default function CreateZoneDialog({ polygon, onSubmit, onClose }: CreateZ
           <div className={styles.meta}>
             <span className={styles.vertexCount}>{polygon.length} vertices</span>
           </div>
+          {validationError && (
+            <p className={styles.validationError} role="alert">
+              {validationError}
+            </p>
+          )}
           <div className={styles.actions}>
             <button type="button" className={styles.cancelButton} onClick={onClose}>
               Cancel

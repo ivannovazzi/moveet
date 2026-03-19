@@ -1,4 +1,5 @@
 import classNames from "classnames";
+import { useEffect, useState } from "react";
 import type { Fleet, Vehicle, DispatchAssignment, DirectionResult } from "@/types";
 import { DispatchState } from "@/hooks/useDispatchState";
 import { useDirectionContext } from "@/data/useData";
@@ -6,6 +7,9 @@ import { PanelBadge, PanelBody, PanelEmptyState, PanelHeader } from "./PanelPrim
 import styles from "./Vehicles.module.css";
 import { Search } from "@/components/Icons";
 import { SearchField, Input, Button } from "react-aria-components";
+
+const INITIAL_VISIBLE = 50;
+const LOAD_MORE_COUNT = 50;
 
 function SpeedBar({ speed, maxSpeed }: { speed: number; maxSpeed: number }) {
   const width = maxSpeed > 0 ? Math.min((speed / maxSpeed) * 100, 100) : 0;
@@ -92,6 +96,13 @@ export default function VehicleList({
   const { directions } = useDirectionContext();
   const visibleVehicles = vehicles.filter((v) => v.visible);
 
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
+  useEffect(() => {
+    setVisibleCount(INITIAL_VISIBLE);
+  }, [filter]);
+  const slicedVehicles = visibleVehicles.slice(0, visibleCount);
+  const hasMore = visibleVehicles.length > visibleCount;
+
   const isSelectOrRoute =
     dispatchState === DispatchState.SELECT || dispatchState === DispatchState.ROUTE;
   const isDispatch = dispatchState === DispatchState.DISPATCH;
@@ -134,7 +145,7 @@ export default function VehicleList({
             {filter ? `No vehicles match "${filter}"` : "No vehicles"}
           </PanelEmptyState>
         ) : (
-          visibleVehicles.map((vehicle) => {
+          slicedVehicles.map((vehicle) => {
             const routeDistance = directions.get(vehicle.id)?.route.distance;
             const vehicleFleet = fleets.find((f) => f.vehicleIds.includes(vehicle.id));
             const isChecked = selectedForDispatch?.includes(vehicle.id) ?? false;
@@ -208,6 +219,15 @@ export default function VehicleList({
               </button>
             );
           })
+        )}
+        {hasMore && (
+          <button
+            type="button"
+            className={styles.loadMore}
+            onClick={() => setVisibleCount((c) => c + LOAD_MORE_COUNT)}
+          >
+            Show more ({visibleVehicles.length - visibleCount} remaining)
+          </button>
         )}
       </PanelBody>
     </>

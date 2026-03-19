@@ -53,7 +53,10 @@ import ErrorBoundary, { SectionErrorFallback } from "./components/ErrorBoundary"
 import { toLatLng } from "./utils/coordinates";
 import { analyticsStore } from "./hooks/analyticsStore";
 import { useAnalytics } from "./hooks/useAnalytics";
+import { useNetwork } from "./hooks/useNetwork";
+import { useRoads } from "./hooks/useRoads";
 import AnalyticsPanel from "./Controls/AnalyticsPanel";
+import LoadingOverlay from "./components/LoadingOverlay";
 
 export default function App() {
   const [onContextClick, ref, xy, closeContextMenu] = useContextMenu();
@@ -106,6 +109,8 @@ export default function App() {
 
   useSubscribeFilter(fleets, hiddenFleetIds, hiddenVehicleTypes);
 
+  const { network, loading: networkLoading } = useNetwork();
+  const { loading: roadsLoading } = useRoads();
   const incidents = useIncidents();
   const recording = useRecording();
   const replay = useReplay();
@@ -154,9 +159,10 @@ export default function App() {
     [clearMap, dispatch, vehicles]
   );
 
+  const assignments = dispatch.assignments;
   const onContextMenuAddWaypoint = useCallback(() => {
     if (!destination) return;
-    const assignedIds = new Set(dispatch.assignments.map((a) => a.vehicleId));
+    const assignedIds = new Set(assignments.map((a) => a.vehicleId));
 
     for (const id of dispatch.selectedForDispatch) {
       if (assignedIds.has(id)) {
@@ -180,7 +186,7 @@ export default function App() {
     }
 
     closeContextMenu();
-  }, [destination, dispatch, vehicles, closeContextMenu]);
+  }, [destination, assignments, dispatch, vehicles, closeContextMenu]);
 
   const onCreateIncident = useCallback(
     (type: IncidentType) => {
@@ -264,19 +270,35 @@ export default function App() {
     fetchFences();
   }, [fetchFences]);
 
-  const onFenceToggle = useCallback((id: string) => {
-    client.toggleGeofence(id).then((response) => {
-      if (response.data) {
-        setFences((prev) => prev.map((f) => (f.id === id ? response.data! : f)));
+  const onFenceToggle = useCallback(
+    async (id: string) => {
+      const prev = fences;
+      setFences((f) => f.map((x) => (x.id === id ? { ...x, active: !x.active } : x)));
+      try {
+        const res = await client.toggleGeofence(id);
+        if (res.error) throw new Error(res.error);
+      } catch {
+        setFences(prev);
+        console.warn("Failed to toggle geofence");
       }
-    });
-  }, []);
+    },
+    [fences]
+  );
 
-  const onFenceDelete = useCallback((id: string) => {
-    client.deleteGeofence(id).then(() => {
-      setFences((prev) => prev.filter((f) => f.id !== id));
-    });
-  }, []);
+  const onFenceDelete = useCallback(
+    async (id: string) => {
+      const prev = fences;
+      setFences((f) => f.filter((x) => x.id !== id));
+      try {
+        const res = await client.deleteGeofence(id);
+        if (res.error) throw new Error(res.error);
+      } catch {
+        setFences(prev);
+        console.warn("Failed to delete geofence");
+      }
+    },
+    [fences]
+  );
 
   const onDrawComplete = useCallback((polygon: [number, number][]) => {
     setDrawingActive(false);
@@ -338,6 +360,11 @@ export default function App() {
 
     client.connectWebSocket();
     return () => {
+      client.offConnect();
+      client.offDisconnect();
+      client.offAnalytics();
+      client.offStatus();
+      client.offReset();
       client.offGeofenceEvent();
       client.disconnect();
     };
@@ -398,6 +425,7 @@ export default function App() {
                     onDone={dispatch.handleDone}
                     onRetryFailed={dispatch.handleRetryFailed}
                     dispatching={dispatch.dispatching}
+                    error={dispatch.error}
                   />
                 </>
               )}
@@ -470,7 +498,9 @@ export default function App() {
         <ErrorBoundary fallback={<SectionErrorFallback section="Map" />}>
           <div className={styles.map}>
             <ConnectionStatus connectionInfo={connectionInfo} />
+            <LoadingOverlay visible={networkLoading || roadsLoading} />
             <MapView
+              network={network}
               vehicles={vehicles}
               filters={filters}
               modifiers={modifiers}

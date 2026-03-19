@@ -162,3 +162,73 @@ describe("useIncidents", () => {
     expect(result.current.incidents.map((i) => i.id)).toEqual(["ws-1", "ws-2"]);
   });
 });
+
+describe("useIncidents error handling", () => {
+  it("createRandom sets error on API error", async () => {
+    vi.mocked(client.createRandomIncident).mockResolvedValue({ error: "No edges available" });
+
+    const { result } = renderHook(() => useIncidents());
+
+    await act(async () => {
+      await result.current.createRandom();
+    });
+
+    expect(result.current.error).toBe("No edges available");
+  });
+
+  it("createRandom sets error on network exception", async () => {
+    vi.mocked(client.createRandomIncident).mockRejectedValue(new Error("Network error"));
+
+    const { result } = renderHook(() => useIncidents());
+
+    await act(async () => {
+      await result.current.createRandom();
+    });
+
+    expect(result.current.error).toBe("Network error");
+  });
+
+  it("remove sets error on failure", async () => {
+    vi.mocked(client.removeIncident).mockResolvedValue({ error: "Incident not found" });
+
+    const { result } = renderHook(() => useIncidents());
+
+    await act(async () => {
+      await result.current.remove("nonexistent");
+    });
+
+    expect(result.current.error).toBe("Incident not found");
+  });
+
+  it("createAtPosition sets error on failure", async () => {
+    vi.mocked(client.createIncidentAtPosition).mockResolvedValue({
+      error: "Invalid coordinates",
+    });
+
+    const { result } = renderHook(() => useIncidents());
+
+    await act(async () => {
+      await result.current.createAtPosition(-1.29, 36.82, "accident");
+    });
+
+    expect(result.current.error).toBe("Invalid coordinates");
+  });
+
+  it("error clears on next successful operation", async () => {
+    vi.mocked(client.createRandomIncident).mockResolvedValue({ error: "Some error" });
+
+    const { result } = renderHook(() => useIncidents());
+
+    await act(async () => {
+      await result.current.createRandom();
+    });
+    expect(result.current.error).toBe("Some error");
+
+    vi.mocked(client.createRandomIncident).mockResolvedValue({ data: undefined });
+
+    await act(async () => {
+      await result.current.createRandom();
+    });
+    expect(result.current.error).toBeNull();
+  });
+});

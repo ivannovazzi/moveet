@@ -140,7 +140,7 @@
 }
 
 .directionsBtn[data-disabled] {
-  opacity: 0.3;
+  opacity: var(--disabled-opacity);
   cursor: default;
 }
 
@@ -167,15 +167,15 @@
 }
 
 .results::-webkit-scrollbar {
-  width: 4px;
+  width: var(--scrollbar-width);
 }
 
 .results::-webkit-scrollbar-track {
-  background: transparent;
+  background: var(--scrollbar-track);
 }
 
 .results::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--scrollbar-thumb);
   border-radius: 2px;
 }
 
@@ -197,8 +197,8 @@
   background: rgba(255, 255, 255, 0.05);
 }
 
-.resultActive {
-  background: rgba(57, 153, 255, 0.1) !important;
+.result.resultActive {
+  background: rgba(57, 153, 255, 0.1);
 }
 
 .resultIcon {

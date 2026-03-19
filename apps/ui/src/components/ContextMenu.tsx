@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { FocusScope } from "@react-aria/focus";
 import styles from "./ContextMenu.module.css";
@@ -13,6 +13,22 @@ export default function ContextMenu({
   onClose?: () => void;
 }) {
   const menuRef = useRef<HTMLDivElement>(null);
+  const [adjustedPosition, setAdjustedPosition] = useState(position);
+
+  useLayoutEffect(() => {
+    if (!menuRef.current || !position) return;
+    const rect = menuRef.current.getBoundingClientRect();
+    const adjusted = { ...position };
+    if (rect.right > window.innerWidth) {
+      adjusted.x = position.x - rect.width;
+    }
+    if (rect.bottom > window.innerHeight) {
+      adjusted.y = position.y - rect.height;
+    }
+    adjusted.x = Math.max(0, adjusted.x);
+    adjusted.y = Math.max(0, adjusted.y);
+    setAdjustedPosition(adjusted);
+  }, [position]);
 
   // Close on outside click
   useEffect(() => {
@@ -46,7 +62,12 @@ export default function ContextMenu({
         role="menu"
         aria-label="Context menu"
         className={styles.menu}
-        style={{ position: "fixed", top: position.y, left: position.x, zIndex: 1000 }}
+        style={{
+          position: "fixed",
+          top: adjustedPosition.y,
+          left: adjustedPosition.x,
+          zIndex: 1000,
+        }}
       >
         {children}
       </div>

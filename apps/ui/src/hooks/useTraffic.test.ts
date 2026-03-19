@@ -34,7 +34,8 @@ function createTrafficEdge(overrides: Partial<TrafficEdge> = {}): TrafficEdge {
 describe("useTraffic", () => {
   it("initializes with empty edges array", () => {
     const { result } = renderHook(() => useTraffic());
-    expect(result.current).toEqual([]);
+    expect(result.current.edges).toEqual([]);
+    expect(result.current.loading).toBe(true);
   });
 
   it("fetches traffic on mount and sets edges", async () => {
@@ -46,10 +47,11 @@ describe("useTraffic", () => {
     const { result } = renderHook(() => useTraffic());
 
     await vi.waitFor(() => {
-      expect(result.current).toHaveLength(2);
+      expect(result.current.edges).toHaveLength(2);
     });
 
-    expect(result.current).toEqual([edge1, edge2]);
+    expect(result.current.edges).toEqual([edge1, edge2]);
+    expect(result.current.loading).toBe(false);
   });
 
   it("subscribes to WS traffic updates and replaces edges", async () => {
@@ -65,7 +67,7 @@ describe("useTraffic", () => {
       handler([wsEdge]);
     });
 
-    expect(result.current).toEqual([wsEdge]);
+    expect(result.current.edges).toEqual([wsEdge]);
   });
 
   it("handles fetch returning no data gracefully", async () => {
@@ -77,7 +79,7 @@ describe("useTraffic", () => {
       expect(client.getTraffic).toHaveBeenCalledOnce();
     });
 
-    expect(result.current).toEqual([]);
+    expect(result.current.edges).toEqual([]);
   });
 
   it("WS update replaces previous fetch data entirely", async () => {
@@ -87,7 +89,7 @@ describe("useTraffic", () => {
     const { result } = renderHook(() => useTraffic());
 
     await vi.waitFor(() => {
-      expect(result.current).toHaveLength(1);
+      expect(result.current.edges).toHaveLength(1);
     });
 
     const handler = vi.mocked(client.onTraffic).mock.calls[0][0];
@@ -97,7 +99,23 @@ describe("useTraffic", () => {
       handler([wsEdge]);
     });
 
-    expect(result.current).toHaveLength(1);
-    expect(result.current[0].edgeId).toBe("ws-1");
+    expect(result.current.edges).toHaveLength(1);
+    expect(result.current.edges[0].edgeId).toBe("ws-1");
+  });
+
+  it("logs warning when fetch returns error", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.mocked(client.getTraffic).mockResolvedValue({
+      data: undefined,
+      error: "Server error",
+    });
+
+    renderHook(() => useTraffic());
+
+    await vi.waitFor(() => {
+      expect(warnSpy).toHaveBeenCalledWith("useTraffic: failed to fetch traffic", "Server error");
+    });
+
+    warnSpy.mockRestore();
   });
 });
