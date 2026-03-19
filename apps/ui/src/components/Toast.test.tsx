@@ -24,9 +24,7 @@ function createToast(overrides: Partial<ToastMessage> = {}): ToastMessage {
 
 describe("ToastContainer", () => {
   it("renders nothing when toasts array is empty", () => {
-    const { container } = render(
-      <ToastContainer toasts={[]} removeToast={vi.fn()} />
-    );
+    const { container } = render(<ToastContainer toasts={[]} removeToast={vi.fn()} />);
     expect(container.innerHTML).toBe("");
   });
 

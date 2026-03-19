@@ -120,7 +120,7 @@ describe("VehicleList", () => {
   describe("virtualization", () => {
     function makeVehicles(count: number) {
       return Array.from({ length: count }, (_, i) =>
-        createVehicle({ id: `v${i}`, name: `Vehicle ${i}`, visible: true }),
+        createVehicle({ id: `v${i}`, name: `Vehicle ${i}`, visible: true })
       );
     }
 
@@ -184,17 +184,13 @@ describe("VehicleList", () => {
 
     it("resets visible count to 50 when filter changes", () => {
       const vehicles = makeVehicles(120);
-      const { rerender } = render(
-        <VehicleList {...defaultProps} vehicles={vehicles} filter="" />,
-      );
+      const { rerender } = render(<VehicleList {...defaultProps} vehicles={vehicles} filter="" />);
 
       // Initially 50 visible, show more exists
       expect(screen.queryByText("Vehicle 50")).not.toBeInTheDocument();
 
       // Change filter — visible count resets to INITIAL_VISIBLE (50)
-      rerender(
-        <VehicleList {...defaultProps} vehicles={vehicles} filter="Vehicle" />,
-      );
+      rerender(<VehicleList {...defaultProps} vehicles={vehicles} filter="Vehicle" />);
 
       // Still only the first 50 are shown
       expect(screen.getByText("Vehicle 0")).toBeInTheDocument();

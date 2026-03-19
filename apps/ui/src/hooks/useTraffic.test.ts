@@ -113,10 +113,7 @@ describe("useTraffic", () => {
     renderHook(() => useTraffic());
 
     await vi.waitFor(() => {
-      expect(warnSpy).toHaveBeenCalledWith(
-        "useTraffic: failed to fetch traffic",
-        "Server error"
-      );
+      expect(warnSpy).toHaveBeenCalledWith("useTraffic: failed to fetch traffic", "Server error");
     });
 
     warnSpy.mockRestore();

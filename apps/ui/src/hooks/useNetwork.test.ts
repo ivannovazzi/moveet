@@ -105,10 +105,7 @@ describe("useNetwork", () => {
     });
 
     await vi.waitFor(() => {
-      expect(warnSpy).toHaveBeenCalledWith(
-        "useNetwork: failed to fetch network",
-        "Server error"
-      );
+      expect(warnSpy).toHaveBeenCalledWith("useNetwork: failed to fetch network", "Server error");
     });
 
     warnSpy.mockRestore();

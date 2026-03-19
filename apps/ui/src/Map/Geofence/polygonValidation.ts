@@ -6,7 +6,7 @@ export function segmentsIntersect(
   p1: [number, number],
   p2: [number, number],
   p3: [number, number],
-  p4: [number, number],
+  p4: [number, number]
 ): boolean {
   const d1x = p2[0] - p1[0],
     d1y = p2[1] - p1[1];
@@ -28,14 +28,7 @@ export function isSelfIntersecting(vertices: [number, number][]): boolean {
   for (let i = 0; i < n; i++) {
     for (let j = i + 2; j < n; j++) {
       if (i === 0 && j === n - 1) continue; // skip adjacent closing edge
-      if (
-        segmentsIntersect(
-          vertices[i],
-          vertices[(i + 1) % n],
-          vertices[j],
-          vertices[(j + 1) % n],
-        )
-      )
+      if (segmentsIntersect(vertices[i], vertices[(i + 1) % n], vertices[j], vertices[(j + 1) % n]))
         return true;
     }
   }

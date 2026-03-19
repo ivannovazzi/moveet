@@ -156,7 +156,7 @@ describe("Incidents — auto-generate interval cleanup", () => {
     const createRandom = vi.fn(() => Promise.resolve());
 
     const { unmount } = render(
-      <Incidents incidents={[]} createRandom={createRandom} remove={noop} />,
+      <Incidents incidents={[]} createRandom={createRandom} remove={noop} />
     );
 
     await toggleAutoGenerate();
@@ -196,7 +196,7 @@ describe("Incidents — auto-generate interval cleanup", () => {
     const createRandom2 = vi.fn(() => Promise.resolve());
 
     const { rerender } = render(
-      <Incidents incidents={[]} createRandom={createRandom1} remove={noop} />,
+      <Incidents incidents={[]} createRandom={createRandom1} remove={noop} />
     );
 
     await toggleAutoGenerate();

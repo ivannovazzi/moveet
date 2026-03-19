@@ -19,7 +19,7 @@ describe("CreateZoneDialog", () => {
 
   it("renders nothing when polygon is null", () => {
     const { container } = render(
-      <CreateZoneDialog polygon={null} onSubmit={vi.fn()} onClose={vi.fn()} />,
+      <CreateZoneDialog polygon={null} onSubmit={vi.fn()} onClose={vi.fn()} />
     );
     expect(container.innerHTML).toBe("");
   });
@@ -84,15 +84,13 @@ describe("CreateZoneDialog", () => {
     const onSubmit = vi.fn();
     const user = userEvent.setup();
     render(
-      <CreateZoneDialog polygon={selfIntersectingPolygon} onSubmit={onSubmit} onClose={vi.fn()} />,
+      <CreateZoneDialog polygon={selfIntersectingPolygon} onSubmit={onSubmit} onClose={vi.fn()} />
     );
 
     await user.type(screen.getByLabelText(/Name/), "Bad Zone");
     await user.click(screen.getByRole("button", { name: /Create Zone/i }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Polygon edges must not cross each other.",
-    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Polygon edges must not cross each other.");
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
@@ -103,16 +101,12 @@ describe("CreateZoneDialog", () => {
     ];
     const onSubmit = vi.fn();
     const user = userEvent.setup();
-    render(
-      <CreateZoneDialog polygon={twoVertices} onSubmit={onSubmit} onClose={vi.fn()} />,
-    );
+    render(<CreateZoneDialog polygon={twoVertices} onSubmit={onSubmit} onClose={vi.fn()} />);
 
     await user.type(screen.getByLabelText(/Name/), "Tiny Zone");
     await user.click(screen.getByRole("button", { name: /Create Zone/i }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Polygon must have at least 3 vertices.",
-    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Polygon must have at least 3 vertices.");
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
@@ -127,7 +121,7 @@ describe("CreateZoneDialog", () => {
     const onSubmit = vi.fn();
     const user = userEvent.setup();
     const { rerender } = render(
-      <CreateZoneDialog polygon={selfIntersectingPolygon} onSubmit={onSubmit} onClose={vi.fn()} />,
+      <CreateZoneDialog polygon={selfIntersectingPolygon} onSubmit={onSubmit} onClose={vi.fn()} />
     );
 
     await user.type(screen.getByLabelText(/Name/), "Test Zone");
@@ -135,9 +129,7 @@ describe("CreateZoneDialog", () => {
     expect(screen.getByRole("alert")).toBeInTheDocument();
 
     // Re-render with a valid polygon — the error should clear on the next submit
-    rerender(
-      <CreateZoneDialog polygon={validPolygon} onSubmit={onSubmit} onClose={vi.fn()} />,
-    );
+    rerender(<CreateZoneDialog polygon={validPolygon} onSubmit={onSubmit} onClose={vi.fn()} />);
 
     await user.click(screen.getByRole("button", { name: /Create Zone/i }));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
@@ -155,7 +147,7 @@ describe("CreateZoneDialog", () => {
     // Use native input event for color picker
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(
       colorInput,
-      "#ff0000",
+      "#ff0000"
     );
     colorInput.dispatchEvent(new Event("input", { bubbles: true }));
     colorInput.dispatchEvent(new Event("change", { bubbles: true }));
@@ -166,7 +158,7 @@ describe("CreateZoneDialog", () => {
       expect.objectContaining({
         name: "Colored Zone",
         color: "#ff0000",
-      }),
+      })
     );
   });
 
@@ -200,7 +192,7 @@ describe("CreateZoneDialog", () => {
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({
         type: "restricted",
-      }),
+      })
     );
   });
 

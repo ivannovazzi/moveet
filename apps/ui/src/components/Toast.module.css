@@ -30,23 +30,17 @@
 
 .toast.error {
   border-color: rgba(255, 68, 68, 0.35);
-  background:
-    linear-gradient(135deg, rgba(255, 68, 68, 0.1), transparent),
-    var(--glass-bg);
+  background: linear-gradient(135deg, rgba(255, 68, 68, 0.1), transparent), var(--glass-bg);
 }
 
 .toast.success {
   border-color: rgba(68, 204, 68, 0.35);
-  background:
-    linear-gradient(135deg, rgba(68, 204, 68, 0.1), transparent),
-    var(--glass-bg);
+  background: linear-gradient(135deg, rgba(68, 204, 68, 0.1), transparent), var(--glass-bg);
 }
 
 .toast.info {
   border-color: rgba(57, 153, 255, 0.35);
-  background:
-    linear-gradient(135deg, rgba(57, 153, 255, 0.1), transparent),
-    var(--glass-bg);
+  background: linear-gradient(135deg, rgba(57, 153, 255, 0.1), transparent), var(--glass-bg);
 }
 
 .message {

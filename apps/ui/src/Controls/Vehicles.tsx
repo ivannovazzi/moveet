@@ -97,7 +97,9 @@ export default function VehicleList({
   const visibleVehicles = vehicles.filter((v) => v.visible);
 
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
-  useEffect(() => { setVisibleCount(INITIAL_VISIBLE); }, [filter]);
+  useEffect(() => {
+    setVisibleCount(INITIAL_VISIBLE);
+  }, [filter]);
   const slicedVehicles = visibleVehicles.slice(0, visibleCount);
   const hasMore = visibleVehicles.length > visibleCount;
 
@@ -216,8 +218,8 @@ export default function VehicleList({
                 <SpeedBar speed={vehicle.speed} maxSpeed={maxSpeed} />
               </button>
             );
-          }))
-        }
+          })
+        )}
         {hasMore && (
           <button
             type="button"

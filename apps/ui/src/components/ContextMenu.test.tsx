@@ -15,8 +15,16 @@ describe("ContextMenu", () => {
     // Reset getBoundingClientRect mock
     vi.restoreAllMocks();
     // Set default viewport dimensions
-    Object.defineProperty(window, "innerWidth", { value: 1024, writable: true, configurable: true });
-    Object.defineProperty(window, "innerHeight", { value: 768, writable: true, configurable: true });
+    Object.defineProperty(window, "innerWidth", {
+      value: 1024,
+      writable: true,
+      configurable: true,
+    });
+    Object.defineProperty(window, "innerHeight", {
+      value: 768,
+      writable: true,
+      configurable: true,
+    });
   });
 
   afterEach(() => {
@@ -119,7 +127,11 @@ describe("ContextMenu", () => {
 
   it("adjusts position when menu would overflow right edge", () => {
     Object.defineProperty(window, "innerWidth", { value: 800, writable: true, configurable: true });
-    Object.defineProperty(window, "innerHeight", { value: 600, writable: true, configurable: true });
+    Object.defineProperty(window, "innerHeight", {
+      value: 600,
+      writable: true,
+      configurable: true,
+    });
 
     // Menu at x=700 with width=200 => right edge at 900, exceeds viewport 800
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
@@ -148,7 +160,11 @@ describe("ContextMenu", () => {
 
   it("adjusts position when menu would overflow bottom edge", () => {
     Object.defineProperty(window, "innerWidth", { value: 800, writable: true, configurable: true });
-    Object.defineProperty(window, "innerHeight", { value: 600, writable: true, configurable: true });
+    Object.defineProperty(window, "innerHeight", {
+      value: 600,
+      writable: true,
+      configurable: true,
+    });
 
     // Menu at y=500 with height=300 => bottom edge at 800, exceeds viewport 600
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
@@ -177,7 +193,11 @@ describe("ContextMenu", () => {
 
   it("adjusts position when menu overflows both right and bottom edges", () => {
     Object.defineProperty(window, "innerWidth", { value: 800, writable: true, configurable: true });
-    Object.defineProperty(window, "innerHeight", { value: 600, writable: true, configurable: true });
+    Object.defineProperty(window, "innerHeight", {
+      value: 600,
+      writable: true,
+      configurable: true,
+    });
 
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
       width: 200,
@@ -205,7 +225,11 @@ describe("ContextMenu", () => {
 
   it("clamps position to not go negative on x axis", () => {
     Object.defineProperty(window, "innerWidth", { value: 800, writable: true, configurable: true });
-    Object.defineProperty(window, "innerHeight", { value: 600, writable: true, configurable: true });
+    Object.defineProperty(window, "innerHeight", {
+      value: 600,
+      writable: true,
+      configurable: true,
+    });
 
     // Menu at x=50 with width=200 and right > innerWidth triggers adjustment:
     // adjusted.x = 50 - 200 = -150, then clamped to 0
@@ -235,7 +259,11 @@ describe("ContextMenu", () => {
 
   it("clamps position to not go negative on y axis", () => {
     Object.defineProperty(window, "innerWidth", { value: 800, writable: true, configurable: true });
-    Object.defineProperty(window, "innerHeight", { value: 600, writable: true, configurable: true });
+    Object.defineProperty(window, "innerHeight", {
+      value: 600,
+      writable: true,
+      configurable: true,
+    });
 
     // Menu at y=50 with height=300 and bottom > innerHeight triggers adjustment:
     // adjusted.y = 50 - 300 = -250, then clamped to 0
@@ -264,8 +292,16 @@ describe("ContextMenu", () => {
   });
 
   it("does not adjust position when menu fits within viewport", () => {
-    Object.defineProperty(window, "innerWidth", { value: 1024, writable: true, configurable: true });
-    Object.defineProperty(window, "innerHeight", { value: 768, writable: true, configurable: true });
+    Object.defineProperty(window, "innerWidth", {
+      value: 1024,
+      writable: true,
+      configurable: true,
+    });
+    Object.defineProperty(window, "innerHeight", {
+      value: 768,
+      writable: true,
+      configurable: true,
+    });
 
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
       width: 200,

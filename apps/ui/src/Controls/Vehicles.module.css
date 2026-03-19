@@ -280,7 +280,9 @@
   border: 1px dashed rgba(57, 153, 255, 0.2);
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: background var(--transition-fast), border-color var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
 }
 
 .loadMore:hover {

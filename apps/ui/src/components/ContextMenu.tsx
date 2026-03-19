@@ -62,7 +62,12 @@ export default function ContextMenu({
         role="menu"
         aria-label="Context menu"
         className={styles.menu}
-        style={{ position: "fixed", top: adjustedPosition.y, left: adjustedPosition.x, zIndex: 1000 }}
+        style={{
+          position: "fixed",
+          top: adjustedPosition.y,
+          left: adjustedPosition.x,
+          zIndex: 1000,
+        }}
       >
         {children}
       </div>
