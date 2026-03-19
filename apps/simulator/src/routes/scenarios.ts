@@ -8,7 +8,7 @@ import { validateBody } from "../middleware/validate";
 import { scenarioSchema } from "../modules/scenario";
 import { convertRecordingToScenario, parseRecording } from "../modules/scenario/convertRecording";
 
-const SCENARIOS_DIR = path.join(__dirname, "../../data/scenarios");
+const SCENARIOS_DIR = path.resolve("data/scenarios");
 const RECORDINGS_DIR = path.resolve("recordings");
 
 /**
