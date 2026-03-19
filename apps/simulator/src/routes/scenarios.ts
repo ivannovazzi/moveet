@@ -6,8 +6,10 @@ import { asyncHandler } from "./helpers";
 import { expensiveRateLimiter } from "../middleware/rateLimiter";
 import { validateBody } from "../middleware/validate";
 import { scenarioSchema } from "../modules/scenario";
+import { convertRecordingToScenario, parseRecording } from "../modules/scenario/convertRecording";
 
 const SCENARIOS_DIR = path.join(__dirname, "../../data/scenarios");
+const RECORDINGS_DIR = path.resolve("recordings");
 
 /**
  * Routes for scenario management: list, load, start, pause, stop, status.
@@ -129,6 +131,39 @@ export function createScenarioRoutes(ctx: RouteContext): Router {
     "/scenarios/status",
     asyncHandler(async (_req, res) => {
       res.json(scenarioManager.getStatus());
+    })
+  );
+
+  // ─── Convert a recording into a scenario ───────────────────────────
+  router.post(
+    "/scenarios/convert",
+    expensiveRateLimiter.middleware(),
+    asyncHandler(async (req, res) => {
+      const { file, name, description } = req.body as {
+        file?: string;
+        name?: string;
+        description?: string;
+      };
+
+      if (!file || typeof file !== "string") {
+        res.status(400).json({ error: "'file' is required and must be a string" });
+        return;
+      }
+
+      // Prevent directory traversal
+      const sanitized = path.basename(file);
+      const filePath = path.join(RECORDINGS_DIR, sanitized);
+
+      if (!fs.existsSync(filePath)) {
+        res.status(404).json({ error: `Recording file not found: ${sanitized}` });
+        return;
+      }
+
+      const raw = fs.readFileSync(filePath, "utf-8");
+      const { header, events } = parseRecording(raw);
+      const scenario = convertRecordingToScenario(header, events, { name, description });
+
+      res.json(scenario);
     })
   );
 

@@ -1477,6 +1477,53 @@ paths:
               schema:
                 $ref: "#/components/schemas/ScenarioStatus"
 
+  /scenarios/convert:
+    post:
+      operationId: convertRecordingToScenario
+      summary: Convert an NDJSON recording into a scenario
+      description: >
+        Reads an existing recording file, extracts key events (spawns,
+        incidents, dispatches), discards per-tick vehicle positions, and
+        returns a Scenario JSON that can be replayed.
+      tags: [Scenarios]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  description: Recording filename from GET /recordings
+                name:
+                  type: string
+                  description: Override the scenario name
+                description:
+                  type: string
+                  description: Override the scenario description
+      responses:
+        "200":
+          description: Converted scenario JSON
+          content:
+            application/json:
+              schema:
+                type: object
+                description: A full Scenario object
+        "400":
+          description: Missing or invalid file parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Recording file not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
 components:
   schemas:
     # ─── Core types ──────────────────────────────────────────────────
