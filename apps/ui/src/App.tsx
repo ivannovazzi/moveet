@@ -17,6 +17,7 @@ import { useAdapterConfig } from "./Controls/Adapter/useAdapterConfig";
 import useTracking from "./Controls/useTracking";
 import MapView from "./Map/Map";
 import FleetLegend from "./Map/FleetLegend";
+import TypeLegend from "./Map/TypeLegend";
 import SearchBar from "./SearchBar";
 import Zoom from "./Zoom/";
 import GeofencePanel from "./Controls/GeofencePanel";
@@ -34,6 +35,8 @@ import type { GeoFence, GeoFenceEvent, CreateGeoFenceRequest } from "@moveet/sha
 import styles from "./App.module.css";
 import { useVehicles } from "./hooks/useVehicles";
 import { useFleets } from "./hooks/useFleets";
+import { useVehicleTypeFilter } from "./hooks/useVehicleTypeFilter";
+import { useSubscribeFilter } from "./hooks/useSubscribeFilter";
 import { useIncidents } from "./hooks/useIncidents";
 import { useRecording } from "./hooks/useRecording";
 import { useReplay } from "./hooks/useReplay";
@@ -91,6 +94,9 @@ export default function App() {
   } = useVehicles();
 
   const { fleets, createFleet, deleteFleet, hiddenFleetIds, toggleFleetVisibility } = useFleets();
+  const { hiddenVehicleTypes, toggleVehicleType } = useVehicleTypeFilter();
+
+  useSubscribeFilter(fleets, hiddenFleetIds, hiddenVehicleTypes);
 
   const incidents = useIncidents();
   const recording = useRecording();
@@ -482,6 +488,7 @@ export default function App() {
               hiddenFleetIds={hiddenFleetIds}
               onToggle={toggleFleetVisibility}
             />
+            <TypeLegend hiddenVehicleTypes={hiddenVehicleTypes} onToggle={toggleVehicleType} />
             <BottomDock
               status={status}
               connected={connected}
