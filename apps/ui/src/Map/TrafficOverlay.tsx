@@ -35,8 +35,8 @@ function buildStreetCongestion(edges: TrafficEdge[]): Map<string, number> {
 }
 
 export default function TrafficOverlay({ visible }: { visible: boolean }) {
-  const trafficEdges = useTraffic();
-  const network = useNetwork();
+  const { edges: trafficEdges } = useTraffic();
+  const { network } = useNetwork();
   const { projection } = useMapContext();
   const gRef = useRef<SVGGElement>(null);
 
