@@ -9,7 +9,7 @@ import type {
   Road,
   Vehicle,
 } from "@/types";
-import type { GeoFence } from "@moveet/shared-types";
+import type { BoundingBox, GeoFence } from "@moveet/shared-types";
 import type { Filters } from "@/hooks/useVehicles";
 import { type DispatchState, cursorForDispatchState } from "@/hooks/useDispatchState";
 
@@ -24,6 +24,7 @@ import { isPOI, isRoad } from "@/utils/typeGuards";
 import POIMarker from "./POI/POI";
 import GeofenceLayer from "./Geofence/GeofenceLayer";
 import GeofenceDrawTool from "./Geofence/GeofenceDrawTool";
+import { ViewportBboxReporter } from "./ViewportBboxReporter";
 
 const Heatmap = lazy(() => import("./Heatmap"));
 const POIs = lazy(() => import("./POIs"));
@@ -52,6 +53,7 @@ interface MapProps {
   onDrawCancel?: () => void;
   onDrawVertexCountChange?: (count: number) => void;
   drawConfirmId?: number;
+  onBboxChange?: (bbox: BoundingBox | null) => void;
 }
 
 export default function Map({
@@ -75,6 +77,7 @@ export default function Map({
   onDrawCancel,
   onDrawVertexCountChange,
   drawConfirmId,
+  onBboxChange,
 }: MapProps) {
   const network = useNetwork();
 
@@ -154,6 +157,7 @@ export default function Map({
           onVertexCountChange={onDrawVertexCountChange}
           confirmRequestId={drawConfirmId}
         />
+        {onBboxChange && <ViewportBboxReporter onBboxChange={onBboxChange} />}
       </RoadNetworkMap>
     </>
   );

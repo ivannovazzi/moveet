@@ -1299,6 +1299,228 @@ describe("WebSocketBroadcaster", () => {
     });
   });
 
+  describe("spatial bbox optimization", () => {
+    it("client with bbox filter only receives vehicles in bbox", () => {
+      const client = createMockClient();
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
+        flushIntervalMs: 100,
+      });
+      broadcaster.start();
+      broadcaster.setClientFilter(client as unknown as WebSocket, {
+        bbox: { minLat: -1.3, maxLat: -1.2, minLng: 36.8, maxLng: 36.9 },
+      });
+
+      // v1 inside bbox, v2 outside bbox
+      broadcaster.queueVehicleUpdate(makeVehicle("v1", { position: [-1.25, 36.85] }));
+      broadcaster.queueVehicleUpdate(makeVehicle("v2", { position: [5.0, 10.0] }));
+
+      vi.advanceTimersByTime(100);
+
+      expect(client.send).toHaveBeenCalledTimes(1);
+      const parsed = JSON.parse(client.send.mock.calls[0][0] as string);
+      expect(parsed.data).toHaveLength(1);
+      expect(parsed.data[0].id).toBe("v1");
+
+      broadcaster.stop();
+    });
+
+    it("multiple clients with different bboxes get correct subsets", () => {
+      const clientA = createMockClient();
+      const clientB = createMockClient();
+      const wss = createMockWSS([clientA, clientB]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
+        flushIntervalMs: 100,
+      });
+      broadcaster.start();
+
+      // Client A watches Nairobi north area
+      broadcaster.setClientFilter(clientA as unknown as WebSocket, {
+        bbox: { minLat: -1.25, maxLat: -1.2, minLng: 36.8, maxLng: 36.9 },
+      });
+      // Client B watches Nairobi south area
+      broadcaster.setClientFilter(clientB as unknown as WebSocket, {
+        bbox: { minLat: -1.35, maxLat: -1.3, minLng: 36.8, maxLng: 36.9 },
+      });
+
+      broadcaster.queueVehicleUpdate(makeVehicle("v-north", { position: [-1.22, 36.85] }));
+      broadcaster.queueVehicleUpdate(makeVehicle("v-south", { position: [-1.32, 36.85] }));
+      broadcaster.queueVehicleUpdate(makeVehicle("v-far", { position: [5.0, 10.0] }));
+
+      vi.advanceTimersByTime(100);
+
+      // Client A should only get v-north
+      expect(clientA.send).toHaveBeenCalledTimes(1);
+      const parsedA = JSON.parse(clientA.send.mock.calls[0][0] as string);
+      expect(parsedA.data).toHaveLength(1);
+      expect(parsedA.data[0].id).toBe("v-north");
+
+      // Client B should only get v-south
+      expect(clientB.send).toHaveBeenCalledTimes(1);
+      const parsedB = JSON.parse(clientB.send.mock.calls[0][0] as string);
+      expect(parsedB.data).toHaveLength(1);
+      expect(parsedB.data[0].id).toBe("v-south");
+
+      broadcaster.stop();
+    });
+
+    it("client with bbox + fleet filter combines correctly (AND logic)", () => {
+      const client = createMockClient();
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
+        flushIntervalMs: 100,
+      });
+      broadcaster.start();
+      broadcaster.setClientFilter(client as unknown as WebSocket, {
+        fleetIds: ["fleet-a"],
+        bbox: { minLat: -1.3, maxLat: -1.2, minLng: 36.8, maxLng: 36.9 },
+      });
+
+      // v1: in bbox, correct fleet -> passes
+      broadcaster.queueVehicleUpdate(
+        makeVehicle("v1", { position: [-1.25, 36.85], fleetId: "fleet-a" })
+      );
+      // v2: in bbox, wrong fleet -> fails fleet filter
+      broadcaster.queueVehicleUpdate(
+        makeVehicle("v2", { position: [-1.25, 36.85], fleetId: "fleet-b" })
+      );
+      // v3: out of bbox, correct fleet -> fails bbox filter
+      broadcaster.queueVehicleUpdate(
+        makeVehicle("v3", { position: [5.0, 10.0], fleetId: "fleet-a" })
+      );
+
+      vi.advanceTimersByTime(100);
+
+      expect(client.send).toHaveBeenCalledTimes(1);
+      const parsed = JSON.parse(client.send.mock.calls[0][0] as string);
+      expect(parsed.data).toHaveLength(1);
+      expect(parsed.data[0].id).toBe("v1");
+
+      broadcaster.stop();
+    });
+
+    it("client without bbox filter receives all vehicles (no spatial filtering)", () => {
+      const clientWithBbox = createMockClient();
+      const clientWithout = createMockClient();
+      const wss = createMockWSS([clientWithBbox, clientWithout]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
+        flushIntervalMs: 100,
+      });
+      broadcaster.start();
+
+      broadcaster.setClientFilter(clientWithBbox as unknown as WebSocket, {
+        bbox: { minLat: -1.3, maxLat: -1.2, minLng: 36.8, maxLng: 36.9 },
+      });
+      // clientWithout has no filter
+
+      broadcaster.queueVehicleUpdate(makeVehicle("v1", { position: [-1.25, 36.85] }));
+      broadcaster.queueVehicleUpdate(makeVehicle("v2", { position: [5.0, 10.0] }));
+
+      vi.advanceTimersByTime(100);
+
+      // Client with bbox only gets v1
+      expect(clientWithBbox.send).toHaveBeenCalledTimes(1);
+      const parsedBbox = JSON.parse(clientWithBbox.send.mock.calls[0][0] as string);
+      expect(parsedBbox.data).toHaveLength(1);
+      expect(parsedBbox.data[0].id).toBe("v1");
+
+      // Client without filter gets both
+      expect(clientWithout.send).toHaveBeenCalledTimes(1);
+      const parsedAll = JSON.parse(clientWithout.send.mock.calls[0][0] as string);
+      expect(parsedAll.data).toHaveLength(2);
+
+      broadcaster.stop();
+    });
+
+    it("spatial index updates as vehicles move across flushes", () => {
+      const client = createMockClient();
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
+        flushIntervalMs: 100,
+      });
+      broadcaster.start();
+      broadcaster.setClientFilter(client as unknown as WebSocket, {
+        bbox: { minLat: -1.3, maxLat: -1.2, minLng: 36.8, maxLng: 36.9 },
+      });
+
+      // First flush: v1 inside bbox
+      broadcaster.queueVehicleUpdate(makeVehicle("v1", { position: [-1.25, 36.85] }));
+      vi.advanceTimersByTime(100);
+
+      expect(client.send).toHaveBeenCalledTimes(1);
+      const batch1 = JSON.parse(client.send.mock.calls[0][0] as string);
+      expect(batch1.data[0].id).toBe("v1");
+
+      // Second flush: v1 moved outside bbox
+      broadcaster.queueVehicleUpdate(makeVehicle("v1", { position: [5.0, 10.0] }));
+      vi.advanceTimersByTime(100);
+
+      // Client should NOT receive v1 in the second flush
+      expect(client.send).toHaveBeenCalledTimes(1); // still 1
+
+      broadcaster.stop();
+    });
+
+    it("removeVehicle cleans up spatial index", () => {
+      const client = createMockClient();
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
+        flushIntervalMs: 100,
+      });
+      broadcaster.start();
+      broadcaster.setClientFilter(client as unknown as WebSocket, {
+        bbox: { minLat: -1.3, maxLat: -1.2, minLng: 36.8, maxLng: 36.9 },
+      });
+
+      // Queue and flush v1
+      broadcaster.queueVehicleUpdate(makeVehicle("v1", { position: [-1.25, 36.85] }));
+      vi.advanceTimersByTime(100);
+      expect(client.send).toHaveBeenCalledTimes(1);
+
+      // Remove v1 from spatial index
+      broadcaster.removeVehicle("v1");
+
+      // Queue v1 at the same position again (but through removeVehicle+queueVehicleUpdate it should re-index)
+      broadcaster.queueVehicleUpdate(makeVehicle("v1", { position: [-1.25, 36.85] }));
+      vi.advanceTimersByTime(100);
+
+      // v1 position unchanged from last send, so delta filter skips it
+      expect(client.send).toHaveBeenCalledTimes(1);
+
+      broadcaster.stop();
+    });
+
+    it("bbox cache deduplicates queries for same bbox within a flush", () => {
+      // Two clients with the exact same bbox filter
+      const client1 = createMockClient();
+      const client2 = createMockClient();
+      const wss = createMockWSS([client1, client2]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
+        flushIntervalMs: 100,
+      });
+      broadcaster.start();
+
+      const bbox = { minLat: -1.3, maxLat: -1.2, minLng: 36.8, maxLng: 36.9 };
+      broadcaster.setClientFilter(client1 as unknown as WebSocket, { bbox });
+      broadcaster.setClientFilter(client2 as unknown as WebSocket, { bbox });
+
+      broadcaster.queueVehicleUpdate(makeVehicle("v1", { position: [-1.25, 36.85] }));
+      broadcaster.queueVehicleUpdate(makeVehicle("v2", { position: [5.0, 10.0] }));
+
+      vi.advanceTimersByTime(100);
+
+      // Both clients get the same result — only v1
+      for (const client of [client1, client2]) {
+        expect(client.send).toHaveBeenCalledTimes(1);
+        const parsed = JSON.parse(client.send.mock.calls[0][0] as string);
+        expect(parsed.data).toHaveLength(1);
+        expect(parsed.data[0].id).toBe("v1");
+      }
+
+      broadcaster.stop();
+    });
+  });
+
   describe("exported constants", () => {
     it("should export BACKPRESSURE_THRESHOLD as 64KB", () => {
       expect(BACKPRESSURE_THRESHOLD).toBe(64 * 1024);

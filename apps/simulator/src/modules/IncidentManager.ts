@@ -186,6 +186,42 @@ export class IncidentManager extends EventEmitter {
   }
 
   /**
+   * Replaces all incident state from a previously-saved snapshot.
+   * Used by PersistenceManager during restore.
+   *
+   * @param incidents - Array of IncidentDTO-like objects
+   */
+  restoreIncidents(incidents: Array<Record<string, unknown>>): void {
+    this.incidents.clear();
+    this.edgeIndex.clear();
+
+    for (const raw of incidents) {
+      const incident: Incident = {
+        id: raw.id as string,
+        edgeIds: raw.edgeIds as string[],
+        type: raw.type as IncidentType,
+        severity: raw.severity as number,
+        speedFactor: raw.speedFactor as number,
+        startTime: raw.startTime as number,
+        duration: raw.duration as number,
+        autoClears: raw.autoClears as boolean,
+        position: raw.position as [number, number],
+      };
+
+      this.incidents.set(incident.id, incident);
+
+      for (const edgeId of incident.edgeIds) {
+        let ids = this.edgeIndex.get(edgeId);
+        if (!ids) {
+          ids = new Set();
+          this.edgeIndex.set(edgeId, ids);
+        }
+        ids.add(incident.id);
+      }
+    }
+  }
+
+  /**
    * Computes the speed factor for a given incident type and severity.
    */
   private computeSpeedFactor(type: IncidentType, severity: number): number {

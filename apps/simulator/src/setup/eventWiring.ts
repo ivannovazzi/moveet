@@ -7,7 +7,9 @@ import type { SimulationController } from "../modules/SimulationController";
 import type { WebSocketBroadcaster } from "../modules/WebSocketBroadcaster";
 import type { GeoFenceManager } from "../modules/GeoFenceManager";
 import type { ScenarioManager } from "../modules/scenario";
-import type { VehicleDTO } from "../types";
+import type { StateStore } from "../modules/StateStore";
+import type { VehicleDTO, RecordingMetadata } from "../types";
+import logger from "../utils/logger";
 
 export interface EventWiringContext {
   network: RoadNetwork;
@@ -19,6 +21,8 @@ export interface EventWiringContext {
   broadcaster: WebSocketBroadcaster;
   geoFenceManager: GeoFenceManager;
   scenarioManager: ScenarioManager;
+  /** Optional — only present when PERSISTENCE_ENABLED=true */
+  stateStore?: StateStore;
 }
 
 /** Default analytics broadcast interval in ms (5 seconds). */
@@ -43,6 +47,7 @@ export function wireEvents(ctx: EventWiringContext): {
     broadcaster,
     geoFenceManager,
     scenarioManager,
+    stateStore,
   } = ctx;
 
   // ─── Vehicle updates (batched by the broadcaster) ───────────────────
@@ -107,6 +112,17 @@ export function wireEvents(ctx: EventWiringContext): {
     recordingManager.recordEvent("incident", { action: "cleared", ...data })
   );
 
+  // ─── Recording metadata persistence ────────────────────────────────
+  if (stateStore) {
+    recordingManager.on("recording:stopped", (metadata: RecordingMetadata) => {
+      try {
+        stateStore.insertRecording(metadata);
+      } catch (err) {
+        logger.error(`Failed to persist recording metadata: ${err}`);
+      }
+    });
+  }
+
   // ─── Replay events → WS broadcaster ────────────────────────────────
   simulationController.on("replayVehicle", (data) => {
     const payload = data as { vehicles?: unknown[] };
@@ -149,15 +165,21 @@ export function wireEvents(ctx: EventWiringContext): {
     : DEFAULT_ANALYTICS_INTERVAL_MS;
 
   const analyticsBroadcastInterval = setInterval(() => {
-    // Only send if clients are connected
-    if (broadcaster.clientCount === 0) return;
+    const snapshot = vehicleManager.analytics.getSnapshot();
+    const timestamp = Date.now();
 
-    const { summary, fleets } = vehicleManager.analytics.getSnapshot();
-    broadcaster.broadcast("analytics", {
-      summary,
-      fleets,
-      timestamp: Date.now(),
-    });
+    // Broadcast to connected WebSocket clients
+    if (broadcaster.clientCount > 0) {
+      broadcaster.broadcast("analytics", {
+        ...snapshot,
+        timestamp,
+      });
+    }
+
+    // Persist analytics snapshot to SQLite history
+    if (stateStore) {
+      stateStore.insertAnalytics({ ...snapshot, timestamp });
+    }
   }, analyticsIntervalMs);
 
   return { trafficBroadcastInterval, analyticsBroadcastInterval };

@@ -12,6 +12,8 @@ import { RecordingManager } from "./modules/RecordingManager";
 import { SimulationController } from "./modules/SimulationController";
 import { GeoFenceManager } from "./modules/GeoFenceManager";
 import { ScenarioManager } from "./modules/scenario";
+import { StateStore } from "./modules/StateStore";
+import { PersistenceManager } from "./modules/PersistenceManager";
 import { config, verifyConfig, logConfig } from "./utils/config";
 import { generalRateLimiter } from "./middleware/rateLimiter";
 import { correlationIdMiddleware } from "./middleware/correlationId";
@@ -26,6 +28,7 @@ import {
   createFleetRoutes,
   createAnalyticsRoutes,
   createScenarioRoutes,
+  createStateRoutes,
 } from "./routes";
 import { createGeofenceRoutes } from "./routes/geofences";
 import type { RouteContext } from "./routes";
@@ -59,6 +62,22 @@ const recordingManager = new RecordingManager();
 const scenarioManager = new ScenarioManager(vehicleManager, incidentManager, simulationController);
 const geoFenceManager = new GeoFenceManager();
 
+// ─── Persistence (optional) ─────────────────────────────────────────
+
+let persistenceManager: PersistenceManager | undefined;
+let stateStore: StateStore | undefined;
+
+if (config.persistenceEnabled) {
+  stateStore = new StateStore(config.stateDbPath);
+  persistenceManager = new PersistenceManager({
+    stateStore,
+    vehicleManager,
+    fleetManager,
+    geoFenceManager,
+    incidentManager,
+  });
+}
+
 // ─── Route context shared by all route modules ──────────────────────
 
 const ctx: RouteContext = {
@@ -69,6 +88,7 @@ const ctx: RouteContext = {
   recordingManager,
   simulationController,
   scenarioManager,
+  stateStore,
 };
 
 // ─── Health endpoint ─────────────────────────────────────────────────
@@ -96,6 +116,9 @@ app.use(createFleetRoutes(ctx));
 app.use(createAnalyticsRoutes(ctx));
 app.use(createScenarioRoutes(ctx));
 app.use(createGeofenceRoutes(geoFenceManager));
+if (persistenceManager) {
+  app.use(createStateRoutes(persistenceManager));
+}
 
 // ─── API documentation ──────────────────────────────────────────────
 
@@ -119,6 +142,15 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 
 async function main() {
   await vehicleManager.initFromAdapter();
+
+  // Restore persisted state before marking ready
+  if (persistenceManager && config.restoreState) {
+    const restored = persistenceManager.restore();
+    if (restored) {
+      logger.info("Simulation state restored from snapshot");
+    }
+  }
+
   simulationController.markReady();
 
   const server = app.listen(config.port, () => {
@@ -130,7 +162,13 @@ async function main() {
     ...ctx,
     broadcaster,
     geoFenceManager,
+    stateStore,
   });
+
+  // Start persistence auto-save after all wiring is done
+  if (persistenceManager) {
+    persistenceManager.startAutoSave(config.persistenceInterval * 1000);
+  }
 
   registerGracefulShutdown({
     server,
@@ -140,6 +178,7 @@ async function main() {
     network,
     trafficBroadcastInterval,
     analyticsBroadcastInterval,
+    persistenceManager,
   });
 }
 

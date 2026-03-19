@@ -5,6 +5,7 @@ import type { IncidentManager } from "../modules/IncidentManager";
 import type { RecordingManager } from "../modules/RecordingManager";
 import type { SimulationController } from "../modules/SimulationController";
 import type { ScenarioManager } from "../modules/scenario";
+import type { StateStore } from "../modules/StateStore";
 
 /**
  * Shared context passed to each route module.
@@ -18,4 +19,6 @@ export interface RouteContext {
   recordingManager: RecordingManager;
   simulationController: SimulationController;
   scenarioManager: ScenarioManager;
+  /** Optional — only present when PERSISTENCE_ENABLED=true */
+  stateStore?: StateStore;
 }

@@ -1,16 +1,17 @@
 import { useEffect, useRef } from "react";
 import client from "@/utils/client";
 import type { VehicleType } from "@/types";
-import type { SubscribeFilter } from "@moveet/shared-types";
+import type { BoundingBox, SubscribeFilter } from "@moveet/shared-types";
 
 /**
- * Centralizes all subscribe filter dimensions (fleet, type) into a
+ * Centralizes all subscribe filter dimensions (fleet, type, bbox) into a
  * single WebSocket subscribe call. Debounces to coalesce rapid changes.
  */
 export function useSubscribeFilter(
   fleets: { id: string }[],
   hiddenFleetIds: Set<string>,
-  hiddenVehicleTypes: Set<VehicleType>
+  hiddenVehicleTypes: Set<VehicleType>,
+  bbox?: BoundingBox | null
 ): void {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -18,14 +19,14 @@ export function useSubscribeFilter(
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
     debounceRef.current = setTimeout(() => {
-      const filter = buildFilter(fleets, hiddenFleetIds, hiddenVehicleTypes);
+      const filter = buildFilter(fleets, hiddenFleetIds, hiddenVehicleTypes, bbox ?? null);
       client.subscribe(filter);
     }, 150);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [hiddenFleetIds, hiddenVehicleTypes, fleets]);
+  }, [hiddenFleetIds, hiddenVehicleTypes, fleets, bbox]);
 }
 
 const ALL_VEHICLE_TYPES: VehicleType[] = ["car", "truck", "motorcycle", "ambulance", "bus"];
@@ -33,13 +34,15 @@ const ALL_VEHICLE_TYPES: VehicleType[] = ["car", "truck", "motorcycle", "ambulan
 function buildFilter(
   fleets: { id: string }[],
   hiddenFleetIds: Set<string>,
-  hiddenVehicleTypes: Set<VehicleType>
+  hiddenVehicleTypes: Set<VehicleType>,
+  bbox: BoundingBox | null
 ): SubscribeFilter | null {
   const hasFleetFilter = hiddenFleetIds.size > 0;
   const hasTypeFilter = hiddenVehicleTypes.size > 0;
+  const hasBboxFilter = bbox !== null;
 
   // No filters active → null (receive everything)
-  if (!hasFleetFilter && !hasTypeFilter) return null;
+  if (!hasFleetFilter && !hasTypeFilter && !hasBboxFilter) return null;
 
   const filter: SubscribeFilter = {};
 
@@ -49,6 +52,10 @@ function buildFilter(
 
   if (hasTypeFilter) {
     filter.vehicleTypes = ALL_VEHICLE_TYPES.filter((t) => !hiddenVehicleTypes.has(t));
+  }
+
+  if (hasBboxFilter) {
+    filter.bbox = bbox;
   }
 
   return filter;
