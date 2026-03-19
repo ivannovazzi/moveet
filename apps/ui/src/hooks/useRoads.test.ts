@@ -69,3 +69,34 @@ describe("useRoads", () => {
     expect(setRoads).not.toHaveBeenCalled();
   });
 });
+
+describe("useRoads loading state", () => {
+  it("initial loading state is true", () => {
+    vi.mocked(client.getRoads).mockReturnValue(new Promise(() => {}));
+
+    const { result } = renderHook(() => useRoads(), { wrapper: createWrapper() });
+
+    expect(result.current.loading).toBe(true);
+  });
+
+  it("loading becomes false after successful fetch", async () => {
+    const namedRoad = createRoad({ name: "Moi Avenue" });
+    vi.mocked(client.getRoads).mockResolvedValue({ data: [namedRoad] });
+
+    const { result } = renderHook(() => useRoads(), { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+  });
+
+  it("loading becomes false after failed fetch", async () => {
+    vi.mocked(client.getRoads).mockRejectedValue(new Error("Network error"));
+
+    const { result } = renderHook(() => useRoads(), { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+  });
+});

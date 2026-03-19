@@ -116,4 +116,104 @@ describe("VehicleList", () => {
 
     expect(screen.getByText("Route 12.4 km")).toBeInTheDocument();
   });
+
+  describe("virtualization", () => {
+    function makeVehicles(count: number) {
+      return Array.from({ length: count }, (_, i) =>
+        createVehicle({ id: `v${i}`, name: `Vehicle ${i}`, visible: true }),
+      );
+    }
+
+    it("renders only the first 50 vehicles when given 100+", () => {
+      const vehicles = makeVehicles(120);
+      render(<VehicleList {...defaultProps} vehicles={vehicles} />);
+
+      // First 50 should be rendered
+      expect(screen.getByText("Vehicle 0")).toBeInTheDocument();
+      expect(screen.getByText("Vehicle 49")).toBeInTheDocument();
+
+      // Vehicle 50 onward should NOT be rendered
+      expect(screen.queryByText("Vehicle 50")).not.toBeInTheDocument();
+      expect(screen.queryByText("Vehicle 119")).not.toBeInTheDocument();
+    });
+
+    it("shows 'Show more' button when more than 50 vehicles", () => {
+      const vehicles = makeVehicles(80);
+      render(<VehicleList {...defaultProps} vehicles={vehicles} />);
+
+      const showMoreButton = screen.getByText(/Show more/);
+      expect(showMoreButton).toBeInTheDocument();
+      expect(showMoreButton).toHaveTextContent("Show more (30 remaining)");
+    });
+
+    it("does not show 'Show more' button when 50 or fewer vehicles", () => {
+      const vehicles = makeVehicles(50);
+      render(<VehicleList {...defaultProps} vehicles={vehicles} />);
+
+      expect(screen.queryByText(/Show more/)).not.toBeInTheDocument();
+    });
+
+    it("clicking 'Show more' renders 50 more vehicles", async () => {
+      const vehicles = makeVehicles(120);
+      const user = userEvent.setup();
+      render(<VehicleList {...defaultProps} vehicles={vehicles} />);
+
+      expect(screen.queryByText("Vehicle 50")).not.toBeInTheDocument();
+
+      await user.click(screen.getByText(/Show more/));
+
+      // Now vehicles 0–99 should be visible
+      expect(screen.getByText("Vehicle 50")).toBeInTheDocument();
+      expect(screen.getByText("Vehicle 99")).toBeInTheDocument();
+
+      // Vehicle 100+ still hidden
+      expect(screen.queryByText("Vehicle 100")).not.toBeInTheDocument();
+    });
+
+    it("'Show more' button shows remaining count", async () => {
+      const vehicles = makeVehicles(130);
+      const user = userEvent.setup();
+      render(<VehicleList {...defaultProps} vehicles={vehicles} />);
+
+      expect(screen.getByText(/Show more/)).toHaveTextContent("Show more (80 remaining)");
+
+      await user.click(screen.getByText(/Show more/));
+
+      expect(screen.getByText(/Show more/)).toHaveTextContent("Show more (30 remaining)");
+    });
+
+    it("resets visible count to 50 when filter changes", () => {
+      const vehicles = makeVehicles(120);
+      const { rerender } = render(
+        <VehicleList {...defaultProps} vehicles={vehicles} filter="" />,
+      );
+
+      // Initially 50 visible, show more exists
+      expect(screen.queryByText("Vehicle 50")).not.toBeInTheDocument();
+
+      // Change filter — visible count resets to INITIAL_VISIBLE (50)
+      rerender(
+        <VehicleList {...defaultProps} vehicles={vehicles} filter="Vehicle" />,
+      );
+
+      // Still only the first 50 are shown
+      expect(screen.getByText("Vehicle 0")).toBeInTheDocument();
+      expect(screen.getByText("Vehicle 49")).toBeInTheDocument();
+      expect(screen.queryByText("Vehicle 50")).not.toBeInTheDocument();
+    });
+
+    it("hides 'Show more' button after all vehicles are loaded", async () => {
+      const vehicles = makeVehicles(60);
+      const user = userEvent.setup();
+      render(<VehicleList {...defaultProps} vehicles={vehicles} />);
+
+      expect(screen.getByText(/Show more/)).toBeInTheDocument();
+
+      await user.click(screen.getByText(/Show more/));
+
+      // All 60 now visible, button should disappear
+      expect(screen.queryByText(/Show more/)).not.toBeInTheDocument();
+      expect(screen.getByText("Vehicle 59")).toBeInTheDocument();
+    });
+  });
 });

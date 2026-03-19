@@ -160,3 +160,70 @@ describe("useRecording", () => {
     expect(client.getRecordings).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("useRecording error handling", () => {
+  it("startRecording sets error on API error", async () => {
+    vi.mocked(client.startRecording).mockResolvedValue({ error: "Already recording" });
+
+    const { result } = renderHook(() => useRecording());
+
+    await act(async () => {
+      await result.current.startRecording();
+    });
+
+    expect(result.current.error).toBe("Already recording");
+    expect(result.current.isRecording).toBe(false);
+  });
+
+  it("stopRecording sets error on failure", async () => {
+    vi.mocked(client.stopRecording).mockResolvedValue({ error: "Not recording" });
+
+    const { result } = renderHook(() => useRecording());
+
+    await act(async () => {
+      const metadata = await result.current.stopRecording();
+      expect(metadata).toBeUndefined();
+    });
+
+    expect(result.current.error).toBe("Not recording");
+  });
+
+  it("refreshRecordings sets error on failure", async () => {
+    // First call on mount succeeds, second call (manual refresh) fails
+    vi.mocked(client.getRecordings)
+      .mockResolvedValueOnce({ data: [] })
+      .mockResolvedValueOnce({ error: "Server unavailable" });
+
+    const { result } = renderHook(() => useRecording());
+
+    await vi.waitFor(() => {
+      expect(client.getRecordings).toHaveBeenCalledOnce();
+    });
+
+    await act(async () => {
+      await result.current.refreshRecordings();
+    });
+
+    expect(result.current.error).toBe("Server unavailable");
+  });
+
+  it("error clears on next successful operation", async () => {
+    vi.mocked(client.startRecording).mockResolvedValue({ error: "Some error" });
+
+    const { result } = renderHook(() => useRecording());
+
+    await act(async () => {
+      await result.current.startRecording();
+    });
+    expect(result.current.error).toBe("Some error");
+
+    vi.mocked(client.startRecording).mockResolvedValue({
+      data: { status: "recording", filePath: "/tmp/rec.json" },
+    });
+
+    await act(async () => {
+      await result.current.startRecording();
+    });
+    expect(result.current.error).toBeNull();
+  });
+});
