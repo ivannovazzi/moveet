@@ -65,7 +65,7 @@ vi.mock("../utils/config", () => ({
     heatZoneSpeedFactor: 0.5,
     syncAdapterTimeout: 5000,
     vehicleCount: 70,
-    geojsonPath: "./export.geojson",
+    geojsonPath: "./data/network.geojson",
     adapterURL: "",
   },
   verifyConfig: vi.fn(),

@@ -33,7 +33,7 @@ npx tsx apps/network/src/cli.ts prepare cairo
 npx tsx src/cli.ts prepare cairo
 ```
 
-This runs the full pipeline and writes the result to `apps/simulator/export.geojson`.
+This runs the full pipeline and writes the result to `apps/simulator/data/network.geojson`.
 
 ## Built-in regions
 
@@ -61,7 +61,7 @@ npx tsx src/cli.ts prepare new-york
 npx tsx src/cli.ts prepare \
   --geofabrik africa/kenya \
   --bbox 36.70,-1.35,36.95,-1.20 \
-  --output apps/simulator/export.geojson
+  --output apps/simulator/data/network.geojson
 ```
 
 `--bbox` format: `west,south,east,north` (decimal degrees).
@@ -95,14 +95,14 @@ npx tsx src/cli.ts filter \
 # 4. Export to GeoJSON
 npx tsx src/cli.ts export \
   --input .cache/cairo-roads.osm.pbf \
-  --output apps/simulator/export.geojson \
+  --output apps/simulator/data/network.geojson \
   --region cairo
 
 # 5. Prune disconnected components (keeps largest)
-npx tsx src/cli.ts prune --input apps/simulator/export.geojson
+npx tsx src/cli.ts prune --input apps/simulator/data/network.geojson
 
 # 6. Validate topology
-npx tsx src/cli.ts validate --input apps/simulator/export.geojson
+npx tsx src/cli.ts validate --input apps/simulator/data/network.geojson
 ```
 
 ## Caching
