@@ -4,8 +4,7 @@ import compression from "compression";
 import cors from "cors";
 import fs from "fs";
 import path from "path";
-import swaggerUi from "swagger-ui-express";
-import YAML from "js-yaml";
+import { apiReference } from "@scalar/express-api-reference";
 import { WebSocketServer } from "ws";
 import { RoadNetwork } from "./modules/RoadNetwork";
 import { VehicleManager } from "./modules/VehicleManager";
@@ -85,11 +84,10 @@ function validateSearchQuery(body: unknown): body is { query: string } {
 }
 
 const specPath = path.join(__dirname, "..", "openapi.yaml");
-const spec = YAML.load(fs.readFileSync(specPath, "utf-8")) as object;
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(spec));
 app.get("/api-docs.yaml", (_req, res) => {
   res.type("text/yaml").send(fs.readFileSync(specPath, "utf-8"));
 });
+app.use("/api-docs", apiReference({ url: "/api-docs.yaml" }));
 
 app.get("/metrics", (_req, res) => {
   const metrics = MetricsCollector.getInstance();
