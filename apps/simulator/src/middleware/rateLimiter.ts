@@ -77,3 +77,4 @@ export class RateLimiter {
 // Create rate limiter instances
 export const generalRateLimiter = new RateLimiter(60000, 100); // 100 requests per minute
 export const expensiveRateLimiter = new RateLimiter(60000, 20); // 20 requests per minute for expensive operations
+export const incidentRateLimiter = new RateLimiter(60000, 100); // 100 incident creations per minute

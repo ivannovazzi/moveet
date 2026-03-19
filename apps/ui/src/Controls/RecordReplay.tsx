@@ -1,7 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import classNames from "classnames";
 import type { RecordingFile, ReplayStatus } from "@/types";
-import { Stop, Record } from "@/components/Icons";
 import {
   PanelBadge,
   PanelBody,
@@ -11,29 +8,16 @@ import {
 } from "./PanelPrimitives";
 import styles from "./RecordReplay.module.css";
 import { Button } from "react-aria-components";
-
-interface RecordingHook {
-  isRecording: boolean;
-  recordings: RecordingFile[];
-  startRecording: () => Promise<void>;
-  stopRecording: () => Promise<unknown>;
-  refreshRecordings: () => Promise<void>;
-}
+import classNames from "classnames";
 
 interface RecordReplayProps {
-  recording: RecordingHook;
+  recordings: RecordingFile[];
   replayStatus: ReplayStatus;
   onStartReplay: (file: string, speed?: number) => Promise<void>;
 }
 
 /** Recordings smaller than this are header-only (no events). */
 const MIN_PLAYABLE_SIZE = 300;
-
-function formatTime(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
 
 function formatFileSize(bytes: number): string {
   if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(1)} MB`;
@@ -64,54 +48,14 @@ function formatLabel(file: RecordingFile): string {
 }
 
 export default function RecordReplay({
-  recording,
+  recordings,
   replayStatus,
   onStartReplay,
 }: RecordReplayProps) {
-  const { isRecording, recordings, startRecording, stopRecording } = recording;
-
-  const [elapsed, setElapsed] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
   const isReplayMode = replayStatus.mode === "replay";
   const isPaused = replayStatus.paused ?? false;
   // Server returns path like "recordings/file.ndjson", recordings list has just "file.ndjson"
   const activeFile = replayStatus.file?.replace(/^recordings\//, "") ?? null;
-
-  // Elapsed timer for recording
-  useEffect(() => {
-    if (isRecording) {
-      setElapsed(0);
-      timerRef.current = setInterval(() => {
-        setElapsed((prev) => prev + 1);
-      }, 1000);
-    } else {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-      setElapsed(0);
-    }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [isRecording]);
-
-  const handleRecordToggle = useCallback(async () => {
-    if (isRecording) {
-      await stopRecording();
-    } else {
-      await startRecording();
-    }
-  }, [isRecording, startRecording, stopRecording]);
-
-  const handleFileClick = useCallback(
-    async (file: RecordingFile) => {
-      if (file.fileSize < MIN_PLAYABLE_SIZE) return;
-      await onStartReplay(file.fileName, 1);
-    },
-    [onStartReplay]
-  );
 
   const playableRecordings = recordings.filter((f) => f.fileSize >= MIN_PLAYABLE_SIZE);
 
@@ -128,31 +72,6 @@ export default function RecordReplay({
       />
 
       <PanelBody className={styles.body}>
-        <div className={styles.recordRow}>
-          <Button
-            className={classNames(styles.recordButton, {
-              [styles.recordButtonActive]: isRecording,
-            })}
-            onPress={handleRecordToggle}
-            aria-label={isRecording ? "Stop recording" : "Start recording"}
-          >
-            {isRecording ? (
-              <>
-                <span className={classNames(styles.recordDot, styles.recordDotActive)} />
-                <Stop className={styles.recordIcon} />
-                Stop
-              </>
-            ) : (
-              <>
-                <span className={styles.recordDot} />
-                <Record className={styles.recordIcon} />
-                Record
-              </>
-            )}
-          </Button>
-          {isRecording && <span className={styles.elapsed}>{formatTime(elapsed)}</span>}
-        </div>
-
         <div className={styles.listHeader}>
           <PanelSectionLabel>Saved</PanelSectionLabel>
         </div>
@@ -170,7 +89,7 @@ export default function RecordReplay({
                   className={classNames(styles.recordingItem, {
                     [styles.recordingItemActive]: isActive,
                   })}
-                  onPress={() => !isActive && handleFileClick(file)}
+                  onPress={() => !isActive && onStartReplay(file.fileName, 1)}
                   isDisabled={isActive}
                   aria-label={`Play recording ${formatLabel(file)}`}
                 >

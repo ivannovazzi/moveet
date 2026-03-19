@@ -17,6 +17,7 @@ const INCIDENT_COLORS: Record<IncidentType, string> = {
 };
 
 function formatTimeRemaining(expiresAt: number): string {
+  if (!Number.isFinite(expiresAt)) return "—";
   const remaining = Math.max(0, expiresAt - Date.now());
   const totalSeconds = Math.floor(remaining / 1000);
   const minutes = Math.floor(totalSeconds / 60);
@@ -100,7 +101,7 @@ export default function Incidents({ incidents, createRandom, remove }: Incidents
                     <div
                       className={styles.severityFill}
                       style={{
-                        width: `${incident.severity * 100}%`,
+                        width: `${(incident.severity ?? 0) * 100}%`,
                         backgroundColor: INCIDENT_COLORS[incident.type],
                       }}
                     />

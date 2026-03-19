@@ -6,16 +6,29 @@ interface GeofenceDrawToolProps {
   active: boolean;
   onComplete: (polygon: [number, number][]) => void;
   onCancel: () => void;
+  /** Called whenever the vertex count changes (0 when idle/cancelled). */
+  onVertexCountChange?: (count: number) => void;
+  /**
+   * Increment this to programmatically trigger completion (like the confirm button).
+   * The tool fires onComplete with current vertices when this value changes.
+   */
+  confirmRequestId?: number;
 }
 
-export default function GeofenceDrawTool({ active, onComplete, onCancel }: GeofenceDrawToolProps) {
+export default function GeofenceDrawTool({
+  active,
+  onComplete,
+  onCancel,
+  onVertexCountChange,
+  confirmRequestId,
+}: GeofenceDrawToolProps) {
   const { map: svgRef, projection, transform } = useMapContext();
 
-  // Vertices in SVG display space
+  // Vertices in SVG viewport space (for rendering)
   const svgVertices = useRef<[number, number][]>([]);
   // Vertices in geo space [lng, lat]
   const geoVertices = useRef<[number, number][]>([]);
-  // Cursor position in SVG display space
+  // Cursor position in SVG viewport space
   const cursorSvg = useRef<[number, number] | null>(null);
 
   // The <g> element we render into
@@ -25,6 +38,9 @@ export default function GeofenceDrawTool({ active, onComplete, onCancel }: Geofe
   projectionRef.current = projection;
   const transformRef = useRef(transform);
   transformRef.current = transform;
+
+  const onVertexCountChangeRef = useRef(onVertexCountChange);
+  onVertexCountChangeRef.current = onVertexCountChange;
 
   const redraw = useCallback(() => {
     const g = gRef.current;
@@ -42,7 +58,7 @@ export default function GeofenceDrawTool({ active, onComplete, onCancel }: Geofe
       polygon.setAttribute("points", verts.map(([x, y]) => `${x},${y}`).join(" "));
       polygon.setAttribute("fill", "rgba(59,130,246,0.15)");
       polygon.setAttribute("stroke", "rgb(59,130,246)");
-      polygon.setAttribute("stroke-width", "1");
+      polygon.setAttribute("stroke-width", "1.5");
       polygon.setAttribute("stroke-dasharray", "4 3");
       g.appendChild(polygon);
     } else if (verts.length === 2) {
@@ -52,7 +68,7 @@ export default function GeofenceDrawTool({ active, onComplete, onCancel }: Geofe
       line.setAttribute("x2", String(verts[1][0]));
       line.setAttribute("y2", String(verts[1][1]));
       line.setAttribute("stroke", "rgb(59,130,246)");
-      line.setAttribute("stroke-width", "1");
+      line.setAttribute("stroke-width", "1.5");
       g.appendChild(line);
     }
 
@@ -79,7 +95,7 @@ export default function GeofenceDrawTool({ active, onComplete, onCancel }: Geofe
       circle.setAttribute("r", "4");
       circle.setAttribute("fill", "rgb(59,130,246)");
       circle.setAttribute("stroke", "#fff");
-      circle.setAttribute("stroke-width", "1");
+      circle.setAttribute("stroke-width", "1.5");
       g.appendChild(circle);
     }
   }, []);
@@ -87,18 +103,12 @@ export default function GeofenceDrawTool({ active, onComplete, onCancel }: Geofe
   useEffect(() => {
     if (!active || !svgRef) return;
 
-    // Create overlay <g>
+    // Create overlay <g> and attach to SVG root (not inside the zoom-transformed markers
+    // group) so that viewport-space coordinates render without double-transform.
     const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
     g.setAttribute("data-layer", "geofence-draw");
     g.style.pointerEvents = "none";
-
-    // Insert inside the markers group so it participates in zoom transforms
-    const markersGroup = svgRef.querySelector("g.markers");
-    if (markersGroup) {
-      markersGroup.appendChild(g);
-    } else {
-      svgRef.appendChild(g);
-    }
+    svgRef.appendChild(g);
     gRef.current = g;
     svgVertices.current = [];
     geoVertices.current = [];
@@ -112,43 +122,41 @@ export default function GeofenceDrawTool({ active, onComplete, onCancel }: Geofe
       const t = transformRef.current;
       if (!proj) return;
 
+      // rawX/rawY are in SVG viewport space
       const [rawX, rawY] = pointer(e, svgRef);
-      // Convert raw SVG pointer to map-space, then invert to geo coords
+      // Convert to map-space coordinates for geo inversion
       const [mx, my] = t ? t.invert([rawX, rawY]) : [rawX, rawY];
       const coords = proj.invert?.([mx, my]);
       if (!coords) return;
 
-      // Store SVG display position for rendering vertices
-      const svgPt: [number, number] = t ? [t.applyX(mx), t.applyY(my)] : [mx, my];
-      svgVertices.current = [...svgVertices.current, svgPt];
+      // Store viewport-space position for rendering (no additional transform needed
+      // since the <g> is a direct child of the SVG root)
+      svgVertices.current = [...svgVertices.current, [rawX, rawY]];
       geoVertices.current = [...geoVertices.current, coords as [number, number]];
+      onVertexCountChangeRef.current?.(svgVertices.current.length);
       redraw();
     };
 
-    const handleDblClick = (e: MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-
+    const completeDrawing = () => {
       if (geoVertices.current.length < 3) return;
-
       const polygon = [...geoVertices.current];
       svgVertices.current = [];
       geoVertices.current = [];
       cursorSvg.current = null;
       g.innerHTML = "";
-
+      onVertexCountChangeRef.current?.(0);
       onComplete(polygon);
     };
 
+    const handleDblClick = (e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      completeDrawing();
+    };
+
     const handleMouseMove = (e: MouseEvent) => {
-      const t = transformRef.current;
       const [rawX, rawY] = pointer(e, svgRef);
-      if (t) {
-        const [mx, my] = t.invert([rawX, rawY]);
-        cursorSvg.current = [t.applyX(mx), t.applyY(my)];
-      } else {
-        cursorSvg.current = [rawX, rawY];
-      }
+      cursorSvg.current = [rawX, rawY];
       redraw();
     };
 
@@ -158,9 +166,13 @@ export default function GeofenceDrawTool({ active, onComplete, onCancel }: Geofe
         geoVertices.current = [];
         cursorSvg.current = null;
         g.innerHTML = "";
+        onVertexCountChangeRef.current?.(0);
         onCancel();
       }
     };
+
+    // Expose completeDrawing on the g element so the confirm button can trigger it
+    (g as SVGGElement & { _complete?: () => void })._complete = completeDrawing;
 
     svgRef.addEventListener("click", handleClick);
     svgRef.addEventListener("dblclick", handleDblClick);
@@ -179,6 +191,16 @@ export default function GeofenceDrawTool({ active, onComplete, onCancel }: Geofe
       cursorSvg.current = null;
     };
   }, [active, svgRef, redraw, onComplete, onCancel]);
+
+  // Trigger completion when confirmRequestId changes
+  const prevConfirmIdRef = useRef(confirmRequestId);
+  useEffect(() => {
+    if (confirmRequestId === prevConfirmIdRef.current) return;
+    prevConfirmIdRef.current = confirmRequestId;
+    if (!active || geoVertices.current.length < 3) return;
+    const g = gRef.current as (SVGGElement & { _complete?: () => void }) | null;
+    g?._complete?.();
+  }, [confirmRequestId, active]);
 
   // Renders nothing into React's tree — SVG is managed via DOM
   return null;

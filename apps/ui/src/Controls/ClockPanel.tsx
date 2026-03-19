@@ -1,6 +1,6 @@
 import type { TimeOfDay } from "@/types";
 import { useClock } from "@/hooks/useClock";
-import { PanelBody } from "./PanelPrimitives";
+import { PanelBody, PanelHeader } from "./PanelPrimitives";
 import styles from "./ClockPanel.module.css";
 import { Slider, SliderTrack, SliderThumb, Button } from "react-aria-components";
 
@@ -58,14 +58,15 @@ export default function ClockPanel() {
 
   return (
     <>
-      <div className={styles.clockHeader}>
-        <span className={styles[`eyebrow_${clock.timeOfDay}`]}>
-          {TIME_OF_DAY_LABELS[clock.timeOfDay]}
-        </span>
-        <div className={styles.timeValue}>{timeStr}</div>
-        <p className={styles.subtitle}>Nairobi Fleet Simulation</p>
-      </div>
+      <PanelHeader title="Simulation Clock" subtitle="Nairobi Fleet Simulation" />
       <PanelBody className={styles.body}>
+        <div className={styles.clockDisplay}>
+          <span className={styles[`eyebrow_${clock.timeOfDay}`]}>
+            {TIME_OF_DAY_LABELS[clock.timeOfDay]}
+          </span>
+          <div className={styles.timeValue}>{timeStr}</div>
+        </div>
+
         <div className={styles.speedSection}>
           <span className={styles.sectionLabel}>SIMULATION SPEED</span>
           <Slider

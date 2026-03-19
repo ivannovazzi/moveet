@@ -1,16 +1,9 @@
-/* ── Clock header (custom, not using PanelHeader) ───── */
-.clockHeader {
-  padding: var(--space-4) var(--space-5) 0;
+/* ── Clock display (inside PanelBody) ───────────────── */
+.clockDisplay {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-}
-
-.subtitle {
-  margin: var(--space-2) 0 0;
-  font-size: var(--text-sm);
-  color: var(--color-text-secondary);
-  line-height: 1.4;
+  padding-bottom: var(--space-2);
 }
 
 .body {
@@ -67,7 +60,6 @@
   gap: var(--space-2);
   border-top: var(--panel-border);
   padding-top: var(--space-4);
-  margin-top: var(--space-2);
 }
 
 .sectionLabel {
