@@ -4,6 +4,10 @@ import { z } from "zod";
 
 const coordinatePair = z.tuple([z.number(), z.number()]);
 
+export const incidentTypeEnum = z.enum(["accident", "closure", "construction"], {
+  message: "type must be one of: accident, closure, construction",
+});
+
 // ─── Simulation control ─────────────────────────────────────────────
 
 export const startSchema = z
@@ -35,7 +39,7 @@ export const optionsSchema = z.object({
 
 // ─── Direction / waypoints ──────────────────────────────────────────
 
-const waypointRequestSchema = z.object({
+export const waypointRequestSchema = z.object({
   lat: z.number({ message: "'lat' must be a valid number" }),
   lng: z.number({ message: "'lng' must be a valid number" }),
   dwellTime: z.number().positive().optional(),
@@ -67,9 +71,7 @@ export const searchSchema = z.object({
 
 export const createIncidentSchema = z.object({
   edgeIds: z.array(z.string()).nonempty("edgeIds must be a non-empty array of strings"),
-  type: z.enum(["accident", "closure", "construction"], {
-    message: "type must be one of: accident, closure, construction",
-  }),
+  type: incidentTypeEnum,
   duration: z
     .number({ message: "duration must be a positive number" })
     .positive("duration must be a positive number"),
@@ -79,9 +81,7 @@ export const createIncidentSchema = z.object({
 export const incidentAtPositionSchema = z.object({
   lat: z.number({ message: "lat and lng are required numbers" }),
   lng: z.number({ message: "lat and lng are required numbers" }),
-  type: z.enum(["accident", "closure", "construction"], {
-    message: "type must be one of: accident, closure, construction",
-  }),
+  type: incidentTypeEnum,
 });
 
 // ─── Replay ─────────────────────────────────────────────────────────

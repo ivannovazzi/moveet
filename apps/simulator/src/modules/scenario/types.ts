@@ -1,15 +1,5 @@
 import { z } from "zod";
-
-// ─── Shared primitives ──────────────────────────────────────────────
-
-const incidentTypeEnum = z.enum(["accident", "closure", "construction"]);
-
-const waypointSchema = z.object({
-  lat: z.number(),
-  lng: z.number(),
-  dwellTime: z.number().positive().optional(),
-  label: z.string().optional(),
-});
+import { incidentTypeEnum, waypointRequestSchema } from "../../middleware/schemas";
 
 // ─── Timeline event actions ─────────────────────────────────────────
 
@@ -36,7 +26,7 @@ export const createIncidentActionSchema = z.object({
 export const dispatchActionSchema = z.object({
   type: z.literal("dispatch"),
   vehicleId: z.string().min(1, "vehicleId must be a non-empty string"),
-  waypoints: z.array(waypointSchema).nonempty("waypoints must be a non-empty array"),
+  waypoints: z.array(waypointRequestSchema).nonempty("waypoints must be a non-empty array"),
 });
 
 export const setTrafficProfileActionSchema = z.object({
