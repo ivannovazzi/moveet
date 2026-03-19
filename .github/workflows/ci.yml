@@ -87,3 +87,5 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-turbo-
       - run: npm run build
+      - name: Validate OpenAPI spec
+        run: npx @apidevtools/swagger-parser validate apps/simulator/openapi.yaml

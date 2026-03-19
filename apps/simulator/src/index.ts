@@ -4,6 +4,8 @@ import compression from "compression";
 import cors from "cors";
 import fs from "fs";
 import path from "path";
+import swaggerUi from "swagger-ui-express";
+import YAML from "js-yaml";
 import { WebSocketServer } from "ws";
 import { RoadNetwork } from "./modules/RoadNetwork";
 import { VehicleManager } from "./modules/VehicleManager";
@@ -82,12 +84,10 @@ function validateSearchQuery(body: unknown): body is { query: string } {
   );
 }
 
-app.get("/api-docs", (_req, res) => {
-  const specPath = path.join(__dirname, "..", "openapi.yaml");
-  if (!fs.existsSync(specPath)) {
-    res.status(404).json({ error: "OpenAPI spec not found" });
-    return;
-  }
+const specPath = path.join(__dirname, "..", "openapi.yaml");
+const spec = YAML.load(fs.readFileSync(specPath, "utf-8")) as object;
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(spec));
+app.get("/api-docs.yaml", (_req, res) => {
   res.type("text/yaml").send(fs.readFileSync(specPath, "utf-8"));
 });
 
