@@ -153,6 +153,12 @@ export class WebSocketClient {
     };
   }
 
+  send(message: object): void {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(message));
+    }
+  }
+
   on<T = unknown>(type: string, handler: HandlerFn<T>) {
     this.handlers.set(type, handler);
   }
