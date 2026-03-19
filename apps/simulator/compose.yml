@@ -1,6 +1,8 @@
 services:
   simulator:
     build: .
+    volumes:
+      - ./data/network.geojson:/app/data/network.geojson:ro
     environment:
       - UPDATE_INTERVAL=300
       - ADAPTER_URL=http://adapter:5011
