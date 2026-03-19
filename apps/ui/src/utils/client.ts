@@ -35,6 +35,7 @@ import type {
   GeoFenceEvent,
   CreateGeoFenceRequest,
   UpdateGeoFenceRequest,
+  SubscribeFilter,
 } from "@moveet/shared-types";
 
 class SimulationService {
@@ -118,6 +119,7 @@ class SimulationService {
     this.toggleGeofence = this.toggleGeofence.bind(this);
     this.onGeofenceEvent = this.onGeofenceEvent.bind(this);
     this.offGeofenceEvent = this.offGeofenceEvent.bind(this);
+    this.subscribe = this.subscribe.bind(this);
   }
 
   connectWebSocket(): void {
@@ -445,6 +447,10 @@ class SimulationService {
 
   offGeofenceEvent(): void {
     this.ws.off("geofence-event");
+  }
+
+  subscribe(filter: SubscribeFilter | null): void {
+    this.ws.send({ type: "subscribe", filter });
   }
 }
 

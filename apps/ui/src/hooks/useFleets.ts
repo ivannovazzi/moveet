@@ -72,6 +72,17 @@ export function useFleets(): UseFleets {
     });
   }, []);
 
+  useEffect(() => {
+    if (hiddenFleetIds.size === 0) {
+      client.subscribe(null);
+    } else {
+      const visibleFleetIds = fleets
+        .map((f) => f.id)
+        .filter((id) => !hiddenFleetIds.has(id));
+      client.subscribe({ fleetIds: visibleFleetIds });
+    }
+  }, [hiddenFleetIds, fleets]);
+
   return {
     fleets,
     createFleet,
