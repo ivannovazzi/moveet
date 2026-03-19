@@ -136,7 +136,7 @@ describe("Plugin flow integration tests", () => {
       const vehicles = await manager.getVehicles();
       expect(vehicles).toHaveLength(5);
       expect(vehicles[0]).toHaveProperty("id");
-      expect(vehicles[0]).toHaveProperty("position");
+      expect(vehicles[0]).toHaveProperty("name");
 
       // Convert to updates and publish
       const updates: VehicleUpdate[] = vehicles.map((v) => ({
