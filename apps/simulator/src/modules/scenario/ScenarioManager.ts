@@ -44,6 +44,7 @@ export class ScenarioManager extends EventEmitter {
   loadScenario(scenario: Scenario): void {
     // Re-validate to be safe (scenario may have been constructed in code)
     const parsed = scenarioSchema.parse(scenario);
+    parsed.events.sort((a, b) => a.at - b.at);
     this.scenario = parsed;
     this.resetState();
   }
@@ -54,6 +55,7 @@ export class ScenarioManager extends EventEmitter {
    */
   loadScenarioFromJSON(json: unknown): Scenario {
     const parsed = scenarioSchema.parse(json);
+    parsed.events.sort((a, b) => a.at - b.at);
     this.scenario = parsed;
     this.resetState();
     return parsed;
@@ -244,8 +246,8 @@ export class ScenarioManager extends EventEmitter {
     const executed = this.eventsExecuted;
     const elapsedMs = this.elapsed();
 
-    this.state = "idle";
     this.clearTimers();
+    this.state = "idle";
 
     this.emit("scenario:completed", {
       name,
@@ -268,7 +270,7 @@ export class ScenarioManager extends EventEmitter {
         this.handleSpawnVehicles(action);
         break;
       case "create_incident":
-        this.handleCreateIncident(action as CreateIncidentAction);
+        this.handleCreateIncident(action);
         break;
       case "dispatch":
         void this.handleDispatch(action);

@@ -5,7 +5,7 @@ import {
   scenarioActionSchema,
   scenarioVariablesSchema,
   spawnVehiclesActionSchema,
-  createIncidentActionSchema,
+  createIncidentBaseSchema,
   dispatchActionSchema,
   setTrafficProfileActionSchema,
   clearIncidentsActionSchema,
@@ -237,9 +237,9 @@ describe("spawnVehiclesActionSchema", () => {
 
 // ─── Action: create_incident ────────────────────────────────────────
 
-describe("createIncidentActionSchema", () => {
+describe("createIncidentBaseSchema", () => {
   it("accepts incident with edgeIds", () => {
-    const result = createIncidentActionSchema.safeParse({
+    const result = createIncidentBaseSchema.safeParse({
       type: "create_incident",
       edgeIds: ["e1", "e2"],
       incidentType: "accident",
@@ -249,7 +249,7 @@ describe("createIncidentActionSchema", () => {
   });
 
   it("accepts incident with position", () => {
-    const result = createIncidentActionSchema.safeParse({
+    const result = createIncidentBaseSchema.safeParse({
       type: "create_incident",
       position: { lat: -1.286, lng: 36.817 },
       incidentType: "closure",
@@ -261,7 +261,7 @@ describe("createIncidentActionSchema", () => {
 
   it("accepts all three incident types", () => {
     for (const incidentType of ["accident", "closure", "construction"] as const) {
-      const result = createIncidentActionSchema.safeParse({
+      const result = createIncidentBaseSchema.safeParse({
         type: "create_incident",
         edgeIds: ["e1"],
         incidentType,
@@ -272,7 +272,7 @@ describe("createIncidentActionSchema", () => {
   });
 
   it("rejects invalid incident type", () => {
-    const result = createIncidentActionSchema.safeParse({
+    const result = createIncidentBaseSchema.safeParse({
       type: "create_incident",
       edgeIds: ["e1"],
       incidentType: "fire",
@@ -282,7 +282,7 @@ describe("createIncidentActionSchema", () => {
   });
 
   it("rejects zero duration", () => {
-    const result = createIncidentActionSchema.safeParse({
+    const result = createIncidentBaseSchema.safeParse({
       type: "create_incident",
       edgeIds: ["e1"],
       incidentType: "accident",
@@ -292,7 +292,7 @@ describe("createIncidentActionSchema", () => {
   });
 
   it("rejects negative duration", () => {
-    const result = createIncidentActionSchema.safeParse({
+    const result = createIncidentBaseSchema.safeParse({
       type: "create_incident",
       edgeIds: ["e1"],
       incidentType: "accident",
@@ -302,7 +302,7 @@ describe("createIncidentActionSchema", () => {
   });
 
   it("rejects severity above 1", () => {
-    const result = createIncidentActionSchema.safeParse({
+    const result = createIncidentBaseSchema.safeParse({
       type: "create_incident",
       edgeIds: ["e1"],
       incidentType: "accident",
@@ -313,7 +313,7 @@ describe("createIncidentActionSchema", () => {
   });
 
   it("rejects severity below 0", () => {
-    const result = createIncidentActionSchema.safeParse({
+    const result = createIncidentBaseSchema.safeParse({
       type: "create_incident",
       edgeIds: ["e1"],
       incidentType: "accident",
@@ -324,7 +324,7 @@ describe("createIncidentActionSchema", () => {
   });
 
   it("rejects missing incidentType", () => {
-    const result = createIncidentActionSchema.safeParse({
+    const result = createIncidentBaseSchema.safeParse({
       type: "create_incident",
       edgeIds: ["e1"],
       duration: 30,
@@ -333,7 +333,7 @@ describe("createIncidentActionSchema", () => {
   });
 
   it("rejects missing duration", () => {
-    const result = createIncidentActionSchema.safeParse({
+    const result = createIncidentBaseSchema.safeParse({
       type: "create_incident",
       edgeIds: ["e1"],
       incidentType: "accident",
@@ -342,21 +342,27 @@ describe("createIncidentActionSchema", () => {
   });
 
   it("accepts incident with both edgeIds and position", () => {
-    const result = createIncidentActionSchema.safeParse({
-      type: "create_incident",
-      edgeIds: ["e1"],
-      position: { lat: -1.286, lng: 36.817 },
-      incidentType: "accident",
-      duration: 60,
+    const result = scenarioEventSchema.safeParse({
+      at: 0,
+      action: {
+        type: "create_incident",
+        edgeIds: ["e1"],
+        position: { lat: -1.286, lng: 36.817 },
+        incidentType: "accident",
+        duration: 60,
+      },
     });
     expect(result.success).toBe(true);
   });
 
   it("rejects incident with neither edgeIds nor position", () => {
-    const result = createIncidentActionSchema.safeParse({
-      type: "create_incident",
-      incidentType: "accident",
-      duration: 60,
+    const result = scenarioEventSchema.safeParse({
+      at: 0,
+      action: {
+        type: "create_incident",
+        incidentType: "accident",
+        duration: 60,
+      },
     });
     expect(result.success).toBe(false);
   });

@@ -14,7 +14,7 @@ export const spawnVehiclesActionSchema = z.object({
   vehicleTypes: z.record(z.string(), z.number().int().nonnegative()).optional(),
 });
 
-const createIncidentBaseSchema = z.object({
+export const createIncidentBaseSchema = z.object({
   type: z.literal("create_incident"),
   edgeIds: z.array(z.string()).optional(),
   position: z
@@ -27,11 +27,6 @@ const createIncidentBaseSchema = z.object({
   duration: z.number().positive("duration must be a positive number"),
   severity: z.number().min(0).max(1).optional(),
 });
-
-export const createIncidentActionSchema = createIncidentBaseSchema.refine(
-  (data) => data.edgeIds !== undefined || data.position !== undefined,
-  { message: "At least one of 'edgeIds' or 'position' must be provided" }
-);
 
 export const dispatchActionSchema = z.object({
   type: z.literal("dispatch"),
@@ -105,7 +100,7 @@ export const scenarioSchema = scenarioMetadataSchema.extend({
 // ─── Inferred TypeScript types ──────────────────────────────────────
 
 export type SpawnVehiclesAction = z.infer<typeof spawnVehiclesActionSchema>;
-export type CreateIncidentAction = z.infer<typeof createIncidentActionSchema>;
+export type CreateIncidentAction = z.infer<typeof createIncidentBaseSchema>;
 export type DispatchAction = z.infer<typeof dispatchActionSchema>;
 export type SetTrafficProfileAction = z.infer<typeof setTrafficProfileActionSchema>;
 export type ClearIncidentsAction = z.infer<typeof clearIncidentsActionSchema>;
