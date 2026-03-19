@@ -36,7 +36,21 @@
     "@commitlint/config-conventional": "^20.5.0",
     "@vitest/coverage-v8": "^4.1.0",
     "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "turbo": "^2.8.17"
+  },
+  "lint-staged": {
+    "apps/ui/**/*.{ts,tsx,js,jsx}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "apps/{simulator,adapter}/**/*.{ts,js}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "*.{json,md,css,scss}": [
+      "prettier --write"
+    ]
   },
   "packageManager": "npm@11.11.1"
 }
