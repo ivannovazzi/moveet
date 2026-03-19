@@ -13,6 +13,7 @@ export interface DispatchFlow {
   results: DirectionResult[];
   selectedForDispatch: string[];
   dispatchState: DispatchState;
+  error: string | null;
 
   // Actions
   toggleDispatchMode: () => void;
@@ -31,6 +32,7 @@ export function useDispatchFlow(): DispatchFlow {
   const [dispatching, setDispatching] = useState(false);
   const [results, setResults] = useState<DirectionResult[]>([]);
   const [selectedForDispatch, setSelectedForDispatch] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   const dispatchState = useDispatchState({
     dispatchMode,
@@ -96,6 +98,7 @@ export function useDispatchFlow(): DispatchFlow {
     if (assignments.length === 0) return;
     setDispatching(true);
     setResults([]);
+    setError(null);
 
     const body = assignments.map((a) => {
       const dest = a.waypoints[a.waypoints.length - 1];
@@ -121,8 +124,10 @@ export function useDispatchFlow(): DispatchFlow {
       if (response.data?.results) {
         setResults(response.data.results);
       }
-    } catch (error) {
-      console.error("Dispatch failed:", error);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Dispatch failed";
+      setError(message);
+      console.error("Dispatch failed:", err);
     } finally {
       setDispatching(false);
     }
@@ -156,6 +161,7 @@ export function useDispatchFlow(): DispatchFlow {
     results,
     selectedForDispatch,
     dispatchState,
+    error,
     toggleDispatchMode,
     handleDispatch,
     handleDone,

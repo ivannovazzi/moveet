@@ -29,8 +29,8 @@
   gap: var(--space-1);
 }
 
-.dockBtn {
-  border-color: transparent !important;
+.dock .dockBtn {
+  border-color: transparent;
 }
 
 .btnIcon {

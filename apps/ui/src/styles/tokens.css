@@ -138,6 +138,33 @@
   --transition-normal: 300ms;
   --transition-slow: 500ms;
 
+  /* Incident colors */
+  --color-incident-closure: #f44336;
+  --color-incident-accident: #ff9800;
+  --color-incident-construction: #ffeb3b;
+
+  /* Time-of-day */
+  --color-time-morning: #fb923c;
+  --color-time-evening: #f87171;
+  --color-time-night: #a5b4fc;
+
+  /* Geofence events */
+  --color-geofence-enter: #4ade80;
+  --color-geofence-exit: #f87171;
+  --color-geofence-info: #93c5fd;
+
+  /* Status */
+  --color-status-healthy: #6ed86e;
+  --color-status-warning: #ffb347;
+
+  /* Disabled */
+  --disabled-opacity: 0.4;
+
+  /* Scrollbar */
+  --scrollbar-width: 5px;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.1);
+  --scrollbar-track: transparent;
+
   /* Vehicle rendering */
   --color-vehicle-fill: #dcdcdc;
   --color-vehicle-stroke: #333;

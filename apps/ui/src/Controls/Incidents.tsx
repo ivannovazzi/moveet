@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { IncidentDTO, IncidentType } from "@/types";
 import { Switch, SquaredButton } from "@/components/Inputs";
 import { PanelBadge, PanelBody, PanelEmptyState, PanelHeader } from "./PanelPrimitives";
@@ -11,9 +11,9 @@ interface IncidentsProps {
 }
 
 const INCIDENT_COLORS: Record<IncidentType, string> = {
-  closure: "#f44336",
-  accident: "#ff9800",
-  construction: "#ffeb3b",
+  closure: "#f44336", // matches --color-incident-closure
+  accident: "#ff9800", // matches --color-incident-accident
+  construction: "#ffeb3b", // matches --color-incident-construction
 };
 
 function formatTimeRemaining(expiresAt: number): string {
@@ -32,6 +32,8 @@ function formatTimeRemaining(expiresAt: number): string {
 export default function Incidents({ incidents, createRandom, remove }: IncidentsProps) {
   const [, setTick] = useState(0);
   const [autoGenerate, setAutoGenerate] = useState(false);
+  const createRandomRef = useRef(createRandom);
+  createRandomRef.current = createRandom;
 
   const toggleAutoGenerate = useCallback((selected: boolean) => setAutoGenerate(selected), []);
 
@@ -45,15 +47,13 @@ export default function Incidents({ incidents, createRandom, remove }: Incidents
 
   useEffect(() => {
     if (!autoGenerate) return;
-    createRandom();
-    const interval = setInterval(
-      () => {
-        createRandom();
-      },
-      15000 + Math.random() * 15000
-    );
+    createRandomRef.current();
+    const ms = 15_000 + Math.random() * 15_000;
+    const interval = setInterval(() => {
+      createRandomRef.current();
+    }, ms);
     return () => clearInterval(interval);
-  }, [autoGenerate, createRandom]);
+  }, [autoGenerate]);
 
   return (
     <>

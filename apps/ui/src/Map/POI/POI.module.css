@@ -1,5 +1,5 @@
 .poi {
-  animation: fadeIn var(--transition-slow) ease-in-out forwards;
+  animation: fadeIn var(--transition-normal) ease-in-out forwards;
   opacity: 0;
   height: 22px;
   width: 22px;
@@ -23,7 +23,7 @@
   margin-top: -7px;
   margin-left: -7px;
   border-radius: 5px;
-  animation: fadeIn var(--transition-slow) ease-in-out forwards;
+  animation: fadeIn var(--transition-normal) ease-in-out forwards;
   opacity: 0;
   cursor: pointer;
   display: flex;

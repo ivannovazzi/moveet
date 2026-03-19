@@ -53,7 +53,10 @@ import ErrorBoundary, { SectionErrorFallback } from "./components/ErrorBoundary"
 import { toLatLng } from "./utils/coordinates";
 import { analyticsStore } from "./hooks/analyticsStore";
 import { useAnalytics } from "./hooks/useAnalytics";
+import { useNetwork } from "./hooks/useNetwork";
+import { useRoads } from "./hooks/useRoads";
 import AnalyticsPanel from "./Controls/AnalyticsPanel";
+import LoadingOverlay from "./components/LoadingOverlay";
 
 export default function App() {
   const [onContextClick, ref, xy, closeContextMenu] = useContextMenu();
@@ -106,6 +109,8 @@ export default function App() {
 
   useSubscribeFilter(fleets, hiddenFleetIds, hiddenVehicleTypes);
 
+  const { network, loading: networkLoading } = useNetwork();
+  const { loading: roadsLoading } = useRoads();
   const incidents = useIncidents();
   const recording = useRecording();
   const replay = useReplay();
@@ -398,6 +403,7 @@ export default function App() {
                     onDone={dispatch.handleDone}
                     onRetryFailed={dispatch.handleRetryFailed}
                     dispatching={dispatch.dispatching}
+                    error={dispatch.error}
                   />
                 </>
               )}
@@ -470,7 +476,9 @@ export default function App() {
         <ErrorBoundary fallback={<SectionErrorFallback section="Map" />}>
           <div className={styles.map}>
             <ConnectionStatus connectionInfo={connectionInfo} />
+            <LoadingOverlay visible={networkLoading || roadsLoading} />
             <MapView
+              network={network}
               vehicles={vehicles}
               filters={filters}
               modifiers={modifiers}

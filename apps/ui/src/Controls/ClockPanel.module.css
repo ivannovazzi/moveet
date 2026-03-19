@@ -12,7 +12,7 @@
 
 /* ── Eyebrow labels ─────────────────────────────────── */
 .eyebrow_morning_rush {
-  color: #fb923c;
+  color: var(--color-time-morning);
   font-size: var(--text-xs);
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -28,7 +28,7 @@
 }
 
 .eyebrow_evening_rush {
-  color: #f87171;
+  color: var(--color-time-evening);
   font-size: var(--text-xs);
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -36,7 +36,7 @@
 }
 
 .eyebrow_night {
-  color: #a5b4fc;
+  color: var(--color-time-night);
   font-size: var(--text-xs);
   font-weight: 700;
   letter-spacing: 0.08em;

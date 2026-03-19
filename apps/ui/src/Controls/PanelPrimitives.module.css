@@ -110,13 +110,13 @@
 .panelBadge[data-tone="healthy"] {
   background: var(--color-success-bg);
   border-color: rgba(76, 204, 76, 0.22);
-  color: #6ed86e;
+  color: var(--color-status-healthy);
 }
 
 .panelBadge[data-tone="warning"] {
   background: rgba(255, 179, 71, 0.1);
   border-color: rgba(255, 179, 71, 0.18);
-  color: #ffb347;
+  color: var(--color-status-warning);
 }
 
 .emptyState {
