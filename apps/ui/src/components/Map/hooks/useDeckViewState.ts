@@ -3,7 +3,9 @@ import { WebMercatorViewport } from "@deck.gl/core";
 import type { MapViewState } from "@deck.gl/core";
 import { geoBounds } from "d3";
 import type { RoadNetwork, Position } from "@/types";
-import type { PanToOptions } from "../providers/types";
+import type { PanToOptions, DeckViewStateControls } from "../providers/types";
+
+export type { DeckViewStateControls };
 
 const DEFAULT_VIEW_STATE: MapViewState = {
   longitude: 36.82,
@@ -19,15 +21,6 @@ interface UseDeckViewStateOptions {
   data: RoadNetwork | null;
   width: number;
   height: number;
-}
-
-export interface DeckViewStateControls {
-  zoomIn: () => void;
-  zoomOut: () => void;
-  panTo: (lng: number, lat: number, options: PanToOptions) => void;
-  setZoom: (zoom: number) => void;
-  setBounds: (bounds: [Position, Position]) => void;
-  focusOn: (lng: number, lat: number, zoom: number, options: PanToOptions) => void;
 }
 
 export function useDeckViewState({ data, width, height }: UseDeckViewStateOptions) {

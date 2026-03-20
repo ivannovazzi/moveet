@@ -1,4 +1,4 @@
-import { createContext, useContext, useCallback, useRef, useState } from "react";
+import { createContext, useContext, useCallback, useRef, useState, useEffect } from "react";
 import type { Layer } from "@deck.gl/core";
 
 // ─── Context for child layer registration ──────────────────────────
@@ -57,8 +57,6 @@ export function useDeckLayerManager() {
 
 // ─── Hook for child components to register their layers ────────────
 
-import { useEffect } from "react";
-
 export function useRegisterLayers(id: string, layers: Layer[]) {
   const { registerLayers, unregisterLayers } = useDeckLayersContext();
 
@@ -67,6 +65,5 @@ export function useRegisterLayers(id: string, layers: Layer[]) {
     return () => unregisterLayers(id);
     // We intentionally depend on the layers array reference so re-registration
     // happens when the caller provides new layer instances.
-     
   }, [id, layers, registerLayers, unregisterLayers]);
 }
