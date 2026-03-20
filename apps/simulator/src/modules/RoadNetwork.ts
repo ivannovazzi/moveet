@@ -21,6 +21,7 @@ import EventEmitter from "events";
 type Street = [number, number][];
 interface Road {
   name: string;
+  nameEn: string;
   nodeIds: Set<string>;
   streets: Street[];
 }
@@ -223,11 +224,22 @@ export class RoadNetwork extends EventEmitter {
     return { ...this.bbox };
   }
 
-  public getAllRoads(): Road[] {
-    return Array.from(this.roads.values());
+  public getAllRoads() {
+    const seen = new Set<Road>();
+    const roads: Road[] = [];
+    for (const road of this.roads.values()) {
+      if (!seen.has(road)) {
+        seen.add(road);
+        roads.push(road);
+      }
+    }
+    return roads;
   }
 
   private getPoiType(feature: Feature): string | null {
+    if (feature.properties?.amenity) {
+      return feature.properties.amenity;
+    }
     if (feature.properties?.shop) {
       return "shop";
     }
@@ -267,6 +279,53 @@ export class RoadNetwork extends EventEmitter {
     return poi.filter((p) => p.type !== "Unknown");
   }
 
+  public getSpeedLimits(): Array<{
+    id: string;
+    speed: number;
+    coordinates: [number, number]; // [lat, lon]
+    highway: string;
+  }> {
+    const signs: Array<{
+      id: string;
+      speed: number;
+      coordinates: [number, number];
+      highway: string;
+    }> = [];
+
+    // Deduplicate: one sign per unique (speed, roadName) combination within a sector
+    const seen = new Set<string>();
+
+    for (const feature of this.data.features) {
+      if (feature.geometry?.type !== "LineString") continue;
+      const props = feature.properties;
+      if (!props?.maxspeed) continue;
+
+      const speed = parseInt(props.maxspeed, 10);
+      if (isNaN(speed) || speed <= 0) continue;
+
+      const highway = props.highway || "residential";
+      const coords = (feature.geometry as import("geojson").LineString).coordinates;
+
+      // Place sign at the midpoint of the road segment
+      const midIdx = Math.floor(coords.length / 2);
+      const [lon, lat] = coords[midIdx];
+
+      // Dedup key: round to ~100m grid to avoid sign spam
+      const gridKey = `${speed}:${(lat * 100) | 0},${(lon * 100) | 0}`;
+      if (seen.has(gridKey)) continue;
+      seen.add(gridKey);
+
+      signs.push({
+        id: `sl-${feature.properties?.["@id"] || feature.properties?.id || signs.length}`,
+        speed,
+        coordinates: [lat, lon],
+        highway,
+      });
+    }
+
+    return signs;
+  }
+
   public getPOINodes(): Node[] {
     if (this.poiNodes) return this.poiNodes;
     const pois = this.getAllPOIs();
@@ -282,6 +341,7 @@ export class RoadNetwork extends EventEmitter {
         // Stamp the resolved streetId back onto the feature for the /network API
         feature.properties!.streetId = streetId;
         const streetName = feature.properties?.name || "";
+        const streetNameEn = feature.properties?.["name:en"] || "";
         const coords = (feature.geometry as LineString).coordinates;
 
         // Read road metadata from GeoJSON properties
@@ -329,9 +389,14 @@ export class RoadNetwork extends EventEmitter {
         if (!this.roads.has(streetName)) {
           this.roads.set(streetName, {
             name: streetName,
+            nameEn: streetNameEn,
             nodeIds: new Set<string>(),
             streets: [],
           });
+        }
+        // Also index by English name for multilingual search
+        if (streetNameEn && streetNameEn !== streetName && !this.roads.has(streetNameEn)) {
+          this.roads.set(streetNameEn, this.roads.get(streetName)!);
         }
         const road = this.roads.get(streetName)!;
 
@@ -837,20 +902,32 @@ export class RoadNetwork extends EventEmitter {
 
   public searchByName(query: string): Array<{
     name: string;
+    nameEn: string;
     nodeIds: string[];
     coordinates: [number, number][];
   }> {
     const lowerQuery = query.toLowerCase();
+    const seen = new Set<string>();
     const results: Array<{
       name: string;
+      nameEn: string;
       nodeIds: string[];
       coordinates: [number, number][];
     }> = [];
 
-    for (const [name, road] of this.roads) {
-      if (name.toLowerCase().includes(lowerQuery)) {
+    for (const [, road] of this.roads) {
+      // Deduplicate — same Road object may be indexed under both name and name:en
+      const roadKey = road.name || road.nameEn;
+      if (seen.has(roadKey)) continue;
+
+      if (
+        road.name.toLowerCase().includes(lowerQuery) ||
+        road.nameEn.toLowerCase().includes(lowerQuery)
+      ) {
+        seen.add(roadKey);
         results.push({
           name: road.name,
+          nameEn: road.nameEn,
           nodeIds: Array.from(road.nodeIds),
           coordinates: road.streets.flat(),
         });

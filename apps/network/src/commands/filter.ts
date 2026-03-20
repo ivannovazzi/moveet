@@ -8,6 +8,8 @@ export const DEFAULT_ROAD_CLASSES = [
   "secondary", "secondary_link",
   "tertiary", "tertiary_link",
   "unclassified",
+  "residential",
+  "living_street",
 ] as const;
 
 export type RoadClass = (typeof DEFAULT_ROAD_CLASSES)[number];
@@ -25,8 +27,20 @@ export function buildFilterArgs(opts: FilterOptions): string[] {
   return [
     "tags-filter",
     path.basename(opts.input),
+    // Road ways
     ...highwayExprs,
     "w/junction=roundabout",
+    // POI nodes
+    "n/amenity",
+    "n/shop",
+    "n/leisure",
+    "n/craft",
+    "n/office",
+    // Traffic infrastructure nodes
+    "n/highway=traffic_signals",
+    "n/highway=bus_stop",
+    // Turn restriction relations
+    "r/type=restriction",
     "-o", path.basename(opts.output),
     "--overwrite",
   ];

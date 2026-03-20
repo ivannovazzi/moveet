@@ -20,7 +20,7 @@ export function buildExportArgs(opts: ExportCoreOptions): string[] {
   return [
     "export",
     path.basename(opts.input),
-    "--geometry-types=linestring",
+    "--geometry-types=linestring,point",
     "--output-format=geojson",
     "-o", path.basename(opts.output),
     "--overwrite",

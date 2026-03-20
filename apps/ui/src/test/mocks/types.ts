@@ -74,6 +74,7 @@ export function createModifiers(overrides: Partial<Modifiers> = {}): Modifiers {
     showHeatmap: false,
     showVehicles: true,
     showPOIs: false,
+    showSpeedLimits: false,
     ...overrides,
   };
 }

@@ -56,6 +56,23 @@
     {
       "type": "Feature",
       "properties": {
+        "id": "road-arabic",
+        "name": "شارع العروبه",
+        "name:en": "Al Orouba Street",
+        "highway": "trunk"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-73.5676, 45.5026],
+          [-73.5679, 45.5029],
+          [-73.5682, 45.5032]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
         "id": "poi-1",
         "name": "Coffee Shop",
         "shop": "coffee"
@@ -74,6 +91,18 @@
       "geometry": {
         "type": "Point",
         "coordinates": [-73.5667, 45.5023]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "poi-fuel",
+        "name": "Cairo Fuel Station",
+        "amenity": "fuel"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-73.5664, 45.5026]
       }
     }
   ]

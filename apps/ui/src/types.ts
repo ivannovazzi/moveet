@@ -43,6 +43,7 @@ export interface Modifiers {
   showPOIs: boolean;
   showTrafficOverlay: boolean;
   showBreadcrumbs: boolean;
+  showSpeedLimits: boolean;
 }
 
 interface VehicleUIFlags {
