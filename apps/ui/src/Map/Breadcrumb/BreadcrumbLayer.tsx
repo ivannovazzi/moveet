@@ -1,7 +1,8 @@
-import { useEffect, useRef, useCallback } from "react";
-import type { Fleet, Position } from "@/types";
-import { useMapContext } from "@/components/Map/hooks";
+import { useEffect, useRef, useState, useMemo } from "react";
+import { PathLayer } from "@deck.gl/layers";
+import type { Fleet } from "@/types";
 import { vehicleStore } from "@/hooks/vehicleStore";
+import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 
 const DEFAULT_TRAIL_COLOR = "#39f";
 
@@ -12,11 +13,29 @@ interface BreadcrumbLayerProps {
   hiddenFleetIds: Set<string>;
 }
 
+/** Trail data fed to deck.gl PathLayer. */
+interface TrailData {
+  vehicleId: string;
+  path: [number, number][]; // [lng, lat] pairs
+  color: [number, number, number, number]; // RGBA
+}
+
+/** Convert hex color string to RGBA tuple. */
+function hexToRgba(hex: string, alpha = 180): [number, number, number, number] {
+  const h = hex.replace("#", "");
+  const bigint =
+    h.length === 3 ? parseInt(h[0] + h[0] + h[1] + h[1] + h[2] + h[2], 16) : parseInt(h, 16);
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return [r, g, b, alpha];
+}
+
 /**
- * SVG-based layer that renders vehicle position trails as polyline segments
- * with an opacity gradient (newest = 1.0, oldest = 0.05).
+ * deck.gl PathLayer-based breadcrumb trail renderer.
  *
- * Reads directly from vehicleStore on every animation frame (fast path).
+ * Preserves the RAF loop that reads directly from vehicleStore,
+ * but delegates rendering to deck.gl instead of SVG DOM manipulation.
  */
 export default function BreadcrumbLayer({
   selectedId,
@@ -24,10 +43,9 @@ export default function BreadcrumbLayer({
   vehicleFleetMap,
   hiddenFleetIds,
 }: BreadcrumbLayerProps) {
-  const { projection, transform, map } = useMapContext();
-  const gRef = useRef<SVGGElement | null>(null);
+  const [trailData, setTrailData] = useState<TrailData[]>([]);
 
-  // Keep mutable refs for values that change frequently
+  // Refs for values that change frequently but shouldn't restart the RAF loop
   const selectedRef = useRef(selectedId);
   selectedRef.current = selectedId;
   const showAllRef = useRef(showAll);
@@ -36,68 +54,33 @@ export default function BreadcrumbLayer({
   fleetMapRef.current = vehicleFleetMap;
   const hiddenFleetsRef = useRef(hiddenFleetIds);
   hiddenFleetsRef.current = hiddenFleetIds;
-  const transformRef = useRef(transform);
-  transformRef.current = transform;
 
-  const projectPosition = useCallback(
-    (pos: Position): [number, number] | null => {
-      if (!projection) return null;
-      // Positions in store are [lat, lng]; projection expects [lng, lat]
-      const result = projection([pos[1], pos[0]]);
-      if (!result || !isFinite(result[0]) || !isFinite(result[1])) return null;
-      return result as [number, number];
-    },
-    [projection]
-  );
-
+  // RAF loop: reads from vehicleStore, updates React state for deck.gl
   useEffect(() => {
-    if (!projection || !map) return;
-
-    // Create the SVG <g> element inside the markers group (which receives the zoom transform)
-    const markersGroup = map.querySelector("g.markers");
-    if (!markersGroup) return;
-    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
-    g.setAttribute("data-layer", "breadcrumbs");
-    markersGroup.appendChild(g);
-    gRef.current = g;
-
     let rafId: number;
     let lastVersion = -1;
-    let lastTransformK = -1;
-    let lastTransformX = NaN;
-    let lastTransformY = NaN;
     let lastSelectedId: string | undefined;
 
     const render = () => {
       rafId = requestAnimationFrame(render);
 
       const currentVersion = vehicleStore.getVersion();
-      const t = transformRef.current;
-      const k = t?.k ?? 1;
-      const tx = t?.x ?? 0;
-      const ty = t?.y ?? 0;
       const currentSelectedId = selectedRef.current;
 
       const positionsChanged = currentVersion !== lastVersion;
-      const zoomChanged = k !== lastTransformK || tx !== lastTransformX || ty !== lastTransformY;
       const selectionChanged = currentSelectedId !== lastSelectedId;
 
-      if (!positionsChanged && !zoomChanged && !selectionChanged) return;
+      if (!positionsChanged && !selectionChanged) return;
 
       lastVersion = currentVersion;
-      lastTransformK = k;
-      lastTransformX = tx;
-      lastTransformY = ty;
       lastSelectedId = currentSelectedId;
 
       const fleetMap = fleetMapRef.current;
       const hiddenFleets = hiddenFleetsRef.current;
       const allTrails = vehicleStore.getAllTrails();
       const showAllNow = showAllRef.current;
-      const strokeWidth = 2 / k;
 
-      // Clear previous content
-      g.textContent = "";
+      const trails: TrailData[] = [];
 
       for (const [vehicleId, trail] of allTrails) {
         if (trail.length < 2) continue;
@@ -109,46 +92,47 @@ export default function BreadcrumbLayer({
         const fleet = fleetMap.get(vehicleId);
         if (fleet && hiddenFleets.has(fleet.id)) continue;
 
-        const color = fleet?.color ?? DEFAULT_TRAIL_COLOR;
+        const colorHex = fleet?.color ?? DEFAULT_TRAIL_COLOR;
+        // Use slight transparency (alpha=180) for the whole trail
+        const color = hexToRgba(colorHex, 180);
 
-        // Project all positions
-        const projected: [number, number][] = [];
+        // Convert trail positions from [lat, lng] to [lng, lat] for deck.gl
+        const path: [number, number][] = [];
         for (const pos of trail) {
-          const p = projectPosition(pos);
-          if (p) projected.push(p);
+          path.push([pos[1], pos[0]]);
         }
-        if (projected.length < 2) continue;
+        if (path.length < 2) continue;
 
-        // Render as individual line segments with graduated opacity
-        const segmentCount = projected.length - 1;
-        for (let i = 0; i < segmentCount; i++) {
-          // Opacity: oldest (i=0) → 0.05, newest (i=segmentCount-1) → 1.0
-          const t = segmentCount === 1 ? 1 : i / (segmentCount - 1);
-          const opacity = 0.05 + t * 0.95;
-
-          const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-          line.setAttribute("x1", String(projected[i][0]));
-          line.setAttribute("y1", String(projected[i][1]));
-          line.setAttribute("x2", String(projected[i + 1][0]));
-          line.setAttribute("y2", String(projected[i + 1][1]));
-          line.setAttribute("stroke", color);
-          line.setAttribute("stroke-opacity", String(opacity));
-          line.setAttribute("stroke-width", String(strokeWidth));
-          line.setAttribute("stroke-linecap", "round");
-          g.appendChild(line);
-        }
+        trails.push({ vehicleId, path, color });
       }
+
+      setTrailData(trails);
     };
 
     rafId = requestAnimationFrame(render);
+    return () => cancelAnimationFrame(rafId);
+  }, []);
 
-    return () => {
-      cancelAnimationFrame(rafId);
-      g.remove();
-      gRef.current = null;
-    };
-  }, [projection, map, projectPosition]);
+  // Build deck.gl PathLayer
+  const layers = useMemo(() => {
+    return [
+      new PathLayer<TrailData>({
+        id: "breadcrumbs",
+        data: trailData,
+        getPath: (d) => d.path,
+        getColor: (d) => d.color,
+        getWidth: 2,
+        widthUnits: "pixels",
+        widthMinPixels: 1,
+        pickable: false,
+        _pathType: "open",
+      }),
+    ];
+  }, [trailData]);
 
-  // This component renders nothing into React's tree — SVG is managed via DOM
+  // Register layers with the DeckGLMap parent
+  useRegisterLayers("breadcrumbs", layers);
+
+  // Render nothing — layers are registered via useRegisterLayers
   return null;
 }
