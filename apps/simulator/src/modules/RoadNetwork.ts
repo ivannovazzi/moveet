@@ -21,6 +21,7 @@ import EventEmitter from "events";
 type Street = [number, number][];
 interface Road {
   name: string;
+  nameEn: string;
   nodeIds: Set<string>;
   streets: Street[];
 }
@@ -223,11 +224,22 @@ export class RoadNetwork extends EventEmitter {
     return { ...this.bbox };
   }
 
-  public getAllRoads(): Road[] {
-    return Array.from(this.roads.values());
+  public getAllRoads() {
+    const seen = new Set<Road>();
+    const roads: Road[] = [];
+    for (const road of this.roads.values()) {
+      if (!seen.has(road)) {
+        seen.add(road);
+        roads.push(road);
+      }
+    }
+    return roads;
   }
 
   private getPoiType(feature: Feature): string | null {
+    if (feature.properties?.amenity) {
+      return feature.properties.amenity;
+    }
     if (feature.properties?.shop) {
       return "shop";
     }
@@ -282,6 +294,7 @@ export class RoadNetwork extends EventEmitter {
         // Stamp the resolved streetId back onto the feature for the /network API
         feature.properties!.streetId = streetId;
         const streetName = feature.properties?.name || "";
+        const streetNameEn = feature.properties?.["name:en"] || "";
         const coords = (feature.geometry as LineString).coordinates;
 
         // Read road metadata from GeoJSON properties
@@ -329,9 +342,14 @@ export class RoadNetwork extends EventEmitter {
         if (!this.roads.has(streetName)) {
           this.roads.set(streetName, {
             name: streetName,
+            nameEn: streetNameEn,
             nodeIds: new Set<string>(),
             streets: [],
           });
+        }
+        // Also index by English name for multilingual search
+        if (streetNameEn && streetNameEn !== streetName && !this.roads.has(streetNameEn)) {
+          this.roads.set(streetNameEn, this.roads.get(streetName)!);
         }
         const road = this.roads.get(streetName)!;
 
@@ -837,20 +855,32 @@ export class RoadNetwork extends EventEmitter {
 
   public searchByName(query: string): Array<{
     name: string;
+    nameEn: string;
     nodeIds: string[];
     coordinates: [number, number][];
   }> {
     const lowerQuery = query.toLowerCase();
+    const seen = new Set<string>();
     const results: Array<{
       name: string;
+      nameEn: string;
       nodeIds: string[];
       coordinates: [number, number][];
     }> = [];
 
-    for (const [name, road] of this.roads) {
-      if (name.toLowerCase().includes(lowerQuery)) {
+    for (const [, road] of this.roads) {
+      // Deduplicate — same Road object may be indexed under both name and name:en
+      const roadKey = road.name || road.nameEn;
+      if (seen.has(roadKey)) continue;
+
+      if (
+        road.name.toLowerCase().includes(lowerQuery) ||
+        road.nameEn.toLowerCase().includes(lowerQuery)
+      ) {
+        seen.add(roadKey);
         results.push({
           name: road.name,
+          nameEn: road.nameEn,
           nodeIds: Array.from(road.nodeIds),
           coordinates: road.streets.flat(),
         });

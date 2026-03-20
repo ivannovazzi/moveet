@@ -248,6 +248,26 @@ describe("RoadNetwork", () => {
       expect(results.length).toBeGreaterThanOrEqual(2); // First and Second Avenue
       expect(results.some((r) => r.name.includes("Avenue"))).toBe(true);
     });
+
+    it("should find roads by name:en (English name)", () => {
+      const results = network.searchByName("Orouba");
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0].name).toBe("شارع العروبه");
+      expect(results[0].nameEn).toBe("Al Orouba Street");
+    });
+
+    it("should find roads by either native name or English name", () => {
+      const arabicResults = network.searchByName("العروبه");
+      const englishResults = network.searchByName("Orouba");
+      expect(arabicResults.length).toBeGreaterThan(0);
+      expect(englishResults.length).toBeGreaterThan(0);
+    });
+
+    it("should not return duplicate results for bilingual roads", () => {
+      const results = network.searchByName("Orouba");
+      const oroubas = results.filter((r) => r.name === "شارع العروبه");
+      expect(oroubas).toHaveLength(1);
+    });
   });
 
   describe("getAllPOIs", () => {
@@ -274,6 +294,13 @@ describe("RoadNetwork", () => {
         expect(typeof poi.coordinates[0]).toBe("number");
         expect(typeof poi.coordinates[1]).toBe("number");
       });
+    });
+
+    it("should detect amenity-tagged POIs", () => {
+      const pois = network.getAllPOIs();
+      const fuelPoi = pois.find((p) => p.name === "Cairo Fuel Station");
+      expect(fuelPoi).toBeDefined();
+      expect(fuelPoi?.type).toBe("fuel");
     });
   });
 
