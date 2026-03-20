@@ -82,6 +82,24 @@ export class FleetManager extends EventEmitter {
     return this.vehicleFleetMap.get(vehicleId);
   }
 
+  /**
+   * Replaces all fleet state from a previously-saved snapshot.
+   * Used by PersistenceManager during restore.
+   */
+  restoreFleets(fleets: Fleet[]): void {
+    this.fleets.clear();
+    this.vehicleFleetMap.clear();
+    this.colorIndex = 0;
+
+    for (const fleet of fleets) {
+      this.fleets.set(fleet.id, { ...fleet });
+      this.colorIndex++;
+      for (const vid of fleet.vehicleIds) {
+        this.vehicleFleetMap.set(vid, fleet.id);
+      }
+    }
+  }
+
   reset(): void {
     this.fleets.clear();
     this.vehicleFleetMap.clear();

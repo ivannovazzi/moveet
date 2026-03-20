@@ -40,6 +40,8 @@ tags:
     description: Geofence zone CRUD and toggle
   - name: Scenarios
     description: Scenario management — load, start, pause, stop, status
+  - name: State
+    description: Simulation state persistence — save, restore, snapshots
 
 paths:
   # ─── Simulation ──────────────────────────────────────────────────────
@@ -675,6 +677,86 @@ paths:
                 items:
                   $ref: "#/components/schemas/RecordingFile"
 
+  /recordings/{id}:
+    get:
+      operationId: getRecording
+      summary: Get a single recording by ID
+      tags: [Recording]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Recording metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecordingIndexEntry"
+        "400":
+          description: Invalid recording ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Recording not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "501":
+          description: Persistence not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: deleteRecording
+      summary: Delete a recording file and its metadata
+      tags: [Recording]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Recording deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deleted, id, filePath]
+                properties:
+                  deleted:
+                    type: boolean
+                  id:
+                    type: integer
+                  filePath:
+                    type: string
+        "400":
+          description: Invalid recording ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Recording not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "501":
+          description: Persistence not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   # ─── Replay ─────────────────────────────────────────────────────────
   /replay/start:
     post:
@@ -1130,6 +1212,84 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  # ─── State Persistence ──────────────────────────────────────────────
+  /state/save:
+    post:
+      operationId: saveState
+      summary: Manually save a simulation state snapshot
+      tags: [State]
+      responses:
+        "201":
+          description: Snapshot saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  id:
+                    type: integer
+                  created_at:
+                    type: string
+                    format: date-time
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /state/restore:
+    post:
+      operationId: restoreState
+      summary: Restore simulation state from latest snapshot
+      tags: [State]
+      responses:
+        "200":
+          description: State restored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+        "404":
+          description: No snapshot found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /state/snapshots:
+    get:
+      operationId: listSnapshots
+      summary: List recent state snapshots
+      tags: [State]
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        "200":
+          description: List of snapshot metadata
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                    created_at:
+                      type: string
+                      format: date-time
+
   # ─── Analytics ───────────────────────────────────────────────────────
   /analytics/summary:
     get:
@@ -1162,6 +1322,60 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/FleetAnalytics"
+
+  /analytics/history:
+    get:
+      operationId: getAnalyticsHistory
+      summary: Get time-series analytics history
+      description: >
+        Returns historical analytics snapshots stored in SQLite.
+        Only available when persistence is enabled (PERSISTENCE_ENABLED=true).
+      tags: [Analytics]
+      parameters:
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: ISO 8601 start date for range filter
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: ISO 8601 end date for range filter
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10000
+            default: 1000
+          description: Maximum number of entries to return
+      responses:
+        "200":
+          description: Array of analytics history entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AnalyticsHistoryEntry"
+        "400":
+          description: Invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Persistence is not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /analytics/reset:
     post:
@@ -2222,6 +2436,45 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/VehicleStats"
+
+    AnalyticsHistoryEntry:
+      type: object
+      required: [id, timestamp, summary, fleets]
+      properties:
+        id:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+        summary:
+          $ref: "#/components/schemas/AnalyticsSummary"
+        fleets:
+          type: array
+          items:
+            $ref: "#/components/schemas/FleetAnalytics"
+
+    RecordingIndexEntry:
+      type: object
+      required: [id, filePath, duration, eventCount, fileSize, vehicleCount, startTime, createdAt]
+      properties:
+        id:
+          type: integer
+        filePath:
+          type: string
+        duration:
+          type: number
+        eventCount:
+          type: integer
+        fileSize:
+          type: integer
+        vehicleCount:
+          type: integer
+        startTime:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
 
     # ─── Geofences ───────────────────────────────────────────────────
     GeoFenceType:

@@ -3,6 +3,7 @@ import type { WebSocketServer } from "ws";
 import type { RoadNetwork } from "../modules/RoadNetwork";
 import type { SimulationController } from "../modules/SimulationController";
 import type { WebSocketBroadcaster } from "../modules/WebSocketBroadcaster";
+import type { PersistenceManager } from "../modules/PersistenceManager";
 import { generalRateLimiter, expensiveRateLimiter } from "../middleware/rateLimiter";
 import logger from "../utils/logger";
 
@@ -14,6 +15,7 @@ export interface GracefulShutdownContext {
   network: RoadNetwork;
   trafficBroadcastInterval: NodeJS.Timeout;
   analyticsBroadcastInterval: NodeJS.Timeout;
+  persistenceManager?: PersistenceManager;
 }
 
 /**
@@ -28,6 +30,7 @@ export function registerGracefulShutdown(ctx: GracefulShutdownContext): void {
     network,
     trafficBroadcastInterval,
     analyticsBroadcastInterval,
+    persistenceManager,
   } = ctx;
 
   function gracefulShutdown(signal: string): void {
@@ -54,6 +57,11 @@ export function registerGracefulShutdown(ctx: GracefulShutdownContext): void {
 
     network.shutdownWorkers();
     logger.info("Pathfinding workers stopped");
+
+    if (persistenceManager) {
+      persistenceManager.shutdown();
+      logger.info("Persistence manager shut down");
+    }
 
     generalRateLimiter.cleanup();
     expensiveRateLimiter.cleanup();

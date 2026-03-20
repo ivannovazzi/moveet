@@ -49,6 +49,24 @@ export const envSchema = z
 
     /** URL of the adapter service (empty = disabled) */
     ADAPTER_URL: z.string().default(""),
+
+    /** Enable SQLite persistence layer */
+    PERSISTENCE_ENABLED: z
+      .enum(["true", "false", "1", "0", ""])
+      .default("false")
+      .transform((v) => v === "true" || v === "1"),
+
+    /** Auto-save interval in seconds (default: 30) */
+    PERSISTENCE_INTERVAL: z.coerce.number().int().min(1).default(30),
+
+    /** Restore simulation state from latest snapshot on startup */
+    RESTORE_STATE: z
+      .enum(["true", "false", "1", "0", ""])
+      .default("false")
+      .transform((v) => v === "true" || v === "1"),
+
+    /** Path to the SQLite state database */
+    STATE_DB_PATH: z.string().default("data/state.db"),
   })
   .refine((data) => data.MAX_SPEED > data.MIN_SPEED, {
     message: "MAX_SPEED must be greater than MIN_SPEED",
@@ -84,6 +102,10 @@ function buildConfig(env: EnvConfig) {
     vehicleCount: env.VEHICLE_COUNT,
     geojsonPath: env.GEOJSON_PATH,
     adapterURL: env.ADAPTER_URL,
+    persistenceEnabled: env.PERSISTENCE_ENABLED,
+    persistenceInterval: env.PERSISTENCE_INTERVAL,
+    restoreState: env.RESTORE_STATE,
+    stateDbPath: env.STATE_DB_PATH,
   } as const;
 }
 

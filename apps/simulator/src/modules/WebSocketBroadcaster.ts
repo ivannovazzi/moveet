@@ -1,6 +1,7 @@
 import type { WebSocketServer, WebSocket } from "ws";
 import type { VehicleDTO, SubscribeFilter } from "../types";
 import { WS_BROADCASTER } from "../constants";
+import { SpatialVehicleIndex } from "./SpatialVehicleIndex";
 
 /** @deprecated Import from constants.ts instead. Re-exported for backwards compatibility. */
 export const BACKPRESSURE_THRESHOLD = WS_BROADCASTER.BACKPRESSURE_THRESHOLD;
@@ -64,6 +65,7 @@ export class WebSocketBroadcaster {
   private flushTimer: NodeJS.Timeout | null = null;
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private readonly clientStates: WeakMap<WebSocket, ClientState> = new WeakMap();
+  private readonly spatialIndex = new SpatialVehicleIndex();
 
   constructor(wss: WebSocketServer, options: BroadcasterOptions = {}) {
     this.wss = wss;
@@ -84,7 +86,7 @@ export class WebSocketBroadcaster {
   }
 
   /**
-   * Stops the flush timer, heartbeat timer, and clears the buffer.
+   * Stops the flush timer, heartbeat timer, and clears the buffer and spatial index.
    */
   stop(): void {
     if (this.flushTimer) {
@@ -96,6 +98,7 @@ export class WebSocketBroadcaster {
       this.heartbeatTimer = null;
     }
     this.vehicleBuffer.clear();
+    this.spatialIndex.clear();
   }
 
   /**
@@ -119,6 +122,15 @@ export class WebSocketBroadcaster {
    */
   queueVehicleUpdate(vehicle: VehicleDTO): void {
     this.vehicleBuffer.set(vehicle.id, vehicle);
+    this.spatialIndex.update(vehicle.id, vehicle.position[0], vehicle.position[1]);
+  }
+
+  /**
+   * Removes a vehicle from the spatial index.
+   * Call this when a vehicle is despawned to keep the index clean.
+   */
+  removeVehicle(vehicleId: string): void {
+    this.spatialIndex.remove(vehicleId);
   }
 
   /**
@@ -247,13 +259,21 @@ export class WebSocketBroadcaster {
 
   /**
    * Flushes all queued vehicle updates to connected clients, applying
-   * backpressure checks and delta filtering per client.
+   * backpressure checks, spatial index pre-filtering, and delta filtering per client.
+   *
+   * For clients with a bbox filter, the spatial index is queried once per unique
+   * bbox (results are cached within a single flush cycle) to narrow the vehicle set
+   * before iterating.
    */
   private flush(): void {
     if (this.vehicleBuffer.size === 0) return;
 
     const vehicles = Array.from(this.vehicleBuffer.values());
     this.vehicleBuffer.clear();
+
+    // Cache bbox query results within this flush cycle so multiple clients
+    // sharing the same bbox don't re-query the spatial index.
+    const bboxCache = new Map<string, Set<string>>();
 
     for (const client of this.wss.clients) {
       if (client.readyState !== WebSocketReadyState.OPEN) continue;
@@ -271,10 +291,26 @@ export class WebSocketBroadcaster {
         continue;
       }
 
+      // Determine candidate vehicles using spatial index for bbox filters
+      let candidates: VehicleDTO[];
+      if (state.filter?.bbox) {
+        const bbox = state.filter.bbox;
+        const cacheKey = `${bbox.minLat},${bbox.maxLat},${bbox.minLng},${bbox.maxLng}`;
+        let inBboxIds = bboxCache.get(cacheKey);
+        if (!inBboxIds) {
+          inBboxIds = this.spatialIndex.queryBbox(bbox);
+          bboxCache.set(cacheKey, inBboxIds);
+        }
+        candidates = vehicles.filter((v) => inBboxIds!.has(v.id));
+      } else {
+        candidates = vehicles;
+      }
+
       // Delta filtering: only send vehicles whose position changed above threshold
-      const changed = vehicles.filter((v) => this.hasPositionChanged(v, state.lastSent));
+      const changed = candidates.filter((v) => this.hasPositionChanged(v, state.lastSent));
 
       // Subscribe filter: only send vehicles matching this client's filter criteria
+      // (fleet, vehicleType, and exact bbox point-in-bbox check for precision)
       const toSend = changed.filter((v) => this.passesFilter(v, state.filter));
 
       if (toSend.length === 0) continue;

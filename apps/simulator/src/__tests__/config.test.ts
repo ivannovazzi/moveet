@@ -170,8 +170,8 @@ describe(".env.example completeness", () => {
     const vars = new Set<string>();
     // Match process.env.VAR_NAME
     for (const m of source.matchAll(/process\.env\.(\w+)/g)) vars.add(m[1]);
-    // Match zod schema field names (e.g. PORT: z.coerce, GEOJSON_PATH: z.string)
-    for (const m of source.matchAll(/^\s+([A-Z][A-Z0-9_]+)\s*:\s*z\./gm)) vars.add(m[1]);
+    // Match zod schema field names (e.g. PORT: z.coerce, GEOJSON_PATH: z.string, or multiline z\n.enum)
+    for (const m of source.matchAll(/^\s+([A-Z][A-Z0-9_]+)\s*:\s*z[\s.]/gm)) vars.add(m[1]);
     vars.delete("NODE_ENV");
     return [...vars];
   }

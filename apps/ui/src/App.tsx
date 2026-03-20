@@ -31,7 +31,12 @@ import type {
   Road,
   SimulationStatus,
 } from "./types";
-import type { GeoFence, GeoFenceEvent, CreateGeoFenceRequest } from "@moveet/shared-types";
+import type {
+  BoundingBox,
+  GeoFence,
+  GeoFenceEvent,
+  CreateGeoFenceRequest,
+} from "@moveet/shared-types";
 import styles from "./App.module.css";
 import { useVehicles } from "./hooks/useVehicles";
 import { useFleets } from "./hooks/useFleets";
@@ -106,8 +111,11 @@ export default function App() {
     toggleFleetVisibility,
   } = useFleets();
   const { hiddenVehicleTypes, toggleVehicleType } = useVehicleTypeFilter();
+  const [viewportBbox, setViewportBbox] = useState<BoundingBox | null>(null);
 
-  useSubscribeFilter(fleets, hiddenFleetIds, hiddenVehicleTypes);
+  useSubscribeFilter(fleets, hiddenFleetIds, hiddenVehicleTypes, viewportBbox);
+
+  const onBboxChange = useCallback((bbox: BoundingBox | null) => setViewportBbox(bbox), []);
 
   const { network, loading: networkLoading } = useNetwork();
   const { loading: roadsLoading } = useRoads();
@@ -520,6 +528,7 @@ export default function App() {
               onDrawCancel={onDrawCancel}
               onDrawVertexCountChange={setDrawingVertexCount}
               drawConfirmId={drawConfirmId}
+              onBboxChange={onBboxChange}
             />
             <SearchBar
               selectedItem={selectedItem}

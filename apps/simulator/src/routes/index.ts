@@ -7,4 +7,5 @@ export { createReplayRoutes } from "./replay";
 export { createFleetRoutes } from "./fleets";
 export { createAnalyticsRoutes } from "./analytics";
 export { createScenarioRoutes } from "./scenarios";
+export { createStateRoutes } from "./state";
 export type { RouteContext } from "./types";

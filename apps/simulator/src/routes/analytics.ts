@@ -2,11 +2,11 @@ import { Router } from "express";
 import type { RouteContext } from "./types";
 
 /**
- * Routes for fleet analytics: summary, per-fleet breakdown, and reset.
+ * Routes for fleet analytics: summary, per-fleet breakdown, history, and reset.
  */
 export function createAnalyticsRoutes(ctx: RouteContext): Router {
   const router = Router();
-  const { vehicleManager } = ctx;
+  const { vehicleManager, stateStore } = ctx;
 
   /**
    * GET /analytics/summary
@@ -25,6 +25,31 @@ export function createAnalyticsRoutes(ctx: RouteContext): Router {
     const fleetId = req.params.id;
     const fleetStats = vehicleManager.analytics.getFleetStats(fleetId);
     res.json(fleetStats);
+  });
+
+  /**
+   * GET /analytics/history?from=ISO&to=ISO&limit=N
+   * Returns time-series analytics history from the SQLite store.
+   * Only available when persistence is enabled.
+   */
+  router.get("/analytics/history", (req, res) => {
+    if (!stateStore) {
+      res.status(503).json({ error: "Persistence is not enabled" });
+      return;
+    }
+
+    const from = req.query.from as string | undefined;
+    const to = req.query.to as string | undefined;
+    const limitParam = req.query.limit as string | undefined;
+    const limit = limitParam ? parseInt(limitParam, 10) : undefined;
+
+    if (limitParam !== undefined && (isNaN(limit!) || limit! < 1)) {
+      res.status(400).json({ error: "limit must be a positive integer" });
+      return;
+    }
+
+    const history = stateStore.getAnalyticsHistory(from, to, limit);
+    res.json(history);
   });
 
   /**
