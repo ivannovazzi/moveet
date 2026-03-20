@@ -6,12 +6,5 @@ interface HeatmapProps {
 }
 
 export default function Heatmap({ vehicles }: HeatmapProps) {
-  return (
-    <HeatLayer
-      data={vehicles.map((v) => v.position)}
-      bandwidth={10}
-      opacity={0.02}
-      thresholds={50}
-    />
-  );
+  return <HeatLayer data={vehicles.map((v) => v.position)} />;
 }
