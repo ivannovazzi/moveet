@@ -1,41 +1,43 @@
 import { useMemo } from "react";
+import { PolygonLayer, TextLayer } from "@deck.gl/layers";
 import type { GeoFence, GeoFenceType } from "@moveet/shared-types";
-import { useMapContext } from "@/components/Map/hooks";
+import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 
-// Default colors per type
-const TYPE_FILL: Record<GeoFenceType, string> = {
-  restricted: "rgba(239,68,68,0.25)",
-  delivery: "rgba(34,197,94,0.25)",
-  monitoring: "rgba(59,130,246,0.25)",
+type RGBA = [number, number, number, number];
+
+const TYPE_FILL: Record<GeoFenceType, RGBA> = {
+  restricted: [239, 68, 68, 64],
+  delivery: [34, 197, 94, 64],
+  monitoring: [59, 130, 246, 64],
 };
 
-const TYPE_STROKE: Record<GeoFenceType, string> = {
-  restricted: "rgb(239,68,68)",
-  delivery: "rgb(34,197,94)",
-  monitoring: "rgb(59,130,246)",
+const TYPE_STROKE: Record<GeoFenceType, RGBA> = {
+  restricted: [239, 68, 68, 255],
+  delivery: [34, 197, 94, 255],
+  monitoring: [59, 130, 246, 255],
 };
 
-function hexToRgba(hex: string, alpha: number): string {
+function hexToRgba(hex: string, alpha: number): RGBA {
   const clean = hex.replace("#", "");
   const r = parseInt(clean.slice(0, 2), 16);
   const g = parseInt(clean.slice(2, 4), 16);
   const b = parseInt(clean.slice(4, 6), 16);
-  return `rgba(${r},${g},${b},${alpha})`;
+  return [r, g, b, Math.round(alpha * 255)];
 }
 
-function getFill(fence: GeoFence): string {
+function getFillRgba(fence: GeoFence): RGBA {
   if (fence.color) return hexToRgba(fence.color, 0.25);
-  return TYPE_FILL[fence.type];
+  const base = TYPE_FILL[fence.type];
+  return fence.active ? base : [base[0], base[1], base[2], Math.round(base[3] * 0.4)];
 }
 
-function getStroke(fence: GeoFence): string {
-  if (fence.color) return fence.color;
-  return TYPE_STROKE[fence.type];
-}
-
-function polygonToPath(points: [number, number][]): string {
-  if (points.length === 0) return "";
-  return points.map(([x, y], i) => `${i === 0 ? "M" : "L"} ${x} ${y}`).join(" ") + " Z";
+function getStrokeRgba(fence: GeoFence): RGBA {
+  if (fence.color) {
+    const rgba = hexToRgba(fence.color, 1);
+    return fence.active ? rgba : [rgba[0], rgba[1], rgba[2], Math.round(rgba[3] * 0.4)];
+  }
+  const base = TYPE_STROKE[fence.type];
+  return fence.active ? base : [base[0], base[1], base[2], Math.round(base[3] * 0.4)];
 }
 
 function centroid(points: [number, number][]): [number, number] {
@@ -50,57 +52,40 @@ interface GeofenceLayerProps {
 }
 
 export default function GeofenceLayer({ fences, selectedFenceId }: GeofenceLayerProps) {
-  const { projection } = useMapContext();
+  const layers = useMemo(() => {
+    if (fences.length === 0) return [];
 
-  const projected = useMemo(() => {
-    if (!projection) return [];
-    return fences.map((fence) => {
-      const pts = fence.polygon
-        .map((coord) => projection(coord))
-        .filter((p): p is [number, number] => p !== null && isFinite(p[0]) && isFinite(p[1]));
-      return { fence, pts };
-    });
-  }, [fences, projection]);
+    return [
+      new PolygonLayer<GeoFence>({
+        id: "geofences",
+        data: fences,
+        getPolygon: (d: GeoFence) => d.polygon,
+        getFillColor: (d: GeoFence) => getFillRgba(d),
+        getLineColor: (d: GeoFence) => getStrokeRgba(d),
+        getLineWidth: (d: GeoFence) => (d.id === selectedFenceId ? 2 : 1),
+        lineWidthUnits: "pixels",
+        filled: true,
+        stroked: true,
+        pickable: false,
+      }),
+      new TextLayer<GeoFence>({
+        id: "geofence-labels",
+        data: fences,
+        getPosition: (d: GeoFence) => centroid(d.polygon),
+        getText: (d: GeoFence) => d.name,
+        getSize: 11,
+        getColor: (d: GeoFence) => getStrokeRgba(d),
+        getTextAnchor: "middle",
+        getAlignmentBaseline: "center",
+        pickable: false,
+        fontFamily: "system-ui",
+        outlineColor: [0, 0, 0, 153],
+        outlineWidth: 3,
+      }),
+    ];
+  }, [fences, selectedFenceId]);
 
-  if (!projection) return null;
+  useRegisterLayers("geofences", layers);
 
-  return (
-    <>
-      {projected.map(({ fence, pts }) => {
-        if (pts.length < 3) return null;
-        const isSelected = fence.id === selectedFenceId;
-        const fill = getFill(fence);
-        const stroke = getStroke(fence);
-        const strokeWidth = isSelected ? 2 : 1;
-        const d = polygonToPath(pts);
-        const [cx, cy] = centroid(pts);
-
-        return (
-          <g key={fence.id} data-fence-id={fence.id} opacity={fence.active ? 1 : 0.4}>
-            <path
-              d={d}
-              fill={fill}
-              stroke={stroke}
-              strokeWidth={strokeWidth}
-              strokeLinejoin="round"
-            />
-            <text
-              x={cx}
-              y={cy}
-              textAnchor="middle"
-              dominantBaseline="middle"
-              fontSize={11}
-              fill={stroke}
-              stroke="rgba(0,0,0,0.6)"
-              strokeWidth={3}
-              paintOrder="stroke"
-              pointerEvents="none"
-            >
-              {fence.name}
-            </text>
-          </g>
-        );
-      })}
-    </>
-  );
+  return null;
 }
