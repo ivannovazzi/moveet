@@ -360,6 +360,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /speed-limits:
+    get:
+      operationId: getSpeedLimits
+      summary: Get speed limit sign positions from the road network
+      tags: [Network]
+      responses:
+        "200":
+          description: Array of speed limit signs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SpeedLimitSign"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /find-node:
     post:
       operationId: findNode
@@ -2110,6 +2131,21 @@ components:
         type:
           type: string
           description: "POI category (shop, leisure, craft, office, etc.)"
+
+    SpeedLimitSign:
+      type: object
+      required: [id, speed, coordinates, highway]
+      properties:
+        id:
+          type: string
+        speed:
+          type: number
+          description: Speed limit in km/h
+        coordinates:
+          $ref: "#/components/schemas/LatLngPair"
+        highway:
+          type: string
+          description: Road type (e.g. primary, residential)
 
     SearchResult:
       type: object

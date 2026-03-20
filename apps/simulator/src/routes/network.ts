@@ -37,6 +37,15 @@ export function createNetworkRoutes(ctx: RouteContext): Router {
     }
   });
 
+  router.get("/speed-limits", (_req, res) => {
+    try {
+      res.json(network.getSpeedLimits());
+    } catch (error) {
+      logger.error(`Error in /speed-limits: ${error}`);
+      res.status(500).json({ error: "Failed to get speed limits" });
+    }
+  });
+
   router.post("/heatzones", (_req, res) => {
     try {
       network.generateHeatedZones({

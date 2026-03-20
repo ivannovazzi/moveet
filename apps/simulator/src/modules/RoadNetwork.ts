@@ -279,6 +279,54 @@ export class RoadNetwork extends EventEmitter {
     return poi.filter((p) => p.type !== "Unknown");
   }
 
+  public getSpeedLimits(): Array<{
+    id: string;
+    speed: number;
+    coordinates: [number, number]; // [lat, lon]
+    highway: string;
+  }> {
+    const signs: Array<{
+      id: string;
+      speed: number;
+      coordinates: [number, number];
+      highway: string;
+    }> = [];
+
+    // Deduplicate: one sign per unique (speed, roadName) combination within a sector
+    const seen = new Set<string>();
+
+    for (const feature of this.data.features) {
+      if (feature.geometry?.type !== "LineString") continue;
+      const props = feature.properties;
+      if (!props?.maxspeed) continue;
+
+      const speed = parseInt(props.maxspeed, 10);
+      if (isNaN(speed) || speed <= 0) continue;
+
+      const highway = props.highway || "residential";
+      const name = props.name || props["name:en"] || "";
+      const coords = (feature.geometry as import("geojson").LineString).coordinates;
+
+      // Place sign at the midpoint of the road segment
+      const midIdx = Math.floor(coords.length / 2);
+      const [lon, lat] = coords[midIdx];
+
+      // Dedup key: round to ~100m grid to avoid sign spam
+      const gridKey = `${speed}:${(lat * 100) | 0},${(lon * 100) | 0}`;
+      if (seen.has(gridKey)) continue;
+      seen.add(gridKey);
+
+      signs.push({
+        id: `sl-${feature.properties?.["@id"] || feature.properties?.id || signs.length}`,
+        speed,
+        coordinates: [lat, lon],
+        highway,
+      });
+    }
+
+    return signs;
+  }
+
   public getPOINodes(): Node[] {
     if (this.poiNodes) return this.poiNodes;
     const pois = this.getAllPOIs();

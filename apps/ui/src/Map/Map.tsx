@@ -31,6 +31,7 @@ const POIs = lazy(() => import("./POIs"));
 const TrafficZones = lazy(() => import("./TrafficZones"));
 const TrafficOverlay = lazy(() => import("./TrafficOverlay"));
 const BreadcrumbLayer = lazy(() => import("./Breadcrumb/BreadcrumbLayer"));
+const SpeedLimitSigns = lazy(() => import("./SpeedLimitSigns"));
 
 interface MapProps {
   network: RoadNetwork;
@@ -99,6 +100,11 @@ export default function Map({
             {modifiers.showPOIs && (
               <Suspense fallback={null}>
                 <POIs visible={modifiers.showPOIs} onClick={onPOIClick} />
+              </Suspense>
+            )}
+            {modifiers.showSpeedLimits && (
+              <Suspense fallback={null}>
+                <SpeedLimitSigns visible={modifiers.showSpeedLimits} />
               </Suspense>
             )}
             {selectedItem && isPOI(selectedItem) && <POIMarker poi={selectedItem} showLabel />}

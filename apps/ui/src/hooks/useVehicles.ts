@@ -137,6 +137,7 @@ export function useVehicles(): UseVehicle {
     showHeatmap: false,
     showVehicles: true,
     showPOIs: false,
+    showSpeedLimits: false,
     showTrafficOverlay: true,
     showBreadcrumbs: false,
   });

@@ -17,6 +17,7 @@ const toggles: { key: keyof Modifiers; label: string }[] = [
   { key: "showHeatmap", label: "Heatmap" },
   { key: "showHeatzones", label: "Zones" },
   { key: "showPOIs", label: "POIs" },
+  { key: "showSpeedLimits", label: "Speed Limits" },
   { key: "showBreadcrumbs", label: "Trails" },
 ];
 

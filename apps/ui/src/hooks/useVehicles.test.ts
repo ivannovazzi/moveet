@@ -39,6 +39,7 @@ describe("useVehicles", () => {
       showHeatmap: false,
       showVehicles: true,
       showPOIs: false,
+      showSpeedLimits: false,
       showTrafficOverlay: true,
       showBreadcrumbs: false,
     });
@@ -120,6 +121,7 @@ describe("useVehicles", () => {
       showHeatmap: true,
       showVehicles: true,
       showPOIs: true,
+      showSpeedLimits: false,
       showTrafficOverlay: true,
       showBreadcrumbs: false,
     });
