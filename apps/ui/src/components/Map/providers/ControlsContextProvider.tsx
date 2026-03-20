@@ -2,9 +2,11 @@ import { useCallback } from "react";
 import { select, easeLinear, zoomIdentity } from "d3";
 import type { ZoomBehavior, GeoProjection } from "d3";
 import { setMapControlsRef } from "./controls";
-import type { MapControlsContextValue, PanToOptions } from "./types";
+import type { MapControlsContextValue, PanToOptions, DeckViewStateControls } from "./types";
 import { MapControlsContext } from "./contexts";
 import type { Position } from "@/types";
+
+// ─── Legacy D3-based provider (used by RoadNetworkMap) ─────────────
 
 interface Props {
   svgRef: SVGSVGElement | null;
@@ -96,6 +98,21 @@ export function MapControlsProvider({ svgRef, zoomBehavior, projection, children
   };
 
   // Register controls in store
+  setMapControlsRef(value);
+
+  return <MapControlsContext.Provider value={value}>{children}</MapControlsContext.Provider>;
+}
+
+// ─── New deck.gl controls provider (used by DeckGLMap) ─────────────
+
+interface DeckControlsProps {
+  controls: DeckViewStateControls;
+  children: React.ReactNode;
+}
+
+export function DeckControlsProvider({ controls, children }: DeckControlsProps) {
+  const value: MapControlsContextValue = controls;
+
   setMapControlsRef(value);
 
   return <MapControlsContext.Provider value={value}>{children}</MapControlsContext.Provider>;

@@ -1,8 +1,11 @@
 import React, { useCallback, useMemo } from "react";
 import type { GeoProjection, ZoomTransform } from "d3";
+import type { WebMercatorViewport } from "@deck.gl/core";
 import type { Position } from "@/types";
-import { OverlayContext } from "./contexts";
+import { OverlayContext, DeckOverlayContext } from "./contexts";
 import { setHTMLTransformer } from "./htmlRenderer";
+
+// ─── Legacy D3-based overlay provider ──────────────────────────────
 
 interface Props {
   projection: GeoProjection | null;
@@ -32,4 +35,38 @@ export const OverlayProvider: React.FC<Props> = ({ projection, transform, getRef
   setHTMLTransformer(transformData);
 
   return <OverlayContext.Provider value={transformData}>{children}</OverlayContext.Provider>;
+};
+
+// ─── New deck.gl overlay provider ──────────────────────────────────
+
+interface DeckOverlayProps {
+  viewport: WebMercatorViewport | null;
+  getRef: () => HTMLElement | null;
+  children: React.ReactNode;
+}
+
+export const DeckOverlayProvider: React.FC<DeckOverlayProps> = ({ viewport, getRef, children }) => {
+  // Also update the legacy htmlTransformRef so existing imperative code keeps working
+  const htmlTransform = useCallback(
+    (position: Position): Position => {
+      if (!viewport) return position;
+      const [x, y] = viewport.project([position[0], position[1]]);
+      return [x, y];
+    },
+    [viewport]
+  );
+
+  const legacyData = useMemo(() => {
+    const mapHTMLElement = getRef();
+    return { mapHTMLElement, htmlTransform };
+  }, [getRef, htmlTransform]);
+
+  setHTMLTransformer(legacyData);
+
+  const value = useMemo(() => {
+    const mapHTMLElement = getRef();
+    return { viewport, mapHTMLElement };
+  }, [viewport, getRef]);
+
+  return <DeckOverlayContext.Provider value={value}>{children}</DeckOverlayContext.Provider>;
 };
