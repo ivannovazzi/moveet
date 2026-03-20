@@ -1,7 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { WebMercatorViewport } from "@deck.gl/core";
 import type { MapViewState } from "@deck.gl/core";
-import { geoBounds } from "d3";
 import type { RoadNetwork, Position } from "@/types";
 import type { PanToOptions, DeckViewStateControls } from "../providers/types";
 
@@ -31,7 +30,19 @@ export function useDeckViewState({ data, width, height }: UseDeckViewStateOption
   useEffect(() => {
     if (!data || !width || !height || initializedRef.current) return;
 
-    const [[west, south], [east, north]] = geoBounds(data);
+    // Compute GeoJSON bounding box manually (replaces d3.geoBounds)
+    let west = Infinity,
+      south = Infinity,
+      east = -Infinity,
+      north = -Infinity;
+    for (const feature of data.features) {
+      for (const [lng, lat] of feature.geometry.coordinates) {
+        if (lng < west) west = lng;
+        if (lng > east) east = lng;
+        if (lat < south) south = lat;
+        if (lat > north) north = lat;
+      }
+    }
     const vp = new WebMercatorViewport({ width, height });
     const fitted = vp.fitBounds(
       [
