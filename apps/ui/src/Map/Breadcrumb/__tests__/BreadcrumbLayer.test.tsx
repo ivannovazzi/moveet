@@ -1,14 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, cleanup } from "@testing-library/react";
+import { render, cleanup, act } from "@testing-library/react";
 import type { Fleet, Position } from "@/types";
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks
 // ---------------------------------------------------------------------------
-const { mockGetTrail, mockGetAllTrails, mockGetVersion } = vi.hoisted(() => ({
+const { mockGetTrail, mockGetAllTrails, mockGetVersion, registeredLayers } = vi.hoisted(() => ({
   mockGetTrail: vi.fn((_id: string) => [] as Position[]),
   mockGetAllTrails: vi.fn(() => new Map<string, Position[]>()),
   mockGetVersion: vi.fn(() => 1),
+  registeredLayers: new Map<string, unknown[]>(),
 }));
 
 // ---------------------------------------------------------------------------
@@ -24,23 +25,15 @@ vi.mock("@/hooks/vehicleStore", () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Mock map element — BreadcrumbLayer appends SVG to this
+// Mock useRegisterLayers to capture layers
 // ---------------------------------------------------------------------------
-let mockMapEl: SVGSVGElement;
-
-const mockProjection = vi.fn((pos: Position) => [pos[0] * 10, pos[1] * 10] as [number, number]);
-(mockProjection as unknown as { invert: unknown }).invert = vi.fn();
-
-vi.mock("@/components/Map/hooks", () => ({
-  useMapContext: () => ({
-    projection: mockProjection,
-    transform: { k: 1, x: 0, y: 0 },
-    map: mockMapEl,
-    getBoundingBox: () => [
-      [0, 0],
-      [0, 0],
-    ],
-    getZoom: () => 1,
+vi.mock("@/components/Map/hooks/useDeckLayers", () => ({
+  useRegisterLayers: (id: string, layers: unknown[]) => {
+    registeredLayers.set(id, layers);
+  },
+  useDeckLayersContext: () => ({
+    registerLayers: () => {},
+    unregisterLayers: () => {},
   }),
 }));
 
@@ -70,47 +63,55 @@ const defaultProps = {
   hiddenFleetIds: new Set<string>(),
 };
 
+/** Get the PathLayer data from registered breadcrumbs layers. */
+function getTrailData(): Array<{ vehicleId: string; path: [number, number][] }> {
+  const layers = registeredLayers.get("breadcrumbs") ?? [];
+  if (layers.length === 0) return [];
+  const layer = layers[0] as {
+    props: { data: Array<{ vehicleId: string; path: [number, number][] }> };
+  };
+  return layer.props.data ?? [];
+}
+
 // ---------------------------------------------------------------------------
-// Setup: mock RAF to execute synchronously
+// Setup: use fake timers so RAF callbacks can be flushed via act()
 // ---------------------------------------------------------------------------
-let rafCallbacks: FrameRequestCallback[] = [];
-let rafId = 0;
 
 function flushRAF() {
-  const cbs = [...rafCallbacks];
-  rafCallbacks = [];
-  for (const cb of cbs) cb(performance.now());
+  // Trigger the initial useEffect, then the RAF callback, then the re-render from setState
+  act(() => {
+    vi.advanceTimersByTime(0); // flush microtasks / effects
+  });
+  act(() => {
+    vi.advanceTimersByTime(16); // trigger RAF callback → setState
+  });
+  act(() => {
+    vi.advanceTimersByTime(16); // process re-render and subsequent RAF
+  });
 }
 
 beforeEach(() => {
+  vi.useFakeTimers();
+
   mockGetTrail.mockReset();
   mockGetTrail.mockReturnValue([]);
   mockGetAllTrails.mockReset();
   mockGetAllTrails.mockReturnValue(new Map());
   mockGetVersion.mockReturnValue(1);
-  mockProjection.mockClear();
-  mockProjection.mockImplementation(
-    (pos: Position) => [pos[0] * 10, pos[1] * 10] as [number, number]
-  );
+  registeredLayers.clear();
 
-  // Create a fresh SVG element for the map with a markers group inside
-  mockMapEl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  const markersGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
-  markersGroup.setAttribute("class", "markers");
-  mockMapEl.appendChild(markersGroup);
-
-  // Mock RAF to capture callbacks
-  rafCallbacks = [];
-  rafId = 0;
+  // Mock RAF with timer-based version so vi.advanceTimersByTime triggers it
   vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
-    rafCallbacks.push(cb);
-    return ++rafId;
+    return setTimeout(cb, 16) as unknown as number;
   });
-  vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
+  vi.spyOn(window, "cancelAnimationFrame").mockImplementation((id) => {
+    clearTimeout(id);
+  });
 });
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -119,15 +120,11 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 describe("BreadcrumbLayer", () => {
   it("renders nothing when no vehicle is selected and showAll is false", () => {
-    render(
-      <svg>
-        <BreadcrumbLayer {...defaultProps} />
-      </svg>
-    );
+    render(<BreadcrumbLayer {...defaultProps} />);
     flushRAF();
 
-    const lines = mockMapEl.querySelectorAll("line");
-    expect(lines).toHaveLength(0);
+    const data = getTrailData();
+    expect(data).toHaveLength(0);
   });
 
   it("renders trail segments for selected vehicle", () => {
@@ -143,16 +140,14 @@ describe("BreadcrumbLayer", () => {
     ]);
     mockGetAllTrails.mockReturnValue(trails);
 
-    render(
-      <svg>
-        <BreadcrumbLayer {...defaultProps} selectedId="v1" />
-      </svg>
-    );
+    render(<BreadcrumbLayer {...defaultProps} selectedId="v1" />);
     flushRAF();
 
-    // 3 positions → 2 line segments
-    const lines = mockMapEl.querySelectorAll("line");
-    expect(lines.length).toBe(2);
+    const data = getTrailData();
+    expect(data.length).toBe(1);
+    expect(data[0].vehicleId).toBe("v1");
+    // 3 positions → path with 3 points
+    expect(data[0].path.length).toBe(3);
   });
 
   it("renders trails for all vehicles when showAll is true", () => {
@@ -174,16 +169,11 @@ describe("BreadcrumbLayer", () => {
     ]);
     mockGetAllTrails.mockReturnValue(trails);
 
-    render(
-      <svg>
-        <BreadcrumbLayer {...defaultProps} showAll />
-      </svg>
-    );
+    render(<BreadcrumbLayer {...defaultProps} showAll />);
     flushRAF();
 
-    // v1: 1 segment, v2: 1 segment = 2 total
-    const lines = mockMapEl.querySelectorAll("line");
-    expect(lines.length).toBe(2);
+    const data = getTrailData();
+    expect(data.length).toBe(2);
   });
 
   it("does not render trail for vehicles in hidden fleets", () => {
@@ -202,28 +192,20 @@ describe("BreadcrumbLayer", () => {
     const fleetMap = makeFleetMap(["v1", { id: "fleet-1", color: "#ff0000" }]);
     const hiddenFleetIds = new Set(["fleet-1"]);
 
-    render(
-      <svg>
-        <BreadcrumbLayer showAll vehicleFleetMap={fleetMap} hiddenFleetIds={hiddenFleetIds} />
-      </svg>
-    );
+    render(<BreadcrumbLayer showAll vehicleFleetMap={fleetMap} hiddenFleetIds={hiddenFleetIds} />);
     flushRAF();
 
-    const lines = mockMapEl.querySelectorAll("line");
-    expect(lines).toHaveLength(0);
+    const data = getTrailData();
+    expect(data).toHaveLength(0);
   });
 
   it("renders nothing when trail is empty", () => {
     mockGetAllTrails.mockReturnValue(new Map([["v1", []]]));
 
-    render(
-      <svg>
-        <BreadcrumbLayer {...defaultProps} selectedId="v1" />
-      </svg>
-    );
+    render(<BreadcrumbLayer {...defaultProps} selectedId="v1" />);
     flushRAF();
 
-    const lines = mockMapEl.querySelectorAll("line");
-    expect(lines).toHaveLength(0);
+    const data = getTrailData();
+    expect(data).toHaveLength(0);
   });
 });

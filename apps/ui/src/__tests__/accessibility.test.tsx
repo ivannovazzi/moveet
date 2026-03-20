@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, act, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Fleet } from "@/types";
 import { vehicleStore } from "@/hooks/vehicleStore";
@@ -10,63 +10,20 @@ import { DispatchState } from "@/hooks/useDispatchState";
 import { createVehicle } from "@/test/mocks/types";
 
 // ---------------------------------------------------------------------------
-// Mock canvas context — jsdom does not implement CanvasRenderingContext2D
+// Mock useRegisterLayers for VehiclesLayer (deck.gl)
 // ---------------------------------------------------------------------------
-function createMockContext(): CanvasRenderingContext2D {
-  const handler: ProxyHandler<Record<string, unknown>> = {
-    get(_target, prop: string) {
-      if (prop === "canvas") return { width: 800, height: 600 };
-      if (
-        typeof prop === "string" &&
-        ![
-          "fillStyle",
-          "strokeStyle",
-          "lineWidth",
-          "shadowColor",
-          "shadowBlur",
-          "shadowOffsetX",
-          "shadowOffsetY",
-        ].includes(prop)
-      ) {
-        return (..._args: unknown[]) => {};
-      }
-      return undefined;
-    },
-    set() {
-      return true;
-    },
-  };
-  return new Proxy({}, handler) as unknown as CanvasRenderingContext2D;
-}
+const { registeredLayers } = vi.hoisted(() => {
+  const registeredLayers = new Map<string, unknown[]>();
+  return { registeredLayers };
+});
 
-const originalGetContext = HTMLCanvasElement.prototype.getContext;
-
-// ---------------------------------------------------------------------------
-// Mock the map context for VehiclesLayer
-// ---------------------------------------------------------------------------
-const mockProjection = vi.fn(
-  (pos: [number, number]) => [pos[0] * 10, pos[1] * 10] as [number, number]
-);
-(mockProjection as unknown as { invert: unknown }).invert = vi.fn();
-
-const mockTransform = { k: 1, x: 0, y: 0 };
-
-const mockMapElement = document.createElement("svg");
-const mockContainer = document.createElement("div");
-mockContainer.style.position = "relative";
-mockContainer.appendChild(mockMapElement);
-document.body.appendChild(mockContainer);
-
-vi.mock("@/components/Map/hooks", () => ({
-  useMapContext: () => ({
-    projection: mockProjection,
-    transform: mockTransform,
-    map: mockMapElement,
-    getBoundingBox: () => [
-      [0, 0],
-      [0, 0],
-    ],
-    getZoom: () => 1,
+vi.mock("@/components/Map/hooks/useDeckLayers", () => ({
+  useRegisterLayers: (id: string, layers: unknown[]) => {
+    registeredLayers.set(id, layers);
+  },
+  useDeckLayersContext: () => ({
+    registerLayers: () => {},
+    unregisterLayers: () => {},
   }),
 }));
 
@@ -74,16 +31,13 @@ vi.mock("@/components/Map/hooks", () => ({
 import VehiclesLayer from "@/Map/Vehicle/VehiclesLayer";
 
 // ---------------------------------------------------------------------------
-// 1. VehiclesLayer canvas ARIA attributes
+// 1. VehiclesLayer deck.gl layer properties
 // ---------------------------------------------------------------------------
 describe("VehiclesLayer accessibility", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vehicleStore.replace([]);
-
-    HTMLCanvasElement.prototype.getContext = function () {
-      return createMockContext();
-    } as typeof HTMLCanvasElement.prototype.getContext;
+    registeredLayers.clear();
 
     vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
       return setTimeout(cb, 16) as unknown as number;
@@ -91,27 +45,18 @@ describe("VehiclesLayer accessibility", () => {
     vi.spyOn(window, "cancelAnimationFrame").mockImplementation((id) => {
       clearTimeout(id);
     });
-
-    vi.stubGlobal(
-      "ResizeObserver",
-      class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
-      }
-    );
   });
 
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
-    HTMLCanvasElement.prototype.getContext = originalGetContext;
-    for (const c of mockContainer.querySelectorAll("canvas")) {
-      c.remove();
-    }
   });
 
-  it("canvas has role='img' and aria-label='Vehicle fleet map'", () => {
+  it("registers pickable vehicle layers for accessible interaction", () => {
+    vehicleStore.replace([
+      { id: "v1", name: "V1", position: [36.82, -1.29], speed: 30, heading: 0 },
+    ]);
+
     render(
       <VehiclesLayer
         scale={1.5}
@@ -121,14 +66,15 @@ describe("VehiclesLayer accessibility", () => {
       />
     );
 
-    act(() => {
-      vi.advanceTimersByTime(0);
-    });
+    vi.advanceTimersByTime(0);
+    vi.advanceTimersByTime(16);
 
-    const canvas = mockContainer.querySelector("canvas");
-    expect(canvas).toBeTruthy();
-    expect(canvas!.getAttribute("role")).toBe("img");
-    expect(canvas!.getAttribute("aria-label")).toBe("Vehicle fleet map");
+    expect(registeredLayers.has("vehicles")).toBe(true);
+    const layers = registeredLayers.get("vehicles")!;
+    const vehiclesLayer = layers.find(
+      (l) => (l as { props: { id: string } }).props.id === "vehicles"
+    ) as { props: { pickable: boolean } };
+    expect(vehiclesLayer.props.pickable).toBe(true);
   });
 });
 

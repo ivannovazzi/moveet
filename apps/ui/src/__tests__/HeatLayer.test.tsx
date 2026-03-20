@@ -1,54 +1,22 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render } from "@testing-library/react";
 import type { Position } from "@/types";
 
 // ---------------------------------------------------------------------------
-// vi.hoisted — variables that vi.mock factories can reference
+// Capture registered layers via useRegisterLayers mock
 // ---------------------------------------------------------------------------
-const { densityFn, mockSelect } = vi.hoisted(() => {
-  const densityFn = vi.fn().mockReturnValue([]);
-
-  const mockAttr = vi.fn().mockReturnThis();
-  const mockMerge = vi.fn(() => ({ attr: mockAttr }));
-  const mockAppend = vi.fn(() => ({ merge: mockMerge }));
-  const mockEnter = vi.fn(() => ({ append: mockAppend }));
-  const mockExit = vi.fn(() => ({ remove: vi.fn() }));
-  const mockData = vi.fn(() => ({ exit: mockExit, enter: mockEnter }));
-  const mockSelectAll = vi.fn(() => ({ data: mockData }));
-  const mockSelect = vi.fn(() => ({ selectAll: mockSelectAll }));
-
-  return { densityFn, mockSelect };
+const { registeredLayers } = vi.hoisted(() => {
+  const registeredLayers = new Map<string, unknown[]>();
+  return { registeredLayers };
 });
 
-// ---------------------------------------------------------------------------
-// Mock D3 and MapContext
-// ---------------------------------------------------------------------------
-vi.mock("d3", () => ({
-  contourDensity: () => {
-    const builder: Record<string, unknown> = {};
-    builder.x = () => builder;
-    builder.y = () => builder;
-    builder.bandwidth = () => builder;
-    builder.thresholds = () => builder;
-    builder.size = () => densityFn;
-    return builder;
+vi.mock("@/components/Map/hooks/useDeckLayers", () => ({
+  useRegisterLayers: (id: string, layers: unknown[]) => {
+    registeredLayers.set(id, layers);
   },
-  scaleSequential: () => {
-    const fn = (() => "#000") as Record<string, unknown> & (() => string);
-    fn.domain = () => fn;
-    fn.interpolator = () => fn;
-    return fn;
-  },
-  interpolateRgb: () => () => "#000",
-  max: () => 1,
-  select: mockSelect,
-  geoPath: () => () => "",
-}));
-
-vi.mock("@/components/Map/hooks", () => ({
-  useMapContext: () => ({
-    projection: (pos: Position) => pos,
-    transform: { k: 1 },
+  useDeckLayersContext: () => ({
+    registerLayers: () => {},
+    unregisterLayers: () => {},
   }),
 }));
 
@@ -58,100 +26,81 @@ import HeatLayer from "@/components/Map/components/HeatLayer";
 // Setup
 // ---------------------------------------------------------------------------
 beforeEach(() => {
-  vi.useFakeTimers();
-  densityFn.mockClear();
-  mockSelect.mockClear();
-});
-
-afterEach(() => {
-  vi.useRealTimers();
+  registeredLayers.clear();
 });
 
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
-describe("HeatLayer debounce", () => {
-  it("debounces density calculation — rapid updates trigger only one computation", () => {
+describe("HeatLayer (deck.gl)", () => {
+  it("registers a heatmap layer with the correct id", () => {
+    const data: Position[] = [[36.82, -1.29]];
+
+    render(<HeatLayer data={data} />);
+
+    expect(registeredLayers.has("heatmap")).toBe(true);
+    const layers = registeredLayers.get("heatmap")!;
+    expect(layers.length).toBe(1);
+  });
+
+  it("registers empty layers array for empty data", () => {
+    render(<HeatLayer data={[]} />);
+
+    const layers = registeredLayers.get("heatmap")!;
+    expect(layers.length).toBe(0);
+  });
+
+  it("passes data to the HeatmapLayer", () => {
+    const data: Position[] = [
+      [36.82, -1.29],
+      [36.83, -1.3],
+    ];
+
+    render(<HeatLayer data={data} />);
+
+    const layers = registeredLayers.get("heatmap")!;
+    expect(layers.length).toBe(1);
+    const layer = layers[0] as { props: { data: Position[]; id: string } };
+    expect(layer.props.id).toBe("heatmap");
+    expect(layer.props.data).toEqual(data);
+  });
+
+  it("uses custom opacity value", () => {
+    const data: Position[] = [[36.82, -1.29]];
+
+    render(<HeatLayer data={data} opacity={0.8} />);
+
+    const layers = registeredLayers.get("heatmap")!;
+    const layer = layers[0] as { props: { opacity: number } };
+    expect(layer.props.opacity).toBe(0.8);
+  });
+
+  it("uses default opacity of 0.5", () => {
+    const data: Position[] = [[36.82, -1.29]];
+
+    render(<HeatLayer data={data} />);
+
+    const layers = registeredLayers.get("heatmap")!;
+    const layer = layers[0] as { props: { opacity: number } };
+    expect(layer.props.opacity).toBe(0.5);
+  });
+
+  it("updates layers when data changes", () => {
     const data1: Position[] = [[36.82, -1.29]];
-    const data2: Position[] = [[36.83, -1.3]];
-    const data3: Position[] = [[36.84, -1.31]];
+    const data2: Position[] = [
+      [36.83, -1.3],
+      [36.84, -1.31],
+    ];
 
-    const { rerender } = render(
-      <svg>
-        <HeatLayer data={data1} />
-      </svg>
-    );
+    const { rerender } = render(<HeatLayer data={data1} />);
 
-    // Rapid updates before debounce fires
-    rerender(
-      <svg>
-        <HeatLayer data={data2} />
-      </svg>
-    );
-    rerender(
-      <svg>
-        <HeatLayer data={data3} />
-      </svg>
-    );
+    let layers = registeredLayers.get("heatmap")!;
+    expect(layers.length).toBe(1);
 
-    // Before debounce period — no calculation yet
-    expect(densityFn).not.toHaveBeenCalled();
+    rerender(<HeatLayer data={data2} />);
 
-    // Advance past default debounce (800ms)
-    vi.advanceTimersByTime(800);
-
-    // Only one call after debounce
-    expect(densityFn).toHaveBeenCalledTimes(1);
-  });
-
-  it("uses custom debounceMs value", () => {
-    const data: Position[] = [[36.82, -1.29]];
-
-    render(
-      <svg>
-        <HeatLayer data={data} debounceMs={300} />
-      </svg>
-    );
-
-    expect(densityFn).not.toHaveBeenCalled();
-
-    // Not yet at 300ms
-    vi.advanceTimersByTime(200);
-    expect(densityFn).not.toHaveBeenCalled();
-
-    // Now past 300ms
-    vi.advanceTimersByTime(100);
-    expect(densityFn).toHaveBeenCalledTimes(1);
-  });
-
-  it("cleans up timer on unmount — no errors", () => {
-    const data: Position[] = [[36.82, -1.29]];
-
-    const { unmount } = render(
-      <svg>
-        <HeatLayer data={data} />
-      </svg>
-    );
-
-    // Unmount before debounce fires
-    unmount();
-
-    // Advancing timers after unmount should not cause errors
-    vi.advanceTimersByTime(1000);
-
-    // The density function should never have been called
-    expect(densityFn).not.toHaveBeenCalled();
-  });
-
-  it("does not run calculation for empty data", () => {
-    render(
-      <svg>
-        <HeatLayer data={[]} />
-      </svg>
-    );
-
-    vi.advanceTimersByTime(1000);
-
-    expect(densityFn).not.toHaveBeenCalled();
+    layers = registeredLayers.get("heatmap")!;
+    const layer = layers[0] as { props: { data: Position[] } };
+    expect(layer.props.data).toEqual(data2);
   });
 });
