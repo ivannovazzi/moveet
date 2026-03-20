@@ -304,7 +304,6 @@ export class RoadNetwork extends EventEmitter {
       if (isNaN(speed) || speed <= 0) continue;
 
       const highway = props.highway || "residential";
-      const name = props.name || props["name:en"] || "";
       const coords = (feature.geometry as import("geojson").LineString).coordinates;
 
       // Place sign at the midpoint of the road segment
