@@ -10,6 +10,11 @@ import type { POI } from "@/types";
 // Build the atlas once at module level — this is a pure canvas operation.
 const { iconAtlas, iconMapping } = createPOIIconAtlas();
 
+/** Zoom level below which POIs are hidden */
+const POI_MIN_ZOOM = 4;
+/** Zoom level below which bus stops are hidden (they need higher zoom) */
+const BUS_STOP_MIN_ZOOM = 7;
+
 interface POIMarkerProps {
   visible: boolean;
   onClick: (poi: POI) => void;
@@ -17,24 +22,27 @@ interface POIMarkerProps {
 
 export default function POIs({ visible, onClick }: POIMarkerProps) {
   const { pois } = usePois();
-  const { getBoundingBox } = useMapContext();
+  const { getBoundingBox, getZoom } = useMapContext();
+  const zoom = getZoom();
 
   const [[west, south], [east, north]] = getBoundingBox();
 
   const inBoundsPois = useMemo(() => {
-    if (!visible) return [];
+    if (!visible || zoom < POI_MIN_ZOOM) return [];
     return pois.filter(
       (poi) =>
         !!poi.name &&
         poi.coordinates[0] >= south &&
         poi.coordinates[0] <= north &&
         poi.coordinates[1] >= west &&
-        poi.coordinates[1] <= east
+        poi.coordinates[1] <= east &&
+        // Hide bus stops at lower zoom levels
+        (!isBusStop(poi) || zoom >= BUS_STOP_MIN_ZOOM)
     );
-  }, [pois, south, north, west, east, visible]);
+  }, [pois, south, north, west, east, visible, zoom]);
 
   const layers = useMemo(() => {
-    if (!visible || inBoundsPois.length === 0) return [];
+    if (inBoundsPois.length === 0) return [];
 
     return [
       new IconLayer<POI>({
@@ -46,18 +54,21 @@ export default function POIs({ visible, onClick }: POIMarkerProps) {
         iconAtlas,
         iconMapping,
         pickable: true,
+        autoHighlight: true,
+        highlightColor: [255, 255, 255, 80],
         onClick: (info) => {
-          if (info.object) onClick(info.object);
+          if (info.object) {
+            onClick(info.object);
+            return true; // stop event propagation
+          }
+          return false;
         },
         sizeUnits: "pixels",
-        sizeMinPixels: 10,
-        sizeMaxPixels: 30,
-        updateTriggers: {
-          getPosition: [inBoundsPois],
-        },
+        sizeMinPixels: 8,
+        sizeMaxPixels: 36,
       }),
     ];
-  }, [visible, inBoundsPois, onClick]);
+  }, [inBoundsPois, onClick]);
 
   useRegisterLayers("pois", layers, 45);
 
