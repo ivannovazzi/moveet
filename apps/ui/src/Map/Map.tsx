@@ -97,22 +97,22 @@ export default function Map({
         cursor={cursor}
         htmlMarkers={
           <>
-            {modifiers.showPOIs && (
-              <Suspense fallback={null}>
-                <POIs visible={modifiers.showPOIs} onClick={onPOIClick} />
-              </Suspense>
-            )}
-            {modifiers.showSpeedLimits && (
-              <Suspense fallback={null}>
-                <SpeedLimitSigns visible={modifiers.showSpeedLimits} />
-              </Suspense>
-            )}
             {selectedItem && isPOI(selectedItem) && <POIMarker poi={selectedItem} showLabel />}
             {incidents && incidents.length > 0 && <IncidentMarkers incidents={incidents} />}
           </>
         }
       >
-        {/* <Selection /> */}
+        {/* POIs & speed-limit signs — GPU-rendered via IconLayer */}
+        {modifiers.showPOIs && (
+          <Suspense fallback={null}>
+            <POIs visible={modifiers.showPOIs} onClick={onPOIClick} />
+          </Suspense>
+        )}
+        {modifiers.showSpeedLimits && (
+          <Suspense fallback={null}>
+            <SpeedLimitSigns visible={modifiers.showSpeedLimits} />
+          </Suspense>
+        )}
         {/* Geofence zones — rendered between roads and vehicles */}
         {fences.length > 0 && <GeofenceLayer fences={fences} selectedFenceId={selectedFenceId} />}
         <Direction selected={filters.selected} hovered={filters.hovered} />

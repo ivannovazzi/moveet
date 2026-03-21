@@ -1,50 +1,14 @@
-import { useMemo, useState, useEffect, useRef } from "react";
-import type { WebMercatorViewport } from "@deck.gl/core";
+import { useMemo } from "react";
+import { IconLayer } from "@deck.gl/layers";
 import { useMapContext } from "@/components/Map/hooks";
+import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 import { usePois } from "@/hooks/usePois";
-import POIMarker from "./POI/POI";
+import { createPOIIconAtlas } from "./POI/iconAtlas";
+import { isBusStop } from "./POI/helpers";
 import type { POI } from "@/types";
-import { isBusStop, isNotBusStop } from "./POI/helpers";
 
-/** Minimum distance in pixels between regular POI markers to avoid overlap */
-const POI_MIN_DISTANCE_PX = 80;
-
-/** Minimum distance in pixels between bus stop markers to avoid overlap */
-const BUS_STOP_MIN_DISTANCE_PX = 15;
-
-/** Debounce delay to avoid recomputing during rapid zoom/pan */
-const DEBOUNCE_MS = 150;
-
-/** Returns the squared Euclidean distance in pixels between two points. */
-function distanceSq(x1: number, y1: number, x2: number, y2: number) {
-  const dx = x1 - x2;
-  const dy = y1 - y2;
-  return dx * dx + dy * dy;
-}
-
-function getBySpacing(items: POI[], viewport: WebMercatorViewport, minPxDistance: number) {
-  const placed: Array<{ poi: POI; px: number; py: number }> = [];
-  const minDistSq = minPxDistance * minPxDistance;
-
-  for (const poi of items) {
-    const [lat, lng] = poi.coordinates;
-    const [px, py] = viewport.project([lng, lat]);
-
-    if (!isFinite(px) || !isFinite(py)) continue;
-
-    let tooClose = false;
-    for (let i = 0; i < placed.length; i++) {
-      if (distanceSq(px, py, placed[i].px, placed[i].py) < minDistSq) {
-        tooClose = true;
-        break;
-      }
-    }
-    if (!tooClose) {
-      placed.push({ poi, px, py });
-    }
-  }
-  return placed;
-}
+// Build the atlas once at module level — this is a pure canvas operation.
+const { iconAtlas, iconMapping } = createPOIIconAtlas();
 
 interface POIMarkerProps {
   visible: boolean;
@@ -53,59 +17,49 @@ interface POIMarkerProps {
 
 export default function POIs({ visible, onClick }: POIMarkerProps) {
   const { pois } = usePois();
-  const { viewport, getBoundingBox } = useMapContext();
-
-  // Debounced viewport — only update after zoom/pan settles
-  const [stableViewport, setStableViewport] = useState(viewport);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
-  useEffect(() => {
-    clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setStableViewport(viewport), DEBOUNCE_MS);
-    return () => clearTimeout(timerRef.current);
-  }, [viewport]);
+  const { getBoundingBox } = useMapContext();
 
   const [[west, south], [east, north]] = getBoundingBox();
 
   const inBoundsPois = useMemo(() => {
-    if (!stableViewport) return [];
+    if (!visible) return [];
+    return pois.filter(
+      (poi) =>
+        !!poi.name &&
+        poi.coordinates[0] >= south &&
+        poi.coordinates[0] <= north &&
+        poi.coordinates[1] >= west &&
+        poi.coordinates[1] <= east
+    );
+  }, [pois, south, north, west, east, visible]);
 
-    return pois
-      .filter((poi) => !!poi.name)
-      .filter(
-        ({ coordinates: [lat, lng] }) => lat >= south && lat <= north && lng >= west && lng <= east
-      );
-  }, [pois, south, north, west, east, stableViewport]);
+  const layers = useMemo(() => {
+    if (!visible || inBoundsPois.length === 0) return [];
 
-  const { busStops, notBusStops } = useMemo(
-    () => ({
-      busStops: inBoundsPois.filter(isBusStop),
-      notBusStops: inBoundsPois.filter(isNotBusStop),
-    }),
-    [inBoundsPois]
-  );
+    return [
+      new IconLayer<POI>({
+        id: "pois",
+        data: inBoundsPois,
+        getPosition: (d) => [d.coordinates[1], d.coordinates[0]],
+        getIcon: (d) => (d.type && d.type in iconMapping ? d.type : "unknown"),
+        getSize: (d) => (isBusStop(d) ? 14 : 22),
+        iconAtlas,
+        iconMapping,
+        pickable: true,
+        onClick: (info) => {
+          if (info.object) onClick(info.object);
+        },
+        sizeUnits: "pixels",
+        sizeMinPixels: 10,
+        sizeMaxPixels: 30,
+        updateTriggers: {
+          getPosition: [inBoundsPois],
+        },
+      }),
+    ];
+  }, [visible, inBoundsPois, onClick]);
 
-  const placedPois = useMemo(() => {
-    if (!stableViewport) return [];
-    return getBySpacing(notBusStops, stableViewport, POI_MIN_DISTANCE_PX);
-  }, [notBusStops, stableViewport]);
+  useRegisterLayers("pois", layers, 45);
 
-  const placedBusStops = useMemo(() => {
-    if (!stableViewport) return [];
-    return getBySpacing(busStops, stableViewport, BUS_STOP_MIN_DISTANCE_PX);
-  }, [busStops, stableViewport]);
-
-  if (!visible || !stableViewport) return null;
-
-  return (
-    <>
-      {placedBusStops.map(({ poi }) => (
-        <POIMarker key={poi.id} poi={poi} onClick={() => onClick(poi)} />
-      ))}
-
-      {placedPois.map(({ poi }) => (
-        <POIMarker key={poi.id} poi={poi} onClick={() => onClick(poi)} />
-      ))}
-    </>
-  );
+  return null;
 }
