@@ -28,9 +28,9 @@ export function useDeckViewState({ data, width, height }: UseDeckViewStateOption
 
   // Fit to data bounds on first load
   useEffect(() => {
-    if (!data || !width || !height || initializedRef.current) return;
+    if (!data || !data.features.length || !width || !height || initializedRef.current) return;
 
-    // Compute GeoJSON bounding box manually (replaces d3.geoBounds)
+    // Compute GeoJSON bounding box manually
     let west = Infinity,
       south = Infinity,
       east = -Infinity,
@@ -43,6 +43,10 @@ export function useDeckViewState({ data, width, height }: UseDeckViewStateOption
         if (lat > north) north = lat;
       }
     }
+
+    // Guard against degenerate bounds (no valid coordinates)
+    if (!isFinite(west) || !isFinite(south) || !isFinite(east) || !isFinite(north)) return;
+
     const vp = new WebMercatorViewport({ width, height });
     const fitted = vp.fitBounds(
       [
