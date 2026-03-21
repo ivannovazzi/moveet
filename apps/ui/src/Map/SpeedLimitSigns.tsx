@@ -73,7 +73,7 @@ interface SpeedLimitSignsProps {
 export default function SpeedLimitSigns({ visible }: SpeedLimitSignsProps) {
   const { signs } = useSpeedLimits();
   const { viewport, getBoundingBox } = useMapContext();
-  const [[west, north], [east, south]] = getBoundingBox();
+  const [[west, south], [east, north]] = getBoundingBox();
 
   const inBounds = useMemo(() => {
     if (!viewport) return [];

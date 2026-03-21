@@ -21,11 +21,7 @@ export default function HTMLMarker({
     if (!markerRef.current || !viewport) return;
 
     const [x, y] = viewport.project([position[0], position[1]]);
-    // Scale inversely with zoom so markers keep constant screen size
-    const scale = Math.pow(2, 12 - (viewState?.zoom ?? 12));
-    markerRef.current.style.transform = `translate3d(${x + offset[0]}px, ${
-      y + offset[1]
-    }px, 0) scale(${Math.min(scale, 2)})`;
+    markerRef.current.style.transform = `translate3d(${x + offset[0]}px, ${y + offset[1]}px, 0)`;
   }, [position, offset, viewport, viewState]);
 
   const style: React.CSSProperties = {

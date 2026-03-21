@@ -46,7 +46,7 @@ export default function POIs({ visible, onClick }: POIMarkerProps) {
   const { viewport, getBoundingBox } = useMapContext();
 
   // Get bounding box unconditionally to avoid hooks order issues
-  const [[west, north], [east, south]] = getBoundingBox();
+  const [[west, south], [east, north]] = getBoundingBox();
 
   // Memoize all calculations - they will run but results won't be used if not visible
   const inBoundsPois = useMemo(() => {
