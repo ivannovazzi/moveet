@@ -1,13 +1,9 @@
 import { useMemo } from "react";
 import { PathLayer, ScatterplotLayer, TextLayer } from "@deck.gl/layers";
-import { COORDINATE_SYSTEM } from "@deck.gl/core";
 import type { Position } from "@/types";
 import { useDirections, type DirectionState } from "@/hooks/useDirections";
 import { invertLatLng } from "@/utils/coordinates";
-import { useMapContext } from "@/components/Map/hooks";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
-
-// ── helpers ─────────────────────────────────────────────────────────
 
 /** Convert a hex color string like "#39f" or "#3399ff" to [r,g,b,a]. */
 function hexToRgba(hex: string, alpha = 255): [number, number, number, number] {
@@ -23,6 +19,10 @@ interface DirectionData {
   color: string;
 }
 
+interface PathDatum extends DirectionData {
+  path: [number, number][];
+}
+
 interface WaypointData {
   position: [number, number];
   index: number;
@@ -33,7 +33,12 @@ interface WaypointData {
   stopsLeftLabel?: string;
 }
 
-// ── component ───────────────────────────────────────────────────────
+interface LabelData {
+  id: string;
+  position: [number, number];
+  text: string;
+  color: string;
+}
 
 interface DirectionProps {
   selected?: string;
@@ -42,12 +47,8 @@ interface DirectionProps {
 
 export default function DirectionMap({ selected, hovered }: DirectionProps) {
   const directions = useDirections();
-  const { projection } = useMapContext();
 
   const layers = useMemo(() => {
-    if (!projection) return [];
-
-    // Collect active directions
     const items: DirectionData[] = [];
     if (hovered) {
       const d = directions.get(hovered);
@@ -60,22 +61,16 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
 
     if (items.length === 0) return [];
 
-    // Build path data: each item becomes one path
-    const pathData = items.map((item) => {
-      const coords = item.direction.route.edges.map((edge) => {
-        const geo = invertLatLng(edge.start.coordinates as Position);
-        const p = projection(geo);
-        return p ? ([p[0], p[1]] as [number, number]) : null;
-      });
-      // Add the last edge's end coordinate
+    // Build path data using geo coords [lng, lat] — deck.gl MapView handles projection
+    const pathData: PathDatum[] = items.map((item) => {
+      const coords: [number, number][] = item.direction.route.edges.map(
+        (edge) => invertLatLng(edge.start.coordinates as Position) as [number, number]
+      );
       const lastEdge = item.direction.route.edges[item.direction.route.edges.length - 1];
       if (lastEdge) {
-        const geo = invertLatLng(lastEdge.end.coordinates as Position);
-        const p = projection(geo);
-        if (p) coords.push([p[0], p[1]] as [number, number]);
+        coords.push(invertLatLng(lastEdge.end.coordinates as Position) as [number, number]);
       }
-      const path = coords.filter((c): c is [number, number] => c !== null);
-      return { ...item, path };
+      return { ...item, path: coords };
     });
 
     // Build waypoint data
@@ -89,18 +84,13 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
 
       for (let i = 0; i < waypoints.length; i++) {
         const wp = waypoints[i];
-        const geo = invertLatLng(wp.position as Position);
-        const p = projection(geo);
-        if (!p) continue;
-
-        const isCurrent = i === cwi;
-        const isCompleted = i < cwi;
+        const [lng, lat] = invertLatLng(wp.position as Position);
 
         waypointData.push({
-          position: [p[0], p[1]] as [number, number],
+          position: [lng, lat] as [number, number],
           index: i,
-          isCurrent,
-          isCompleted,
+          isCurrent: i === cwi,
+          isCompleted: i < cwi,
           color: item.color,
           label: String(i + 1),
           stopsLeftLabel:
@@ -111,22 +101,17 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
       }
     }
 
-    // Build distance label data
-    const distanceLabelData = pathData
+    // Build label data
+    const distanceLabelData: LabelData[] = pathData
       .filter((d) => d.path.length >= 2)
-      .map((d) => {
-        // Place label at the midpoint of the path
-        const mid = d.path[Math.floor(d.path.length / 2)];
-        return {
-          id: d.id,
-          position: mid,
-          text: `${d.direction.route.distance.toFixed(1)} km`,
-          color: d.color,
-        };
-      });
+      .map((d) => ({
+        id: d.id,
+        position: d.path[Math.floor(d.path.length / 2)],
+        text: `${d.direction.route.distance.toFixed(1)} km`,
+        color: d.color,
+      }));
 
-    // Also add "stops left" labels
-    const stopsLabelData = waypointData
+    const stopsLabelData: LabelData[] = waypointData
       .filter((wp) => wp.stopsLeftLabel)
       .map((wp) => ({
         id: `stops-${wp.index}`,
@@ -137,7 +122,7 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
 
     const allLabelData = [...distanceLabelData, ...stopsLabelData];
 
-    const pathLayer = new PathLayer<(typeof pathData)[number]>({
+    const pathLayer = new PathLayer<PathDatum>({
       id: "direction-paths",
       data: pathData,
       getPath: (d) => d.path,
@@ -147,7 +132,7 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
       widthMinPixels: 2,
       jointRounded: true,
       capRounded: true,
-      coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
+      _pathType: "open",
     });
 
     const scatterLayer =
@@ -157,22 +142,13 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
             data: waypointData,
             getPosition: (d) => d.position,
             getRadius: (d) => (d.isCurrent ? 7 : 5),
-            getFillColor: (d) => {
-              if (d.isCurrent) return hexToRgba(d.color);
-              return [0, 0, 0, 180];
-            },
-            getLineColor: (d) => {
-              if (d.isCurrent) return [255, 255, 255, 255];
-              return hexToRgba(d.color);
-            },
+            getFillColor: (d) => (d.isCurrent ? hexToRgba(d.color) : [0, 0, 0, 180]),
+            getLineColor: (d) => (d.isCurrent ? [255, 255, 255, 255] : hexToRgba(d.color)),
             getLineWidth: 1.5,
             stroked: true,
             lineWidthUnits: "pixels",
             radiusUnits: "pixels",
             radiusMinPixels: 4,
-            opacity: 1,
-            coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
-            parameters: { depthWriteEnabled: false },
           })
         : null;
 
@@ -184,22 +160,17 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
             getPosition: (d) => d.position,
             getText: (d) => d.label,
             getSize: 10,
-            getColor: (d) => {
-              if (d.isCurrent) return [255, 255, 255, 255];
-              return hexToRgba(d.color);
-            },
+            getColor: (d) => (d.isCurrent ? [255, 255, 255, 255] : hexToRgba(d.color)),
             getTextAnchor: "middle",
             getAlignmentBaseline: "center",
             sizeUnits: "pixels",
             fontWeight: "bold",
-            coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
-            parameters: { depthWriteEnabled: false },
           })
         : null;
 
     const distanceTextLayer =
       allLabelData.length > 0
-        ? new TextLayer<(typeof allLabelData)[number]>({
+        ? new TextLayer<LabelData>({
             id: "direction-distance-labels",
             data: allLabelData,
             getPosition: (d) => d.position,
@@ -212,15 +183,13 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
             background: true,
             getBackgroundColor: [0, 0, 0, 190],
             backgroundPadding: [4, 2],
-            coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
-            parameters: { depthWriteEnabled: false },
           })
         : null;
 
     return [pathLayer, scatterLayer, waypointTextLayer, distanceTextLayer].filter(
       (l): l is NonNullable<typeof l> => l !== null
     );
-  }, [directions, selected, hovered, projection]);
+  }, [directions, selected, hovered]);
 
   useRegisterLayers("directions", layers);
 
