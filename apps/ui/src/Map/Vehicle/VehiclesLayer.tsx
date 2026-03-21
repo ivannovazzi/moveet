@@ -113,13 +113,19 @@ function lerpAngle(a: number, b: number, t: number): number {
 /**
  * Resolve a CSS variable reference like "var(--color-vehicle-fill)" to its
  * computed value, or return the input unchanged if it's already a plain color.
+ * Results are cached to avoid getComputedStyle on every frame.
  */
+const cssColorCache = new Map<string, string>();
 function resolveCSSColor(color: string): string {
   if (!color.startsWith("var(")) return color;
+  const cached = cssColorCache.get(color);
+  if (cached) return cached;
   const match = color.match(/^var\(([^)]+)\)$/);
   if (!match) return DEFAULT_FILL;
   const value = getComputedStyle(document.documentElement).getPropertyValue(match[1]).trim();
-  return value || DEFAULT_FILL;
+  const resolved = value || DEFAULT_FILL;
+  cssColorCache.set(color, resolved);
+  return resolved;
 }
 
 /** Convert hex color string to RGBA tuple for deck.gl. */
@@ -187,10 +193,13 @@ export default function VehiclesLayer({
   onClickRef.current = onClick;
 
   // RAF interpolation loop: reads from vehicleStore, updates React state
+  // Throttled to ~30fps to avoid overwhelming React with state updates
   useEffect(() => {
     let rafId: number;
     let lastVersion = -1;
     let animating = false;
+    let lastSetStateTime = 0;
+    const STATE_UPDATE_INTERVAL = 33; // ~30fps for React state updates
 
     const render = () => {
       rafId = requestAnimationFrame(render);
@@ -269,6 +278,10 @@ export default function VehiclesLayer({
 
       // Skip update only if nothing changed AND no animation in progress
       if (!positionsChanged && !animating) return;
+
+      // Throttle React state updates to avoid 60fps re-renders
+      if (now - lastSetStateTime < STATE_UPDATE_INTERVAL) return;
+      lastSetStateTime = now;
 
       const store = vehicleStore.getAll();
       const fleetMap = fleetMapRef.current;

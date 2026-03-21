@@ -1,13 +1,8 @@
 import React, { useCallback, useMemo, useRef } from "react";
 import DeckGL from "@deck.gl/react";
 import { MapView, WebMercatorViewport } from "@deck.gl/core";
-import { luma } from "@luma.gl/core";
-import { webgl2Adapter } from "@luma.gl/webgl";
-import { PathLayer } from "@deck.gl/layers";
-
-// Register WebGL2 adapter — must happen before any DeckGL component mounts
-luma.registerAdapters([webgl2Adapter]);
 import type { MapViewState } from "@deck.gl/core";
+import { PathLayer } from "@deck.gl/layers";
 import type { Position, RoadNetwork } from "@/types";
 import { useResizeObserver } from "@/hooks/useResizeObserver";
 import { useDeckViewState } from "../hooks/useDeckViewState";

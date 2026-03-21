@@ -56,10 +56,13 @@ export default function BreadcrumbLayer({
   hiddenFleetsRef.current = hiddenFleetIds;
 
   // RAF loop: reads from vehicleStore, updates React state for deck.gl
+  // Throttled to avoid overwhelming React with state updates
   useEffect(() => {
     let rafId: number;
     let lastVersion = -1;
     let lastSelectedId: string | undefined;
+    let lastSetStateTime = 0;
+    const STATE_UPDATE_INTERVAL = 100; // trails don't need 60fps updates
 
     const render = () => {
       rafId = requestAnimationFrame(render);
@@ -71,6 +74,10 @@ export default function BreadcrumbLayer({
       const selectionChanged = currentSelectedId !== lastSelectedId;
 
       if (!positionsChanged && !selectionChanged) return;
+
+      const now = performance.now();
+      if (!selectionChanged && now - lastSetStateTime < STATE_UPDATE_INTERVAL) return;
+      lastSetStateTime = now;
 
       lastVersion = currentVersion;
       lastSelectedId = currentSelectedId;
