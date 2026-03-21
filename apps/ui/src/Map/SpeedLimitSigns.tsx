@@ -1,9 +1,9 @@
 import { useMemo } from "react";
+import type { WebMercatorViewport } from "@deck.gl/core";
 import { useMapContext } from "@/components/Map/hooks";
 import { useSpeedLimits, type SpeedLimitSign } from "@/hooks/useSpeedLimits";
 import HTMLMarker from "@/components/Map/components/HTMLMarker";
 import type { Position } from "@/types";
-import type { GeoProjection, ZoomTransform } from "d3";
 
 /** Minimum pixel distance between speed limit signs */
 const MIN_DISTANCE_PX = 100;
@@ -12,18 +12,12 @@ function distancePx(x1: number, y1: number, x2: number, y2: number) {
   return Math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2);
 }
 
-function spacedSigns(
-  items: SpeedLimitSign[],
-  transform: ZoomTransform,
-  projection: GeoProjection,
-  minDist: number
-) {
+function spacedSigns(items: SpeedLimitSign[], viewport: WebMercatorViewport, minDist: number) {
   const placed: Array<{ sign: SpeedLimitSign; px: number; py: number }> = [];
   for (const sign of items) {
     const [lat, lng] = sign.coordinates;
-    const projected = projection([lng, lat]);
-    if (!projected) continue;
-    const [px, py] = transform.apply(projected);
+    const [px, py] = viewport.project([lng, lat]);
+    if (!isFinite(px) || !isFinite(py)) continue;
     const tooClose = placed.some(({ px: x2, py: y2 }) => distancePx(px, py, x2, y2) < minDist);
     if (!tooClose) placed.push({ sign, px, py });
   }
@@ -47,9 +41,7 @@ function SpeedSign({ speed }: { speed: number }) {
         filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.5))",
       }}
     >
-      {/* White background */}
       <circle cx={r} cy={r} r={r - 1} fill="white" />
-      {/* Red border */}
       <circle
         cx={r}
         cy={r}
@@ -58,7 +50,6 @@ function SpeedSign({ speed }: { speed: number }) {
         stroke="#cc0000"
         strokeWidth={borderWidth}
       />
-      {/* Speed number */}
       <text
         x={r}
         y={r}
@@ -81,22 +72,22 @@ interface SpeedLimitSignsProps {
 
 export default function SpeedLimitSigns({ visible }: SpeedLimitSignsProps) {
   const { signs } = useSpeedLimits();
-  const { getBoundingBox, projection, transform } = useMapContext();
+  const { viewport, getBoundingBox } = useMapContext();
   const [[west, north], [east, south]] = getBoundingBox();
 
   const inBounds = useMemo(() => {
-    if (!projection || !transform) return [];
+    if (!viewport) return [];
     return signs.filter(
       ({ coordinates: [lat, lng] }) => lat >= south && lat <= north && lng >= west && lng <= east
     );
-  }, [signs, south, north, west, east, projection, transform]);
+  }, [signs, south, north, west, east, viewport]);
 
   const placed = useMemo(() => {
-    if (!projection || !transform) return [];
-    return spacedSigns(inBounds, transform, projection, MIN_DISTANCE_PX);
-  }, [inBounds, transform, projection]);
+    if (!viewport) return [];
+    return spacedSigns(inBounds, viewport, MIN_DISTANCE_PX);
+  }, [inBounds, viewport]);
 
-  if (!visible || !projection || !transform) return null;
+  if (!visible || !viewport) return null;
 
   return (
     <>

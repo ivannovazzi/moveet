@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from "react";
 import { PolygonLayer, ScatterplotLayer, PathLayer } from "@deck.gl/layers";
-import { useDeckMapContext, useDeckOverlay } from "@/components/Map/hooks";
+import { useMapContext, useOverlay } from "@/components/Map/hooks";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 
 interface GeofenceDrawToolProps {
@@ -23,8 +23,8 @@ export default function GeofenceDrawTool({
   onVertexCountChange,
   confirmRequestId,
 }: GeofenceDrawToolProps) {
-  const { viewport } = useDeckMapContext();
-  const { mapHTMLElement } = useDeckOverlay();
+  const { viewport } = useMapContext();
+  const { mapHTMLElement } = useOverlay();
 
   // Vertices in geo space [lng, lat]
   const [vertices, setVertices] = useState<[number, number][]>([]);

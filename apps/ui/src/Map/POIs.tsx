@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { WebMercatorViewport } from "@deck.gl/core";
-import { useDeckMapContext } from "@/components/Map/hooks";
+import { useMapContext } from "@/components/Map/hooks";
 import { usePois } from "@/hooks/usePois";
 import POIMarker from "./POI/POI";
 import type { POI } from "@/types";
@@ -43,7 +43,7 @@ interface POIMarkerProps {
 
 export default function POIs({ visible, onClick }: POIMarkerProps) {
   const { pois } = usePois();
-  const { viewport, getBoundingBox } = useDeckMapContext();
+  const { viewport, getBoundingBox } = useMapContext();
 
   // Get bounding box unconditionally to avoid hooks order issues
   const [[west, north], [east, south]] = getBoundingBox();

@@ -1,6 +1,6 @@
 {
   "name": "@moveet/ui",
-  "description": "Real-time fleet simulation dashboard with custom D3.js SVG map renderer",
+  "description": "Real-time fleet simulation dashboard with deck.gl map renderer",
   "author": "Ivan Novazzi",
   "license": "MIT",
   "repository": {
@@ -37,7 +37,6 @@
     "@moveet/shared-types": "*",
     "@testing-library/dom": "^10.4.1",
     "classnames": "^2.5.1",
-    "d3": "^7.9.0",
     "react": "^19.2.4",
     "react-aria-components": "^1.16.0",
     "react-dom": "^19.2.4",
@@ -49,7 +48,6 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
-    "@types/d3": "^7.4.3",
     "@types/node": "^25.5.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",

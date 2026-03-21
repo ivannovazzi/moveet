@@ -1,5 +1,5 @@
 import { useEffect, useRef, useMemo } from "react";
-import { useDeckMapContext } from "@/components/Map/hooks";
+import { useMapContext } from "@/components/Map/hooks";
 import type { BoundingBox } from "@moveet/shared-types";
 
 interface Props {
@@ -16,7 +16,7 @@ const MIN_ZOOM = 3;
  * up via callback.
  */
 export function ViewportBboxReporter({ onBboxChange }: Props) {
-  const { viewport, getZoom, getBoundingBox } = useDeckMapContext();
+  const { viewport, getZoom, getBoundingBox } = useMapContext();
   const prevRef = useRef<string | null>(null);
 
   const bbox = useMemo<BoundingBox | null>(() => {

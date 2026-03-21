@@ -11,18 +11,6 @@ vi.mock("@/utils/client", () => ({
   },
 }));
 
-vi.mock("@/components/Map/providers/contexts", () => ({
-  MapContext: {
-    _currentValue: {
-      transform: null,
-      getBoundingBox: () => [
-        [0, 0],
-        [0, 0],
-      ],
-    },
-  },
-}));
-
 beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers();
