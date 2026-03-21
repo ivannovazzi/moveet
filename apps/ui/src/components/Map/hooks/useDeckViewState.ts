@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { WebMercatorViewport } from "@deck.gl/core";
+import { WebMercatorViewport, FlyToInterpolator } from "@deck.gl/core";
 import type { MapViewState } from "@deck.gl/core";
 import type { RoadNetwork, Position } from "@/types";
 import type { PanToOptions, DeckViewStateControls } from "../providers/types";
@@ -77,8 +77,14 @@ export function useDeckViewState({ data, width, height }: UseDeckViewStateOption
     setViewState((prev) => ({ ...prev, zoom: Math.max((prev.zoom ?? 1) - 0.5, 1) }));
   }, []);
 
-  const panTo = useCallback((_lng: number, _lat: number, _options: PanToOptions) => {
-    setViewState((prev) => ({ ...prev, longitude: _lng, latitude: _lat }));
+  const panTo = useCallback((lng: number, lat: number, options: PanToOptions) => {
+    setViewState((prev) => ({
+      ...prev,
+      longitude: lng,
+      latitude: lat,
+      transitionDuration: options?.duration ?? 300,
+      transitionInterpolator: new FlyToInterpolator(),
+    }));
   }, []);
 
   const setZoom = useCallback((zoom: number) => {
@@ -107,8 +113,15 @@ export function useDeckViewState({ data, width, height }: UseDeckViewStateOption
     [width, height]
   );
 
-  const focusOn = useCallback((lng: number, lat: number, zoom: number, _options: PanToOptions) => {
-    setViewState((prev) => ({ ...prev, longitude: lng, latitude: lat, zoom }));
+  const focusOn = useCallback((lng: number, lat: number, zoom: number, options: PanToOptions) => {
+    setViewState((prev) => ({
+      ...prev,
+      longitude: lng,
+      latitude: lat,
+      zoom,
+      transitionDuration: options?.duration ?? 500,
+      transitionInterpolator: new FlyToInterpolator(),
+    }));
   }, []);
 
   const controls: DeckViewStateControls = {

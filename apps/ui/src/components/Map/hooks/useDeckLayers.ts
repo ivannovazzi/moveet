@@ -4,7 +4,7 @@ import type { Layer } from "@deck.gl/core";
 // ─── Context for child layer registration ──────────────────────────
 
 export interface DeckLayersContextValue {
-  registerLayers: (id: string, layers: Layer[]) => void;
+  registerLayers: (id: string, layers: Layer[], order?: number) => void;
   unregisterLayers: (id: string) => void;
 }
 
@@ -19,21 +19,38 @@ export function useDeckLayersContext() {
 
 // ─── Hook for the DeckGLMap parent to manage registered layers ─────
 
+/** Default layer ordering — lower numbers render first (bottom). */
+const LAYER_ORDER: Record<string, number> = {
+  geofences: 10,
+  "traffic-overlay": 20,
+  breadcrumbs: 30,
+  "traffic-zones": 35,
+  heatmap: 40,
+  directions: 50,
+  "selected-road": 55,
+  "pending-dispatch": 60,
+  vehicles: 70,
+  "vehicle-selection-ring": 65,
+  "geofence-draw": 80,
+};
+
 export function useDeckLayerManager() {
-  const registryRef = useRef<Map<string, Layer[]>>(new Map());
+  const registryRef = useRef<Map<string, { layers: Layer[]; order: number }>>(new Map());
   const [registeredLayers, setRegisteredLayers] = useState<Layer[]>([]);
 
   const rebuild = useCallback(() => {
+    const entries = Array.from(registryRef.current.entries());
+    entries.sort((a, b) => a[1].order - b[1].order);
     const allLayers: Layer[] = [];
-    for (const layers of registryRef.current.values()) {
+    for (const [, { layers }] of entries) {
       allLayers.push(...layers);
     }
     setRegisteredLayers(allLayers);
   }, []);
 
   const registerLayers = useCallback(
-    (id: string, layers: Layer[]) => {
-      registryRef.current.set(id, layers);
+    (id: string, layers: Layer[], order?: number) => {
+      registryRef.current.set(id, { layers, order: order ?? LAYER_ORDER[id] ?? 100 });
       rebuild();
     },
     [rebuild]
@@ -57,13 +74,13 @@ export function useDeckLayerManager() {
 
 // ─── Hook for child components to register their layers ────────────
 
-export function useRegisterLayers(id: string, layers: Layer[]) {
+export function useRegisterLayers(id: string, layers: Layer[], order?: number) {
   const { registerLayers, unregisterLayers } = useDeckLayersContext();
 
   useEffect(() => {
-    registerLayers(id, layers);
+    registerLayers(id, layers, order);
     return () => unregisterLayers(id);
     // We intentionally depend on the layers array reference so re-registration
     // happens when the caller provides new layer instances.
-  }, [id, layers, registerLayers, unregisterLayers]);
+  }, [id, layers, order, registerLayers, unregisterLayers]);
 }
