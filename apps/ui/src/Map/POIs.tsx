@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import type { WebMercatorViewport } from "@deck.gl/core";
 import { useMapContext } from "@/components/Map/hooks";
 import { usePois } from "@/hooks/usePois";
@@ -12,13 +12,19 @@ const POI_MIN_DISTANCE_PX = 80;
 /** Minimum distance in pixels between bus stop markers to avoid overlap */
 const BUS_STOP_MIN_DISTANCE_PX = 15;
 
-/** Returns the Euclidean distance in pixels between two points. */
-function distancePx(x1: number, y1: number, x2: number, y2: number) {
-  return Math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2);
+/** Debounce delay to avoid recomputing during rapid zoom/pan */
+const DEBOUNCE_MS = 150;
+
+/** Returns the squared Euclidean distance in pixels between two points. */
+function distanceSq(x1: number, y1: number, x2: number, y2: number) {
+  const dx = x1 - x2;
+  const dy = y1 - y2;
+  return dx * dx + dy * dy;
 }
 
 function getBySpacing(items: POI[], viewport: WebMercatorViewport, minPxDistance: number) {
   const placed: Array<{ poi: POI; px: number; py: number }> = [];
+  const minDistSq = minPxDistance * minPxDistance;
 
   for (const poi of items) {
     const [lat, lng] = poi.coordinates;
@@ -26,9 +32,13 @@ function getBySpacing(items: POI[], viewport: WebMercatorViewport, minPxDistance
 
     if (!isFinite(px) || !isFinite(py)) continue;
 
-    const tooClose = placed.some(
-      ({ px: x2, py: y2 }) => distancePx(px, py, x2, y2) < minPxDistance
-    );
+    let tooClose = false;
+    for (let i = 0; i < placed.length; i++) {
+      if (distanceSq(px, py, placed[i].px, placed[i].py) < minDistSq) {
+        tooClose = true;
+        break;
+      }
+    }
     if (!tooClose) {
       placed.push({ poi, px, py });
     }
@@ -45,19 +55,27 @@ export default function POIs({ visible, onClick }: POIMarkerProps) {
   const { pois } = usePois();
   const { viewport, getBoundingBox } = useMapContext();
 
-  // Get bounding box unconditionally to avoid hooks order issues
+  // Debounced viewport — only update after zoom/pan settles
+  const [stableViewport, setStableViewport] = useState(viewport);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setStableViewport(viewport), DEBOUNCE_MS);
+    return () => clearTimeout(timerRef.current);
+  }, [viewport]);
+
   const [[west, south], [east, north]] = getBoundingBox();
 
-  // Memoize all calculations - they will run but results won't be used if not visible
   const inBoundsPois = useMemo(() => {
-    if (!viewport) return [];
+    if (!stableViewport) return [];
 
     return pois
       .filter((poi) => !!poi.name)
       .filter(
         ({ coordinates: [lat, lng] }) => lat >= south && lat <= north && lng >= west && lng <= east
       );
-  }, [pois, south, north, west, east, viewport]);
+  }, [pois, south, north, west, east, stableViewport]);
 
   const { busStops, notBusStops } = useMemo(
     () => ({
@@ -68,17 +86,16 @@ export default function POIs({ visible, onClick }: POIMarkerProps) {
   );
 
   const placedPois = useMemo(() => {
-    if (!viewport) return [];
-    return getBySpacing(notBusStops, viewport, POI_MIN_DISTANCE_PX);
-  }, [notBusStops, viewport]);
+    if (!stableViewport) return [];
+    return getBySpacing(notBusStops, stableViewport, POI_MIN_DISTANCE_PX);
+  }, [notBusStops, stableViewport]);
 
   const placedBusStops = useMemo(() => {
-    if (!viewport) return [];
-    return getBySpacing(busStops, viewport, BUS_STOP_MIN_DISTANCE_PX);
-  }, [busStops, viewport]);
+    if (!stableViewport) return [];
+    return getBySpacing(busStops, stableViewport, BUS_STOP_MIN_DISTANCE_PX);
+  }, [busStops, stableViewport]);
 
-  // Early return after all hooks have been called
-  if (!visible || !viewport) return null;
+  if (!visible || !stableViewport) return null;
 
   return (
     <>

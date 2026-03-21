@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import type { WebMercatorViewport } from "@deck.gl/core";
 import { useMapContext } from "@/components/Map/hooks";
 import { useSpeedLimits, type SpeedLimitSign } from "@/hooks/useSpeedLimits";
@@ -8,17 +8,30 @@ import type { Position } from "@/types";
 /** Minimum pixel distance between speed limit signs */
 const MIN_DISTANCE_PX = 100;
 
-function distancePx(x1: number, y1: number, x2: number, y2: number) {
-  return Math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2);
+/** Debounce delay to avoid recomputing during rapid zoom/pan */
+const DEBOUNCE_MS = 150;
+
+function distanceSq(x1: number, y1: number, x2: number, y2: number) {
+  const dx = x1 - x2;
+  const dy = y1 - y2;
+  return dx * dx + dy * dy;
 }
 
 function spacedSigns(items: SpeedLimitSign[], viewport: WebMercatorViewport, minDist: number) {
   const placed: Array<{ sign: SpeedLimitSign; px: number; py: number }> = [];
+  const minDistSq = minDist * minDist;
   for (const sign of items) {
     const [lat, lng] = sign.coordinates;
     const [px, py] = viewport.project([lng, lat]);
     if (!isFinite(px) || !isFinite(py)) continue;
-    const tooClose = placed.some(({ px: x2, py: y2 }) => distancePx(px, py, x2, y2) < minDist);
+
+    let tooClose = false;
+    for (let i = 0; i < placed.length; i++) {
+      if (distanceSq(px, py, placed[i].px, placed[i].py) < minDistSq) {
+        tooClose = true;
+        break;
+      }
+    }
     if (!tooClose) placed.push({ sign, px, py });
   }
   return placed;
@@ -73,21 +86,32 @@ interface SpeedLimitSignsProps {
 export default function SpeedLimitSigns({ visible }: SpeedLimitSignsProps) {
   const { signs } = useSpeedLimits();
   const { viewport, getBoundingBox } = useMapContext();
+
+  // Debounced viewport — only recompute after zoom/pan settles
+  const [stableViewport, setStableViewport] = useState(viewport);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setStableViewport(viewport), DEBOUNCE_MS);
+    return () => clearTimeout(timerRef.current);
+  }, [viewport]);
+
   const [[west, south], [east, north]] = getBoundingBox();
 
   const inBounds = useMemo(() => {
-    if (!viewport) return [];
+    if (!stableViewport) return [];
     return signs.filter(
       ({ coordinates: [lat, lng] }) => lat >= south && lat <= north && lng >= west && lng <= east
     );
-  }, [signs, south, north, west, east, viewport]);
+  }, [signs, south, north, west, east, stableViewport]);
 
   const placed = useMemo(() => {
-    if (!viewport) return [];
-    return spacedSigns(inBounds, viewport, MIN_DISTANCE_PX);
-  }, [inBounds, viewport]);
+    if (!stableViewport) return [];
+    return spacedSigns(inBounds, stableViewport, MIN_DISTANCE_PX);
+  }, [inBounds, stableViewport]);
 
-  if (!visible || !viewport) return null;
+  if (!visible || !stableViewport) return null;
 
   return (
     <>
