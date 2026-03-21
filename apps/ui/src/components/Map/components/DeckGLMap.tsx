@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useRef } from "react";
 import DeckGL from "@deck.gl/react";
 import { MapView, WebMercatorViewport } from "@deck.gl/core";
 import type { MapViewState } from "@deck.gl/core";
+import { webgl2Adapter } from "@luma.gl/webgl";
 import { PathLayer } from "@deck.gl/layers";
 import type { Position, RoadNetwork } from "@/types";
 import { useResizeObserver } from "@/hooks/useResizeObserver";
@@ -187,6 +188,7 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
                   controller={true}
                   style={{ position: "relative" }}
                   getCursor={() => cursor}
+                  deviceProps={{ adapters: [webgl2Adapter] }}
                 >
                   {/* HTML overlay — children rendered as absolute-positioned elements */}
                   {viewport && (
