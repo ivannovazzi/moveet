@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
-import { ScatterplotLayer } from "@deck.gl/layers";
+import { PolygonLayer, ScatterplotLayer } from "@deck.gl/layers";
 import type { Fleet } from "@/types";
 import { vehicleStore } from "../../hooks/vehicleStore";
 import { VEHICLE_INTERPOLATION } from "../../data/constants";
 import { useRegisterLayers } from "../../components/Map/hooks/useDeckLayers";
 
-// Vehicle type → shape definitions (preserved for future polygon vehicle shapes)
+// Vehicle type → shape definitions as polygon vertices (pixel-space units)
 const VEHICLE_SHAPES: Record<string, { x: number[]; y: number[] }> = {
   car: { x: [0, 2.5, 0, -2.5], y: [-4, 3, 1.5, 3] },
   truck: { x: [0, 3, 3, -3, -3], y: [-5, -1, 4, 4, -1] },
@@ -32,8 +32,36 @@ const SELECTED_BG: [number, number, number, number] = [33, 255, 205, 77];
 const HOVER_STROKE: [number, number, number, number] = [251, 201, 1, 255];
 const DEFAULT_STROKE: [number, number, number, number] = [0, 0, 0, 128];
 
-// Keep shape constants exported for potential future use
-void VEHICLE_SHAPES;
+/** Each shape unit maps to this many meters in world space. */
+const METERS_PER_SHAPE_UNIT = 5;
+/** Degrees of latitude per meter (constant everywhere on earth). */
+const DEG_PER_METER_LAT = 1 / 110540;
+
+/**
+ * Convert a shape definition into a polygon of [lng, lat] vertices,
+ * rotated by the vehicle heading and offset to the vehicle position.
+ */
+function shapeToPolygon(
+  lng: number,
+  lat: number,
+  heading: number,
+  shape: { x: number[]; y: number[] },
+  scale: number
+): [number, number][] {
+  const cosH = Math.cos(heading);
+  const sinH = Math.sin(heading);
+  const degPerMeterLng = 1 / (111320 * Math.cos(lat * (Math.PI / 180)));
+  const s = METERS_PER_SHAPE_UNIT * scale;
+
+  return shape.x.map((sx, i) => {
+    const sy = shape.y[i];
+    // Rotate vertex by heading (heading 0 = north / -Y axis)
+    const rx = sx * cosH - sy * sinH;
+    const ry = sx * sinH + sy * cosH;
+    // Convert to degree offsets and add to vehicle position
+    return [lng + rx * s * degPerMeterLng, lat + ry * s * DEG_PER_METER_LAT] as [number, number];
+  });
+}
 
 interface VehiclesLayerProps {
   scale: number;
@@ -44,13 +72,12 @@ interface VehiclesLayerProps {
   onClick: (id: string) => void;
 }
 
-/** Interpolated vehicle data fed to deck.gl layers. */
-interface InterpolatedVehicle {
+/** Interpolated vehicle data with precomputed polygon for deck.gl PolygonLayer. */
+interface VehiclePolygonDatum {
   id: string;
-  position: [number, number]; // [lng, lat] for deck.gl
-  heading: number;
-  color: [number, number, number, number]; // RGBA
-  type: string;
+  position: [number, number]; // [lng, lat]
+  polygon: [number, number][]; // rotated shape vertices in [lng, lat]
+  color: [number, number, number, number]; // RGBA fill
   isSelected: boolean;
   isHovered: boolean;
 }
@@ -123,15 +150,18 @@ function colorToRgba(color: string, alpha = 255): [number, number, number, numbe
   return hexToRgba(DEFAULT_FILL, alpha);
 }
 
+const DEFAULT_SHAPE = VEHICLE_SHAPES.car;
+
 /**
- * deck.gl-based vehicle renderer.
+ * deck.gl-based vehicle renderer with polygon shapes.
  *
  * Preserves the RAF interpolation loop from the Canvas version:
  * reads directly from vehicleStore on each animation frame,
  * applies per-vehicle EMA-based lerp, and feeds interpolated
- * positions to ScatterplotLayer via React state.
+ * positions + rotated polygon vertices to PolygonLayer via React state.
  *
- * deck.gl handles rendering and hit testing (pickable layers).
+ * Each vehicle type (car, truck, bus, etc.) renders as its original
+ * polygon shape, rotated by the vehicle heading.
  */
 export default function VehiclesLayer({
   scale: _scale,
@@ -141,7 +171,7 @@ export default function VehiclesLayer({
   hoveredId,
   onClick,
 }: VehiclesLayerProps) {
-  const [interpolatedVehicles, setInterpolatedVehicles] = useState<InterpolatedVehicle[]>([]);
+  const [vehiclePolygons, setVehiclePolygons] = useState<VehiclePolygonDatum[]>([]);
   const interpRef = useRef(new Map<string, VehicleInterp>());
 
   // Refs for values that change but shouldn't restart the RAF loop
@@ -244,7 +274,7 @@ export default function VehiclesLayer({
       const fleetMap = fleetMapRef.current;
       const hiddenFleets = hiddenFleetsRef.current;
 
-      const vehicles: InterpolatedVehicle[] = [];
+      const vehicles: VehiclePolygonDatum[] = [];
 
       for (const [, v] of store) {
         if (v.position[0] === 0 && v.position[1] === 0) continue;
@@ -270,19 +300,19 @@ export default function VehiclesLayer({
         const vehicleType = v.type || "car";
         const defaultColor = VEHICLE_TYPE_COLORS[vehicleType] || DEFAULT_FILL;
         const fillColor = colorToRgba(fleet?.color ?? defaultColor);
+        const shape = VEHICLE_SHAPES[vehicleType] || DEFAULT_SHAPE;
 
         vehicles.push({
           id: v.id,
           position: [lng, lat], // deck.gl expects [lng, lat]
-          heading,
+          polygon: shapeToPolygon(lng, lat, heading, shape, 1),
           color: fillColor,
-          type: vehicleType,
           isSelected: v.id === currentSelectedId,
           isHovered: v.id === currentHoveredId,
         });
       }
 
-      setInterpolatedVehicles(vehicles);
+      setVehiclePolygons(vehicles);
     };
 
     rafId = requestAnimationFrame(render);
@@ -290,7 +320,7 @@ export default function VehiclesLayer({
   }, []);
 
   // Stable click handler
-  const handleClick = useCallback((info: { object?: InterpolatedVehicle }) => {
+  const handleClick = useCallback((info: { object?: VehiclePolygonDatum }) => {
     if (info.object) {
       onClickRef.current(info.object.id);
     }
@@ -299,24 +329,22 @@ export default function VehiclesLayer({
   // Build the selected vehicle data for the selection ring layer
   const selectedVehicle = useMemo(() => {
     if (!selectedId) return [];
-    const found = interpolatedVehicles.find((v) => v.id === selectedId);
+    const found = vehiclePolygons.find((v) => v.id === selectedId);
     return found ? [found] : [];
-  }, [interpolatedVehicles, selectedId]);
+  }, [vehiclePolygons, selectedId]);
 
   // Build deck.gl layers
   const layers = useMemo(() => {
-    const vehiclesLayer = new ScatterplotLayer<InterpolatedVehicle>({
+    const vehiclesLayer = new PolygonLayer<VehiclePolygonDatum>({
       id: "vehicles",
-      data: interpolatedVehicles,
-      getPosition: (d) => d.position,
+      data: vehiclePolygons,
+      getPolygon: (d) => d.polygon,
       getFillColor: (d) => d.color,
       getLineColor: (d) =>
         d.isSelected ? SELECTED_STROKE : d.isHovered ? HOVER_STROKE : DEFAULT_STROKE,
-      getRadius: 6,
-      radiusUnits: "pixels",
-      radiusMinPixels: 3,
-      radiusMaxPixels: 12,
-      lineWidthMinPixels: 1,
+      getLineWidth: 1,
+      lineWidthUnits: "pixels",
+      filled: true,
       stroked: true,
       pickable: true,
       onClick: handleClick,
@@ -328,7 +356,7 @@ export default function VehiclesLayer({
       },
     });
 
-    const selectionRingLayer = new ScatterplotLayer<InterpolatedVehicle>({
+    const selectionRingLayer = new ScatterplotLayer<VehiclePolygonDatum>({
       id: "vehicle-selection-ring",
       data: selectedVehicle,
       getPosition: (d) => d.position,
@@ -342,7 +370,7 @@ export default function VehiclesLayer({
     });
 
     return [selectionRingLayer, vehiclesLayer];
-  }, [interpolatedVehicles, selectedId, hoveredId, selectedVehicle, handleClick]);
+  }, [vehiclePolygons, selectedId, hoveredId, selectedVehicle, handleClick]);
 
   // Register layers with the DeckGLMap parent
   useRegisterLayers("vehicles", layers);
