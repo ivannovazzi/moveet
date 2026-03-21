@@ -8,7 +8,8 @@ export interface PanToOptions {
 export interface DeckMapContextValue {
   viewport: WebMercatorViewport | null;
   viewState: MapViewState | null;
-  getBoundingBox: () => [Position, Position];
+  /** Returns [[west, south], [east, north]] i.e. [[minLng, minLat], [maxLng, maxLat]]. */
+  getBoundingBox: () => [[number, number], [number, number]];
   getZoom: () => number;
   /** Convenience: project [lng, lat] to [x, y] screen pixels */
   project: (position: Position) => [number, number] | null;

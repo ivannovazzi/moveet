@@ -102,7 +102,8 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
     });
   }, [size.width, size.height, viewState]);
 
-  const getBoundingBox = useCallback((): [Position, Position] => {
+  /** Returns [[west, south], [east, north]] i.e. [[minLng, minLat], [maxLng, maxLat]]. */
+  const getBoundingBox = useCallback((): [[number, number], [number, number]] => {
     if (!viewport) {
       return [
         [0, 0],
@@ -177,53 +178,41 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
               onContextMenu={handleContextMenu}
             >
               <div ref={deckContainerRef} style={{ width: "100%", height: "100%" }}>
-                <DeckGL
-                  views={MAP_VIEW}
-                  viewState={viewState as MapViewState}
-                  onViewStateChange={
-                    onViewStateChange as Parameters<typeof DeckGL>[0]["onViewStateChange"]
-                  }
-                  layers={allLayers}
-                  onClick={handleClick}
-                  controller={true}
-                  style={{ position: "relative" }}
-                  getCursor={() => cursor}
-                  deviceProps={{ adapters: [webgl2Adapter] }}
-                >
-                  {/* HTML overlay — children rendered as absolute-positioned elements */}
-                  {viewport && (
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: 0,
-                        left: 0,
-                        width: "100%",
-                        height: "100%",
-                        pointerEvents: "none",
-                      }}
-                    >
-                      <div style={{ pointerEvents: "auto" }}>{htmlMarkers}</div>
-                    </div>
-                  )}
-                </DeckGL>
+                {size.width > 0 && size.height > 0 && (
+                  <DeckGL
+                    views={MAP_VIEW}
+                    viewState={viewState as MapViewState}
+                    onViewStateChange={
+                      onViewStateChange as Parameters<typeof DeckGL>[0]["onViewStateChange"]
+                    }
+                    layers={allLayers}
+                    onClick={handleClick}
+                    controller={true}
+                    style={{ position: "relative" }}
+                    getCursor={() => cursor}
+                    deviceProps={{ adapters: [webgl2Adapter] }}
+                  >
+                    {/* HTML overlay — children rendered as absolute-positioned elements */}
+                    {viewport && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          width: "100%",
+                          height: "100%",
+                          pointerEvents: "none",
+                        }}
+                      >
+                        <div style={{ pointerEvents: "auto" }}>{htmlMarkers}</div>
+                      </div>
+                    )}
+                  </DeckGL>
+                )}
               </div>
-              {/* SVG children slot — for backward compat during migration, not rendered in deck.gl */}
-              {children && (
-                <svg
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: "100%",
-                    pointerEvents: "none",
-                    display: "none",
-                  }}
-                  aria-hidden
-                >
-                  <g className="markers">{children}</g>
-                </svg>
-              )}
+              {/* Layer components (VehiclesLayer, BreadcrumbLayer, etc.) render null
+                  and register deck.gl layers via useRegisterLayers hooks. */}
+              {children}
             </div>
           </DeckLayersContext.Provider>
         </DeckOverlayProvider>

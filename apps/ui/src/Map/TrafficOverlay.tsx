@@ -71,10 +71,10 @@ export default function TrafficOverlay({ visible }: { visible: boolean }) {
         getColor: (d) => d.color,
         getWidth: (d) => d.width,
         widthUnits: "pixels",
+        widthMinPixels: 2,
         jointRounded: true,
         capRounded: true,
         pickable: false,
-        _pathType: "open",
       }),
     ];
   }, [visible, network, streetCongestion]);

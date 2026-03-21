@@ -5,7 +5,7 @@ import { DeckMapContext } from "./contexts";
 interface DeckProps {
   viewport: WebMercatorViewport | null;
   viewState: MapViewState | null;
-  getBoundingBox: () => [Position, Position];
+  getBoundingBox: () => [[number, number], [number, number]];
   getZoom: () => number;
   project: (position: Position) => [number, number] | null;
   children: React.ReactNode;

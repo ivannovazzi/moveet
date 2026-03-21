@@ -4,6 +4,7 @@ import type { Fleet } from "@/types";
 import { vehicleStore } from "../../hooks/vehicleStore";
 import { VEHICLE_INTERPOLATION } from "../../data/constants";
 import { useRegisterLayers } from "../../components/Map/hooks/useDeckLayers";
+import { useMapContext } from "../../components/Map/hooks";
 
 // Vehicle type → shape definitions as polygon vertices (pixel-space units)
 const VEHICLE_SHAPES: Record<string, { x: number[]; y: number[] }> = {
@@ -169,6 +170,18 @@ const DEFAULT_SHAPE = VEHICLE_SHAPES.car;
  * Each vehicle type (car, truck, bus, etc.) renders as its original
  * polygon shape, rotated by the vehicle heading.
  */
+/**
+ * Zoom-dependent vehicle scaling. Vehicles grow when zooming in and shrink
+ * when zooming out, but at a reduced rate (exponent < 1) so they remain
+ * visible at overview zoom levels instead of becoming sub-pixel.
+ *
+ * At REFERENCE_ZOOM the scale is 1 (true geographic size ~25m).
+ * The exponent controls how aggressively they scale: 1.0 = pure geographic,
+ * 0.0 = constant pixel size. 0.6 is a good middle ground.
+ */
+const REFERENCE_ZOOM = 16;
+const ZOOM_EXPONENT = 0.6;
+
 export default function VehiclesLayer({
   scale: _scale,
   vehicleFleetMap,
@@ -177,6 +190,7 @@ export default function VehiclesLayer({
   hoveredId,
   onClick,
 }: VehiclesLayerProps) {
+  const { getZoom } = useMapContext();
   const [vehiclePolygons, setVehiclePolygons] = useState<VehiclePolygonDatum[]>([]);
   const interpRef = useRef(new Map<string, VehicleInterp>());
 
@@ -191,12 +205,15 @@ export default function VehiclesLayer({
   hiddenFleetsRef.current = hiddenFleetIds;
   const onClickRef = useRef(onClick);
   onClickRef.current = onClick;
+  const getZoomRef = useRef(getZoom);
+  getZoomRef.current = getZoom;
 
   // RAF interpolation loop: reads from vehicleStore, updates React state
   // Throttled to ~30fps to avoid overwhelming React with state updates
   useEffect(() => {
     let rafId: number;
     let lastVersion = -1;
+    let lastZoom = -1;
     let animating = false;
     let lastSetStateTime = 0;
     const STATE_UPDATE_INTERVAL = 33; // ~30fps for React state updates
@@ -208,8 +225,10 @@ export default function VehiclesLayer({
       const currentSelectedId = selectedRef.current;
       const currentHoveredId = hoveredRef.current;
       const now = performance.now();
+      const currentZoom = getZoomRef.current();
 
       const positionsChanged = currentVersion !== lastVersion;
+      const zoomChanged = Math.abs(currentZoom - lastZoom) > 0.01;
 
       // Update interpolation targets when new data arrives
       if (positionsChanged) {
@@ -277,7 +296,8 @@ export default function VehiclesLayer({
       }
 
       // Skip update only if nothing changed AND no animation in progress
-      if (!positionsChanged && !animating) return;
+      if (!positionsChanged && !animating && !zoomChanged) return;
+      if (zoomChanged) lastZoom = currentZoom;
 
       // Throttle React state updates to avoid 60fps re-renders
       if (now - lastSetStateTime < STATE_UPDATE_INTERVAL) return;
@@ -286,6 +306,9 @@ export default function VehiclesLayer({
       const store = vehicleStore.getAll();
       const fleetMap = fleetMapRef.current;
       const hiddenFleets = hiddenFleetsRef.current;
+      // Scale = 2^((REF_ZOOM - zoom) * exponent). At REF_ZOOM scale=1 (true size).
+      // Exponent < 1 makes vehicles shrink slower than map when zooming out.
+      const zoomScale = Math.pow(2, (REFERENCE_ZOOM - currentZoom) * ZOOM_EXPONENT);
 
       const vehicles: VehiclePolygonDatum[] = [];
 
@@ -318,7 +341,7 @@ export default function VehiclesLayer({
         vehicles.push({
           id: v.id,
           position: [lng, lat], // deck.gl expects [lng, lat]
-          polygon: shapeToPolygon(lng, lat, heading, shape, 1),
+          polygon: shapeToPolygon(lng, lat, heading, shape, zoomScale),
           color: fillColor,
           isSelected: v.id === currentSelectedId,
           isHovered: v.id === currentHoveredId,

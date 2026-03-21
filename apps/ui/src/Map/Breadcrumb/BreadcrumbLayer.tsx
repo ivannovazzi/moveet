@@ -132,7 +132,6 @@ export default function BreadcrumbLayer({
         widthUnits: "pixels",
         widthMinPixels: 1,
         pickable: false,
-        _pathType: "open",
       }),
     ];
   }, [trailData]);

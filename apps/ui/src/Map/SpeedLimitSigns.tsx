@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { IconLayer } from "@deck.gl/layers";
+import { CollisionFilterExtension, type CollisionFilterExtensionProps } from "@deck.gl/extensions";
 import { useMapContext } from "@/components/Map/hooks";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 import { useSpeedLimits, type SpeedLimitSign } from "@/hooks/useSpeedLimits";
@@ -8,8 +9,10 @@ import { createSpeedLimitIconAtlas, speedToIconKey } from "./POI/iconAtlas";
 // Build the atlas once at module level.
 const { iconAtlas, iconMapping } = createSpeedLimitIconAtlas();
 
+const collisionFilter = new CollisionFilterExtension();
+
 /** Zoom level below which speed limit signs are hidden */
-const MIN_ZOOM = 6;
+const MIN_ZOOM = 15;
 
 interface SpeedLimitSignsProps {
   visible: boolean;
@@ -33,7 +36,7 @@ export default function SpeedLimitSigns({ visible }: SpeedLimitSignsProps) {
     if (inBounds.length === 0) return [];
 
     return [
-      new IconLayer<SpeedLimitSign>({
+      new IconLayer<SpeedLimitSign, CollisionFilterExtensionProps>({
         id: "speed-limit-signs",
         data: inBounds,
         getPosition: (d) => [d.coordinates[1], d.coordinates[0]],
@@ -45,6 +48,11 @@ export default function SpeedLimitSigns({ visible }: SpeedLimitSignsProps) {
         sizeUnits: "pixels",
         sizeMinPixels: 14,
         sizeMaxPixels: 32,
+        extensions: [collisionFilter],
+        ...({
+          collisionEnabled: true,
+          collisionGroup: "speed-signs",
+        } as Record<string, unknown>),
       }),
     ];
   }, [inBounds]);
