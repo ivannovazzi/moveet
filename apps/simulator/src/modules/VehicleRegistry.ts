@@ -5,7 +5,7 @@ import { config } from "../utils/config";
 import { CircularBuffer } from "../utils/CircularBuffer";
 import { serializeVehicle } from "../utils/serializer";
 import type { FleetManager } from "./FleetManager";
-import { getProfile } from "../utils/vehicleProfiles";
+import { getProfile, distributeByWeight } from "../utils/vehicleProfiles";
 
 /**
  * Manages vehicle state: add/remove/get/update vehicles, visited edges, and edge spatial index.
@@ -78,23 +78,28 @@ export class VehicleRegistry {
     vehicleTypes?: Partial<Record<VehicleType, number>>,
     onVehicleAdded?: (vehicleId: string) => void
   ): void {
-    if (vehicleTypes && Object.keys(vehicleTypes).length > 0) {
-      let idx = 0;
-      for (const [type, count] of Object.entries(vehicleTypes)) {
-        for (let i = 0; i < (count as number); i++) {
-          this.addVehicle(
-            idx.toString(),
-            `V${idx}`,
-            undefined,
-            type as VehicleType,
-            onVehicleAdded
-          );
-          idx++;
-        }
-      }
-    } else {
-      for (let i = 0; i < config.vehicleCount; i++) {
-        this.addVehicle(i.toString(), `V${i}`, undefined, "car", onVehicleAdded);
+    // When no explicit types provided, use weighted distribution across all types
+    const types =
+      vehicleTypes && Object.keys(vehicleTypes).length > 0
+        ? vehicleTypes
+        : distributeByWeight(config.vehicleCount);
+
+    let idx = 0;
+    const typeCounters: Partial<Record<VehicleType, number>> = {};
+
+    for (const [type, count] of Object.entries(types)) {
+      for (let i = 0; i < (count as number); i++) {
+        const vType = type as VehicleType;
+        typeCounters[vType] = (typeCounters[vType] ?? 0) + 1;
+        const label = type.charAt(0).toUpperCase() + type.slice(1);
+        this.addVehicle(
+          idx.toString(),
+          `${label}-${typeCounters[vType]}`,
+          undefined,
+          vType,
+          onVehicleAdded
+        );
+        idx++;
       }
     }
   }

@@ -44,6 +44,25 @@ export const envSchema = z
     /** Number of simulated vehicles */
     VEHICLE_COUNT: z.coerce.number().int().min(1).default(70),
 
+    /**
+     * Optional JSON vehicle type distribution override.
+     * e.g. '{"car":50,"truck":10,"bus":7,"motorcycle":3}'
+     * When empty, uses the built-in weighted distribution.
+     */
+    VEHICLE_TYPES: z
+      .string()
+      .default("")
+      .transform((v) => {
+        if (!v) return undefined;
+        try {
+          const parsed = JSON.parse(v);
+          if (typeof parsed !== "object" || parsed === null) return undefined;
+          return parsed as Partial<Record<string, number>>;
+        } catch {
+          return undefined;
+        }
+      }),
+
     /** Path to the GeoJSON road network file */
     GEOJSON_PATH: z.string().default("./data/network.geojson"),
 
@@ -100,6 +119,7 @@ function buildConfig(env: EnvConfig) {
     heatZoneSpeedFactor: env.HEATZONE_SPEED_FACTOR,
     syncAdapterTimeout: env.SYNC_ADAPTER_TIMEOUT,
     vehicleCount: env.VEHICLE_COUNT,
+    vehicleTypes: env.VEHICLE_TYPES,
     geojsonPath: env.GEOJSON_PATH,
     adapterURL: env.ADAPTER_URL,
     persistenceEnabled: env.PERSISTENCE_ENABLED,
