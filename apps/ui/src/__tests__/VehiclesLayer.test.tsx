@@ -56,10 +56,12 @@ function renderAndTick(props: Partial<typeof defaultProps> = {}) {
   const merged = { ...defaultProps, ...props };
   const result = render(<VehiclesLayer {...merged} />);
 
-  // Run pending effects and one animation frame
+  // Run pending effects and advance past the STATE_UPDATE_INTERVAL (33ms) throttle
   act(() => {
     vi.advanceTimersByTime(0);
-    vi.advanceTimersByTime(16); // one frame ~16ms
+  });
+  act(() => {
+    vi.advanceTimersByTime(50); // exceed 33ms throttle → setState fires
   });
 
   return result;
