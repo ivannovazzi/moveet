@@ -12,7 +12,16 @@ const { iconAtlas, iconMapping } = createSpeedLimitIconAtlas();
 const collisionFilter = new CollisionFilterExtension();
 
 /** Zoom level below which speed limit signs are hidden */
-const MIN_ZOOM = 15;
+const MIN_ZOOM = 7;
+
+/**
+ * Collision spacing multiplier — how much larger the collision hitbox is
+ * compared to the rendered icon. 1.0 = no extra spacing, 2.0 = double.
+ */
+const COLLISION_SIZE_SCALE = 2.0;
+
+/** Fade-in duration in milliseconds. */
+const FADE_DURATION_MS = 500;
 
 interface SpeedLimitSignsProps {
   visible: boolean;
@@ -35,27 +44,36 @@ export default function SpeedLimitSigns({ visible }: SpeedLimitSignsProps) {
   const layers = useMemo(() => {
     if (inBounds.length === 0) return [];
 
+    // Fade in: alpha ramps 0→255 over one zoom level past threshold
+    const alpha = Math.round(Math.max(0, Math.min(1, zoom - MIN_ZOOM)) * 255);
+
     return [
       new IconLayer<SpeedLimitSign, CollisionFilterExtensionProps>({
         id: "speed-limit-signs",
         data: inBounds,
+        updateTriggers: {
+          getColor: [zoom],
+        },
         getPosition: (d) => [d.coordinates[1], d.coordinates[0]],
         getIcon: (d) => speedToIconKey(d.speed),
         getSize: 28,
+        getColor: [255, 255, 255, alpha],
         iconAtlas,
         iconMapping,
         pickable: false,
         sizeUnits: "pixels",
         sizeMinPixels: 14,
         sizeMaxPixels: 32,
+        transitions: { getColor: { duration: FADE_DURATION_MS } },
         extensions: [collisionFilter],
         ...({
           collisionEnabled: true,
           collisionGroup: "speed-signs",
+          collisionTestProps: { sizeScale: COLLISION_SIZE_SCALE },
         } as Record<string, unknown>),
       }),
     ];
-  }, [inBounds]);
+  }, [inBounds, zoom]);
 
   useRegisterLayers("speed-limit-signs", layers, 46);
 

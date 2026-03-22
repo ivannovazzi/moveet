@@ -56,9 +56,10 @@ function shapeToPolygon(
 
   return shape.x.map((sx, i) => {
     const sy = shape.y[i];
-    // Rotate vertex by heading (heading 0 = north / -Y axis)
+    // Rotate vertex by compass bearing (0 = north, clockwise positive)
+    // Shape front is at -Y, geographic north is +Y, so negate ry.
     const rx = sx * cosH - sy * sinH;
-    const ry = sx * sinH + sy * cosH;
+    const ry = -(sx * sinH + sy * cosH);
     // Convert to degree offsets and add to vehicle position
     return [lng + rx * s * degPerMeterLng, lat + ry * s * DEG_PER_METER_LAT] as [number, number];
   });

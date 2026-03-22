@@ -37,31 +37,40 @@ const LAYER_ORDER: Record<string, number> = {
 export function useDeckLayerManager() {
   const registryRef = useRef<Map<string, { layers: Layer[]; order: number }>>(new Map());
   const [registeredLayers, setRegisteredLayers] = useState<Layer[]>([]);
+  const rebuildScheduled = useRef(false);
 
-  const rebuild = useCallback(() => {
-    const entries = Array.from(registryRef.current.entries());
-    entries.sort((a, b) => a[1].order - b[1].order);
-    const allLayers: Layer[] = [];
-    for (const [, { layers }] of entries) {
-      allLayers.push(...layers);
-    }
-    setRegisteredLayers(allLayers);
+  // Batched rebuild: multiple register/unregister calls in the same microtask
+  // (e.g. effect cleanup + setup) produce only ONE state update, preventing
+  // infinite re-render loops during zoom/pan.
+  const scheduleRebuild = useCallback(() => {
+    if (rebuildScheduled.current) return;
+    rebuildScheduled.current = true;
+    queueMicrotask(() => {
+      rebuildScheduled.current = false;
+      const entries = Array.from(registryRef.current.entries());
+      entries.sort((a, b) => a[1].order - b[1].order);
+      const allLayers: Layer[] = [];
+      for (const [, { layers }] of entries) {
+        allLayers.push(...layers);
+      }
+      setRegisteredLayers(allLayers);
+    });
   }, []);
 
   const registerLayers = useCallback(
     (id: string, layers: Layer[], order?: number) => {
       registryRef.current.set(id, { layers, order: order ?? LAYER_ORDER[id] ?? 100 });
-      rebuild();
+      scheduleRebuild();
     },
-    [rebuild]
+    [scheduleRebuild]
   );
 
   const unregisterLayers = useCallback(
     (id: string) => {
       registryRef.current.delete(id);
-      rebuild();
+      scheduleRebuild();
     },
-    [rebuild]
+    [scheduleRebuild]
   );
 
   const contextValue: DeckLayersContextValue = {
