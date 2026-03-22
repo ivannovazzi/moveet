@@ -78,12 +78,13 @@ function getTrailData(): Array<{ vehicleId: string; path: [number, number][] }> 
 // ---------------------------------------------------------------------------
 
 function flushRAF() {
-  // Trigger the initial useEffect, then the RAF callback, then the re-render from setState
+  // Trigger the initial useEffect, then advance past the RAF callback AND
+  // the 100ms STATE_UPDATE_INTERVAL throttle so setState fires.
   act(() => {
     vi.advanceTimersByTime(0); // flush microtasks / effects
   });
   act(() => {
-    vi.advanceTimersByTime(16); // trigger RAF callback → setState
+    vi.advanceTimersByTime(150); // trigger RAF + exceed throttle interval → setState
   });
   act(() => {
     vi.advanceTimersByTime(16); // process re-render and subsequent RAF
