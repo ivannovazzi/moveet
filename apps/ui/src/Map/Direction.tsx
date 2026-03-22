@@ -1,107 +1,44 @@
-import { useEffect, useState, memo } from "react";
-import type { Waypoint, Position } from "@/types";
+import { useMemo } from "react";
+import { PathLayer, ScatterplotLayer, TextLayer } from "@deck.gl/layers";
+import type { Position } from "@/types";
 import { useDirections, type DirectionState } from "@/hooks/useDirections";
-import { Polyline } from "@/components/Map/components/Polyline";
 import { invertLatLng } from "@/utils/coordinates";
-import { useMapContext } from "@/components/Map/hooks";
-import Label from "@/components/Map/components/Label";
+import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 
-interface WaypointMarkersProps {
-  waypoints: Waypoint[];
-  currentWaypointIndex: number;
-  color: string;
+/** Convert a hex color string like "#39f" or "#3399ff" to [r,g,b,a]. */
+function hexToRgba(hex: string, alpha = 255): [number, number, number, number] {
+  let h = hex.replace("#", "");
+  if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+  const n = parseInt(h, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255, alpha];
 }
 
-const WaypointMarkers = memo(function WaypointMarkers({
-  waypoints,
-  currentWaypointIndex,
-  color,
-}: WaypointMarkersProps) {
-  const { projection, transform } = useMapContext();
-  const k = transform?.k ?? 1;
-  const radius = 10 / k;
-  const fontSize = 10 / k;
-  const strokeWidth = 1.5 / k;
-
-  const remaining = waypoints.length - currentWaypointIndex;
-
-  return (
-    <>
-      {waypoints.map((wp, i) => {
-        const projected = projection
-          ? (projection(invertLatLng(wp.position) as Position) as Position | null)
-          : null;
-        if (!projected) return null;
-
-        const isCurrent = i === currentWaypointIndex;
-        const isCompleted = i < currentWaypointIndex;
-
-        const dotRadius = isCurrent ? radius * 1.3 : radius;
-        const opacity = isCompleted ? 0.4 : 1;
-        const fillColor = isCurrent ? color : "rgba(0,0,0,0.7)";
-        const strokeColor = isCurrent ? "#fff" : color;
-
-        return (
-          <g key={i} opacity={opacity}>
-            <circle
-              cx={projected[0]}
-              cy={projected[1]}
-              r={dotRadius}
-              fill={fillColor}
-              stroke={strokeColor}
-              strokeWidth={strokeWidth}
-            />
-            <text
-              x={projected[0]}
-              y={projected[1]}
-              textAnchor="middle"
-              dominantBaseline="central"
-              fill={isCurrent ? "#fff" : color}
-              fontSize={fontSize}
-              fontWeight={isCurrent ? "bold" : "normal"}
-              style={{ pointerEvents: "none" }}
-            >
-              {i + 1}
-            </text>
-          </g>
-        );
-      })}
-      {remaining > 0 && (
-        <Label
-          label={`${remaining} stop${remaining === 1 ? "" : "s"} left`}
-          coordinates={invertLatLng(waypoints[waypoints.length - 1].position) as Position}
-          color={color}
-        />
-      )}
-    </>
-  );
-});
-
-interface DirectionLineProps {
+interface DirectionData {
+  id: string;
   direction: DirectionState;
   color: string;
 }
 
-const DirectionLine = memo(function DirectionLine({ direction, color }: DirectionLineProps) {
-  const { route, waypoints, currentWaypointIndex } = direction;
-  const distance = `${route.distance.toFixed(1)} km`;
-  const coordinates = route.edges.map((edge) => edge.start.coordinates).map(invertLatLng);
-  const showWaypoints = waypoints && waypoints.length > 1;
+interface PathDatum extends DirectionData {
+  path: [number, number][];
+}
 
-  return (
-    <>
-      <Polyline coordinates={coordinates} color={color} />
-      <Label label={distance} coordinates={coordinates} color={color} />
-      {showWaypoints && (
-        <WaypointMarkers
-          waypoints={waypoints}
-          currentWaypointIndex={currentWaypointIndex ?? 0}
-          color={color}
-        />
-      )}
-    </>
-  );
-});
+interface WaypointData {
+  position: [number, number];
+  index: number;
+  isCurrent: boolean;
+  isCompleted: boolean;
+  color: string;
+  label: string;
+  stopsLeftLabel?: string;
+}
+
+interface LabelData {
+  id: string;
+  position: [number, number];
+  text: string;
+  color: string;
+}
 
 interface DirectionProps {
   selected?: string;
@@ -110,33 +47,151 @@ interface DirectionProps {
 
 export default function DirectionMap({ selected, hovered }: DirectionProps) {
   const directions = useDirections();
-  const [selectedDirection, setSelectedDirection] = useState<DirectionState | null>(null);
-  const [hoveredDirection, setHoveredDirection] = useState<DirectionState | null>(null);
 
-  useEffect(() => {
-    if (selected && directions.size > 0) {
-      setSelectedDirection(directions.get(selected) ?? null);
-    } else {
-      setSelectedDirection(null);
+  const layers = useMemo(() => {
+    const items: DirectionData[] = [];
+    if (hovered) {
+      const d = directions.get(hovered);
+      if (d) items.push({ id: `${hovered}--hovered`, direction: d, color: "#f93" });
     }
-  }, [directions, selected]);
-
-  useEffect(() => {
-    if (hovered && directions.size > 0) {
-      setHoveredDirection(directions.get(hovered) ?? null);
-    } else {
-      setHoveredDirection(null);
+    if (selected) {
+      const d = directions.get(selected);
+      if (d) items.push({ id: `${selected}--selected`, direction: d, color: "#39f" });
     }
-  }, [directions, hovered]);
 
-  return (
-    <>
-      {hoveredDirection && (
-        <DirectionLine direction={hoveredDirection} key={`${hovered}--hovered`} color={"#f93"} />
-      )}
-      {selectedDirection && (
-        <DirectionLine direction={selectedDirection} key={`${selected}--selected`} color={"#39f"} />
-      )}
-    </>
-  );
+    if (items.length === 0) return [];
+
+    // Build path data using geo coords [lng, lat] — deck.gl MapView handles projection
+    const pathData: PathDatum[] = items.map((item) => {
+      const coords: [number, number][] = item.direction.route.edges.map(
+        (edge) => invertLatLng(edge.start.coordinates as Position) as [number, number]
+      );
+      const lastEdge = item.direction.route.edges[item.direction.route.edges.length - 1];
+      if (lastEdge) {
+        coords.push(invertLatLng(lastEdge.end.coordinates as Position) as [number, number]);
+      }
+      return { ...item, path: coords };
+    });
+
+    // Build waypoint data
+    const waypointData: WaypointData[] = [];
+    for (const item of items) {
+      const { waypoints, currentWaypointIndex } = item.direction;
+      if (!waypoints || waypoints.length <= 1) continue;
+
+      const cwi = currentWaypointIndex ?? 0;
+      const remaining = waypoints.length - cwi;
+
+      for (let i = 0; i < waypoints.length; i++) {
+        const wp = waypoints[i];
+        const [lng, lat] = invertLatLng(wp.position as Position);
+
+        waypointData.push({
+          position: [lng, lat] as [number, number],
+          index: i,
+          isCurrent: i === cwi,
+          isCompleted: i < cwi,
+          color: item.color,
+          label: String(i + 1),
+          stopsLeftLabel:
+            i === waypoints.length - 1 && remaining > 0
+              ? `${remaining} stop${remaining === 1 ? "" : "s"} left`
+              : undefined,
+        });
+      }
+    }
+
+    // Build label data
+    const distanceLabelData: LabelData[] = pathData
+      .filter((d) => d.path.length >= 2)
+      .map((d) => ({
+        id: d.id,
+        position: d.path[Math.floor(d.path.length / 2)],
+        text: `${d.direction.route.distance.toFixed(1)} km`,
+        color: d.color,
+      }));
+
+    const stopsLabelData: LabelData[] = waypointData
+      .filter((wp) => wp.stopsLeftLabel)
+      .map((wp) => ({
+        id: `stops-${wp.index}`,
+        position: wp.position,
+        text: wp.stopsLeftLabel!,
+        color: wp.color,
+      }));
+
+    const allLabelData = [...distanceLabelData, ...stopsLabelData];
+
+    const pathLayer = new PathLayer<PathDatum>({
+      id: "direction-paths",
+      data: pathData,
+      getPath: (d) => d.path,
+      getColor: (d) => hexToRgba(d.color),
+      getWidth: 3,
+      widthUnits: "pixels",
+      widthMinPixels: 2,
+      jointRounded: true,
+      capRounded: true,
+      _pathType: "open",
+    });
+
+    const scatterLayer =
+      waypointData.length > 0
+        ? new ScatterplotLayer<WaypointData>({
+            id: "direction-waypoints",
+            data: waypointData,
+            getPosition: (d) => d.position,
+            getRadius: (d) => (d.isCurrent ? 7 : 5),
+            getFillColor: (d) => (d.isCurrent ? hexToRgba(d.color) : [0, 0, 0, 180]),
+            getLineColor: (d) => (d.isCurrent ? [255, 255, 255, 255] : hexToRgba(d.color)),
+            getLineWidth: 1.5,
+            stroked: true,
+            lineWidthUnits: "pixels",
+            radiusUnits: "pixels",
+            radiusMinPixels: 4,
+          })
+        : null;
+
+    const waypointTextLayer =
+      waypointData.length > 0
+        ? new TextLayer<WaypointData>({
+            id: "direction-waypoint-labels",
+            data: waypointData,
+            getPosition: (d) => d.position,
+            getText: (d) => d.label,
+            getSize: 10,
+            getColor: (d) => (d.isCurrent ? [255, 255, 255, 255] : hexToRgba(d.color)),
+            getTextAnchor: "middle",
+            getAlignmentBaseline: "center",
+            sizeUnits: "pixels",
+            fontWeight: "bold",
+          })
+        : null;
+
+    const distanceTextLayer =
+      allLabelData.length > 0
+        ? new TextLayer<LabelData>({
+            id: "direction-distance-labels",
+            data: allLabelData,
+            getPosition: (d) => d.position,
+            getText: (d) => d.text,
+            getSize: 12,
+            getColor: (d) => hexToRgba(d.color),
+            getTextAnchor: "middle",
+            getAlignmentBaseline: "center",
+            sizeUnits: "pixels",
+            background: true,
+            getBackgroundColor: [0, 0, 0, 190],
+            backgroundPadding: [4, 2],
+          })
+        : null;
+
+    return [pathLayer, scatterLayer, waypointTextLayer, distanceTextLayer].filter(
+      (l): l is NonNullable<typeof l> => l !== null
+    );
+  }, [directions, selected, hovered]);
+
+  useRegisterLayers("directions", layers);
+
+  return null;
 }

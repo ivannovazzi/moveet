@@ -1,15 +1,24 @@
 import { createContext } from "react";
-import type { OverlayContextValue, MapContextValue, MapControlsContextValue } from "./types";
+import type {
+  MapControlsContextValue,
+  DeckMapContextValue,
+  DeckOverlayContextValue,
+} from "./types";
 
-export const MapContext = createContext<MapContextValue>({
-  map: null,
-  projection: null,
-  transform: null,
+export const DeckMapContext = createContext<DeckMapContextValue>({
+  viewport: null,
+  viewState: null,
   getBoundingBox: () => [
     [0, 0],
     [0, 0],
   ],
   getZoom: () => 0,
+  project: () => null,
+});
+
+export const DeckOverlayContext = createContext<DeckOverlayContextValue>({
+  viewport: null,
+  mapHTMLElement: null,
 });
 
 export const MapControlsContext = createContext<MapControlsContextValue>({
@@ -19,9 +28,4 @@ export const MapControlsContext = createContext<MapControlsContextValue>({
   setZoom: () => {},
   setBounds: () => {},
   focusOn: () => {},
-});
-
-export const OverlayContext = createContext<OverlayContextValue>({
-  htmlTransform: null,
-  mapHTMLElement: null,
 });

@@ -14,17 +14,15 @@ export default function HTMLMarker({
   children,
   ...props
 }: HtmlMarkerProps) {
-  const { projection, transform } = useMapContext();
+  const { viewport, viewState } = useMapContext();
   const markerRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
-    if (!markerRef.current || !projection || !transform) return;
-    const [x, y] = projection(position) ?? [0, 0];
-    // The marker is scaled by the inverse of the zoom level
-    markerRef.current.style.transform = `translate3d(${x + offset[0]}px, ${
-      y + offset[1]
-    }px, 0) scale(${1 / transform.k})`;
-  }, [position, offset, projection, transform]);
+    if (!markerRef.current || !viewport) return;
+
+    const [x, y] = viewport.project([position[0], position[1]]);
+    markerRef.current.style.transform = `translate3d(${x + offset[0]}px, ${y + offset[1]}px, 0)`;
+  }, [position, offset, viewport, viewState]);
 
   const style: React.CSSProperties = {
     position: "absolute",

@@ -131,13 +131,16 @@ jobs:
             apps/*/node_modules
           key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
       - name: Audit root
-        run: npm audit --audit-level=high
+        # fast-xml-parser 4.x has no fix for GHSA-jp2q-39xq-3w4g (high severity).
+        # Transitive via @deck.gl/geo-layers → @loaders.gl/wms → @loaders.gl/xml.
+        # Use --audit-level=critical until upstream releases a patched 4.x.
+        run: npm audit --audit-level=critical
       - name: Audit simulator
         working-directory: apps/simulator
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=critical
       - name: Audit adapter
         working-directory: apps/adapter
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=critical
       - name: Audit UI
         working-directory: apps/ui
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=critical

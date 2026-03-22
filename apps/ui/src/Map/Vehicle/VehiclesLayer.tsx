@@ -1,17 +1,14 @@
-import { useEffect, useRef, useCallback } from "react";
-import type { Fleet, Position } from "@/types";
-import { toMapPosition } from "@/utils/coordinates";
-import { useMapContext } from "../../components/Map/hooks";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
+import { PolygonLayer, ScatterplotLayer } from "@deck.gl/layers";
+import type { Fleet } from "@/types";
 import { vehicleStore } from "../../hooks/vehicleStore";
-import { VEHICLE_RENDER, VEHICLE_INTERPOLATION } from "../../data/constants";
+import { VEHICLE_INTERPOLATION } from "../../data/constants";
+import { useRegisterLayers } from "../../components/Map/hooks/useDeckLayers";
+import { useMapContext } from "../../components/Map/hooks";
 
-// Arrow shape vertices (same as original VehicleMarker polygon)
-const AX = [0, 2.5, 0, -2.5];
-const AY = [-4, 3, 1.5, 3];
-
-// Vehicle type → shape definitions (polygon points as [x,y] arrays, normalized)
+// Vehicle type → shape definitions as polygon vertices (pixel-space units)
 const VEHICLE_SHAPES: Record<string, { x: number[]; y: number[] }> = {
-  car: { x: AX, y: AY },
+  car: { x: [0, 2.5, 0, -2.5], y: [-4, 3, 1.5, 3] },
   truck: { x: [0, 3, 3, -3, -3], y: [-5, -1, 4, 4, -1] },
   motorcycle: { x: [0, 1.5, 0, -1.5], y: [-5, 2, 0, 2] },
   ambulance: {
@@ -30,12 +27,43 @@ const VEHICLE_TYPE_COLORS: Record<string, string> = {
   bus: "#3b82f6",
 };
 
-/** Default fallback colors matching CSS variables in tokens.css */
 const DEFAULT_FILL = "#dcdcdc";
-const DEFAULT_STROKE = "rgba(0,0,0,0.5)";
-const SELECTED_STROKE = "#06c";
-const SELECTED_BG = "rgba(33, 255, 205, 0.3)";
-const HOVER_STROKE = "rgb(251, 201, 1)";
+const SELECTED_STROKE: [number, number, number, number] = [0, 102, 204, 255];
+const SELECTED_BG: [number, number, number, number] = [33, 255, 205, 77];
+const HOVER_STROKE: [number, number, number, number] = [251, 201, 1, 255];
+const DEFAULT_STROKE: [number, number, number, number] = [0, 0, 0, 128];
+
+/** Each shape unit maps to this many meters in world space. */
+const METERS_PER_SHAPE_UNIT = 5;
+/** Degrees of latitude per meter (constant everywhere on earth). */
+const DEG_PER_METER_LAT = 1 / 110540;
+
+/**
+ * Convert a shape definition into a polygon of [lng, lat] vertices,
+ * rotated by the vehicle heading and offset to the vehicle position.
+ */
+function shapeToPolygon(
+  lng: number,
+  lat: number,
+  heading: number,
+  shape: { x: number[]; y: number[] },
+  scale: number
+): [number, number][] {
+  const cosH = Math.cos(heading);
+  const sinH = Math.sin(heading);
+  const degPerMeterLng = 1 / (111320 * Math.cos(lat * (Math.PI / 180)));
+  const s = METERS_PER_SHAPE_UNIT * scale;
+
+  return shape.x.map((sx, i) => {
+    const sy = shape.y[i];
+    // Rotate vertex by compass bearing (0 = north, clockwise positive)
+    // Shape front is at -Y, geographic north is +Y, so negate ry.
+    const rx = sx * cosH - sy * sinH;
+    const ry = -(sx * sinH + sy * cosH);
+    // Convert to degree offsets and add to vehicle position
+    return [lng + rx * s * degPerMeterLng, lat + ry * s * DEG_PER_METER_LAT] as [number, number];
+  });
+}
 
 interface VehiclesLayerProps {
   scale: number;
@@ -46,11 +74,14 @@ interface VehiclesLayerProps {
   onClick: (id: string) => void;
 }
 
-/** Projected vehicle with screen coords for hit testing. */
-interface ProjectedVehicle {
+/** Interpolated vehicle data with precomputed polygon for deck.gl PolygonLayer. */
+interface VehiclePolygonDatum {
   id: string;
-  x: number;
-  y: number;
+  position: [number, number]; // [lng, lat]
+  polygon: [number, number][]; // rotated shape vertices in [lng, lat]
+  color: [number, number, number, number]; // RGBA fill
+  isSelected: boolean;
+  isHovered: boolean;
 }
 
 /** Per-vehicle interpolation state for smooth animation between WS updates. */
@@ -68,7 +99,7 @@ interface VehicleInterp {
 
 const { DEFAULT_LERP_MS, MIN_LERP_MS, MAX_T } = VEHICLE_INTERPOLATION;
 
-/** Lerp a single value from a to b by t ∈ [0, 1]. */
+/** Lerp a single value from a to b by t in [0, 1]. */
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
@@ -76,7 +107,6 @@ function lerp(a: number, b: number, t: number): number {
 /** Shortest-arc lerp for angles in radians. */
 function lerpAngle(a: number, b: number, t: number): number {
   let diff = b - a;
-  // Normalize to [-PI, PI]
   while (diff > Math.PI) diff -= 2 * Math.PI;
   while (diff < -Math.PI) diff += 2 * Math.PI;
   return a + diff * t;
@@ -85,121 +115,87 @@ function lerpAngle(a: number, b: number, t: number): number {
 /**
  * Resolve a CSS variable reference like "var(--color-vehicle-fill)" to its
  * computed value, or return the input unchanged if it's already a plain color.
+ * Results are cached to avoid getComputedStyle on every frame.
  */
+const cssColorCache = new Map<string, string>();
 function resolveCSSColor(color: string): string {
   if (!color.startsWith("var(")) return color;
+  const cached = cssColorCache.get(color);
+  if (cached) return cached;
   const match = color.match(/^var\(([^)]+)\)$/);
   if (!match) return DEFAULT_FILL;
   const value = getComputedStyle(document.documentElement).getPropertyValue(match[1]).trim();
-  return value || DEFAULT_FILL;
+  const resolved = value || DEFAULT_FILL;
+  cssColorCache.set(color, resolved);
+  return resolved;
 }
 
-/**
- * Draw a vehicle shape on a 2D canvas context based on vehicle type.
- */
-function drawShape(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  heading: number,
-  s: number,
-  vehicleType: string,
-  fillColor: string,
-  strokeColor: string,
-  strokeWidth: number
-) {
-  const shape = VEHICLE_SHAPES[vehicleType] || VEHICLE_SHAPES.car;
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(heading);
-  ctx.beginPath();
-  ctx.moveTo(shape.x[0] * s, shape.y[0] * s);
-  for (let i = 1; i < shape.x.length; i++) {
-    ctx.lineTo(shape.x[i] * s, shape.y[i] * s);
+/** Convert hex color string to RGBA tuple for deck.gl. */
+function hexToRgba(hex: string, alpha = 255): [number, number, number, number] {
+  const h = hex.replace("#", "");
+  const bigint =
+    h.length === 3 ? parseInt(h[0] + h[0] + h[1] + h[1] + h[2] + h[2], 16) : parseInt(h, 16);
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return [r, g, b, alpha];
+}
+
+/** Convert a color string (hex or CSS variable) to RGBA tuple. */
+function colorToRgba(color: string, alpha = 255): [number, number, number, number] {
+  const resolved = resolveCSSColor(color);
+  if (resolved.startsWith("#")) return hexToRgba(resolved, alpha);
+  // Fallback for rgb/rgba strings — extract numbers
+  const nums = resolved.match(/\d+/g);
+  if (nums && nums.length >= 3) {
+    return [
+      parseInt(nums[0]),
+      parseInt(nums[1]),
+      parseInt(nums[2]),
+      nums.length >= 4 ? Math.round(parseFloat(nums[3]) * 255) : alpha,
+    ];
   }
-  ctx.closePath();
-  ctx.fillStyle = fillColor;
-  ctx.fill();
-  ctx.strokeStyle = strokeColor;
-  ctx.lineWidth = strokeWidth;
-  ctx.stroke();
-  ctx.restore();
+  return hexToRgba(DEFAULT_FILL, alpha);
 }
 
-/**
- * Draw a glow effect behind a vehicle shape for selected/hovered vehicles.
- */
-function drawGlowShape(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  heading: number,
-  s: number,
-  vehicleType: string,
-  fillColor: string,
-  glowColor: string,
-  glowRadius: number
-) {
-  ctx.save();
-  ctx.shadowColor = glowColor;
-  ctx.shadowBlur = glowRadius;
-  ctx.shadowOffsetX = 0;
-  ctx.shadowOffsetY = 0;
-  drawShape(
-    ctx,
-    x,
-    y,
-    heading,
-    s,
-    vehicleType,
-    fillColor,
-    glowColor,
-    VEHICLE_RENDER.GLOW_STROKE_WIDTH
-  );
-  ctx.restore();
-}
+const DEFAULT_SHAPE = VEHICLE_SHAPES.car;
 
 /**
- * Draw a selection ring (circle) around a vehicle.
- */
-function drawSelectionRing(ctx: CanvasRenderingContext2D, x: number, y: number, s: number) {
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(x, y, VEHICLE_RENDER.SELECTION_RING_RADIUS * s, 0, Math.PI * 2);
-  ctx.fillStyle = SELECTED_BG;
-  ctx.fill();
-  ctx.strokeStyle = SELECTED_STROKE;
-  ctx.lineWidth = VEHICLE_RENDER.SELECTION_RING_STROKE_WIDTH * s;
-  ctx.stroke();
-  ctx.restore();
-}
-
-/**
- * Canvas-based vehicle renderer that bypasses React for position updates.
+ * deck.gl-based vehicle renderer with polygon shapes.
  *
- * Reads directly from vehicleStore on each animation frame.
- * React never re-renders for vehicle position changes.
- * Uses a single HTML5 Canvas element for all vehicles instead of SVG DOM.
+ * Preserves the RAF interpolation loop from the Canvas version:
+ * reads directly from vehicleStore on each animation frame,
+ * applies per-vehicle EMA-based lerp, and feeds interpolated
+ * positions + rotated polygon vertices to PolygonLayer via React state.
+ *
+ * Each vehicle type (car, truck, bus, etc.) renders as its original
+ * polygon shape, rotated by the vehicle heading.
  */
+/**
+ * Zoom-dependent vehicle scaling. Vehicles grow when zooming in and shrink
+ * when zooming out, but at a reduced rate (exponent < 1) so they remain
+ * visible at overview zoom levels instead of becoming sub-pixel.
+ *
+ * At REFERENCE_ZOOM the scale is 1 (true geographic size ~25m).
+ * The exponent controls how aggressively they scale: 1.0 = pure geographic,
+ * 0.0 = constant pixel size. 0.6 is a good middle ground.
+ */
+const REFERENCE_ZOOM = 16;
+const ZOOM_EXPONENT = 0.6;
+
 export default function VehiclesLayer({
-  scale,
+  scale: _scale,
   vehicleFleetMap,
   hiddenFleetIds,
   selectedId,
   hoveredId,
   onClick,
 }: VehiclesLayerProps) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const { projection, transform, map } = useMapContext();
-  const projectedRef = useRef<ProjectedVehicle[]>([]);
-  const onClickRef = useRef(onClick);
-  onClickRef.current = onClick;
-  const containerRef = useRef<HTMLElement | null>(null);
+  const { getZoom } = useMapContext();
+  const [vehiclePolygons, setVehiclePolygons] = useState<VehiclePolygonDatum[]>([]);
   const interpRef = useRef(new Map<string, VehicleInterp>());
 
   // Refs for values that change but shouldn't restart the RAF loop
-  const transformRef = useRef(transform);
-  transformRef.current = transform;
   const selectedRef = useRef(selectedId);
   selectedRef.current = selectedId;
   const hoveredRef = useRef(hoveredId);
@@ -208,92 +204,32 @@ export default function VehiclesLayer({
   fleetMapRef.current = vehicleFleetMap;
   const hiddenFleetsRef = useRef(hiddenFleetIds);
   hiddenFleetsRef.current = hiddenFleetIds;
+  const onClickRef = useRef(onClick);
+  onClickRef.current = onClick;
+  const getZoomRef = useRef(getZoom);
+  getZoomRef.current = getZoom;
 
-  const projectPosition = useCallback(
-    (pos: Position): [number, number] | null => {
-      if (!projection) return null;
-      const result = projection(pos);
-      if (!result || !isFinite(result[0]) || !isFinite(result[1])) return null;
-      return result as [number, number];
-    },
-    [projection]
-  );
-
-  // Create and mount the canvas element into the map's container div
+  // RAF interpolation loop: reads from vehicleStore, updates React state
+  // Throttled to ~30fps to avoid overwhelming React with state updates
   useEffect(() => {
-    if (!map) return;
-
-    // The map container is the parent div with position: relative
-    const container = map.parentElement;
-    if (!container) return;
-    containerRef.current = container;
-
-    const canvas = document.createElement("canvas");
-    canvas.setAttribute("role", "img");
-    canvas.setAttribute("aria-label", "Vehicle fleet map");
-    canvas.style.position = "absolute";
-    canvas.style.top = "0";
-    canvas.style.left = "0";
-    canvas.style.width = "100%";
-    canvas.style.height = "100%";
-    canvas.style.pointerEvents = "none";
-    container.appendChild(canvas);
-    canvasRef.current = canvas;
-
-    // Size the canvas backing buffer to match the container
-    let disposed = false;
-    const resizeObserver = new ResizeObserver((entries) => {
-      if (disposed) return;
-      for (const entry of entries) {
-        const { width, height } = entry.contentRect;
-        const dpr = window.devicePixelRatio || 1;
-        canvas.width = width * dpr;
-        canvas.height = height * dpr;
-      }
-    });
-    resizeObserver.observe(container);
-
-    return () => {
-      disposed = true;
-      resizeObserver.disconnect();
-      canvas.remove();
-      canvasRef.current = null;
-      containerRef.current = null;
-    };
-  }, [map]);
-
-  // Core render loop: reads from vehicleStore directly, no React state.
-  // Interpolates vehicle positions between WS updates for smooth animation.
-  useEffect(() => {
-    if (!projection) return;
-
     let rafId: number;
     let lastVersion = -1;
-    let lastTransformK = -1;
-    let lastTransformX = NaN;
-    let lastTransformY = NaN;
-    let lastSelectedId: string | undefined;
-    let lastHoveredId: string | undefined;
+    let lastZoom = -1;
     let animating = false;
+    let lastSetStateTime = 0;
+    const STATE_UPDATE_INTERVAL = 33; // ~30fps for React state updates
 
     const render = () => {
       rafId = requestAnimationFrame(render);
 
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-
       const currentVersion = vehicleStore.getVersion();
-      const t = transformRef.current;
-      const k = t?.k ?? 1;
-      const tx = t?.x ?? 0;
-      const ty = t?.y ?? 0;
       const currentSelectedId = selectedRef.current;
       const currentHoveredId = hoveredRef.current;
       const now = performance.now();
+      const currentZoom = getZoomRef.current();
 
       const positionsChanged = currentVersion !== lastVersion;
+      const zoomChanged = Math.abs(currentZoom - lastZoom) > 0.01;
 
       // Update interpolation targets when new data arrives
       if (positionsChanged) {
@@ -309,11 +245,10 @@ export default function VehiclesLayer({
           const heading = ((v.heading ?? 0) * Math.PI) / 180;
 
           if (existing) {
-            // Only update interp when this vehicle's position actually changed
             const posChanged = lat !== existing.nextLat || lng !== existing.nextLng;
             if (!posChanged) continue;
 
-            // Update per-vehicle lerp duration via EMA (α = 0.3)
+            // Update per-vehicle lerp duration via EMA (alpha = 0.3)
             const elapsed = now - existing.updateTime;
             if (elapsed > MIN_LERP_MS) {
               existing.lerpMs =
@@ -361,57 +296,22 @@ export default function VehiclesLayer({
         }
       }
 
-      const zoomChanged = k !== lastTransformK || tx !== lastTransformX || ty !== lastTransformY;
-      const selectionChanged =
-        currentSelectedId !== lastSelectedId || currentHoveredId !== lastHoveredId;
+      // Skip update only if nothing changed AND no animation in progress
+      if (!positionsChanged && !animating && !zoomChanged) return;
+      if (zoomChanged) lastZoom = currentZoom;
 
-      // Skip redraw only if nothing changed AND no animation in progress
-      if (!positionsChanged && !animating && !zoomChanged && !selectionChanged) return;
+      // Throttle React state updates to avoid 60fps re-renders
+      if (now - lastSetStateTime < STATE_UPDATE_INTERVAL) return;
+      lastSetStateTime = now;
 
-      lastTransformK = k;
-      lastTransformX = tx;
-      lastTransformY = ty;
-      lastSelectedId = currentSelectedId;
-      lastHoveredId = currentHoveredId;
-
-      const dpr = window.devicePixelRatio || 1;
-      const canvasW = canvas.width;
-      const canvasH = canvas.height;
-
-      // Clear the canvas
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, canvasW, canvasH);
-
-      const s = scale / Math.pow(k, 0.75);
       const store = vehicleStore.getAll();
       const fleetMap = fleetMapRef.current;
       const hiddenFleets = hiddenFleetsRef.current;
+      // Scale = 2^((REF_ZOOM - zoom) * exponent). At REF_ZOOM scale=1 (true size).
+      // Exponent < 1 makes vehicles shrink slower than map when zooming out.
+      const zoomScale = Math.pow(2, (REFERENCE_ZOOM - currentZoom) * ZOOM_EXPONENT);
 
-      // Apply DPR scaling and D3 zoom transform
-      ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * tx, dpr * ty);
-
-      // Collect vehicles for rendering
-      const projected: ProjectedVehicle[] = [];
-
-      let selectedVehicle: {
-        x: number;
-        y: number;
-        heading: number;
-        color: string;
-        type: string;
-      } | null = null;
-      let hoveredVehicle: {
-        x: number;
-        y: number;
-        heading: number;
-        color: string;
-        type: string;
-      } | null = null;
-
-      const colorBatches = new Map<
-        string,
-        Array<{ x: number; y: number; heading: number; type: string }>
-      >();
+      const vehicles: VehiclePolygonDatum[] = [];
 
       for (const [, v] of store) {
         if (v.position[0] === 0 && v.position[1] === 0) continue;
@@ -424,11 +324,9 @@ export default function VehiclesLayer({
 
         if (state) {
           const elapsed = now - state.updateTime;
-          // Allow slight extrapolation past target to prevent pause between updates
           const t01 = Math.min(elapsed / state.lerpMs, MAX_T);
           lat = lerp(state.prevLat, state.nextLat, t01);
           lng = lerp(state.prevLng, state.nextLng, t01);
-          // Don't extrapolate heading past target (would continue turning)
           heading = lerpAngle(state.prevHeading, state.nextHeading, Math.min(t01, 1));
         } else {
           lat = v.position[0];
@@ -436,157 +334,84 @@ export default function VehiclesLayer({
           heading = ((v.heading ?? 0) * Math.PI) / 180;
         }
 
-        // Projection expects [lng, lat] — toMapPosition swaps from [lat, lng]
-        const pos = projectPosition(toMapPosition([lat, lng]));
-        if (!pos) continue;
+        const vehicleType = v.type || "car";
+        const defaultColor = VEHICLE_TYPE_COLORS[vehicleType] || DEFAULT_FILL;
+        const fillColor = colorToRgba(fleet?.color ?? defaultColor);
+        const shape = VEHICLE_SHAPES[vehicleType] || DEFAULT_SHAPE;
 
-        const [x, y] = pos;
-        projected.push({ id: v.id, x, y });
-
-        if (v.id === currentSelectedId) {
-          const vehicleType = v.type || "car";
-          const defaultColor = VEHICLE_TYPE_COLORS[vehicleType] || DEFAULT_FILL;
-          selectedVehicle = {
-            x,
-            y,
-            heading,
-            color: fleet?.color ?? defaultColor,
-            type: vehicleType,
-          };
-        } else if (v.id === currentHoveredId) {
-          const vehicleType = v.type || "car";
-          const defaultColor = VEHICLE_TYPE_COLORS[vehicleType] || DEFAULT_FILL;
-          hoveredVehicle = {
-            x,
-            y,
-            heading,
-            color: fleet?.color ?? defaultColor,
-            type: vehicleType,
-          };
-        } else {
-          const vehicleType = v.type || "car";
-          const defaultColor = VEHICLE_TYPE_COLORS[vehicleType] || DEFAULT_FILL;
-          const color = resolveCSSColor(fleet?.color ?? defaultColor);
-          const batchKey = `${color}|${vehicleType}`;
-          let batch = colorBatches.get(batchKey);
-          if (!batch) {
-            batch = [];
-            colorBatches.set(batchKey, batch);
-          }
-          batch.push({ x, y, heading, type: vehicleType });
-        }
+        vehicles.push({
+          id: v.id,
+          position: [lng, lat], // deck.gl expects [lng, lat]
+          polygon: shapeToPolygon(lng, lat, heading, shape, zoomScale),
+          color: fillColor,
+          isSelected: v.id === currentSelectedId,
+          isHovered: v.id === currentHoveredId,
+        });
       }
 
-      projectedRef.current = projected;
-
-      // Draw regular vehicles grouped by color and type
-      for (const [key, vehicles] of colorBatches) {
-        const [color, batchType] = key.split("|");
-
-        for (const v of vehicles) {
-          drawShape(
-            ctx,
-            v.x,
-            v.y,
-            v.heading,
-            s,
-            batchType,
-            color,
-            DEFAULT_STROKE,
-            VEHICLE_RENDER.STROKE_WIDTH
-          );
-        }
-      }
-
-      if (selectedVehicle && currentSelectedId) {
-        drawSelectionRing(ctx, selectedVehicle.x, selectedVehicle.y, s);
-      }
-
-      if (hoveredVehicle) {
-        drawGlowShape(
-          ctx,
-          hoveredVehicle.x,
-          hoveredVehicle.y,
-          hoveredVehicle.heading,
-          s,
-          hoveredVehicle.type,
-          resolveCSSColor(hoveredVehicle.color),
-          HOVER_STROKE,
-          VEHICLE_RENDER.HOVER_GLOW_RADIUS
-        );
-      }
-
-      if (selectedVehicle) {
-        drawGlowShape(
-          ctx,
-          selectedVehicle.x,
-          selectedVehicle.y,
-          selectedVehicle.heading,
-          s,
-          selectedVehicle.type,
-          resolveCSSColor(selectedVehicle.color),
-          SELECTED_STROKE,
-          VEHICLE_RENDER.SELECTED_GLOW_RADIUS
-        );
-      }
+      setVehiclePolygons(vehicles);
     };
 
     rafId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(rafId);
-  }, [projection, scale, projectPosition]);
+  }, []);
 
-  // Hit testing for clicks — listen on the SVG in capture phase
-  useEffect(() => {
-    if (!map || !projection) return;
+  // Stable click handler
+  const handleClick = useCallback((info: { object?: VehiclePolygonDatum }) => {
+    if (info.object) {
+      onClickRef.current(info.object.id);
+    }
+  }, []);
 
-    const handleClick = (event: MouseEvent) => {
-      const t = transformRef.current;
-      if (!t) return;
+  // Build the selected vehicle data for the selection ring layer
+  const selectedVehicle = useMemo(() => {
+    if (!selectedId) return [];
+    const found = vehiclePolygons.find((v) => v.id === selectedId);
+    return found ? [found] : [];
+  }, [vehiclePolygons, selectedId]);
 
-      const canvas = canvasRef.current;
-      if (!canvas) return;
+  // Build deck.gl layers
+  const layers = useMemo(() => {
+    const vehiclesLayer = new PolygonLayer<VehiclePolygonDatum>({
+      id: "vehicles",
+      data: vehiclePolygons,
+      getPolygon: (d) => d.polygon,
+      getFillColor: (d) => d.color,
+      getLineColor: (d) =>
+        d.isSelected ? SELECTED_STROKE : d.isHovered ? HOVER_STROKE : DEFAULT_STROKE,
+      getLineWidth: 1,
+      lineWidthUnits: "pixels",
+      filled: true,
+      stroked: true,
+      pickable: true,
+      onClick: handleClick,
+      autoHighlight: true,
+      highlightColor: [251, 201, 1, 80],
+      updateTriggers: {
+        getFillColor: [selectedId, hoveredId],
+        getLineColor: [selectedId, hoveredId],
+      },
+    });
 
-      // Get click position relative to the SVG/canvas container
-      const rect = canvas.getBoundingClientRect();
-      const clientX = event.clientX - rect.left;
-      const clientY = event.clientY - rect.top;
+    const selectionRingLayer = new ScatterplotLayer<VehiclePolygonDatum>({
+      id: "vehicle-selection-ring",
+      data: selectedVehicle,
+      getPosition: (d) => d.position,
+      getFillColor: SELECTED_BG,
+      getLineColor: SELECTED_STROKE,
+      getRadius: 12,
+      radiusUnits: "pixels",
+      stroked: true,
+      lineWidthMinPixels: 2,
+      pickable: false,
+    });
 
-      // Convert screen coords to projected coords by inverting the zoom transform
-      // screen = transform * projected  =>  projected = inverse(transform) * screen
-      const k = t.k;
-      const projX = (clientX - t.x) / k;
-      const projY = (clientY - t.y) / k;
+    return [selectionRingLayer, vehiclesLayer];
+  }, [vehiclePolygons, selectedId, hoveredId, selectedVehicle, handleClick]);
 
-      const hitRadius = (VEHICLE_RENDER.HIT_TEST_RADIUS * scale) / Math.pow(k, 0.75);
-      const hitRadiusSq = hitRadius * hitRadius;
+  // Register layers with the DeckGLMap parent
+  useRegisterLayers("vehicles", layers);
 
-      let closestId: string | null = null;
-      let closestDistSq = hitRadiusSq;
-
-      for (const p of projectedRef.current) {
-        const dx = p.x - projX;
-        const dy = p.y - projY;
-        const distSq = dx * dx + dy * dy;
-        if (distSq < closestDistSq) {
-          closestDistSq = distSq;
-          closestId = p.id;
-        }
-      }
-
-      if (closestId) {
-        event.stopPropagation();
-        event.preventDefault();
-        onClickRef.current(closestId);
-      }
-    };
-
-    // Use capture phase so we can intercept before the SVG's own onClick
-    map.addEventListener("click", handleClick, true);
-    return () => {
-      map.removeEventListener("click", handleClick, true);
-    };
-  }, [map, projection, scale]);
-
-  // Render nothing into the SVG — canvas is a sibling managed via DOM
+  // Render nothing — layers are registered via useRegisterLayers
   return null;
 }

@@ -1,14 +1,18 @@
 import { useContext } from "react";
 import { controlsRef } from "./providers/controls";
 import { htmlTransformRef } from "./providers/htmlRenderer";
-import { MapContext } from "./providers/contexts";
+import { DeckMapContext, DeckOverlayContext } from "./providers/contexts";
 
 export function useMapControls() {
   return controlsRef;
 }
 
 export function useMapContext() {
-  return useContext(MapContext);
+  return useContext(DeckMapContext);
+}
+
+export function useOverlay() {
+  return useContext(DeckOverlayContext);
 }
 
 export function useHTMLTransformer() {

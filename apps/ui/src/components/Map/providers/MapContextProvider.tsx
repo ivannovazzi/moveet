@@ -1,25 +1,25 @@
-import type { GeoProjection, ZoomTransform } from "d3";
+import type { WebMercatorViewport, MapViewState } from "@deck.gl/core";
 import type { Position } from "@/types";
-import { MapContext } from "./contexts";
+import { DeckMapContext } from "./contexts";
 
-interface Props {
-  map: SVGSVGElement | null;
-  projection: GeoProjection | null;
-  transform: ZoomTransform | null;
-  getBoundingBox: () => [Position, Position];
+interface DeckProps {
+  viewport: WebMercatorViewport | null;
+  viewState: MapViewState | null;
+  getBoundingBox: () => [[number, number], [number, number]];
   getZoom: () => number;
+  project: (position: Position) => [number, number] | null;
   children: React.ReactNode;
 }
 
-export const MapContextProvider: React.FC<Props> = ({
-  map,
-  projection,
-  transform,
+export const DeckMapContextProvider: React.FC<DeckProps> = ({
+  viewport,
+  viewState,
   getBoundingBox,
   getZoom,
+  project,
   children,
 }) => (
-  <MapContext.Provider value={{ map, projection, transform, getBoundingBox, getZoom }}>
+  <DeckMapContext.Provider value={{ viewport, viewState, getBoundingBox, getZoom, project }}>
     {children}
-  </MapContext.Provider>
+  </DeckMapContext.Provider>
 );

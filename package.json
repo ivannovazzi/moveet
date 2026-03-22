@@ -55,5 +55,8 @@
   "overrides": {
     "flatted": "3.4.2"
   },
-  "packageManager": "npm@11.11.1"
+  "packageManager": "npm@11.11.1",
+  "dependencies": {
+    "@deck.gl/widgets": "^9.2.11"
+  }
 }

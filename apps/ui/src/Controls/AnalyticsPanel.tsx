@@ -1,5 +1,4 @@
 import { useCallback, useMemo } from "react";
-import * as d3 from "d3";
 import client from "@/utils/client";
 import { Button } from "@/components/Inputs";
 import { PanelBody, PanelEmptyState, PanelHeader } from "./PanelPrimitives";
@@ -35,27 +34,26 @@ function Sparkline({ data, width = 120, height = 40, color = "#4f9" }: Sparkline
   const pathD = useMemo(() => {
     if (data.length < 2) return "";
 
-    const xScale = d3
-      .scaleLinear()
-      .domain([0, data.length - 1])
-      .range([1, width - 1]);
+    const xMin = 0;
+    const xMax = data.length - 1;
+    const xRange0 = 1;
+    const xRange1 = width - 1;
+    const xScale = (v: number) => xRange0 + ((v - xMin) / (xMax - xMin)) * (xRange1 - xRange0);
 
-    const yExtent = d3.extent(data) as [number, number];
-    // Add a small padding so the line doesn't clip
-    const yMin = yExtent[0];
-    const yMax = yExtent[1] === yMin ? yMin + 1 : yExtent[1];
+    let yMinVal = data[0];
+    let yMaxVal = data[0];
+    for (const v of data) {
+      if (v < yMinVal) yMinVal = v;
+      if (v > yMaxVal) yMaxVal = v;
+    }
+    if (yMaxVal === yMinVal) yMaxVal = yMinVal + 1;
+    const yRange0 = height - 2;
+    const yRange1 = 2;
+    const yScale = (v: number) =>
+      yRange0 + ((v - yMinVal) / (yMaxVal - yMinVal)) * (yRange1 - yRange0);
 
-    const yScale = d3
-      .scaleLinear()
-      .domain([yMin, yMax])
-      .range([height - 2, 2]);
-
-    const lineGenerator = d3
-      .line<number>()
-      .x((_, i) => xScale(i))
-      .y((d) => yScale(d));
-
-    return lineGenerator(data) ?? "";
+    const points = data.map((d, i) => `${xScale(i)},${yScale(d)}`);
+    return `M${points.join("L")}`;
   }, [data, width, height]);
 
   if (data.length < 2) return null;

@@ -1,79 +1,27 @@
 import { useMemo } from "react";
+import { IconLayer } from "@deck.gl/layers";
+import { CollisionFilterExtension, type CollisionFilterExtensionProps } from "@deck.gl/extensions";
 import { useMapContext } from "@/components/Map/hooks";
+import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 import { useSpeedLimits, type SpeedLimitSign } from "@/hooks/useSpeedLimits";
-import HTMLMarker from "@/components/Map/components/HTMLMarker";
-import type { Position } from "@/types";
-import type { GeoProjection, ZoomTransform } from "d3";
+import { createSpeedLimitIconAtlas, speedToIconKey } from "./POI/iconAtlas";
 
-/** Minimum pixel distance between speed limit signs */
-const MIN_DISTANCE_PX = 100;
+// Build the atlas once at module level.
+const { iconAtlas, iconMapping } = createSpeedLimitIconAtlas();
 
-function distancePx(x1: number, y1: number, x2: number, y2: number) {
-  return Math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2);
-}
+const collisionFilter = new CollisionFilterExtension();
 
-function spacedSigns(
-  items: SpeedLimitSign[],
-  transform: ZoomTransform,
-  projection: GeoProjection,
-  minDist: number
-) {
-  const placed: Array<{ sign: SpeedLimitSign; px: number; py: number }> = [];
-  for (const sign of items) {
-    const [lat, lng] = sign.coordinates;
-    const projected = projection([lng, lat]);
-    if (!projected) continue;
-    const [px, py] = transform.apply(projected);
-    const tooClose = placed.some(({ px: x2, py: y2 }) => distancePx(px, py, x2, y2) < minDist);
-    if (!tooClose) placed.push({ sign, px, py });
-  }
-  return placed;
-}
+/** Zoom level below which speed limit signs are hidden */
+const MIN_ZOOM = 7;
 
-/** European-style round speed limit sign */
-function SpeedSign({ speed }: { speed: number }) {
-  const size = 28;
-  const r = size / 2;
-  const borderWidth = 3;
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox={`0 0 ${size} ${size}`}
-      style={{
-        marginLeft: -r,
-        marginTop: -r,
-        cursor: "default",
-        filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.5))",
-      }}
-    >
-      {/* White background */}
-      <circle cx={r} cy={r} r={r - 1} fill="white" />
-      {/* Red border */}
-      <circle
-        cx={r}
-        cy={r}
-        r={r - borderWidth / 2 - 0.5}
-        fill="none"
-        stroke="#cc0000"
-        strokeWidth={borderWidth}
-      />
-      {/* Speed number */}
-      <text
-        x={r}
-        y={r}
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontFamily="Arial, sans-serif"
-        fontWeight="bold"
-        fontSize={speed >= 100 ? 9 : 11}
-        fill="#111"
-      >
-        {speed}
-      </text>
-    </svg>
-  );
-}
+/**
+ * Collision spacing multiplier — how much larger the collision hitbox is
+ * compared to the rendered icon. 1.0 = no extra spacing, 2.0 = double.
+ */
+const COLLISION_SIZE_SCALE = 2.0;
+
+/** Fade-in duration in milliseconds. */
+const FADE_DURATION_MS = 500;
 
 interface SpeedLimitSignsProps {
   visible: boolean;
@@ -81,33 +29,53 @@ interface SpeedLimitSignsProps {
 
 export default function SpeedLimitSigns({ visible }: SpeedLimitSignsProps) {
   const { signs } = useSpeedLimits();
-  const { getBoundingBox, projection, transform } = useMapContext();
-  const [[west, north], [east, south]] = getBoundingBox();
+  const { getBoundingBox, getZoom } = useMapContext();
+  const zoom = getZoom();
+
+  const [[west, south], [east, north]] = getBoundingBox();
 
   const inBounds = useMemo(() => {
-    if (!projection || !transform) return [];
+    if (!visible || zoom < MIN_ZOOM) return [];
     return signs.filter(
       ({ coordinates: [lat, lng] }) => lat >= south && lat <= north && lng >= west && lng <= east
     );
-  }, [signs, south, north, west, east, projection, transform]);
+  }, [signs, south, north, west, east, visible, zoom]);
 
-  const placed = useMemo(() => {
-    if (!projection || !transform) return [];
-    return spacedSigns(inBounds, transform, projection, MIN_DISTANCE_PX);
-  }, [inBounds, transform, projection]);
+  const layers = useMemo(() => {
+    if (inBounds.length === 0) return [];
 
-  if (!visible || !projection || !transform) return null;
+    // Fade in: alpha ramps 0→255 over one zoom level past threshold
+    const alpha = Math.round(Math.max(0, Math.min(1, zoom - MIN_ZOOM)) * 255);
 
-  return (
-    <>
-      {placed.map(({ sign }) => {
-        const position = [sign.coordinates[1], sign.coordinates[0]] as Position;
-        return (
-          <HTMLMarker key={sign.id} position={position}>
-            <SpeedSign speed={sign.speed} />
-          </HTMLMarker>
-        );
-      })}
-    </>
-  );
+    return [
+      new IconLayer<SpeedLimitSign, CollisionFilterExtensionProps>({
+        id: "speed-limit-signs",
+        data: inBounds,
+        updateTriggers: {
+          getColor: [zoom],
+        },
+        getPosition: (d) => [d.coordinates[1], d.coordinates[0]],
+        getIcon: (d) => speedToIconKey(d.speed),
+        getSize: 28,
+        getColor: [255, 255, 255, alpha],
+        iconAtlas,
+        iconMapping,
+        pickable: false,
+        sizeUnits: "pixels",
+        sizeMinPixels: 14,
+        sizeMaxPixels: 32,
+        transitions: { getColor: { duration: FADE_DURATION_MS } },
+        extensions: [collisionFilter],
+        ...({
+          collisionEnabled: true,
+          collisionGroup: "speed-signs",
+          collisionTestProps: { sizeScale: COLLISION_SIZE_SCALE },
+        } as Record<string, unknown>),
+      }),
+    ];
+  }, [inBounds, zoom]);
+
+  useRegisterLayers("speed-limit-signs", layers, 46);
+
+  return null;
 }

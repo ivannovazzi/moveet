@@ -1,8 +1,8 @@
-import { useEffect, useRef, useMemo } from "react";
-import { select, geoPath } from "d3";
+import { useMemo } from "react";
+import { PathLayer } from "@deck.gl/layers";
 import { useTraffic } from "@/hooks/useTraffic";
 import { useNetwork } from "@/hooks/useNetwork";
-import { useMapContext } from "@/components/Map/hooks";
+import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 import type { TrafficEdge } from "@/types";
 
 const HIGHWAY_WIDTH: Record<string, number> = {
@@ -13,13 +13,13 @@ const HIGHWAY_WIDTH: Record<string, number> = {
   tertiary: 1.5,
 };
 
-// Google Maps–style: green → yellow → orange → red
-function congestionColor(factor: number): string {
-  if (factor >= 0.85) return "#22c55e"; // green — free flow
-  if (factor >= 0.7) return "#84cc16"; // lime — light traffic
-  if (factor >= 0.55) return "#eab308"; // yellow — moderate
-  if (factor >= 0.4) return "#f97316"; // orange — heavy
-  return "#ef4444"; // red — jammed
+// Google Maps-style: green -> yellow -> orange -> red  (RGBA)
+function congestionColorRgba(factor: number): [number, number, number, number] {
+  if (factor >= 0.85) return [34, 197, 94, 217]; // green  - free flow
+  if (factor >= 0.7) return [132, 204, 22, 217]; // lime   - light traffic
+  if (factor >= 0.55) return [234, 179, 8, 217]; // yellow - moderate
+  if (factor >= 0.4) return [249, 115, 22, 217]; // orange - heavy
+  return [239, 68, 68, 217]; // red    - jammed
 }
 
 // Aggregate congestion per streetId (worst = lowest factor wins)
@@ -34,41 +34,52 @@ function buildStreetCongestion(edges: TrafficEdge[]): Map<string, number> {
   return map;
 }
 
+interface TrafficDatum {
+  path: [number, number][];
+  color: [number, number, number, number];
+  width: number;
+}
+
 export default function TrafficOverlay({ visible }: { visible: boolean }) {
   const { edges: trafficEdges } = useTraffic();
   const { network } = useNetwork();
-  const { projection } = useMapContext();
-  const gRef = useRef<SVGGElement>(null);
 
   const streetCongestion = useMemo(() => buildStreetCongestion(trafficEdges), [trafficEdges]);
 
-  useEffect(() => {
-    if (!gRef.current || !projection || network.features.length === 0) return;
-    const pathGen = geoPath().projection(projection);
-    const g = select(gRef.current);
+  const layers = useMemo(() => {
+    if (!visible || network.features.length === 0 || streetCongestion.size === 0) return [];
 
-    // Only render features that have traffic data (matched by streetId)
-    const roadsWithTraffic = network.features.filter((f) => {
-      const sid = f.properties.streetId ?? f.properties["@id"];
-      return sid != null && streetCongestion.has(sid);
-    });
-
-    g.selectAll("path")
-      .data(roadsWithTraffic, (_d, i) => i)
-      .join("path")
-      .attr("d", (d) => pathGen(d as Parameters<typeof pathGen>[0]) ?? "")
-      .attr("fill", "none")
-      .attr("stroke-linejoin", "round")
-      .attr("stroke-linecap", "round")
-      .attr("stroke-width", (d) => HIGHWAY_WIDTH[d.properties.highway ?? ""] ?? 1.5)
-      .attr("stroke", (d) => {
-        const sid = d.properties.streetId ?? d.properties["@id"];
-        const c = streetCongestion.get(sid!)!;
-        return congestionColor(c);
+    const trafficData: TrafficDatum[] = network.features
+      .filter((f) => {
+        const sid = f.properties.streetId ?? f.properties["@id"];
+        return sid != null && streetCongestion.has(sid);
       })
-      .attr("stroke-opacity", 0.85);
-  }, [network, projection, streetCongestion]);
+      .map((f) => {
+        const sid = (f.properties.streetId ?? f.properties["@id"])!;
+        return {
+          path: f.geometry.coordinates as [number, number][],
+          color: congestionColorRgba(streetCongestion.get(sid)!),
+          width: HIGHWAY_WIDTH[f.properties.highway ?? ""] ?? 1.5,
+        };
+      });
 
-  if (!visible) return null;
-  return <g ref={gRef} />;
+    return [
+      new PathLayer<TrafficDatum>({
+        id: "traffic-overlay",
+        data: trafficData,
+        getPath: (d) => d.path,
+        getColor: (d) => d.color,
+        getWidth: (d) => d.width,
+        widthUnits: "pixels",
+        widthMinPixels: 2,
+        jointRounded: true,
+        capRounded: true,
+        pickable: false,
+      }),
+    ];
+  }, [visible, network, streetCongestion]);
+
+  useRegisterLayers("traffic-overlay", layers);
+
+  return null;
 }

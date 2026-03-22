@@ -1,75 +1,24 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import React from "react";
 import { render, act } from "@testing-library/react";
-import type { Fleet, Position } from "@/types";
+import type { Fleet } from "@/types";
 import { vehicleStore } from "@/hooks/vehicleStore";
 
 // ---------------------------------------------------------------------------
-// Mock canvas context — jsdom does not implement CanvasRenderingContext2D
+// Capture registered layers via useRegisterLayers mock
 // ---------------------------------------------------------------------------
-function createMockContext(): CanvasRenderingContext2D {
-  const calls: Array<{ method: string; args: unknown[] }> = [];
-  const handler: ProxyHandler<Record<string, unknown>> = {
-    get(_target, prop: string) {
-      if (prop === "__calls") return calls;
-      if (prop === "canvas") return { width: 800, height: 600 };
-      // Return a function spy for any method access
-      if (
-        typeof prop === "string" &&
-        ![
-          "fillStyle",
-          "strokeStyle",
-          "lineWidth",
-          "shadowColor",
-          "shadowBlur",
-          "shadowOffsetX",
-          "shadowOffsetY",
-        ].includes(prop)
-      ) {
-        return (...args: unknown[]) => {
-          calls.push({ method: prop, args });
-        };
-      }
-      return undefined;
-    },
-    set(_target, prop: string, value: unknown) {
-      calls.push({ method: `set:${prop}`, args: [value] });
-      return true;
-    },
-  };
-  return new Proxy({}, handler) as unknown as CanvasRenderingContext2D;
-}
+const { registeredLayers } = vi.hoisted(() => {
+  const registeredLayers = new Map<string, unknown[]>();
+  return { registeredLayers };
+});
 
-let mockCtx: CanvasRenderingContext2D;
-let ctxCalls: Array<{ method: string; args: unknown[] }>;
-
-// Patch HTMLCanvasElement.prototype.getContext to return our mock
-const originalGetContext = HTMLCanvasElement.prototype.getContext;
-
-// ---------------------------------------------------------------------------
-// Mock the map context
-// ---------------------------------------------------------------------------
-const mockProjection = vi.fn((pos: Position) => [pos[0] * 10, pos[1] * 10] as [number, number]);
-(mockProjection as unknown as { invert: unknown }).invert = vi.fn();
-
-const mockTransform = { k: 1, x: 0, y: 0 };
-
-const mockMapElement = document.createElement("svg");
-const mockContainer = document.createElement("div");
-mockContainer.style.position = "relative";
-mockContainer.appendChild(mockMapElement);
-document.body.appendChild(mockContainer);
-
-vi.mock("@/components/Map/hooks", () => ({
-  useMapContext: () => ({
-    projection: mockProjection,
-    transform: mockTransform,
-    map: mockMapElement,
-    getBoundingBox: () => [
-      [0, 0],
-      [0, 0],
-    ],
-    getZoom: () => 1,
+vi.mock("@/components/Map/hooks/useDeckLayers", () => ({
+  useRegisterLayers: (id: string, layers: unknown[]) => {
+    registeredLayers.set(id, layers);
+  },
+  useDeckLayersContext: () => ({
+    registerLayers: () => {},
+    unregisterLayers: () => {},
   }),
 }));
 
@@ -107,13 +56,43 @@ function renderAndTick(props: Partial<typeof defaultProps> = {}) {
   const merged = { ...defaultProps, ...props };
   const result = render(<VehiclesLayer {...merged} />);
 
-  // Run pending effects and one animation frame
+  // Run pending effects and advance past the STATE_UPDATE_INTERVAL (33ms) throttle
   act(() => {
     vi.advanceTimersByTime(0);
-    vi.advanceTimersByTime(16); // one frame ~16ms
+  });
+  act(() => {
+    vi.advanceTimersByTime(50); // exceed 33ms throttle → setState fires
   });
 
   return result;
+}
+
+/** Extract the vehicles ScatterplotLayer data from registered layers. */
+function getVehiclesLayerData(): Array<{
+  id: string;
+  position: [number, number];
+  heading: number;
+  color: [number, number, number, number];
+  type: string;
+  isSelected: boolean;
+  isHovered: boolean;
+}> {
+  const layers = registeredLayers.get("vehicles") ?? [];
+  // The vehicles layer has id="vehicles" — it's always the second in the array
+  // [selectionRingLayer, vehiclesLayer]
+  const vehiclesLayer = layers.find(
+    (l) => (l as { props: { id: string } }).props.id === "vehicles"
+  ) as { props: { data: ReturnType<typeof getVehiclesLayerData> } } | undefined;
+  return vehiclesLayer?.props.data ?? [];
+}
+
+/** Extract the selection ring layer data. */
+function getSelectionRingData(): unknown[] {
+  const layers = registeredLayers.get("vehicles") ?? [];
+  const selectionLayer = layers.find(
+    (l) => (l as { props: { id: string } }).props.id === "vehicle-selection-ring"
+  ) as { props: { data: unknown[] } } | undefined;
+  return selectionLayer?.props.data ?? [];
 }
 
 // ---------------------------------------------------------------------------
@@ -123,15 +102,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   vehicleStore.replace([]);
   defaultProps.onClick.mockClear();
-  mockProjection.mockClear();
-
-  // Create fresh mock context
-  mockCtx = createMockContext();
-  ctxCalls = (mockCtx as unknown as { __calls: typeof ctxCalls }).__calls;
-
-  HTMLCanvasElement.prototype.getContext = function () {
-    return mockCtx;
-  } as typeof HTMLCanvasElement.prototype.getContext;
+  registeredLayers.clear();
 
   // Stub requestAnimationFrame/cancelAnimationFrame with timer-based versions
   vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
@@ -140,75 +111,43 @@ beforeEach(() => {
   vi.spyOn(window, "cancelAnimationFrame").mockImplementation((id) => {
     clearTimeout(id);
   });
-
-  // Mock ResizeObserver
-  vi.stubGlobal(
-    "ResizeObserver",
-    class {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    }
-  );
 });
 
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
-  HTMLCanvasElement.prototype.getContext = originalGetContext;
-
-  // Clean up any canvases added to the container
-  for (const c of mockContainer.querySelectorAll("canvas")) {
-    c.remove();
-  }
 });
 
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
-describe("VehiclesLayer (Canvas)", () => {
-  it("creates a canvas element in the map container", () => {
-    render(<VehiclesLayer {...defaultProps} />);
-
-    act(() => {
-      vi.advanceTimersByTime(0);
-    });
-
-    const canvas = mockContainer.querySelector("canvas");
-    expect(canvas).toBeTruthy();
-    expect(canvas!.style.position).toBe("absolute");
-    expect(canvas!.style.pointerEvents).toBe("none");
-  });
-
-  it("removes the canvas element on unmount", () => {
-    const { unmount } = render(<VehiclesLayer {...defaultProps} />);
-
-    act(() => {
-      vi.advanceTimersByTime(0);
-    });
-    expect(mockContainer.querySelector("canvas")).toBeTruthy();
-
-    unmount();
-    expect(mockContainer.querySelector("canvas")).toBeNull();
-  });
-
-  it("returns null (no SVG elements)", () => {
+describe("VehiclesLayer (deck.gl)", () => {
+  it("returns null (renders no DOM elements)", () => {
     const { container } = render(<VehiclesLayer {...defaultProps} />);
     expect(container.innerHTML).toBe("");
   });
 
-  it("clears the canvas on each render frame", () => {
+  it("registers layers with id 'vehicles'", () => {
+    renderAndTick();
+    expect(registeredLayers.has("vehicles")).toBe(true);
+  });
+
+  it("registers two layers: selection ring and vehicles", () => {
     vehicleStore.replace([
       { id: "v1", name: "V1", position: [36.82, -1.29], speed: 30, heading: 90 },
     ]);
 
     renderAndTick();
 
-    const clearCalls = ctxCalls.filter((c) => c.method === "clearRect");
-    expect(clearCalls.length).toBeGreaterThanOrEqual(1);
+    const layers = registeredLayers.get("vehicles")!;
+    expect(layers.length).toBe(2);
+
+    const ids = layers.map((l) => (l as { props: { id: string } }).props.id);
+    expect(ids).toContain("vehicles");
+    expect(ids).toContain("vehicle-selection-ring");
   });
 
-  it("calls canvas drawing methods for each vehicle", () => {
+  it("produces interpolated data for each vehicle", () => {
     vehicleStore.replace([
       { id: "v1", name: "V1", position: [36.82, -1.29], speed: 30, heading: 90 },
       { id: "v2", name: "V2", position: [36.83, -1.3], speed: 40, heading: 180 },
@@ -216,20 +155,9 @@ describe("VehiclesLayer (Canvas)", () => {
 
     renderAndTick();
 
-    // Check for beginPath calls (one per vehicle)
-    const beginPathCalls = ctxCalls.filter((c) => c.method === "beginPath");
-    expect(beginPathCalls.length).toBeGreaterThanOrEqual(2);
-
-    // Check for fill calls
-    const fillCalls = ctxCalls.filter((c) => c.method === "fill");
-    expect(fillCalls.length).toBeGreaterThanOrEqual(2);
-
-    // Check for moveTo/lineTo calls (4 vertices per arrow)
-    const moveToCalls = ctxCalls.filter((c) => c.method === "moveTo");
-    expect(moveToCalls.length).toBeGreaterThanOrEqual(2);
-
-    const lineToCalls = ctxCalls.filter((c) => c.method === "lineTo");
-    expect(lineToCalls.length).toBeGreaterThanOrEqual(6); // 3 lineTo per vehicle * 2 vehicles
+    const data = getVehiclesLayerData();
+    expect(data.length).toBe(2);
+    expect(data.map((d) => d.id).sort()).toEqual(["v1", "v2"]);
   });
 
   it("applies fleet colors for vehicle fill", () => {
@@ -242,11 +170,14 @@ describe("VehiclesLayer (Canvas)", () => {
 
     renderAndTick({ vehicleFleetMap: fleetMap });
 
-    // Check that fillStyle was set to the fleet colors
-    const fillStyleSets = ctxCalls.filter((c) => c.method === "set:fillStyle");
-    const fillColors = fillStyleSets.map((c) => c.args[0]);
-    expect(fillColors).toContain("#ff0000");
-    expect(fillColors).toContain("#00ff00");
+    const data = getVehiclesLayerData();
+    const v1 = data.find((d) => d.id === "v1")!;
+    const v2 = data.find((d) => d.id === "v2")!;
+
+    // #ff0000 → [255, 0, 0, 255]
+    expect(v1.color).toEqual([255, 0, 0, 255]);
+    // #00ff00 → [0, 255, 0, 255]
+    expect(v2.color).toEqual([0, 255, 0, 255]);
   });
 
   it("uses default fill color when vehicle has no fleet", () => {
@@ -256,9 +187,9 @@ describe("VehiclesLayer (Canvas)", () => {
 
     renderAndTick();
 
-    const fillStyleSets = ctxCalls.filter((c) => c.method === "set:fillStyle");
-    const fillColors = fillStyleSets.map((c) => c.args[0]);
-    expect(fillColors).toContain("#dcdcdc"); // DEFAULT_FILL
+    const data = getVehiclesLayerData();
+    // DEFAULT_FILL "#dcdcdc" → [220, 220, 220, 255]
+    expect(data[0].color).toEqual([220, 220, 220, 255]);
   });
 
   it("skips vehicles at origin (0, 0)", () => {
@@ -266,9 +197,8 @@ describe("VehiclesLayer (Canvas)", () => {
 
     renderAndTick();
 
-    // No moveTo calls should happen (no arrows drawn)
-    const moveToCalls = ctxCalls.filter((c) => c.method === "moveTo");
-    expect(moveToCalls.length).toBe(0);
+    const data = getVehiclesLayerData();
+    expect(data.length).toBe(0);
   });
 
   it("skips vehicles in hidden fleets", () => {
@@ -281,197 +211,91 @@ describe("VehiclesLayer (Canvas)", () => {
 
     renderAndTick({ vehicleFleetMap: fleetMap, hiddenFleetIds });
 
-    const moveToCalls = ctxCalls.filter((c) => c.method === "moveTo");
-    expect(moveToCalls.length).toBe(0);
+    const data = getVehiclesLayerData();
+    expect(data.length).toBe(0);
   });
 
-  it("renders selection ring for selected vehicle", () => {
+  it("marks selected vehicle in interpolated data", () => {
     vehicleStore.replace([
       { id: "v1", name: "V1", position: [36.82, -1.29], speed: 30, heading: 0 },
     ]);
 
     renderAndTick({ selectedId: "v1" });
 
-    // Selection ring uses arc() for the circle
-    const arcCalls = ctxCalls.filter((c) => c.method === "arc");
-    expect(arcCalls.length).toBeGreaterThanOrEqual(1);
+    const data = getVehiclesLayerData();
+    expect(data[0].isSelected).toBe(true);
   });
 
-  it("renders glow shadow for selected vehicle", () => {
-    vehicleStore.replace([
-      { id: "v1", name: "V1", position: [36.82, -1.29], speed: 30, heading: 0 },
-    ]);
-
-    renderAndTick({ selectedId: "v1" });
-
-    // Check that shadowBlur was set (glow effect)
-    const shadowBlurSets = ctxCalls.filter((c) => c.method === "set:shadowBlur");
-    expect(shadowBlurSets.length).toBeGreaterThanOrEqual(1);
-    expect(shadowBlurSets.some((c) => (c.args[0] as number) > 0)).toBe(true);
-  });
-
-  it("renders glow shadow for hovered vehicle", () => {
+  it("marks hovered vehicle in interpolated data", () => {
     vehicleStore.replace([
       { id: "v1", name: "V1", position: [36.82, -1.29], speed: 30, heading: 0 },
     ]);
 
     renderAndTick({ hoveredId: "v1" });
 
-    const shadowBlurSets = ctxCalls.filter((c) => c.method === "set:shadowBlur");
-    expect(shadowBlurSets.length).toBeGreaterThanOrEqual(1);
-    expect(shadowBlurSets.some((c) => (c.args[0] as number) > 0)).toBe(true);
+    const data = getVehiclesLayerData();
+    expect(data[0].isHovered).toBe(true);
   });
 
-  it("applies the D3 zoom transform to the canvas context", () => {
-    mockTransform.k = 2;
-    mockTransform.x = 100;
-    mockTransform.y = 50;
+  it("populates selection ring data for selected vehicle", () => {
+    vehicleStore.replace([
+      { id: "v1", name: "V1", position: [36.82, -1.29], speed: 30, heading: 0 },
+    ]);
 
+    renderAndTick({ selectedId: "v1" });
+
+    const ringData = getSelectionRingData();
+    expect(ringData.length).toBe(1);
+  });
+
+  it("does not populate selection ring data when no vehicle is selected", () => {
     vehicleStore.replace([
       { id: "v1", name: "V1", position: [36.82, -1.29], speed: 30, heading: 0 },
     ]);
 
     renderAndTick();
 
-    // setTransform should be called with DPR-scaled zoom parameters
-    const setTransformCalls = ctxCalls.filter((c) => c.method === "setTransform");
-    // First call resets, second applies zoom
-    expect(setTransformCalls.length).toBeGreaterThanOrEqual(2);
-
-    // Reset transform to defaults for other tests
-    mockTransform.k = 1;
-    mockTransform.x = 0;
-    mockTransform.y = 0;
+    const ringData = getSelectionRingData();
+    expect(ringData.length).toBe(0);
   });
 
-  it("does not draw when no vehicles are in the store", () => {
+  it("does not produce data when no vehicles are in the store", () => {
     vehicleStore.replace([]);
     renderAndTick();
 
-    const moveToCalls = ctxCalls.filter((c) => c.method === "moveTo");
-    expect(moveToCalls.length).toBe(0);
+    const data = getVehiclesLayerData();
+    expect(data.length).toBe(0);
+  });
+
+  it("converts position from [lat, lng] to [lng, lat] for deck.gl", () => {
+    vehicleStore.replace([
+      { id: "v1", name: "V1", position: [36.82, -1.29], speed: 30, heading: 0 },
+    ]);
+
+    renderAndTick();
+
+    const data = getVehiclesLayerData();
+    // position[0] = lng, position[1] = lat
+    // Original: [36.82 (lat), -1.29 (lng)] → deck.gl: [-1.29 (lng), 36.82 (lat)]
+    expect(data[0].position[0]).toBeCloseTo(-1.29, 1);
+    expect(data[0].position[1]).toBeCloseTo(36.82, 1);
   });
 });
 
-describe("VehiclesLayer hit testing", () => {
-  it("calls onClick with vehicle id when clicking near a vehicle", () => {
-    const onClick = vi.fn();
-
-    // Position [36.82, -1.29] -> projection returns [lng*10, lat*10] = [-1.29*10, 36.82*10]
-    // Wait, the DTO has position [lat, lng] = [36.82, -1.29]
-    // The code does: projectPosition([v.position[1], v.position[0]]) = projectPosition([-1.29, 36.82])
-    // mockProjection([-1.29, 36.82]) => [-1.29*10, 36.82*10] = [-12.9, 368.2]
+describe("VehiclesLayer hit testing (deck.gl)", () => {
+  it("vehicles layer is pickable for click handling", () => {
     vehicleStore.replace([
       { id: "v1", name: "V1", position: [36.82, -1.29], speed: 30, heading: 0 },
     ]);
 
-    renderAndTick({ onClick });
+    renderAndTick();
 
-    // Simulate a click on the SVG element
-    // With transform k=1, x=0, y=0: projX = clientX, projY = clientY
-    // Vehicle is projected at [-12.9, 368.2]
-    // We need to click near that in screen coords
-    // getBoundingClientRect will return 0,0 for the canvas mock
-    const clickEvent = new MouseEvent("click", {
-      clientX: -12.9,
-      clientY: 368.2,
-      bubbles: true,
-    });
+    const layers = registeredLayers.get("vehicles")!;
+    const vehiclesLayer = layers.find(
+      (l) => (l as { props: { id: string } }).props.id === "vehicles"
+    ) as { props: { pickable: boolean; onClick: (info: { object?: unknown }) => void } };
 
-    // The canvas getBoundingClientRect needs to return proper values
-    const canvas = mockContainer.querySelector("canvas")!;
-    vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue({
-      left: 0,
-      top: 0,
-      right: 800,
-      bottom: 600,
-      width: 800,
-      height: 600,
-      x: 0,
-      y: 0,
-      toJSON: () => {},
-    });
-
-    act(() => {
-      mockMapElement.dispatchEvent(clickEvent);
-    });
-
-    expect(onClick).toHaveBeenCalledWith("v1");
-  });
-
-  it("does not call onClick when clicking far from any vehicle", () => {
-    const onClick = vi.fn();
-
-    vehicleStore.replace([
-      { id: "v1", name: "V1", position: [36.82, -1.29], speed: 30, heading: 0 },
-    ]);
-
-    renderAndTick({ onClick });
-
-    const canvas = mockContainer.querySelector("canvas")!;
-    vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue({
-      left: 0,
-      top: 0,
-      right: 800,
-      bottom: 600,
-      width: 800,
-      height: 600,
-      x: 0,
-      y: 0,
-      toJSON: () => {},
-    });
-
-    // Click far away from the vehicle
-    const clickEvent = new MouseEvent("click", {
-      clientX: 500,
-      clientY: 500,
-      bubbles: true,
-    });
-
-    act(() => {
-      mockMapElement.dispatchEvent(clickEvent);
-    });
-
-    expect(onClick).not.toHaveBeenCalled();
-  });
-
-  it("selects the closest vehicle when multiple are nearby", () => {
-    const onClick = vi.fn();
-
-    // Two vehicles close together
-    // v1 at position [1, 1] -> project([1, 1]) = [10, 10]
-    // v2 at position [1.1, 1.1] -> project([1.1, 1.1]) = [11, 11]
-    vehicleStore.replace([
-      { id: "v1", name: "V1", position: [1, 1], speed: 30, heading: 0 },
-      { id: "v2", name: "V2", position: [1.1, 1.1], speed: 40, heading: 0 },
-    ]);
-
-    renderAndTick({ onClick });
-
-    const canvas = mockContainer.querySelector("canvas")!;
-    vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue({
-      left: 0,
-      top: 0,
-      right: 800,
-      bottom: 600,
-      width: 800,
-      height: 600,
-      x: 0,
-      y: 0,
-      toJSON: () => {},
-    });
-
-    // Click closer to v2 (at [11, 11])
-    const clickEvent = new MouseEvent("click", {
-      clientX: 10.8,
-      clientY: 10.8,
-      bubbles: true,
-    });
-
-    act(() => {
-      mockMapElement.dispatchEvent(clickEvent);
-    });
-
-    expect(onClick).toHaveBeenCalledWith("v2");
+    expect(vehiclesLayer.props.pickable).toBe(true);
+    expect(typeof vehiclesLayer.props.onClick).toBe("function");
   });
 });

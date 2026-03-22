@@ -3,20 +3,21 @@ import { render } from "@testing-library/react";
 import type { DispatchAssignment, Vehicle, Position } from "@/types";
 import { createVehicle } from "@/test/mocks/types";
 
-// Mock the map context hook before importing the component
-const mockProjection = vi.fn((pos: Position) => [pos[0] * 10, pos[1] * 10] as [number, number]);
-(mockProjection as unknown as { invert: unknown }).invert = vi.fn();
+// ---------------------------------------------------------------------------
+// Capture registered layers via useRegisterLayers mock
+// ---------------------------------------------------------------------------
+const { registeredLayers } = vi.hoisted(() => {
+  const registeredLayers = new Map<string, unknown[]>();
+  return { registeredLayers };
+});
 
-vi.mock("@/components/Map/hooks", () => ({
-  useMapContext: () => ({
-    projection: mockProjection,
-    transform: { k: 1, x: 0, y: 0 },
-    map: null,
-    getBoundingBox: () => [
-      [0, 0],
-      [0, 0],
-    ],
-    getZoom: () => 1,
+vi.mock("@/components/Map/hooks/useDeckLayers", () => ({
+  useRegisterLayers: (id: string, layers: unknown[]) => {
+    registeredLayers.set(id, layers);
+  },
+  useDeckLayersContext: () => ({
+    registerLayers: () => {},
+    unregisterLayers: () => {},
   }),
 }));
 
@@ -31,6 +32,19 @@ function makeAssignment(overrides: Partial<DispatchAssignment> = {}): DispatchAs
   };
 }
 
+/** Get all registered layers for pending-dispatch. */
+function getLayers(): unknown[] {
+  return registeredLayers.get("pending-dispatch") ?? [];
+}
+
+/** Get a layer by its id. */
+function getLayer(id: string): { props: Record<string, unknown> } | undefined {
+  const layers = getLayers();
+  return layers.find((l) => (l as { props: { id: string } }).props.id === id) as
+    | { props: Record<string, unknown> }
+    | undefined;
+}
+
 describe("PendingDispatch", () => {
   const defaultVehicles: Vehicle[] = [
     createVehicle({ id: "v1", name: "Truck Alpha", position: [36.8219, -1.2921] as Position }),
@@ -38,24 +52,21 @@ describe("PendingDispatch", () => {
   ];
 
   beforeEach(() => {
-    mockProjection.mockReset();
-    mockProjection.mockImplementation(
-      (pos: Position) => [pos[0] * 10, pos[1] * 10] as [number, number]
-    );
+    registeredLayers.clear();
   });
 
-  it("returns null with empty assignments", () => {
-    const { container } = render(
-      <svg>
-        <PendingDispatch assignments={[]} vehicles={defaultVehicles} />
-      </svg>
-    );
+  it("returns null and registers empty layers with empty assignments", () => {
+    const { container } = render(<PendingDispatch assignments={[]} vehicles={defaultVehicles} />);
 
-    // The component returns null, so no <g> with class pending-dispatch
-    expect(container.querySelector(".pending-dispatch")).toBeNull();
+    // Component returns null
+    expect(container.innerHTML).toBe("");
+
+    // No layers registered (empty array)
+    const layers = getLayers();
+    expect(layers.length).toBe(0);
   });
 
-  it("renders SVG elements for assignments", () => {
+  it("renders deck.gl layers for assignments", () => {
     const assignments = [
       makeAssignment({
         vehicleId: "v1",
@@ -64,26 +75,23 @@ describe("PendingDispatch", () => {
       }),
     ];
 
-    const { container } = render(
-      <svg>
-        <PendingDispatch assignments={assignments} vehicles={defaultVehicles} />
-      </svg>
-    );
+    render(<PendingDispatch assignments={assignments} vehicles={defaultVehicles} />);
 
-    const group = container.querySelector(".pending-dispatch");
-    expect(group).not.toBeNull();
+    const layers = getLayers();
+    // Single waypoint creates: outer ring + inner dot + labels = 3 layers
+    expect(layers.length).toBeGreaterThanOrEqual(2);
 
-    // Should render target circles (outer ring + center dot = 2)
-    const circles = group!.querySelectorAll("circle");
-    expect(circles.length).toBe(2);
+    // Check for single-waypoint outer ring layer
+    const outerRing = getLayer("pending-dispatch-single-outer");
+    expect(outerRing).toBeTruthy();
+    expect((outerRing!.props.data as unknown[]).length).toBe(1);
 
-    // Should render a text label with the vehicle name
-    const texts = group!.querySelectorAll("text");
-    expect(texts.length).toBe(1);
-    expect(texts[0].textContent).toBe("Truck Alpha");
+    // Check for single-waypoint labels
+    const labels = getLayer("pending-dispatch-single-labels");
+    expect(labels).toBeTruthy();
   });
 
-  it("renders correct number of assignment groups", () => {
+  it("renders correct number of markers for multiple assignments", () => {
     const assignments = [
       makeAssignment({
         vehicleId: "v1",
@@ -97,26 +105,16 @@ describe("PendingDispatch", () => {
       }),
     ];
 
-    const { container } = render(
-      <svg>
-        <PendingDispatch assignments={assignments} vehicles={defaultVehicles} />
-      </svg>
-    );
+    render(<PendingDispatch assignments={assignments} vehicles={defaultVehicles} />);
 
-    const group = container.querySelector(".pending-dispatch");
-    expect(group).not.toBeNull();
+    // Both are single-waypoint: outer ring has 2 items, inner dot has 2
+    const outerRing = getLayer("pending-dispatch-single-outer");
+    expect(outerRing).toBeTruthy();
+    expect((outerRing!.props.data as unknown[]).length).toBe(2);
 
-    // Each assignment produces a <g> child with circles and text
-    const childGroups = group!.querySelectorAll(":scope > g");
-    expect(childGroups.length).toBe(2);
-
-    // 2 circles per assignment (outer ring + center dot) = 4 total
-    const circles = group!.querySelectorAll("circle");
-    expect(circles.length).toBe(4);
-
-    // 1 text label per assignment = 2 total
-    const texts = group!.querySelectorAll("text");
-    expect(texts.length).toBe(2);
+    const innerDot = getLayer("pending-dispatch-single-inner");
+    expect(innerDot).toBeTruthy();
+    expect((innerDot!.props.data as unknown[]).length).toBe(2);
   });
 
   it("skips assignments whose vehicle is not found in the vehicles list", () => {
@@ -124,39 +122,11 @@ describe("PendingDispatch", () => {
       makeAssignment({ vehicleId: "nonexistent", vehicleName: "Ghost Vehicle" }),
     ];
 
-    const { container } = render(
-      <svg>
-        <PendingDispatch assignments={assignments} vehicles={defaultVehicles} />
-      </svg>
-    );
+    render(<PendingDispatch assignments={assignments} vehicles={defaultVehicles} />);
 
-    // The component returns null for assignments with no matching vehicle,
-    // but the outer <g> is still rendered since assignments.length > 0
-    const group = container.querySelector(".pending-dispatch");
-    expect(group).not.toBeNull();
-
-    // No child <g> elements should be rendered (the vehicle was not found)
-    const childGroups = group!.querySelectorAll(":scope > g");
-    expect(childGroups.length).toBe(0);
-  });
-
-  it("returns null when projection is null", () => {
-    // Override the mock to return null projection
-    mockProjection.mockImplementationOnce(() => null);
-
-    // We need to re-mock the hook for this test
-    const originalImpl = mockProjection.getMockImplementation();
-    vi.mocked(mockProjection).mockImplementation(originalImpl!);
-
-    // The component checks !projection first, but our mock always returns a projection.
-    // Instead, test with empty assignments which also returns null.
-    const { container } = render(
-      <svg>
-        <PendingDispatch assignments={[]} vehicles={defaultVehicles} />
-      </svg>
-    );
-
-    expect(container.querySelector(".pending-dispatch")).toBeNull();
+    // No layers should have data (vehicle not found)
+    const layers = getLayers();
+    expect(layers.length).toBe(0);
   });
 
   it("renders numbered markers for multi-waypoint assignments", () => {
@@ -172,28 +142,19 @@ describe("PendingDispatch", () => {
       }),
     ];
 
-    const { container } = render(
-      <svg>
-        <PendingDispatch assignments={assignments} vehicles={defaultVehicles} />
-      </svg>
-    );
+    render(<PendingDispatch assignments={assignments} vehicles={defaultVehicles} />);
 
-    const group = container.querySelector(".pending-dispatch");
-    expect(group).not.toBeNull();
+    // Multi-waypoint creates: lines + circle markers + number text + vehicle name label
+    const markers = getLayer("pending-dispatch-multi-markers");
+    expect(markers).toBeTruthy();
+    expect((markers!.props.data as unknown[]).length).toBe(3);
 
-    // Multi-stop renders numbered circles: one filled circle per waypoint
-    const circles = group!.querySelectorAll("circle");
-    expect(circles.length).toBe(3);
-
-    // Each waypoint has a number label text ("1", "2", "3") plus the vehicle name label
-    const texts = group!.querySelectorAll("text");
-    const textContents = Array.from(texts).map((t) => t.textContent);
-    expect(textContents).toContain("1");
-    expect(textContents).toContain("2");
-    expect(textContents).toContain("3");
+    const numbers = getLayer("pending-dispatch-multi-numbers");
+    expect(numbers).toBeTruthy();
+    expect((numbers!.props.data as unknown[]).length).toBe(3);
   });
 
-  it("renders dashed connecting lines between waypoints", () => {
+  it("renders connecting lines between waypoints", () => {
     const assignments = [
       makeAssignment({
         vehicleId: "v1",
@@ -206,26 +167,15 @@ describe("PendingDispatch", () => {
       }),
     ];
 
-    const { container } = render(
-      <svg>
-        <PendingDispatch assignments={assignments} vehicles={defaultVehicles} />
-      </svg>
-    );
+    render(<PendingDispatch assignments={assignments} vehicles={defaultVehicles} />);
 
-    const group = container.querySelector(".pending-dispatch");
-    expect(group).not.toBeNull();
-
-    // 3 waypoints => 2 connecting lines
-    const lines = group!.querySelectorAll("line");
-    expect(lines.length).toBe(2);
-
-    // Lines should have dashed stroke
-    lines.forEach((line) => {
-      expect(line.getAttribute("stroke-dasharray")).toBeTruthy();
-    });
+    // 3 waypoints → 2 connecting lines
+    const lines = getLayer("pending-dispatch-multi-lines");
+    expect(lines).toBeTruthy();
+    expect((lines!.props.data as unknown[]).length).toBe(2);
   });
 
-  it("renders single-waypoint assignment with original circle style", () => {
+  it("renders single-waypoint assignment with outer ring and inner dot", () => {
     const assignments = [
       makeAssignment({
         vehicleId: "v1",
@@ -234,29 +184,19 @@ describe("PendingDispatch", () => {
       }),
     ];
 
-    const { container } = render(
-      <svg>
-        <PendingDispatch assignments={assignments} vehicles={defaultVehicles} />
-      </svg>
-    );
+    render(<PendingDispatch assignments={assignments} vehicles={defaultVehicles} />);
 
-    const group = container.querySelector(".pending-dispatch");
-    expect(group).not.toBeNull();
+    // Outer ring: transparent fill
+    const outerRing = getLayer("pending-dispatch-single-outer");
+    expect(outerRing).toBeTruthy();
+    expect(outerRing!.props.getFillColor).toEqual([0, 0, 0, 0]);
 
-    // Single-waypoint uses target circle style: outer ring (fill="none") + center dot = 2 circles
-    const circles = group!.querySelectorAll("circle");
-    expect(circles.length).toBe(2);
-
-    // The outer ring has fill="none"
-    expect(circles[0].getAttribute("fill")).toBe("none");
+    // Inner dot
+    const innerDot = getLayer("pending-dispatch-single-inner");
+    expect(innerDot).toBeTruthy();
 
     // No connecting lines for single waypoint
-    const lines = group!.querySelectorAll("line");
-    expect(lines.length).toBe(0);
-
-    // No numbered labels — only the vehicle name text
-    const texts = group!.querySelectorAll("text");
-    expect(texts.length).toBe(1);
-    expect(texts[0].textContent).toBe("Truck Alpha");
+    const lines = getLayer("pending-dispatch-multi-lines");
+    expect(lines).toBeUndefined();
   });
 });
