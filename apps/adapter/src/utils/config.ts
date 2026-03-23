@@ -23,7 +23,7 @@ export const envSchema = z.object({
   SINK_TYPES: z.string().default(""),
 
   /** Comma-separated CORS origins, or "*" for all */
-  CORS_ORIGINS: z.string().default("*"),
+  CORS_ORIGINS: z.string().default("http://localhost:5010,http://localhost:5012"),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;
