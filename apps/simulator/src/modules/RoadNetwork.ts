@@ -93,6 +93,7 @@ export class RoadNetwork extends EventEmitter {
 
   // Incident-based edge cost penalties: edge ID → speedFactor (lowest wins; 0 = blocked)
   private incidentEdges: Map<string, number> = new Map();
+  private _cachedIncidentFingerprint: string | null = null;
 
   // Maximum speed across all edges — used for admissible A* heuristic
   private maxNetworkSpeed = 110; // updated after buildNetwork
@@ -748,7 +749,9 @@ export class RoadNetwork extends EventEmitter {
         // smoothnessFactor applied via edge.smoothnessFactor (see 9ozi.3)
         const smoothnessPenalty = 1 / ((edge.smoothnessFactor ?? 1.0) || 1.0); // avoid div-by-zero for impassable=0
         const flow = edge.start.connections.length; // proxy for observed flow
-        const bprCongestion = 1 + 0.15 * Math.pow(flow / (edge.capacity ?? 1800), 4);
+        const bprRatio = flow / (edge.capacity ?? 1800);
+        const bprRatio2 = bprRatio * bprRatio;
+        const bprCongestion = 1 + 0.15 * (bprRatio2 * bprRatio2);
         let travelTime =
           (edge.distance / edge.maxSpeed) * surfacePenalty * smoothnessPenalty * bprCongestion;
         if (incidentFactor !== undefined && incidentFactor < 1) {
@@ -789,18 +792,25 @@ export class RoadNetwork extends EventEmitter {
 
   /** Compute a lightweight fingerprint of the current incident edge set for cache keying. */
   private incidentFingerprint(): string {
-    if (this.incidentEdges.size === 0) return "";
-    return Array.from(this.incidentEdges.keys()).sort().join(",");
+    if (this._cachedIncidentFingerprint !== null) return this._cachedIncidentFingerprint;
+    if (this.incidentEdges.size === 0) {
+      this._cachedIncidentFingerprint = "";
+    } else {
+      this._cachedIncidentFingerprint = Array.from(this.incidentEdges.keys()).sort().join(",");
+    }
+    return this._cachedIncidentFingerprint;
   }
 
   /** Replace incident edge speed factors. Cache invalidation is handled by the fingerprint key. */
   public setIncidentEdges(edgeSpeedFactors: Map<string, number>): void {
     this.incidentEdges = edgeSpeedFactors;
+    this._cachedIncidentFingerprint = null;
   }
 
   /** Clear all incident edge data. Cache invalidation is handled by the fingerprint key. */
   public clearIncidentEdges(): void {
     this.incidentEdges.clear();
+    this._cachedIncidentFingerprint = null;
   }
 
   /** Return hit/miss statistics for the route cache. */
@@ -878,19 +888,20 @@ export class RoadNetwork extends EventEmitter {
     endId: string,
     cameFrom: Map<string, { prevId: string; edge: Edge }>
   ): Route {
-    const path: Edge[] = [];
+    const reversedPath: Edge[] = [];
     let currentId = endId;
     let totalDistance = 0;
 
     while (currentId !== startId) {
       const { prevId, edge } = cameFrom.get(currentId)!;
-      path.unshift(edge);
+      reversedPath.push(edge);
       totalDistance += edge.distance;
       currentId = prevId;
     }
+    reversedPath.reverse();
 
     return {
-      edges: path,
+      edges: reversedPath,
       distance: totalDistance,
     };
   }

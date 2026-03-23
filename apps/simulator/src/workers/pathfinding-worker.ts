@@ -339,16 +339,17 @@ function findRoute(
     if (closedSet.has(current.id)) continue;
 
     if (current.id === endId) {
-      // Reconstruct path
+      // Reconstruct path (push + reverse is O(n) vs unshift's O(n²))
       const edgeIds: string[] = [];
       let totalDistance = 0;
       let curId = endId;
       while (curId !== startId) {
         const prev = cameFrom.get(curId)!;
-        edgeIds.unshift(prev.edgeId);
+        edgeIds.push(prev.edgeId);
         totalDistance += prev.edgeDistance;
         curId = prev.prevId;
       }
+      edgeIds.reverse();
       return { edgeIds, distance: totalDistance };
     }
 
@@ -392,7 +393,9 @@ function findRoute(
       // smoothnessFactor applied via edge.smoothnessFactor (see 9ozi.3)
       const smoothnessPenalty = 1 / ((edge.smoothnessFactor ?? 1.0) || 1.0); // avoid div-by-zero for impassable=0
       const flow = currentNode.edges.length; // proxy for observed flow (outbound edges from current node)
-      const bprCongestion = 1 + 0.15 * Math.pow(flow / (edge.capacity ?? 1800), 4);
+      const bprRatio = flow / (edge.capacity ?? 1800);
+      const bprRatio2 = bprRatio * bprRatio;
+      const bprCongestion = 1 + 0.15 * (bprRatio2 * bprRatio2);
       let travelTime =
         (edge.distance / edge.maxSpeed) * surfacePenalty * smoothnessPenalty * bprCongestion;
       if (incidentFactor !== undefined && incidentFactor < 1) {
