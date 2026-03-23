@@ -9,6 +9,7 @@ import type {
   Road,
   RoadNetwork,
   Vehicle,
+  VehicleType,
 } from "@/types";
 import type { BoundingBox, GeoFence } from "@moveet/shared-types";
 import type { Filters } from "@/hooks/useVehicles";
@@ -45,6 +46,7 @@ interface MapProps {
   onPOIClick: (poi: POI) => void;
   vehicleFleetMap: Map<string, Fleet>;
   hiddenFleetIds: Set<string>;
+  hiddenVehicleTypes: Set<VehicleType>;
   dispatchState?: DispatchState;
   assignments?: DispatchAssignment[];
   incidents?: IncidentDTO[];
@@ -70,6 +72,7 @@ export default function Map({
   onPOIClick,
   vehicleFleetMap,
   hiddenFleetIds,
+  hiddenVehicleTypes,
   dispatchState,
   assignments = [],
   incidents,
@@ -142,6 +145,7 @@ export default function Map({
             scale={1.5}
             vehicleFleetMap={vehicleFleetMap}
             hiddenFleetIds={hiddenFleetIds}
+            hiddenVehicleTypes={hiddenVehicleTypes}
             selectedId={filters.selected}
             hoveredId={filters.hovered}
             onClick={onClick}

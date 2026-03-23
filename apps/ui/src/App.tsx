@@ -519,6 +519,7 @@ export default function App() {
               onPOIClick={(poi) => setSelectedItem(poi)}
               vehicleFleetMap={vehicleFleetMap}
               hiddenFleetIds={hiddenFleetIds}
+              hiddenVehicleTypes={hiddenVehicleTypes}
               dispatchState={dispatch.dispatchState}
               assignments={dispatch.assignments}
               incidents={incidents.incidents}

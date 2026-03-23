@@ -59,6 +59,53 @@ export const FOLLOWING_DISTANCE_BY_SIZE: Record<string, number> = {
   large: 0.03, // 30 meters in km
 };
 
+/**
+ * Default vehicle type distribution (percentages, must sum to 100).
+ * Used when no explicit vehicleTypes map is provided (i.e. non-scenario mode).
+ */
+export const DEFAULT_VEHICLE_TYPE_WEIGHTS: Record<VehicleType, number> = {
+  car: 60,
+  truck: 15,
+  bus: 10,
+  motorcycle: 12,
+  ambulance: 3,
+};
+
+/**
+ * Converts the percentage-based weights into absolute counts for a given total.
+ * Guarantees the sum equals `total` by assigning remainders to the largest type.
+ */
+export function distributeByWeight(
+  total: number,
+  weights: Record<VehicleType, number> = DEFAULT_VEHICLE_TYPE_WEIGHTS
+): Partial<Record<VehicleType, number>> {
+  const weightSum = Object.values(weights).reduce((a, b) => a + b, 0);
+  const result: Partial<Record<VehicleType, number>> = {};
+  let assigned = 0;
+
+  const entries = Object.entries(weights) as [VehicleType, number][];
+  // Sort descending by weight so the largest bucket absorbs rounding remainder
+  entries.sort((a, b) => b[1] - a[1]);
+
+  for (let i = 0; i < entries.length; i++) {
+    const [type, weight] = entries[i];
+    if (i === 0) continue; // skip largest, assign remainder later
+    const count = Math.round((weight / weightSum) * total);
+    if (count > 0) {
+      result[type] = count;
+      assigned += count;
+    }
+  }
+
+  // Largest type gets the remainder to guarantee exact total
+  const remaining = total - assigned;
+  if (remaining > 0) {
+    result[entries[0][0]] = remaining;
+  }
+
+  return result;
+}
+
 export function getProfile(type: VehicleType): VehicleProfile {
   return VEHICLE_PROFILES[type];
 }

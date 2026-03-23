@@ -4,9 +4,11 @@ import { FleetManager } from "../modules/FleetManager";
 import { RoadNetwork } from "../modules/RoadNetwork";
 import { config } from "../utils/config";
 import { getProfile } from "../utils/vehicleProfiles";
+import type { VehicleType } from "../types";
 import path from "path";
 
 const FIXTURE_PATH = path.join(__dirname, "fixtures", "test-network.geojson");
+const ALL_TYPES: VehicleType[] = ["car", "truck", "motorcycle", "ambulance", "bus"];
 
 describe("VehicleRegistry", () => {
   let network: RoadNetwork;
@@ -27,9 +29,12 @@ describe("VehicleRegistry", () => {
   // ─── Vehicle loading ──────────────────────────────────────────────
 
   describe("loadFromData", () => {
-    it("should load default vehicle count when no types specified", () => {
+    it("should load default vehicle count with mixed types when no types specified", () => {
       registry.loadFromData();
       expect(registry.getAll().size).toBe(3);
+      for (const v of registry.getAll().values()) {
+        expect(ALL_TYPES).toContain(v.type);
+      }
     });
 
     it("should load specified vehicle types and counts", () => {
@@ -40,9 +45,20 @@ describe("VehicleRegistry", () => {
       expect(vehicles.filter((v) => v.type === "truck")).toHaveLength(1);
     });
 
-    it("should fall back to config.vehicleCount when vehicleTypes is empty", () => {
+    it("should use weighted distribution when vehicleTypes is empty", () => {
+      (config as any).vehicleCount = 10;
       registry.loadFromData({});
-      expect(registry.getAll().size).toBe(3);
+      expect(registry.getAll().size).toBe(10);
+      const types = new Set(Array.from(registry.getAll().values()).map((v) => v.type));
+      expect(types.size).toBeGreaterThanOrEqual(2);
+    });
+
+    it("should assign type-prefixed names", () => {
+      registry.loadFromData({ car: 1, truck: 1 });
+      const vehicles = Array.from(registry.getAll().values());
+      const names = vehicles.map((v) => v.name);
+      expect(names).toContain("Car-1");
+      expect(names).toContain("Truck-1");
     });
 
     it("should invoke onVehicleAdded callback for each vehicle", () => {

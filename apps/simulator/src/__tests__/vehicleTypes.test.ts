@@ -125,10 +125,10 @@ describe("Vehicle Types", () => {
   // 2. Vehicle type assignment
   // ────────────────────────────────────────────────────────────────
   describe("Vehicle type assignment", () => {
-    it("default vehicles are type 'car'", () => {
+    it("default vehicles use weighted distribution (mixed types)", () => {
       const vehicles = getInternalVehicles(manager);
       for (const vehicle of vehicles.values()) {
-        expect(vehicle.type).toBe("car");
+        expect(ALL_TYPES).toContain(vehicle.type);
       }
     });
 
@@ -137,7 +137,7 @@ describe("Vehicle Types", () => {
       expect(dtos.length).toBeGreaterThan(0);
       for (const dto of dtos) {
         expect(dto.type).toBeDefined();
-        expect(dto.type).toBe("car");
+        expect(ALL_TYPES).toContain(dto.type);
       }
     });
 
@@ -153,11 +153,11 @@ describe("Vehicle Types", () => {
   // 3. Type-specific speed bounds
   // ────────────────────────────────────────────────────────────────
   describe("Type-specific speed bounds", () => {
-    it("car vehicles start at car profile minSpeed", () => {
+    it("each vehicle starts at its own profile minSpeed", () => {
       const vehicles = getInternalVehicles(manager);
-      const carProfile = getProfile("car");
       for (const vehicle of vehicles.values()) {
-        expect(vehicle.speed).toBe(carProfile.minSpeed);
+        const profile = getProfile(vehicle.type);
+        expect(vehicle.speed).toBe(profile.minSpeed);
       }
     });
 
@@ -327,39 +327,37 @@ describe("Vehicle Types", () => {
   });
 
   // ────────────────────────────────────────────────────────────────
-  // 7. Backward compatibility
+  // 7. Default distribution (was backward compatibility)
   // ────────────────────────────────────────────────────────────────
-  describe("Backward compatibility", () => {
-    it("defaults to 'car' when no type is specified", () => {
+  describe("Default distribution", () => {
+    it("uses weighted distribution when no type is specified", () => {
       const vehicles = getInternalVehicles(manager);
       expect(vehicles.size).toBe(config.vehicleCount);
-      for (const v of vehicles.values()) {
-        expect(v.type).toBe("car");
-      }
+      const types = new Set([...vehicles.values()].map((v) => v.type));
+      // With 5 vehicles and weighted distribution, we should have at least 2 distinct types
+      expect(types.size).toBeGreaterThanOrEqual(2);
     });
 
-    it("falls back to config.vehicleCount cars when vehicleTypes not provided", () => {
+    it("distributes across config.vehicleCount when vehicleTypes not provided", () => {
       (config as any).vehicleCount = 4;
       cleanupManager(manager);
       manager = createManager(network);
 
       const vehicles = getInternalVehicles(manager);
       expect(vehicles.size).toBe(4);
-      for (const v of vehicles.values()) {
-        expect(v.type).toBe("car");
-      }
+      const types = new Set([...vehicles.values()].map((v) => v.type));
+      expect(types.size).toBeGreaterThanOrEqual(2);
     });
 
-    it("falls back to config.vehicleCount when vehicleTypes is empty", () => {
-      (config as any).vehicleCount = 3;
+    it("distributes across config.vehicleCount when vehicleTypes is empty", () => {
+      (config as any).vehicleCount = 10;
       cleanupManager(manager);
       manager = createManager(network, {});
 
       const vehicles = getInternalVehicles(manager);
-      expect(vehicles.size).toBe(3);
-      for (const v of vehicles.values()) {
-        expect(v.type).toBe("car");
-      }
+      expect(vehicles.size).toBe(10);
+      const types = new Set([...vehicles.values()].map((v) => v.type));
+      expect(types.size).toBeGreaterThanOrEqual(2);
     });
   });
 
