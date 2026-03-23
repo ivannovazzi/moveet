@@ -41,10 +41,16 @@ const TYPE_PRIORITY: Record<string, number> = {
  * Collision spacing multiplier — how much larger the collision hitbox is
  * compared to the rendered icon. 1.0 = no extra spacing, 2.0 = double.
  */
-const COLLISION_SIZE_SCALE = 2.0;
+const COLLISION_SIZE_SCALE = 4.0;
 
 /** Fade-in duration in milliseconds. */
-const FADE_DURATION_MS = 500;
+const FADE_DURATION_MS = 800;
+
+/**
+ * Zoom is quantized to discrete steps so deck.gl color transitions can
+ * complete between updates instead of restarting on every animation frame.
+ */
+const ZOOM_STEP = 0.5;
 
 interface POIMarkerProps {
   visible: boolean;
@@ -53,43 +59,36 @@ interface POIMarkerProps {
 
 export default function POIs({ visible, onClick }: POIMarkerProps) {
   const { pois } = usePois();
-  const { getBoundingBox, getZoom } = useMapContext();
+  const { getZoom } = useMapContext();
   const zoom = getZoom();
 
-  const [[west, south], [east, north]] = getBoundingBox();
+  const showData = visible && zoom >= MIN_ZOOM - 1;
+  const quantizedZoom = Math.floor(zoom / ZOOM_STEP) * ZOOM_STEP;
 
-  // Always include all in-bounds POIs so deck.gl can transition their alpha.
-  // Visibility is controlled purely by getColor alpha below.
-  const inBoundsPois = useMemo(() => {
-    if (!visible || zoom < MIN_ZOOM) return [];
-    return pois.filter(
-      (poi) =>
-        !!poi.name &&
-        poi.coordinates[0] >= south &&
-        poi.coordinates[0] <= north &&
-        poi.coordinates[1] >= west &&
-        poi.coordinates[1] <= east
-    );
-  }, [pois, south, north, west, east, visible, zoom]);
+  // Keep the data array stable across zoom/pan so deck.gl enter transitions
+  // only fire once per item, not on every viewport change.
+  const visiblePois = useMemo(
+    () => (showData ? pois.filter((poi) => !!poi.name) : []),
+    [pois, showData]
+  );
 
-  const layers = useMemo(() => {
-    if (inBoundsPois.length === 0) return [];
-
-    return [
+  // Always create the layer so deck.gl preserves transition state across
+  // data changes. Returning [] would destroy the layer and lose all
+  // in-flight enter/color transitions.
+  const layers = useMemo(
+    () => [
       new IconLayer<POI, CollisionFilterExtensionProps<POI>>({
         id: "pois",
-        data: inBoundsPois,
+        data: visiblePois,
         updateTriggers: {
-          getColor: [zoom],
+          getColor: [quantizedZoom],
         },
         getPosition: (d) => [d.coordinates[1], d.coordinates[0]],
         getIcon: (d) => (d.type && d.type in iconMapping ? d.type : "unknown"),
         getSize: (d) => (isBusStop(d) ? 14 : 22),
-        // Fade in: alpha ramps 0→255 over one zoom level past the tier threshold.
-        // Items below their tier are fully transparent (hidden).
         getColor: (d) => {
           const tier = ZOOM_TIERS[d.type ?? "unknown"] ?? MIN_ZOOM;
-          const alpha = Math.round(Math.max(0, Math.min(1, zoom - tier)) * 255);
+          const alpha = Math.round(Math.max(0, Math.min(1, quantizedZoom - tier)) * 255);
           return [255, 255, 255, alpha];
         },
         iconAtlas,
@@ -107,17 +106,26 @@ export default function POIs({ visible, onClick }: POIMarkerProps) {
         sizeUnits: "pixels",
         sizeMinPixels: 8,
         sizeMaxPixels: 36,
-        transitions: { getColor: { duration: FADE_DURATION_MS } },
+        transitions: {
+          getColor: {
+            duration: FADE_DURATION_MS,
+            enter: (value: number[]) => [value[0], value[1], value[2], 0],
+          },
+        },
         extensions: [collisionFilter],
         ...({
           collisionEnabled: true,
-          collisionGroup: "poi-markers",
+          collisionGroup: "map-markers",
           getCollisionPriority: (d: POI) => TYPE_PRIORITY[d.type ?? "unknown"] ?? 0,
-          collisionTestProps: { sizeScale: COLLISION_SIZE_SCALE },
+          collisionTestProps: {
+            sizeScale: COLLISION_SIZE_SCALE,
+            sizeMaxPixels: 200,
+          },
         } as Record<string, unknown>),
       }),
-    ];
-  }, [inBoundsPois, onClick, zoom]);
+    ],
+    [visiblePois, onClick, quantizedZoom]
+  );
 
   useRegisterLayers("pois", layers, 45);
 

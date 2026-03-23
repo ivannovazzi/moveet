@@ -3,7 +3,7 @@ import client from "@/utils/client";
 import type { ConnectionStateInfo } from "@/utils/wsClient";
 
 const initialState: ConnectionStateInfo = {
-  state: "disconnected",
+  state: "connecting",
   attempt: 0,
   maxAttempts: 10,
 };

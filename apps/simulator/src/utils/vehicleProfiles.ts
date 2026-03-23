@@ -72,6 +72,20 @@ export const DEFAULT_VEHICLE_TYPE_WEIGHTS: Record<VehicleType, number> = {
 };
 
 /**
+ * Picks a random vehicle type based on the default weight distribution.
+ */
+export function pickRandomType(): VehicleType {
+  const entries = Object.entries(DEFAULT_VEHICLE_TYPE_WEIGHTS) as [VehicleType, number][];
+  const total = entries.reduce((sum, [, w]) => sum + w, 0);
+  let roll = Math.random() * total;
+  for (const [type, weight] of entries) {
+    roll -= weight;
+    if (roll <= 0) return type;
+  }
+  return entries[0][0];
+}
+
+/**
  * Converts the percentage-based weights into absolute counts for a given total.
  * Guarantees the sum equals `total` by assigning remainders to the largest type.
  */

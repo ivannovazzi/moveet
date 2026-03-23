@@ -383,7 +383,10 @@ export default function App() {
 
   return (
     <div className={styles.app}>
-      <div className={styles.content}>
+      <div
+        className={styles.content}
+        data-ready={!networkLoading && !roadsLoading ? "" : undefined}
+      >
         <IconRail
           activePanel={activePanel}
           onPanelChange={setActivePanel}

@@ -3,9 +3,10 @@ import { render, screen } from "@testing-library/react";
 import LoadingOverlay from "./LoadingOverlay";
 
 describe("LoadingOverlay", () => {
-  it("returns null when visible is false", () => {
-    const { container } = render(<LoadingOverlay visible={false} />);
-    expect(container.innerHTML).toBe("");
+  it("is hidden when visible is false", () => {
+    render(<LoadingOverlay visible={false} />);
+    const overlay = screen.getByRole("status", { hidden: true });
+    expect(overlay).toHaveAttribute("aria-hidden", "true");
   });
 
   it("renders overlay when visible is true", () => {
@@ -19,7 +20,7 @@ describe("LoadingOverlay", () => {
     expect(overlay).toHaveAttribute("aria-label", "Loading map data");
   });
 
-  it("shows spinner and label text", () => {
+  it("shows label text", () => {
     render(<LoadingOverlay visible={true} />);
     expect(screen.getByText("Loading\u2026")).toBeInTheDocument();
   });

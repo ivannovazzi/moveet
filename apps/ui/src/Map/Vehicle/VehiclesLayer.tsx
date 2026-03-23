@@ -96,6 +96,8 @@ interface VehicleInterp {
   updateTime: number;
   /** Per-vehicle lerp duration measured via EMA. */
   lerpMs: number;
+  /** True until the first position change — snap instead of animating. */
+  isNew: boolean;
 }
 
 const { DEFAULT_LERP_MS, MIN_LERP_MS, MAX_T } = VEHICLE_INTERPOLATION;
@@ -252,6 +254,19 @@ export default function VehiclesLayer({
             const posChanged = lat !== existing.nextLat || lng !== existing.nextLng;
             if (!posChanged) continue;
 
+            // First movement after spawn: snap to position, don't animate
+            if (existing.isNew) {
+              existing.prevLat = lat;
+              existing.prevLng = lng;
+              existing.prevHeading = heading;
+              existing.nextLat = lat;
+              existing.nextLng = lng;
+              existing.nextHeading = heading;
+              existing.updateTime = now;
+              existing.isNew = false;
+              continue;
+            }
+
             // Update per-vehicle lerp duration via EMA (alpha = 0.3)
             const elapsed = now - existing.updateTime;
             if (elapsed > MIN_LERP_MS) {
@@ -280,6 +295,7 @@ export default function VehiclesLayer({
               nextHeading: heading,
               updateTime: now,
               lerpMs: DEFAULT_LERP_MS,
+              isNew: true,
             });
           }
         }
@@ -366,6 +382,7 @@ export default function VehiclesLayer({
   const handleClick = useCallback((info: { object?: VehiclePolygonDatum }) => {
     if (info.object) {
       onClickRef.current(info.object.id);
+      return true; // mark handled so DeckGL.onClick (clearMap) doesn't fire
     }
   }, []);
 
