@@ -19,6 +19,12 @@ export function useOptions(timeout: number) {
     });
   }, [setOptions]);
 
+  useEffect(() => {
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+    };
+  }, []);
+
   const updateOption = <T extends keyof StartOptions>(field: T, value: StartOptions[T]) => {
     clearTimeout(timer.current);
     setOptions((options) => {

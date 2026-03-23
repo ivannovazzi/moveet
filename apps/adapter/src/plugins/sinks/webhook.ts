@@ -25,7 +25,7 @@ export class WebhookSink implements DataSink {
   }
 
   async publishUpdates(updates: VehicleUpdate[]): Promise<void> {
-    if (!this.url) return;
+    if (!this.url) throw new Error("Webhook sink not connected");
 
     await httpFetch(this.url, {
       method: "POST",

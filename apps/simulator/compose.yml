@@ -5,9 +5,8 @@ services:
       - ./data/network.geojson:/app/data/network.geojson:ro
     environment:
       - UPDATE_INTERVAL=300
+      - USE_ADAPTER=true
       - ADAPTER_URL=http://adapter:5011
-      - MIN_SPEED=100
-      - MAX_SPEED=300
     ports:
       - "5010:3000"
   adapter:

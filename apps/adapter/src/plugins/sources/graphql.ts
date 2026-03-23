@@ -77,7 +77,18 @@ export class GraphQLSource implements DataSource {
 
     this.client = new GraphQLClient(url, { headers });
 
-    if (config.query) this.query = config.query as string;
+    if (config.query) {
+      const q = (config.query as string).trim();
+      if (!/query/i.test(q)) {
+        throw new Error("GraphQL source: query must contain a 'query' keyword");
+      }
+      if (/\b(mutation|subscription)\b/i.test(q)) {
+        throw new Error(
+          "GraphQL source: query must not contain 'mutation' or 'subscription' keywords"
+        );
+      }
+      this.query = q;
+    }
     if (config.vehiclePath) this.vehiclePath = config.vehiclePath as string;
     if (config.maxVehicles) this.maxVehicles = config.maxVehicles as number;
 

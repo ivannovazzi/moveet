@@ -5,7 +5,6 @@ import { asyncHandler } from "./helpers";
 import { validateBody } from "../middleware/validate";
 import { replayStartSchema, replaySeekSchema, replaySpeedSchema } from "../middleware/schemas";
 import { expensiveRateLimiter } from "../middleware/rateLimiter";
-import logger from "../utils/logger";
 
 /**
  * Routes for replay management: start, pause, resume, stop, seek, speed, status.
@@ -20,7 +19,12 @@ export function createReplayRoutes(ctx: RouteContext): Router {
     validateBody(replayStartSchema),
     asyncHandler(async (req, res) => {
       const { file, speed } = req.body;
-      const filePath = path.join("recordings", file);
+      const recordingsDir = path.resolve("recordings");
+      const filePath = path.resolve("recordings", file);
+      if (!filePath.startsWith(recordingsDir + path.sep)) {
+        res.status(400).json({ error: "Invalid file path" });
+        return;
+      }
       try {
         const header = await simulationController.startReplay(filePath, speed);
         res.json({ status: "replaying", header });
@@ -76,12 +80,7 @@ export function createReplayRoutes(ctx: RouteContext): Router {
   );
 
   router.get("/replay/status", (_req, res) => {
-    try {
-      res.json(simulationController.getReplayStatus());
-    } catch (error) {
-      logger.error(`Error in /replay/status: ${error}`);
-      res.status(500).json({ error: "Failed to get replay status" });
-    }
+    res.json(simulationController.getReplayStatus());
   });
 
   return router;

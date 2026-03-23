@@ -52,6 +52,8 @@ async function startup(): Promise<void> {
     logger.info({ sink: sink.type }, "Sink configured");
   }
 
+  let isReady = false;
+
   const app = express();
   app.use(
     cors({
@@ -61,6 +63,14 @@ async function startup(): Promise<void> {
   app.use(compression());
   app.use(express.json());
   app.use(correlationIdMiddleware);
+
+  app.use((req, res, next) => {
+    if (!isReady && req.path !== "/health") {
+      res.status(503).json({ error: "Service unavailable, plugins initializing" });
+      return;
+    }
+    next();
+  });
 
   // === Data Endpoints ===
 
@@ -79,8 +89,8 @@ async function startup(): Promise<void> {
       const fleets = await pluginManager.getFleets();
       res.json(fleets);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      res.status(500).json({ error: message });
+      logger.error({ err: error }, "Error fetching fleets");
+      res.status(500).json({ error: "Failed to fetch fleets" });
     }
   });
 
@@ -92,6 +102,24 @@ async function startup(): Promise<void> {
       vehicles = req.body.vehicles;
     } else {
       res.status(400).json({ error: "Invalid request body" });
+      return;
+    }
+
+    const invalid: string[] = [];
+    for (let i = 0; i < vehicles.length; i++) {
+      const v = vehicles[i];
+      if (
+        typeof v.id !== "string" ||
+        typeof v.latitude !== "number" ||
+        typeof v.longitude !== "number"
+      ) {
+        invalid.push(
+          `vehicles[${i}]: missing or invalid id (string), latitude (number), or longitude (number)`
+        );
+      }
+    }
+    if (invalid.length > 0) {
+      res.status(400).json({ error: "Invalid vehicle updates", details: invalid });
       return;
     }
 
@@ -120,6 +148,10 @@ async function startup(): Promise<void> {
       res.status(400).json({ error: "Missing 'type' field" });
       return;
     }
+    if (pluginConfig != null && (typeof pluginConfig !== "object" || Array.isArray(pluginConfig))) {
+      res.status(400).json({ error: "'config' must be a JSON object" });
+      return;
+    }
     try {
       await pluginManager.setSource(type, pluginConfig || {});
       const status = await pluginManager.getStatus();
@@ -134,6 +166,10 @@ async function startup(): Promise<void> {
     const { type, config: pluginConfig } = req.body;
     if (!type) {
       res.status(400).json({ error: "Missing 'type' field" });
+      return;
+    }
+    if (pluginConfig != null && (typeof pluginConfig !== "object" || Array.isArray(pluginConfig))) {
+      res.status(400).json({ error: "'config' must be a JSON object" });
       return;
     }
     try {
@@ -164,9 +200,17 @@ async function startup(): Promise<void> {
 
   process.on("SIGTERM", async () => {
     logger.info("SIGTERM signal received: shutting down");
-    await pluginManager.shutdown();
-    process.exit(0);
+    try {
+      await pluginManager.shutdown();
+      process.exit(0);
+    } catch (err) {
+      logger.error({ err }, "Error during shutdown");
+      process.exit(1);
+    }
   });
+
+  isReady = true;
+  logger.info("All plugins initialized, server is ready");
 
   app.listen(config.port, () => {
     logger.info({ port: config.port }, `Adapter listening on http://localhost:${config.port}`);

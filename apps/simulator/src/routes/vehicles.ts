@@ -5,7 +5,6 @@ import { validateBody } from "../middleware/validate";
 import { directionSchema, coordinatesSchema, searchSchema } from "../middleware/schemas";
 import { expensiveRateLimiter } from "../middleware/rateLimiter";
 import { VEHICLE_PROFILES } from "../utils/vehicleProfiles";
-import logger from "../utils/logger";
 
 /**
  * Routes for vehicle management: listing, directions, node/road lookup, search.
@@ -27,12 +26,7 @@ export function createVehicleRoutes(ctx: RouteContext): Router {
   );
 
   router.get("/directions", (_req, res) => {
-    try {
-      res.json(vehicleManager.getDirections());
-    } catch (error) {
-      logger.error(`Error in /directions: ${error}`);
-      res.status(500).json({ error: "Failed to get directions" });
-    }
+    res.json(vehicleManager.getDirections());
   });
 
   router.post(

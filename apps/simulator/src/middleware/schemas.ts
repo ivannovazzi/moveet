@@ -55,7 +55,8 @@ const directionItemSchema = z.object({
 
 export const directionSchema = z
   .array(directionItemSchema)
-  .nonempty("Request body must be a non-empty array of direction requests");
+  .nonempty("Request body must be a non-empty array of direction requests")
+  .max(100, "Maximum 100 direction requests per call");
 
 // ─── Find node / find road ──────────────────────────────────────────
 

@@ -8,7 +8,6 @@ import {
   clockSchema,
   trafficProfileSchema,
 } from "../middleware/schemas";
-import logger from "../utils/logger";
 
 /**
  * Routes for simulation lifecycle: status, start, stop, reset, options, clock, traffic.
@@ -18,12 +17,7 @@ export function createSimulationRoutes(ctx: RouteContext): Router {
   const { vehicleManager, simulationController } = ctx;
 
   router.get("/status", (_req, res) => {
-    try {
-      res.json(simulationController.getStatus());
-    } catch (error) {
-      logger.error(`Error in /status: ${error}`);
-      res.status(500).json({ error: "Failed to get status" });
-    }
+    res.json(simulationController.getStatus());
   });
 
   router.post(
@@ -44,22 +38,12 @@ export function createSimulationRoutes(ctx: RouteContext): Router {
   );
 
   router.post("/stop", (_req, res) => {
-    try {
-      simulationController.stop();
-      res.json({ status: "stopped" });
-    } catch (error) {
-      logger.error(`Error in /stop: ${error}`);
-      res.status(500).json({ error: "Failed to stop simulation" });
-    }
+    simulationController.stop();
+    res.json({ status: "stopped" });
   });
 
   router.get("/options", (_req, res) => {
-    try {
-      res.json(vehicleManager.getOptions());
-    } catch (error) {
-      logger.error(`Error in /options: ${error}`);
-      res.status(500).json({ error: "Failed to get options" });
-    }
+    res.json(vehicleManager.getOptions());
   });
 
   router.post(
@@ -74,12 +58,7 @@ export function createSimulationRoutes(ctx: RouteContext): Router {
   // ─── Clock ──────────────────────────────────────────────────────────
 
   router.get("/clock", (_req, res) => {
-    try {
-      res.json(simulationController.getClock().getState());
-    } catch (error) {
-      logger.error(`Error in /clock: ${error}`);
-      res.status(500).json({ error: "Failed to get clock state" });
-    }
+    res.json(simulationController.getClock().getState());
   });
 
   router.post(
@@ -104,21 +83,11 @@ export function createSimulationRoutes(ctx: RouteContext): Router {
   // ─── Traffic ────────────────────────────────────────────────────────
 
   router.get("/traffic", (_req, res) => {
-    try {
-      res.json(vehicleManager.getTrafficSnapshot());
-    } catch (error) {
-      logger.error(`Error in /traffic: ${error}`);
-      res.status(500).json({ error: "Failed to get traffic data" });
-    }
+    res.json(vehicleManager.getTrafficSnapshot());
   });
 
   router.get("/traffic-profile", (_req, res) => {
-    try {
-      res.json(simulationController.getTrafficProfile());
-    } catch (error) {
-      logger.error(`Error in /traffic-profile: ${error}`);
-      res.status(500).json({ error: "Failed to get traffic profile" });
-    }
+    res.json(simulationController.getTrafficProfile());
   });
 
   router.post(

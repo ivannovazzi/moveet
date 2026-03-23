@@ -7,9 +7,14 @@ export function useReplay() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    client.onReplayStatus((data) => {
+    const handler = (data: ReplayStatus) => {
       setReplayStatus(data);
-    });
+    };
+    client.onReplayStatus(handler);
+
+    return () => {
+      client.offReplayStatus(handler);
+    };
   }, []);
 
   const startReplay = useCallback(async (file: string, speed?: number) => {

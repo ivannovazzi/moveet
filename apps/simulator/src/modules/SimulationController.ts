@@ -48,6 +48,7 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
   private incidentManager?: IncidentManager;
   private _mode: "live" | "replay" = "live";
   private replayManager?: ReplayManager;
+  private _isStartingReplay = false;
 
   // Bound listener references for proper cleanup on stop/reset
   private _onIncidentCreated?: (incident: Incident) => void;
@@ -380,36 +381,44 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
    * @returns The recording header metadata
    */
   async startReplay(filePath: string, speed?: number): Promise<RecordingHeader> {
-    // Stop any existing replay first
-    if (this.replayManager) {
-      this.replayManager.stopReplay();
+    if (this._isStartingReplay) {
+      throw new Error("Replay start already in progress");
     }
+    this._isStartingReplay = true;
+    try {
+      // Stop any existing replay first
+      if (this.replayManager) {
+        this.replayManager.stopReplay();
+      }
 
-    // Stop live simulation if running
-    if (this.vehicleManager.isRunning()) {
-      this.stop();
+      // Stop live simulation if running
+      if (this.vehicleManager.isRunning()) {
+        this.stop();
+      }
+
+      this._mode = "replay";
+
+      // Create a fresh ReplayManager and wire up event forwarding.
+      // Hold a local ref so a concurrent call can't swap it out from under us.
+      const replay = new ReplayManager();
+      this.replayManager = replay;
+      this.wireReplayEvents(replay);
+
+      const header = await replay.loadRecording(filePath);
+
+      // Guard: if another startReplay() replaced our manager while we were
+      // loading, this call is stale — bail out instead of crashing.
+      if (this.replayManager !== replay) {
+        replay.stopReplay();
+        throw new Error("Replay superseded by a newer request");
+      }
+
+      replay.startReplay(speed);
+
+      return header;
+    } finally {
+      this._isStartingReplay = false;
     }
-
-    this._mode = "replay";
-
-    // Create a fresh ReplayManager and wire up event forwarding.
-    // Hold a local ref so a concurrent call can't swap it out from under us.
-    const replay = new ReplayManager();
-    this.replayManager = replay;
-    this.wireReplayEvents(replay);
-
-    const header = await replay.loadRecording(filePath);
-
-    // Guard: if another startReplay() replaced our manager while we were
-    // loading, this call is stale — bail out instead of crashing.
-    if (this.replayManager !== replay) {
-      replay.stopReplay();
-      throw new Error("Replay superseded by a newer request");
-    }
-
-    replay.startReplay(speed);
-
-    return header;
   }
 
   /**
