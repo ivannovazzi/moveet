@@ -21,11 +21,11 @@ describe("buildMetadata", () => {
   it("includes region, bbox, classes, and generatedAt", () => {
     const meta = buildMetadata({
       region: "nairobi",
-      bbox: [36.65, -1.45, 37.10, -1.15],
+      bbox: [36.65, -1.45, 37.1, -1.15],
       classes: ["primary", "secondary"],
     });
     expect(meta.region).toBe("nairobi");
-    expect(meta.bbox).toEqual([36.65, -1.45, 37.10, -1.15]);
+    expect(meta.bbox).toEqual([36.65, -1.45, 37.1, -1.15]);
     expect(meta.classes).toContain("primary");
     expect(typeof meta.generatedAt).toBe("string");
     // generatedAt should be a valid ISO date string

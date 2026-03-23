@@ -12,9 +12,11 @@ export function buildExtractArgs(opts: ExtractOptions): string[] {
   const [w, s, e, n] = opts.bbox;
   return [
     "extract",
-    "--bbox", `${w},${s},${e},${n}`,
+    "--bbox",
+    `${w},${s},${e},${n}`,
     path.basename(opts.input),
-    "-o", path.basename(opts.output),
+    "-o",
+    path.basename(opts.output),
     "--overwrite",
   ];
 }

@@ -35,20 +35,26 @@ export function useFleets(): UseFleets {
         console.warn("useFleets: failed to fetch fleets", msg);
       });
 
-    client.onFleetCreated((fleet) => {
+    const createdHandler = (fleet: Fleet) => {
       setFleets((prev) => [...prev, fleet]);
-    });
+    };
 
-    client.onFleetDeleted(({ id }) => {
+    const deletedHandler = ({ id }: { id: string }) => {
       setFleets((prev) => prev.filter((f) => f.id !== id));
       setHiddenFleetIds((prev) => {
         const next = new Set(prev);
         next.delete(id);
         return next;
       });
-    });
+    };
 
-    client.onFleetAssigned(({ fleetId, vehicleIds }) => {
+    const assignedHandler = ({
+      fleetId,
+      vehicleIds,
+    }: {
+      fleetId: string | null;
+      vehicleIds: string[];
+    }) => {
       setFleets((prev) =>
         prev.map((f) => {
           const filtered = f.vehicleIds.filter((vid) => !vehicleIds.includes(vid));
@@ -58,7 +64,17 @@ export function useFleets(): UseFleets {
           return { ...f, vehicleIds: filtered };
         })
       );
-    });
+    };
+
+    client.onFleetCreated(createdHandler);
+    client.onFleetDeleted(deletedHandler);
+    client.onFleetAssigned(assignedHandler);
+
+    return () => {
+      client.offFleetCreated(createdHandler);
+      client.offFleetDeleted(deletedHandler);
+      client.offFleetAssigned(assignedHandler);
+    };
   }, []);
 
   const createFleet = useCallback(async (name: string) => {

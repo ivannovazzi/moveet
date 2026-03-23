@@ -67,8 +67,11 @@ class SimulationService {
     this.onVehicle = this.onVehicle.bind(this);
     this.onStatus = this.onStatus.bind(this);
     this.onOptions = this.onOptions.bind(this);
+    this.offOptions = this.offOptions.bind(this);
     this.onHeatzones = this.onHeatzones.bind(this);
+    this.offHeatzones = this.offHeatzones.bind(this);
     this.onDirection = this.onDirection.bind(this);
+    this.offDirection = this.offDirection.bind(this);
     this.onReset = this.onReset.bind(this);
     this.direction = this.direction.bind(this);
     this.batchDirection = this.batchDirection.bind(this);
@@ -78,17 +81,25 @@ class SimulationService {
     this.assignVehicles = this.assignVehicles.bind(this);
     this.unassignVehicles = this.unassignVehicles.bind(this);
     this.onFleetCreated = this.onFleetCreated.bind(this);
+    this.offFleetCreated = this.offFleetCreated.bind(this);
     this.onFleetDeleted = this.onFleetDeleted.bind(this);
+    this.offFleetDeleted = this.offFleetDeleted.bind(this);
     this.onFleetAssigned = this.onFleetAssigned.bind(this);
+    this.offFleetAssigned = this.offFleetAssigned.bind(this);
     this.onWaypointReached = this.onWaypointReached.bind(this);
+    this.offWaypointReached = this.offWaypointReached.bind(this);
     this.onRouteCompleted = this.onRouteCompleted.bind(this);
+    this.offRouteCompleted = this.offRouteCompleted.bind(this);
     // incidents
     this.getIncidents = this.getIncidents.bind(this);
     this.createRandomIncident = this.createRandomIncident.bind(this);
     this.removeIncident = this.removeIncident.bind(this);
     this.onIncidentCreated = this.onIncidentCreated.bind(this);
+    this.offIncidentCreated = this.offIncidentCreated.bind(this);
     this.onIncidentCleared = this.onIncidentCleared.bind(this);
+    this.offIncidentCleared = this.offIncidentCleared.bind(this);
     this.onVehicleRerouted = this.onVehicleRerouted.bind(this);
+    this.offVehicleRerouted = this.offVehicleRerouted.bind(this);
     // recording / replay
     this.startRecording = this.startRecording.bind(this);
     this.stopRecording = this.stopRecording.bind(this);
@@ -100,14 +111,17 @@ class SimulationService {
     this.seekReplay = this.seekReplay.bind(this);
     this.getReplayStatus = this.getReplayStatus.bind(this);
     this.onReplayStatus = this.onReplayStatus.bind(this);
+    this.offReplayStatus = this.offReplayStatus.bind(this);
     this.createIncidentAtPosition = this.createIncidentAtPosition.bind(this);
     // clock
     this.getClock = this.getClock.bind(this);
     this.setClock = this.setClock.bind(this);
     this.onClock = this.onClock.bind(this);
+    this.offClock = this.offClock.bind(this);
     // traffic
     this.getTraffic = this.getTraffic.bind(this);
     this.onTraffic = this.onTraffic.bind(this);
+    this.offTraffic = this.offTraffic.bind(this);
     // analytics
     this.onAnalytics = this.onAnalytics.bind(this);
     this.getAnalyticsSummary = this.getAnalyticsSummary.bind(this);
@@ -144,19 +158,19 @@ class SimulationService {
   }
 
   onConnect(handler: () => void): void {
-    this.ws.on("connect", () => handler());
+    this.ws.on("connect", handler);
   }
 
-  offConnect(): void {
-    this.ws.off("connect");
+  offConnect(handler?: () => void): void {
+    this.ws.off("connect", handler);
   }
 
   onDisconnect(handler: () => void): void {
-    this.ws.on("disconnect", () => handler());
+    this.ws.on("disconnect", handler);
   }
 
-  offDisconnect(): void {
-    this.ws.off("disconnect");
+  offDisconnect(handler?: () => void): void {
+    this.ws.off("disconnect", handler);
   }
 
   onConnectionStateChange(listener: ConnectionStateListener): () => void {
@@ -179,28 +193,40 @@ class SimulationService {
     this.ws.on("status", handler);
   }
 
-  offStatus(): void {
-    this.ws.off("status");
+  offStatus(handler?: (status: SimulationStatus) => void): void {
+    this.ws.off("status", handler);
   }
 
   onOptions(handler: (opts: StartOptions) => void): void {
     this.ws.on("options", handler);
   }
 
+  offOptions(handler?: (opts: StartOptions) => void): void {
+    this.ws.off("options", handler);
+  }
+
   onHeatzones(handler: (heatzones: Heatzone[]) => void): void {
     this.ws.on("heatzones", handler);
+  }
+
+  offHeatzones(handler?: (heatzones: Heatzone[]) => void): void {
+    this.ws.off("heatzones", handler);
   }
 
   onDirection(handler: (direction: Direction) => void): void {
     this.ws.on("direction", handler);
   }
 
+  offDirection(handler?: (direction: Direction) => void): void {
+    this.ws.off("direction", handler);
+  }
+
   onReset(handler: (data: ResetPayload) => void): void {
     this.ws.on("reset", handler);
   }
 
-  offReset(): void {
-    this.ws.off("reset");
+  offReset(handler?: (data: ResetPayload) => void): void {
+    this.ws.off("reset", handler);
   }
 
   async start(options: StartOptions): Promise<ApiResponse<void>> {
@@ -307,20 +333,42 @@ class SimulationService {
     this.ws.on("fleet:created", handler);
   }
 
+  offFleetCreated(handler?: (fleet: Fleet) => void): void {
+    this.ws.off("fleet:created", handler);
+  }
+
   onFleetDeleted(handler: (data: { id: string }) => void): void {
     this.ws.on("fleet:deleted", handler);
+  }
+
+  offFleetDeleted(handler?: (data: { id: string }) => void): void {
+    this.ws.off("fleet:deleted", handler);
   }
 
   onFleetAssigned(handler: (data: { fleetId: string | null; vehicleIds: string[] }) => void): void {
     this.ws.on("fleet:assigned", handler);
   }
 
+  offFleetAssigned(
+    handler?: (data: { fleetId: string | null; vehicleIds: string[] }) => void
+  ): void {
+    this.ws.off("fleet:assigned", handler);
+  }
+
   onWaypointReached(handler: (data: WaypointReachedPayload) => void): void {
     this.ws.on("waypoint:reached", handler);
   }
 
+  offWaypointReached(handler?: (data: WaypointReachedPayload) => void): void {
+    this.ws.off("waypoint:reached", handler);
+  }
+
   onRouteCompleted(handler: (data: RouteCompletedPayload) => void): void {
     this.ws.on("route:completed", handler);
+  }
+
+  offRouteCompleted(handler?: (data: RouteCompletedPayload) => void): void {
+    this.ws.off("route:completed", handler);
   }
 
   // ─── Incidents ──────────────────────────────────────────────────
@@ -341,12 +389,24 @@ class SimulationService {
     this.ws.on("incident:created", handler);
   }
 
+  offIncidentCreated(handler?: (data: IncidentDTO) => void): void {
+    this.ws.off("incident:created", handler);
+  }
+
   onIncidentCleared(handler: (data: IncidentClearedPayload) => void): void {
     this.ws.on("incident:cleared", handler);
   }
 
+  offIncidentCleared(handler?: (data: IncidentClearedPayload) => void): void {
+    this.ws.off("incident:cleared", handler);
+  }
+
   onVehicleRerouted(handler: (data: VehicleReroutedPayload) => void): void {
     this.ws.on("vehicle:rerouted", handler);
+  }
+
+  offVehicleRerouted(handler?: (data: VehicleReroutedPayload) => void): void {
+    this.ws.off("vehicle:rerouted", handler);
   }
 
   async createIncidentAtPosition(
@@ -403,6 +463,10 @@ class SimulationService {
     this.ws.on("replay:status", handler);
   }
 
+  offReplayStatus(handler?: (data: ReplayStatus) => void): void {
+    this.ws.off("replay:status", handler);
+  }
+
   // ─── Simulation Clock ──────────────────────────────────────────
 
   async getClock(): Promise<ApiResponse<ClockState>> {
@@ -420,6 +484,10 @@ class SimulationService {
     this.ws.on("clock", handler);
   }
 
+  offClock(handler?: (state: ClockState) => void): void {
+    this.ws.off("clock", handler);
+  }
+
   // ─── Traffic Congestion ──────────────────────────────────────────
 
   async getTraffic(): Promise<ApiResponse<TrafficEdge[]>> {
@@ -430,14 +498,18 @@ class SimulationService {
     this.ws.on("traffic", handler);
   }
 
+  offTraffic(handler?: (data: TrafficEdge[]) => void): void {
+    this.ws.off("traffic", handler);
+  }
+
   // ─── Analytics ────────────────────────────────────────────────────
 
   onAnalytics(handler: (data: AnalyticsSnapshot) => void): void {
     this.ws.on("analytics", handler);
   }
 
-  offAnalytics(): void {
-    this.ws.off("analytics");
+  offAnalytics(handler?: (data: AnalyticsSnapshot) => void): void {
+    this.ws.off("analytics", handler);
   }
 
   async getAnalyticsSummary(): Promise<ApiResponse<AnalyticsSummary>> {

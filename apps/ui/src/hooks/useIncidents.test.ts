@@ -9,6 +9,8 @@ vi.mock("@/utils/client", () => ({
     getIncidents: vi.fn(),
     onIncidentCreated: vi.fn(),
     onIncidentCleared: vi.fn(),
+    offIncidentCreated: vi.fn(),
+    offIncidentCleared: vi.fn(),
     createRandomIncident: vi.fn(),
     removeIncident: vi.fn(),
     createIncidentAtPosition: vi.fn(),

@@ -48,11 +48,16 @@ export default function Incidents({ incidents, createRandom, remove }: Incidents
   useEffect(() => {
     if (!autoGenerate) return;
     createRandomRef.current();
-    const ms = 15_000 + Math.random() * 15_000;
-    const interval = setInterval(() => {
-      createRandomRef.current();
-    }, ms);
-    return () => clearInterval(interval);
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const scheduleNext = () => {
+      const ms = 15_000 + Math.random() * 15_000;
+      timeoutId = setTimeout(() => {
+        createRandomRef.current();
+        scheduleNext();
+      }, ms);
+    };
+    scheduleNext();
+    return () => clearTimeout(timeoutId);
   }, [autoGenerate]);
 
   return (

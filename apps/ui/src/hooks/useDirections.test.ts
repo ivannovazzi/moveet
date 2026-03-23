@@ -15,6 +15,11 @@ vi.mock("@/utils/client", () => ({
     onReset: vi.fn(),
     onWaypointReached: vi.fn(),
     onRouteCompleted: vi.fn(),
+    offDirection: vi.fn(),
+    offConnect: vi.fn(),
+    offReset: vi.fn(),
+    offWaypointReached: vi.fn(),
+    offRouteCompleted: vi.fn(),
   },
 }));
 

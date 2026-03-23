@@ -35,7 +35,7 @@ export class RedisPubSubSink implements DataSink {
   }
 
   async publishUpdates(updates: VehicleUpdate[]): Promise<void> {
-    if (!this.client) return;
+    if (!this.client) throw new Error("Redis sink not connected");
 
     const message = JSON.stringify({
       vehicles: updates,

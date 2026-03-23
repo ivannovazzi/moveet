@@ -12,7 +12,10 @@ describe("prune", () => {
           properties: { highway: "primary", name: "Main St" },
           geometry: {
             type: "LineString",
-            coordinates: [[0, 0], [1, 1]],
+            coordinates: [
+              [0, 0],
+              [1, 1],
+            ],
           },
         },
         {
@@ -39,23 +42,43 @@ describe("prune", () => {
         {
           type: "Feature",
           properties: { highway: "primary" },
-          geometry: { type: "LineString", coordinates: [[0, 0], [1, 1]] },
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [0, 0],
+              [1, 1],
+            ],
+          },
         },
         {
           type: "Feature",
           properties: { highway: "primary" },
-          geometry: { type: "LineString", coordinates: [[1, 1], [2, 2]] },
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [1, 1],
+              [2, 2],
+            ],
+          },
         },
         {
           type: "Feature",
           properties: { highway: "tertiary" },
-          geometry: { type: "LineString", coordinates: [[10, 10], [11, 11]] },
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [10, 10],
+              [11, 11],
+            ],
+          },
         },
       ],
     };
 
     const { pruned, removedFeatures } = pruneNetwork(fc);
-    const lines = pruned.features.filter((f) => f.geometry.type === "LineString");
+    const lines = pruned.features.filter(
+      (f) => f.geometry.type === "LineString",
+    );
     expect(lines).toHaveLength(2);
     expect(removedFeatures).toBe(1);
   });
@@ -67,12 +90,24 @@ describe("prune", () => {
         {
           type: "Feature",
           properties: {},
-          geometry: { type: "LineString", coordinates: [[0, 0], [1, 1]] },
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [0, 0],
+              [1, 1],
+            ],
+          },
         },
         {
           type: "Feature",
           properties: {},
-          geometry: { type: "LineString", coordinates: [[1, 1], [2, 2]] },
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [1, 1],
+              [2, 2],
+            ],
+          },
         },
       ],
     };

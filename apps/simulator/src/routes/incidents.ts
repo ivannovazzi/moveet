@@ -5,7 +5,6 @@ import { asyncHandler } from "./helpers";
 import { validateBody } from "../middleware/validate";
 import { createIncidentSchema, incidentAtPositionSchema } from "../middleware/schemas";
 import { incidentRateLimiter } from "../middleware/rateLimiter";
-import logger from "../utils/logger";
 
 const VALID_INCIDENT_TYPES: IncidentType[] = ["accident", "closure", "construction"];
 
@@ -17,13 +16,8 @@ export function createIncidentRoutes(ctx: RouteContext): Router {
   const { network, incidentManager } = ctx;
 
   router.get("/incidents", (_req, res) => {
-    try {
-      const incidents = incidentManager.getActiveIncidents();
-      res.json(incidents.map((i) => incidentManager.toDTO(i)));
-    } catch (error) {
-      logger.error(`Error in /incidents GET: ${error}`);
-      res.status(500).json({ error: "Failed to get incidents" });
-    }
+    const incidents = incidentManager.getActiveIncidents();
+    res.json(incidents.map((i) => incidentManager.toDTO(i)));
   });
 
   router.post(
@@ -32,6 +26,13 @@ export function createIncidentRoutes(ctx: RouteContext): Router {
     validateBody(createIncidentSchema),
     asyncHandler(async (req, res) => {
       const { edgeIds, type, duration, severity } = req.body;
+
+      for (const id of edgeIds) {
+        if (!network.getEdge(id)) {
+          res.status(400).json({ error: `Edge '${id}' not found in network` });
+          return;
+        }
+      }
 
       const edge = network.getEdge(edgeIds[0]);
       const position: [number, number] = edge

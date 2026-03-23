@@ -78,11 +78,13 @@ export function registerGracefulShutdown(ctx: GracefulShutdownContext): void {
 
   process.on("uncaughtException", (error) => {
     logger.error(`Uncaught exception: ${error.message}`);
+    setTimeout(() => process.exit(1), 5000).unref();
     gracefulShutdown("uncaughtException");
   });
 
   process.on("unhandledRejection", (reason) => {
     logger.error(`Unhandled rejection: ${reason}`);
+    setTimeout(() => process.exit(1), 5000).unref();
     gracefulShutdown("unhandledRejection");
   });
 }

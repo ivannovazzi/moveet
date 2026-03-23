@@ -14,7 +14,16 @@ describe("analyzeNetwork", () => {
   it("counts edges from a simple network", () => {
     const fc: FeatureCollection = {
       type: "FeatureCollection",
-      features: [makeLine([[0, 0], [1, 0]]), makeLine([[1, 0], [2, 0]])],
+      features: [
+        makeLine([
+          [0, 0],
+          [1, 0],
+        ]),
+        makeLine([
+          [1, 0],
+          [2, 0],
+        ]),
+      ],
     };
     const report = analyzeNetwork(fc);
     expect(report.totalEdges).toBe(2);
@@ -25,8 +34,14 @@ describe("analyzeNetwork", () => {
     const fc: FeatureCollection = {
       type: "FeatureCollection",
       features: [
-        makeLine([[0, 0], [1, 0]]),
-        makeLine([[10, 10], [11, 10]]), // disconnected island
+        makeLine([
+          [0, 0],
+          [1, 0],
+        ]),
+        makeLine([
+          [10, 10],
+          [11, 10],
+        ]), // disconnected island
       ],
     };
     const report = analyzeNetwork(fc);
@@ -37,9 +52,18 @@ describe("analyzeNetwork", () => {
     const fc: FeatureCollection = {
       type: "FeatureCollection",
       features: [
-        makeLine([[0, 0], [1, 0]]),
-        makeLine([[1, 0], [1, 1]]),
-        makeLine([[1, 1], [0, 0]]),
+        makeLine([
+          [0, 0],
+          [1, 0],
+        ]),
+        makeLine([
+          [1, 0],
+          [1, 1],
+        ]),
+        makeLine([
+          [1, 1],
+          [0, 0],
+        ]),
       ],
     };
     const report = analyzeNetwork(fc);
@@ -50,9 +74,18 @@ describe("analyzeNetwork", () => {
     const fc: FeatureCollection = {
       type: "FeatureCollection",
       features: [
-        makeLine([[0, 0], [1, 0]]),
-        makeLine([[1, 0], [1, 1]]),
-        makeLine([[1, 1], [0, 0]]),
+        makeLine([
+          [0, 0],
+          [1, 0],
+        ]),
+        makeLine([
+          [1, 0],
+          [1, 1],
+        ]),
+        makeLine([
+          [1, 1],
+          [0, 0],
+        ]),
       ],
     };
     const report = analyzeNetwork(fc);

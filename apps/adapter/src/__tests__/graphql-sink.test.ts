@@ -45,9 +45,11 @@ describe("GraphQLSink", () => {
     );
   });
 
-  it("does nothing when not connected", async () => {
+  it("throws when not connected", async () => {
     const sink = new GraphQLSink();
-    await sink.publishUpdates([{ id: "v1", latitude: -1.3, longitude: 36.8 }]);
+    await expect(
+      sink.publishUpdates([{ id: "v1", latitude: -1.3, longitude: 36.8 }])
+    ).rejects.toThrow("GraphQL sink not connected");
     expect(mockRequest).not.toHaveBeenCalled();
   });
 

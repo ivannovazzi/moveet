@@ -61,7 +61,7 @@ export class GraphQLSink implements DataSink {
   }
 
   async publishUpdates(updates: VehicleUpdate[]): Promise<void> {
-    if (!this.client) return;
+    if (!this.client) throw new Error("GraphQL sink not connected");
     const variables = this.variablesTransform(updates);
     await this.client.request(
       gql`

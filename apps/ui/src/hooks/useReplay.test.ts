@@ -7,6 +7,7 @@ import type { ReplayStatus } from "@/types";
 vi.mock("@/utils/client", () => ({
   default: {
     onReplayStatus: vi.fn(),
+    offReplayStatus: vi.fn(),
     startReplay: vi.fn(),
     pauseReplay: vi.fn(),
     resumeReplay: vi.fn(),

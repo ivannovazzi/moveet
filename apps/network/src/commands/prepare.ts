@@ -78,8 +78,12 @@ export async function prepare(opts: PrepareOptions): Promise<void> {
   if (opts.dryRun) {
     console.log("\nDry run — pipeline steps:");
     console.log(`  1. download  ${region.geofabrik} → ${pbfCountry}`);
-    console.log(`  2. extract   bbox [${region.bbox.join(", ")}] → ${pbfExtracted}`);
-    console.log(`  3. filter    classes: ${classes.join(",")} → ${pbfFiltered}`);
+    console.log(
+      `  2. extract   bbox [${region.bbox.join(", ")}] → ${pbfExtracted}`,
+    );
+    console.log(
+      `  3. filter    classes: ${classes.join(",")} → ${pbfFiltered}`,
+    );
     console.log(`  4. export    → ${output}`);
     console.log(`  5. prune     keep largest connected component`);
     console.log(`  6. validate  ${output}\n`);
@@ -88,7 +92,11 @@ export async function prepare(opts: PrepareOptions): Promise<void> {
 
   console.log(`\nPreparing network: ${region.label}\n`);
 
-  await download({ geofabrik: region.geofabrik, cacheDir: CACHE_DIR, force: opts.force });
+  await download({
+    geofabrik: region.geofabrik,
+    cacheDir: CACHE_DIR,
+    force: opts.force,
+  });
   extract({ input: pbfCountry, output: pbfExtracted, bbox: region.bbox });
   filter({ input: pbfExtracted, output: pbfFiltered, classes });
   exportNetwork({

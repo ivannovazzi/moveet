@@ -21,11 +21,24 @@ export function useClock() {
   const clockRef = useRef(clock);
   clockRef.current = clock;
 
+  const hasReceivedWsUpdate = useRef(false);
+
   useEffect(() => {
+    hasReceivedWsUpdate.current = false;
+
     client.getClock().then((res) => {
-      if (res.data) setClock(res.data);
+      if (res.data && !hasReceivedWsUpdate.current) setClock(res.data);
     });
-    client.onClock((state) => setClock(state));
+
+    const handler = (state: ClockState) => {
+      hasReceivedWsUpdate.current = true;
+      setClock(state);
+    };
+    client.onClock(handler);
+
+    return () => {
+      client.offClock(handler);
+    };
   }, []);
 
   // Local tick — advance currentTime and derive hour/timeOfDay every real second

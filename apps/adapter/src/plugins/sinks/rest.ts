@@ -52,7 +52,8 @@ export class RestSink implements DataSink {
   }
 
   async publishUpdates(updates: VehicleUpdate[]): Promise<SinkPublishResult | void> {
-    if (!this.url || updates.length === 0) return;
+    if (!this.url) throw new Error("REST sink not connected");
+    if (updates.length === 0) return;
 
     const fetchOptions = {
       method: this.method,

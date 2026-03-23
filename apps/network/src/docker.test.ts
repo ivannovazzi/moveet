@@ -17,12 +17,14 @@ describe("buildOsmiumCommand", () => {
   it("builds docker run command with correct volume mount", () => {
     const cmd = buildOsmiumCommand(
       ["extract", "--bbox", "1,2,3,4", "input.osm.pbf", "-o", "out.osm.pbf"],
-      "/abs/workdir"
+      "/abs/workdir",
     );
     expect(cmd).toContain("docker run --rm");
     expect(cmd).toContain("-v /abs/workdir:/data");
     expect(cmd).toContain("ghcr.io/osmcode/osmium-tool");
-    expect(cmd).toContain("osmium extract --bbox 1,2,3,4 input.osm.pbf -o out.osm.pbf");
+    expect(cmd).toContain(
+      "osmium extract --bbox 1,2,3,4 input.osm.pbf -o out.osm.pbf",
+    );
   });
 });
 

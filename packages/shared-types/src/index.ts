@@ -4,7 +4,10 @@
 
 // ─── Primitives ─────────────────────────────────────────────────────
 
-/** [latitude, longitude] coordinate pair */
+/**
+ * [latitude, longitude] coordinate pair.
+ * Note: GeoFence.polygon uses the GeoJSON convention [longitude, latitude].
+ */
 export type Position = [number, number];
 
 // ─── Vehicle Types ──────────────────────────────────────────────────
@@ -216,7 +219,10 @@ export interface GeoFence {
   id: string;
   name: string;
   type: GeoFenceType;
-  /** Array of [longitude, latitude] coordinate pairs forming a closed polygon. */
+  /**
+   * Array of [longitude, latitude] coordinate pairs forming a closed polygon.
+   * Uses GeoJSON coordinate order, unlike Position which is [latitude, longitude].
+   */
   polygon: [number, number][];
   color?: string;
   active: boolean;

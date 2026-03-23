@@ -1,4 +1,5 @@
 import { useHeatZoneContext } from "@/data/useData";
+import type { Heatzone } from "@/types";
 import client from "@/utils/client";
 import { useEffect } from "react";
 
@@ -12,9 +13,15 @@ export function useHeatzones() {
         if (heatzonesData.data) setHeatzones(heatzonesData.data);
       })
       .catch((err) => console.error("Failed to load heatzones:", err));
-    client.onHeatzones((heatzones) => {
+
+    const handler = (heatzones: Heatzone[]) => {
       setHeatzones(heatzones);
-    });
+    };
+    client.onHeatzones(handler);
+
+    return () => {
+      client.offHeatzones(handler);
+    };
   }, [setHeatzones]);
 
   return heatzones;

@@ -57,11 +57,13 @@ describe("WebhookSink", () => {
     );
   });
 
-  it("does nothing after disconnect", async () => {
+  it("throws after disconnect", async () => {
     const sink = new WebhookSink();
     await sink.connect({ url: "https://example.com/webhook" });
     await sink.disconnect();
-    await sink.publishUpdates([{ id: "v1", latitude: -1.3, longitude: 36.8 }]);
+    await expect(
+      sink.publishUpdates([{ id: "v1", latitude: -1.3, longitude: 36.8 }])
+    ).rejects.toThrow("Webhook sink not connected");
     expect(mockHttpFetch).not.toHaveBeenCalled();
   });
 

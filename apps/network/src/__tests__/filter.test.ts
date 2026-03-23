@@ -9,7 +9,14 @@ describe("filter", () => {
     });
 
     it("should include all major road types", () => {
-      for (const cls of ["motorway", "trunk", "primary", "secondary", "tertiary", "unclassified"]) {
+      for (const cls of [
+        "motorway",
+        "trunk",
+        "primary",
+        "secondary",
+        "tertiary",
+        "unclassified",
+      ]) {
         expect(DEFAULT_ROAD_CLASSES).toContain(cls);
       }
     });

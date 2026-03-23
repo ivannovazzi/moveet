@@ -166,12 +166,18 @@ export class RedpandaSink implements DataSink {
       admin = this.kafka.admin();
       await admin.connect();
 
+      let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
       const result = await Promise.race([
         admin.describeCluster(),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("health check timed out")), this.healthCheckTimeoutMs)
-        ),
-      ]);
+        new Promise<never>((_, reject) => {
+          timeoutHandle = setTimeout(
+            () => reject(new Error("health check timed out")),
+            this.healthCheckTimeoutMs
+          );
+        }),
+      ]).finally(() => {
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+      });
 
       const latencyMs = Date.now() - start;
       return {

@@ -25,7 +25,7 @@ interface WebSocketClientOptions {
 export class WebSocketClient {
   private ws: WebSocket | null = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private handlers = new Map<string, HandlerFn<any>>();
+  private handlers = new Map<string, Set<HandlerFn<any>>>();
   private reconnectAttempts = 0;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private manualClose = false;
@@ -39,6 +39,18 @@ export class WebSocketClient {
 
   get connectionState(): ConnectionState {
     return this._connectionState;
+  }
+
+  private dispatch(type: string, data: unknown): void {
+    const handlers = this.handlers.get(type);
+    if (!handlers) return;
+    for (const handler of handlers) {
+      try {
+        handler(data);
+      } catch (err) {
+        console.error("WS handler error for type:", type, err);
+      }
+    }
   }
 
   private setConnectionState(state: ConnectionState) {
@@ -84,14 +96,10 @@ export class WebSocketClient {
           return;
         }
 
-        const handler = this.handlers.get(msg.type);
-        if (handler) {
-          // For connect/disconnect, no data is passed
-          if (msg.type === "connect" || msg.type === "disconnect") {
-            handler({});
-          } else {
-            handler(msg.data);
-          }
+        if (msg.type === "connect" || msg.type === "disconnect") {
+          this.dispatch(msg.type, {});
+        } else {
+          this.dispatch(msg.type, msg.data);
         }
       } catch (err) {
         console.error("WS parse error:", err);
@@ -103,13 +111,13 @@ export class WebSocketClient {
       // Reset reconnect attempts on successful connection
       this.reconnectAttempts = 0;
       this.setConnectionState("connected");
-      this.handlers.get("connect")?.({});
+      this.dispatch("connect", {});
     };
 
     ws.onclose = () => {
       if (this.ws !== ws) return;
       this.ws = null;
-      this.handlers.get("disconnect")?.({});
+      this.dispatch("disconnect", {});
 
       // Do not auto-reconnect if the close was intentional
       if (this.manualClose) {
@@ -160,11 +168,26 @@ export class WebSocketClient {
   }
 
   on<T = unknown>(type: string, handler: HandlerFn<T>) {
-    this.handlers.set(type, handler);
+    let set = this.handlers.get(type);
+    if (!set) {
+      set = new Set();
+      this.handlers.set(type, set);
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    set.add(handler as HandlerFn<any>);
   }
 
-  off(type: string) {
-    this.handlers.delete(type);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  off(type: string, handler?: HandlerFn<any>) {
+    if (handler) {
+      const set = this.handlers.get(type);
+      if (set) {
+        set.delete(handler);
+        if (set.size === 0) this.handlers.delete(type);
+      }
+    } else {
+      this.handlers.delete(type);
+    }
   }
 
   disconnect() {

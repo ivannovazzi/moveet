@@ -22,7 +22,13 @@ export function useTraffic() {
         console.warn("useTraffic: failed to fetch traffic", msg);
       })
       .finally(() => setLoading(false));
-    client.onTraffic((data) => setEdges(data));
+
+    const handler = (data: TrafficEdge[]) => setEdges(data);
+    client.onTraffic(handler);
+
+    return () => {
+      client.offTraffic(handler);
+    };
   }, []);
 
   return { edges, loading };

@@ -27,6 +27,7 @@ export const useResizeObserver = (): [React.RefObject<HTMLDivElement | null>, Si
 
     return () => {
       resizeObserver.unobserve(observeTarget);
+      resizeObserver.disconnect();
     };
   }, []);
 

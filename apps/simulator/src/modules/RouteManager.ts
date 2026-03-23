@@ -16,6 +16,7 @@ import type { TrafficManager } from "./TrafficManager";
 import { EventEmitter } from "events";
 import * as utils from "../utils/helpers";
 import { getProfile, FOLLOWING_DISTANCE_BY_SIZE } from "../utils/vehicleProfiles";
+import logger from "../utils/logger";
 
 /**
  * Manages route/waypoint tracking, pathfinding, and route-based movement.
@@ -98,8 +99,8 @@ export class RouteManager extends EventEmitter {
           });
         }
       })
-      .catch(() => {
-        // Worker error -- vehicle continues random movement
+      .catch((error) => {
+        logger.warn("Pathfinding failed for vehicle %s: %o", vehicleId, error);
       });
   }
 
@@ -587,8 +588,8 @@ export class RouteManager extends EventEmitter {
             });
           }
         })
-        .catch(() => {
-          // Worker error -- vehicle continues on current route
+        .catch((error) => {
+          logger.warn("Reroute pathfinding failed for vehicle %s: %o", vehicleId, error);
         });
     }
   }

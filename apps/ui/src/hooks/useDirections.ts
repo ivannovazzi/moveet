@@ -37,11 +37,8 @@ export function useDirections() {
   useEffect(() => {
     fetchDirections();
 
-    client.onConnect(() => {
-      fetchDirections();
-    });
-
-    client.onDirection((direction) => {
+    const connectHandler = () => fetchDirections();
+    const directionHandler = (direction: VehicleDirection) => {
       setDirections((prev) => {
         const updated = new Map(prev);
         updated.set(direction.vehicleId, {
@@ -51,9 +48,9 @@ export function useDirections() {
         });
         return updated;
       });
-    });
+    };
 
-    client.onWaypointReached((data) => {
+    const waypointHandler = (data: { vehicleId: string; waypointIndex: number }) => {
       setDirections((prev) => {
         const existing = prev.get(data.vehicleId);
         if (!existing) return prev;
@@ -64,20 +61,34 @@ export function useDirections() {
         });
         return updated;
       });
-    });
+    };
 
-    client.onRouteCompleted((data) => {
+    const routeHandler = (data: { vehicleId: string }) => {
       setDirections((prev) => {
         if (!prev.has(data.vehicleId)) return prev;
         const updated = new Map(prev);
         updated.delete(data.vehicleId);
         return updated;
       });
-    });
+    };
 
-    client.onReset((data) => {
+    const resetHandler = (data: { directions: VehicleDirection[] }) => {
       setDirections(buildDirectionMap(data.directions));
-    });
+    };
+
+    client.onConnect(connectHandler);
+    client.onDirection(directionHandler);
+    client.onWaypointReached(waypointHandler);
+    client.onRouteCompleted(routeHandler);
+    client.onReset(resetHandler);
+
+    return () => {
+      client.offConnect(connectHandler);
+      client.offDirection(directionHandler);
+      client.offWaypointReached(waypointHandler);
+      client.offRouteCompleted(routeHandler);
+      client.offReset(resetHandler);
+    };
   }, [setDirections, fetchDirections]);
 
   return directions;

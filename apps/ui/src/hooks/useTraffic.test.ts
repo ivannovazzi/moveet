@@ -8,6 +8,7 @@ vi.mock("@/utils/client", () => ({
   default: {
     getTraffic: vi.fn(),
     onTraffic: vi.fn(),
+    offTraffic: vi.fn(),
   },
 }));
 

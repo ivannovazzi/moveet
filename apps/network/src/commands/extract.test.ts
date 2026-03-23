@@ -6,7 +6,7 @@ describe("buildExtractArgs", () => {
     const args = buildExtractArgs({
       input: "/data/africa-kenya-latest.osm.pbf",
       output: "/data/nairobi.osm.pbf",
-      bbox: [36.65, -1.45, 37.10, -1.15],
+      bbox: [36.65, -1.45, 37.1, -1.15],
     });
     expect(args[0]).toBe("extract");
     expect(args).toContain("--bbox");

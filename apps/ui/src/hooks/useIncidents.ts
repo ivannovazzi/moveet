@@ -31,13 +31,21 @@ export function useIncidents(): UseIncidents {
         console.warn("useIncidents: failed to fetch incidents", msg);
       });
 
-    client.onIncidentCreated((incident) => {
+    const createdHandler = (incident: IncidentDTO) => {
       setIncidents((prev) => [...prev, incident]);
-    });
+    };
 
-    client.onIncidentCleared(({ id }) => {
+    const clearedHandler = ({ id }: { id: string }) => {
       setIncidents((prev) => prev.filter((inc) => inc.id !== id));
-    });
+    };
+
+    client.onIncidentCreated(createdHandler);
+    client.onIncidentCleared(clearedHandler);
+
+    return () => {
+      client.offIncidentCreated(createdHandler);
+      client.offIncidentCleared(clearedHandler);
+    };
   }, []);
 
   const createRandom = useCallback(async () => {
