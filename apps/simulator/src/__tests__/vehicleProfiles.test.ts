@@ -56,7 +56,13 @@ describe("distributeByWeight", () => {
   });
 
   it("accepts custom weights", () => {
-    const dist = distributeByWeight(10, { car: 50, truck: 50, motorcycle: 0, ambulance: 0, bus: 0 });
+    const dist = distributeByWeight(10, {
+      car: 50,
+      truck: 50,
+      motorcycle: 0,
+      ambulance: 0,
+      bus: 0,
+    });
     const sum = Object.values(dist).reduce((a, b) => a + b, 0);
     expect(sum).toBe(10);
     // Only car and truck should be present

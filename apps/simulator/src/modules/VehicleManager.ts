@@ -169,12 +169,15 @@ export class VehicleManager extends EventEmitter {
   private loadFromData(vehicleTypes?: Partial<Record<VehicleType, number>>): void {
     // Priority: explicit vehicleTypes > env VEHICLE_TYPES > weighted default
     const types = vehicleTypes ?? config.vehicleTypes;
-    this.registry.loadFromData(types as Partial<Record<VehicleType, number>> | undefined, (vehicleId) => {
-      // After a vehicle is added to the registry, register traffic and set destination
-      const vehicle = this.registry.get(vehicleId)!;
-      this.traffic.enter(vehicle.currentEdge.id);
-      this.setRandomDestination(vehicleId);
-    });
+    this.registry.loadFromData(
+      types as Partial<Record<VehicleType, number>> | undefined,
+      (vehicleId) => {
+        // After a vehicle is added to the registry, register traffic and set destination
+        const vehicle = this.registry.get(vehicleId)!;
+        this.traffic.enter(vehicle.currentEdge.id);
+        this.setRandomDestination(vehicleId);
+      }
+    );
   }
 
   private addVehicle(

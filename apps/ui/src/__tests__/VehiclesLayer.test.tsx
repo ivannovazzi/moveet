@@ -219,7 +219,14 @@ describe("VehiclesLayer (deck.gl)", () => {
   it("skips vehicles of hidden types", () => {
     vehicleStore.replace([
       { id: "v1", name: "Car-1", type: "car", position: [36.82, -1.29], speed: 30, heading: 90 },
-      { id: "v2", name: "Truck-1", type: "truck", position: [36.83, -1.28], speed: 25, heading: 45 },
+      {
+        id: "v2",
+        name: "Truck-1",
+        type: "truck",
+        position: [36.83, -1.28],
+        speed: 25,
+        heading: 45,
+      },
     ]);
 
     renderAndTick({ hiddenVehicleTypes: new Set(["truck"]) });
