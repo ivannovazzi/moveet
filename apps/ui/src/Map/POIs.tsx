@@ -6,6 +6,7 @@ import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 import { usePois } from "@/hooks/usePois";
 import { createPOIIconAtlas } from "./POI/iconAtlas";
 import { isBusStop } from "./POI/helpers";
+import { useSettledZoom } from "./hooks/useSettledZoom";
 import type { POI } from "@/types";
 
 // Build the atlas once at module level — this is a pure canvas operation.
@@ -44,13 +45,13 @@ const TYPE_PRIORITY: Record<string, number> = {
 const COLLISION_SIZE_SCALE = 4.0;
 
 /** Fade-in duration in milliseconds. */
-const FADE_DURATION_MS = 800;
+const FADE_DURATION_MS = 500;
 
 /**
  * Zoom is quantized to discrete steps so deck.gl color transitions can
  * complete between updates instead of restarting on every animation frame.
+ * Quantization + debouncing lives in {@link useSettledZoom}.
  */
-const ZOOM_STEP = 0.5;
 
 interface POIMarkerProps {
   visible: boolean;
@@ -62,14 +63,15 @@ export default function POIs({ visible, onClick }: POIMarkerProps) {
   const { getZoom } = useMapContext();
   const zoom = getZoom();
 
-  const showData = visible && zoom >= MIN_ZOOM - 1;
-  const quantizedZoom = Math.floor(zoom / ZOOM_STEP) * ZOOM_STEP;
+  const { settledZoom, isZooming } = useSettledZoom(zoom);
+  const showData = visible && settledZoom >= MIN_ZOOM - 1;
 
-  // Keep the data array stable across zoom/pan so deck.gl enter transitions
-  // only fire once per item, not on every viewport change.
+  // Data is emptied while zooming so items disappear instantly.
+  // When isZooming flips false the array repopulates and deck.gl's
+  // enter-transition fades each icon in from alpha 0.
   const visiblePois = useMemo(
-    () => (showData ? pois.filter((poi) => !!poi.name) : []),
-    [pois, showData]
+    () => (showData && !isZooming ? pois.filter((poi) => !!poi.name) : []),
+    [pois, showData, isZooming]
   );
 
   // Always create the layer so deck.gl preserves transition state across
@@ -81,14 +83,14 @@ export default function POIs({ visible, onClick }: POIMarkerProps) {
         id: "pois",
         data: visiblePois,
         updateTriggers: {
-          getColor: [quantizedZoom],
+          getColor: [settledZoom],
         },
         getPosition: (d) => [d.coordinates[1], d.coordinates[0]],
         getIcon: (d) => (d.type && d.type in iconMapping ? d.type : "unknown"),
         getSize: (d) => (isBusStop(d) ? 14 : 22),
         getColor: (d) => {
           const tier = ZOOM_TIERS[d.type ?? "unknown"] ?? MIN_ZOOM;
-          const alpha = Math.round(Math.max(0, Math.min(1, quantizedZoom - tier)) * 255);
+          const alpha = settledZoom >= tier ? 255 : 0;
           return [255, 255, 255, alpha];
         },
         iconAtlas,
@@ -124,7 +126,7 @@ export default function POIs({ visible, onClick }: POIMarkerProps) {
         } as Record<string, unknown>),
       }),
     ],
-    [visiblePois, onClick, quantizedZoom]
+    [visiblePois, onClick, settledZoom]
   );
 
   useRegisterLayers("pois", layers, 45);
