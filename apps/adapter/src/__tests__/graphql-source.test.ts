@@ -218,4 +218,162 @@ describe("GraphQLSource", () => {
     expect(urlField).toBeDefined();
     expect(urlField!.required).toBe(true);
   });
+
+  it("accepts apiUrl as alternative to url", async () => {
+    const source = new GraphQLSource();
+    await source.connect({ apiUrl: "https://api.example.com/graphql" });
+    mockRequest.mockResolvedValueOnce({ __typename: "Query" });
+    expect((await source.healthCheck()).healthy).toBe(true);
+  });
+
+  it("uses custom vehiclePath", async () => {
+    mockRequest.mockResolvedValue({
+      data: {
+        fleet: [{ id: "v1", callsign: "V1", latitude: -1.3, longitude: 36.8 }],
+      },
+    });
+
+    const source = new GraphQLSource();
+    await source.connect({
+      url: "https://api.example.com/graphql",
+      vehiclePath: "data.fleet",
+    });
+    const vehicles = await source.getVehicles();
+    expect(vehicles).toHaveLength(1);
+    expect(vehicles[0].id).toBe("v1");
+  });
+
+  it("uses custom fieldMap", async () => {
+    mockRequest.mockResolvedValue({
+      vehicles: {
+        nodes: [
+          {
+            vehicleId: "abc",
+            label: "Truck A",
+            lat: -1.28,
+            lon: 36.8,
+          },
+        ],
+      },
+    });
+
+    const source = new GraphQLSource();
+    await source.connect({
+      url: "https://api.example.com/graphql",
+      fieldMap: { id: "vehicleId", name: "label", lat: "lat", lng: "lon" },
+    });
+    const vehicles = await source.getVehicles();
+
+    expect(vehicles).toHaveLength(1);
+    expect(vehicles[0].id).toBe("abc");
+    expect(vehicles[0].name).toBe("Truck A");
+    expect(vehicles[0].position).toEqual([-1.28, 36.8]);
+  });
+
+  it("filters medical vehicles", async () => {
+    mockRequest.mockResolvedValue({
+      vehicles: {
+        nodes: [
+          {
+            id: "v1",
+            callsign: "Ambulance",
+            latitude: -1.28,
+            longitude: 36.8,
+            vehicleTypeRef: { value: "ALS" },
+          },
+          {
+            id: "v2",
+            callsign: "Taxi",
+            latitude: -1.29,
+            longitude: 36.81,
+            vehicleTypeRef: { value: "SEDAN" },
+          },
+        ],
+      },
+    });
+
+    const source = new GraphQLSource();
+    await source.connect({
+      url: "https://api.example.com/graphql",
+      filter: "medical",
+    });
+    const vehicles = await source.getVehicles();
+
+    // Only the vehicle with a MedicalType value should pass
+    for (const v of vehicles) {
+      expect(v.id).not.toBe("v2");
+    }
+  });
+
+  it("supports custom filter function", async () => {
+    mockRequest.mockResolvedValue({
+      vehicles: {
+        nodes: [
+          { id: "v1", callsign: "Online", latitude: -1.28, longitude: 36.8, isOnline: true },
+          { id: "v2", callsign: "Offline", latitude: -1.29, longitude: 36.81, isOnline: false },
+        ],
+      },
+    });
+
+    const source = new GraphQLSource();
+    await source.connect({
+      url: "https://api.example.com/graphql",
+      filter: (v: Record<string, unknown>) => v.isOnline === true,
+    });
+    const vehicles = await source.getVehicles();
+
+    expect(vehicles).toHaveLength(1);
+    expect(vehicles[0].id).toBe("v1");
+  });
+
+  it("rejects query without 'query' keyword", async () => {
+    const source = new GraphQLSource();
+    await expect(
+      source.connect({
+        url: "https://api.example.com/graphql",
+        query: "{ vehicles { id } }",
+      })
+    ).rejects.toThrow("query must contain a 'query' keyword");
+  });
+
+  it("rejects mutation in query field", async () => {
+    const source = new GraphQLSource();
+    // String must contain "query" to pass the first check, then fail on "mutation"
+    await expect(
+      source.connect({
+        url: "https://api.example.com/graphql",
+        query: "query mutation { deleteVehicle(id: 1) { id } }",
+      })
+    ).rejects.toThrow("must not contain 'mutation' or 'subscription'");
+  });
+
+  it("rejects subscription in query field", async () => {
+    const source = new GraphQLSource();
+    await expect(
+      source.connect({
+        url: "https://api.example.com/graphql",
+        query: "query subscription { vehicleUpdated { id } }",
+      })
+    ).rejects.toThrow("must not contain 'mutation' or 'subscription'");
+  });
+
+  it("health check returns unhealthy on request failure", async () => {
+    const source = new GraphQLSource();
+    await source.connect({ url: "https://api.example.com/graphql" });
+    mockRequest.mockRejectedValueOnce(new Error("Network failure"));
+
+    const result = await source.healthCheck();
+    expect(result.healthy).toBe(false);
+    expect(result.message).toBe("Network failure");
+  });
+
+  it("health check handles non-Error thrown values", async () => {
+    const source = new GraphQLSource();
+    await source.connect({ url: "https://api.example.com/graphql" });
+    mockRequest.mockRejectedValueOnce("raw-string");
+
+    const result = await source.healthCheck();
+    expect(result.healthy).toBe(false);
+    expect(result.message).toBe("raw-string");
+  });
 });

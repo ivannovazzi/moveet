@@ -37,13 +37,28 @@ interface MutationResponse {
   status: HealthResponse;
 }
 
+const REQUEST_TIMEOUT = 10_000;
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
-  });
-  if (!res.ok) throw new Error(`Adapter ${path}: ${res.status}`);
-  return res.json() as Promise<T>;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+  try {
+    const res = await fetch(`${BASE_URL}${path}`, {
+      ...init,
+      signal: controller.signal,
+      headers: { "Content-Type": "application/json", ...init?.headers },
+    });
+    if (!res.ok) throw new Error(`Adapter ${init?.method ?? "GET"} ${path}: ${res.status}`);
+    return (await res.json()) as T;
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      // eslint-disable-next-line preserve-caught-error
+      throw new Error(`Adapter ${path}: request timed out`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export function getHealth(): Promise<HealthResponse> {

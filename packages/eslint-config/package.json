@@ -8,7 +8,7 @@
     "index.mjs"
   ],
   "scripts": {
-    "test": "node --test index.test.mjs integration.test.mjs"
+    "test": "node --test --test-timeout=30000 index.test.mjs integration.test.mjs"
   },
   "license": "MIT",
   "dependencies": {

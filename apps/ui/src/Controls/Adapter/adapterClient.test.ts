@@ -44,6 +44,7 @@ describe("getHealth", () => {
 
     expect(fetch).toHaveBeenCalledOnce();
     expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/health`, {
+      signal: expect.any(AbortSignal),
       headers: { "Content-Type": "application/json" },
     });
     expect(result).toEqual(mockHealthResponse);
@@ -52,7 +53,7 @@ describe("getHealth", () => {
   it("throws on non-ok response", async () => {
     vi.mocked(fetch).mockResolvedValue(jsonResponse(null, 500));
 
-    await expect(getHealth()).rejects.toThrow("Adapter /health: 500");
+    await expect(getHealth()).rejects.toThrow("Adapter GET /health: 500");
   });
 });
 
@@ -64,6 +65,7 @@ describe("getConfig", () => {
 
     expect(fetch).toHaveBeenCalledOnce();
     expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/config`, {
+      signal: expect.any(AbortSignal),
       headers: { "Content-Type": "application/json" },
     });
     expect(result).toEqual(mockConfigResponse);
@@ -72,7 +74,7 @@ describe("getConfig", () => {
   it("throws on non-ok response", async () => {
     vi.mocked(fetch).mockResolvedValue(jsonResponse(null, 503));
 
-    await expect(getConfig()).rejects.toThrow("Adapter /config: 503");
+    await expect(getConfig()).rejects.toThrow("Adapter GET /config: 503");
   });
 });
 
@@ -86,6 +88,7 @@ describe("setSource", () => {
     expect(fetch).toHaveBeenCalledOnce();
     expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/config/source`, {
       method: "POST",
+      signal: expect.any(AbortSignal),
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type: "static", config }),
     });
@@ -99,6 +102,7 @@ describe("setSource", () => {
 
     expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/config/source`, {
       method: "POST",
+      signal: expect.any(AbortSignal),
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type: "static", config: undefined }),
     });
@@ -107,7 +111,7 @@ describe("setSource", () => {
   it("throws on non-ok response", async () => {
     vi.mocked(fetch).mockResolvedValue(jsonResponse(null, 400));
 
-    await expect(setSource("bad")).rejects.toThrow("Adapter /config/source: 400");
+    await expect(setSource("bad")).rejects.toThrow("Adapter POST /config/source: 400");
   });
 });
 
@@ -121,6 +125,7 @@ describe("addSink", () => {
     expect(fetch).toHaveBeenCalledOnce();
     expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/config/sinks`, {
       method: "POST",
+      signal: expect.any(AbortSignal),
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type: "kafka", config }),
     });
@@ -134,6 +139,7 @@ describe("addSink", () => {
 
     expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/config/sinks`, {
       method: "POST",
+      signal: expect.any(AbortSignal),
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type: "console", config: undefined }),
     });
@@ -142,7 +148,7 @@ describe("addSink", () => {
   it("throws on non-ok response", async () => {
     vi.mocked(fetch).mockResolvedValue(jsonResponse(null, 422));
 
-    await expect(addSink("bad")).rejects.toThrow("Adapter /config/sinks: 422");
+    await expect(addSink("bad")).rejects.toThrow("Adapter POST /config/sinks: 422");
   });
 });
 
@@ -155,6 +161,7 @@ describe("removeSink", () => {
     expect(fetch).toHaveBeenCalledOnce();
     expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/config/sinks/console`, {
       method: "DELETE",
+      signal: expect.any(AbortSignal),
       headers: { "Content-Type": "application/json" },
     });
     expect(result).toEqual(mockMutationResponse);
@@ -163,6 +170,34 @@ describe("removeSink", () => {
   it("throws on non-ok response", async () => {
     vi.mocked(fetch).mockResolvedValue(jsonResponse(null, 404));
 
-    await expect(removeSink("missing")).rejects.toThrow("Adapter /config/sinks/missing: 404");
+    await expect(removeSink("missing")).rejects.toThrow(
+      "Adapter DELETE /config/sinks/missing: 404"
+    );
+  });
+});
+
+describe("request timeout", () => {
+  it("throws a timeout error when fetch is aborted", async () => {
+    vi.useFakeTimers();
+
+    vi.mocked(fetch).mockImplementation((_url, init) => {
+      return new Promise((_resolve, reject) => {
+        const signal = (init as RequestInit | undefined)?.signal;
+        if (signal) {
+          signal.addEventListener("abort", () => {
+            reject(new DOMException("The operation was aborted.", "AbortError"));
+          });
+        }
+      });
+    });
+
+    const promise = getHealth();
+    // Prevent Node's unhandled-rejection warning during timer advance
+    promise.catch(() => {});
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    await expect(promise).rejects.toThrow("Adapter /health: request timed out");
+
+    vi.useRealTimers();
   });
 });

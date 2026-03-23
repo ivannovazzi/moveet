@@ -5,6 +5,7 @@ import Adapter from "../modules/Adapter";
 vi.mock("../utils/config", () => ({
   config: {
     adapterURL: "http://localhost:3001",
+    syncAdapterTimeout: 5000,
   },
 }));
 
@@ -55,6 +56,7 @@ describe("Adapter", () => {
       expect(global.fetch).toHaveBeenCalledWith("http://localhost:3001/vehicles", {
         method: "GET",
         keepalive: true,
+        signal: expect.any(AbortSignal),
       });
     });
 
@@ -220,6 +222,41 @@ describe("Adapter", () => {
         expect(error.message).toContain("/vehicles");
         expect(error.message).toContain("Test error");
       }
+    });
+  });
+
+  describe("timeout", () => {
+    it("should abort request when it exceeds timeout", async () => {
+      vi.useFakeTimers();
+
+      (global.fetch as any).mockImplementation(
+        (_url: string, options: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            options.signal?.addEventListener("abort", () => {
+              reject(new DOMException("The operation was aborted.", "AbortError"));
+            });
+          })
+      );
+
+      const promise = adapter.get();
+
+      vi.advanceTimersByTime(5000);
+
+      await expect(promise).rejects.toThrow("Adapter request to /vehicles timed out");
+
+      vi.useRealTimers();
+    });
+
+    it("should pass AbortSignal to fetch", async () => {
+      (global.fetch as any).mockResolvedValueOnce({
+        ok: true,
+        json: async () => [],
+      });
+
+      await adapter.get();
+
+      const callArgs = (global.fetch as any).mock.calls[0];
+      expect(callArgs[1].signal).toBeInstanceOf(AbortSignal);
     });
   });
 

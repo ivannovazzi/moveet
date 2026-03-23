@@ -91,7 +91,7 @@ export default function SourceTab({ health, config, loading, onConnect }: Source
         <section className={styles.sectionCard}>
           <Button
             className={styles.submitBtn}
-            isDisabled={loading}
+            isDisabled={loading || !selectedType}
             onPress={() => onConnect(selectedType)}
           >
             {loading ? "Connecting..." : "Connect source"}

@@ -123,7 +123,7 @@ export default function Map({
           <Suspense fallback={null}>
             <BreadcrumbLayer
               selectedId={filters.selected}
-              showAll={false}
+              showAll={true}
               vehicleFleetMap={vehicleFleetMap}
               hiddenFleetIds={hiddenFleetIds}
             />
