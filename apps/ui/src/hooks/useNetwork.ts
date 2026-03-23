@@ -1,5 +1,6 @@
 import { useNetworkContext } from "@/data/useData";
 import client from "@/utils/client";
+import { fetchUntil } from "@/utils/fetchWithRetry";
 import { useEffect, useState } from "react";
 
 export function useNetwork() {
@@ -7,21 +8,18 @@ export function useNetwork() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const ac = new AbortController();
     setLoading(true);
-    client
-      .getNetwork()
-      .then((response) => {
-        if (response.error) {
-          console.warn("useNetwork: failed to fetch network", response.error);
-          return;
-        }
-        if (response.data) setNetwork(response.data);
-      })
-      .catch((e) => {
-        const msg = e instanceof Error ? e.message : "Unknown error";
-        console.warn("useNetwork: failed to fetch network", msg);
-      })
-      .finally(() => setLoading(false));
+    fetchUntil(() => client.getNetwork().then((r) => r.data ?? null), {
+      signal: ac.signal,
+      maxRetries: Infinity,
+    }).then((data) => {
+      if (data) {
+        setNetwork(data);
+        setLoading(false);
+      }
+    });
+    return () => ac.abort();
   }, [setNetwork]);
 
   return { network, loading };

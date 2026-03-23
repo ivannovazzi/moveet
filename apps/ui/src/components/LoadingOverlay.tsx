@@ -1,3 +1,4 @@
+import classNames from "classnames";
 import styles from "./LoadingOverlay.module.css";
 
 interface LoadingOverlayProps {
@@ -5,11 +6,17 @@ interface LoadingOverlayProps {
 }
 
 export default function LoadingOverlay({ visible }: LoadingOverlayProps) {
-  if (!visible) return null;
-
   return (
-    <div className={styles.overlay} role="status" aria-label="Loading map data">
-      <div className={styles.spinner} />
+    <div
+      className={classNames(styles.overlay, { [styles.hidden]: !visible })}
+      role="status"
+      aria-label="Loading map data"
+      aria-hidden={!visible}
+    >
+      <div className={styles.ring}>
+        <div className={styles.ringTrack} />
+        <div className={styles.ringHead} />
+      </div>
       <span className={styles.label}>Loading…</span>
     </div>
   );

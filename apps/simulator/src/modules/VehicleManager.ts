@@ -19,7 +19,7 @@ import { EventEmitter } from "events";
 import { serializeVehicle } from "../utils/serializer";
 import { TrafficManager } from "./TrafficManager";
 import { FleetManager } from "./FleetManager";
-import { VEHICLE_PROFILES } from "../utils/vehicleProfiles";
+import { VEHICLE_PROFILES, pickRandomType } from "../utils/vehicleProfiles";
 import { VehicleRegistry } from "./VehicleRegistry";
 import { RouteManager } from "./RouteManager";
 import { GameLoop } from "./GameLoop";
@@ -159,8 +159,8 @@ export class VehicleManager extends EventEmitter {
 
   public async initFromAdapter(): Promise<void> {
     await this.adapterSync.initFromAdapter(
-      (id, name, position) => {
-        this.addVehicle(id, name, position);
+      (id, name, position, type) => {
+        this.addVehicle(id, name, position, type ?? pickRandomType());
       },
       () => this.loadFromData()
     );
@@ -206,7 +206,7 @@ export class VehicleManager extends EventEmitter {
 
     if (adapterVehicles) {
       adapterVehicles.forEach((v) => {
-        this.addVehicle(v.id, v.name, v.position);
+        this.addVehicle(v.id, v.name, v.position, v.type ?? pickRandomType());
       });
     } else {
       this.loadFromData(this.pendingVehicleTypes);

@@ -24,6 +24,9 @@ jobs:
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+          # A PAT is required so the release branch push triggers CI workflows.
+          # The default GITHUB_TOKEN cannot trigger downstream workflow runs.
+          token: ${{ secrets.RELEASE_TOKEN }}
 
   docker-publish:
     needs: release-please

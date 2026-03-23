@@ -10,8 +10,19 @@
   backdrop-filter: blur(8px);
   border: var(--surface-border);
   border-radius: var(--radius-md);
-  pointer-events: auto;
+  pointer-events: none;
   z-index: 10;
+  opacity: 0;
+  transform: translateY(10px);
+  transition:
+    opacity 800ms cubic-bezier(0.22, 1, 0.36, 1) 900ms,
+    transform 800ms cubic-bezier(0.22, 1, 0.36, 1) 900ms;
+}
+
+:global([data-ready]) .legend {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
 }
 
 .item {

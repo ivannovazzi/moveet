@@ -2,7 +2,7 @@
   position: absolute;
   bottom: var(--space-5);
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateY(14px);
   z-index: 40;
   display: flex;
   align-items: center;
@@ -15,6 +15,17 @@
   border: var(--glass-border);
   border-radius: var(--radius-xl);
   box-shadow: var(--glass-shadow);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 800ms cubic-bezier(0.22, 1, 0.36, 1) 850ms,
+    transform 800ms cubic-bezier(0.22, 1, 0.36, 1) 850ms;
+}
+
+:global([data-ready]) .dock {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%);
 }
 
 .group {

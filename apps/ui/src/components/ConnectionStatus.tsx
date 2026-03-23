@@ -9,7 +9,7 @@ interface ConnectionStatusProps {
 export default function ConnectionStatus({ connectionInfo }: ConnectionStatusProps) {
   const { state, attempt, maxAttempts } = connectionInfo;
 
-  if (state === "connected") return null;
+  if (state === "connected" || state === "connecting") return null;
 
   const isReconnecting = state === "reconnecting";
 

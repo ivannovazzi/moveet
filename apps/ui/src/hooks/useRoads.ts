@@ -1,5 +1,6 @@
 import { useRoadsContext } from "@/data/useData";
 import client from "@/utils/client";
+import { fetchUntil } from "@/utils/fetchWithRetry";
 import { useEffect, useState } from "react";
 
 export function useRoads() {
@@ -7,14 +8,18 @@ export function useRoads() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const ac = new AbortController();
     setLoading(true);
-    client
-      .getRoads()
-      .then((response) => {
-        if (response.data) setRoads(response.data.filter((road) => road.name !== ""));
-      })
-      .catch((err) => console.error("Failed to load roads:", err))
-      .finally(() => setLoading(false));
+    fetchUntil(
+      () => client.getRoads().then((r) => r.data?.filter((road) => road.name !== "") ?? null),
+      { signal: ac.signal, maxRetries: Infinity }
+    ).then((data) => {
+      if (data) {
+        setRoads(data);
+        setLoading(false);
+      }
+    });
+    return () => ac.abort();
   }, [setRoads]);
 
   return { roads, loading };

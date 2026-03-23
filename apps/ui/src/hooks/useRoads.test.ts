@@ -13,6 +13,17 @@ vi.mock("@/utils/client", () => ({
   },
 }));
 
+// Single-attempt mock — retry logic is tested separately in fetchWithRetry.test.ts
+vi.mock("@/utils/fetchWithRetry", () => ({
+  fetchUntil: vi.fn(async (fn: () => Promise<unknown>) => {
+    try {
+      return await fn();
+    } catch {
+      return null;
+    }
+  }),
+}));
+
 function createWrapper(setRoads: React.Dispatch<React.SetStateAction<Road[]>> = vi.fn()) {
   return ({ children }: { children: React.ReactNode }) =>
     React.createElement(RoadsContext.Provider, {
@@ -56,7 +67,7 @@ describe("useRoads", () => {
     expect(client.getRoads).toHaveBeenCalledOnce();
   });
 
-  it("handles fetch returning no data", async () => {
+  it("does not call setRoads when fetch returns no data", async () => {
     const setRoads = vi.fn();
     vi.mocked(client.getRoads).mockResolvedValue({ data: undefined });
 
@@ -90,13 +101,17 @@ describe("useRoads loading state", () => {
     });
   });
 
-  it("loading becomes false after failed fetch", async () => {
+  it("loading stays true after failed fetch", async () => {
     vi.mocked(client.getRoads).mockRejectedValue(new Error("Network error"));
 
     const { result } = renderHook(() => useRoads(), { wrapper: createWrapper() });
 
+    // Allow the fetch promise to settle
     await waitFor(() => {
-      expect(result.current.loading).toBe(false);
+      expect(client.getRoads).toHaveBeenCalled();
     });
+
+    // Loading stays true because no data was received
+    expect(result.current.loading).toBe(true);
   });
 });

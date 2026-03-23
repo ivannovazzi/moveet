@@ -4,4 +4,16 @@
   bottom: var(--space-6);
   gap: var(--space-2);
   display: flex;
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+  transition:
+    opacity 800ms cubic-bezier(0.22, 1, 0.36, 1) 750ms,
+    transform 800ms cubic-bezier(0.22, 1, 0.36, 1) 750ms;
+}
+
+:global([data-ready]) .zoom {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
 }

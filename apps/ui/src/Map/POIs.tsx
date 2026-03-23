@@ -6,6 +6,7 @@ import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 import { usePois } from "@/hooks/usePois";
 import { createPOIIconAtlas } from "./POI/iconAtlas";
 import { isBusStop } from "./POI/helpers";
+import { useSettledZoom } from "./hooks/useSettledZoom";
 import type { POI } from "@/types";
 
 // Build the atlas once at module level — this is a pure canvas operation.
@@ -41,10 +42,16 @@ const TYPE_PRIORITY: Record<string, number> = {
  * Collision spacing multiplier — how much larger the collision hitbox is
  * compared to the rendered icon. 1.0 = no extra spacing, 2.0 = double.
  */
-const COLLISION_SIZE_SCALE = 2.0;
+const COLLISION_SIZE_SCALE = 4.0;
 
 /** Fade-in duration in milliseconds. */
 const FADE_DURATION_MS = 500;
+
+/**
+ * Zoom is quantized to discrete steps so deck.gl color transitions can
+ * complete between updates instead of restarting on every animation frame.
+ * Quantization + debouncing lives in {@link useSettledZoom}.
+ */
 
 interface POIMarkerProps {
   visible: boolean;
@@ -53,43 +60,37 @@ interface POIMarkerProps {
 
 export default function POIs({ visible, onClick }: POIMarkerProps) {
   const { pois } = usePois();
-  const { getBoundingBox, getZoom } = useMapContext();
+  const { getZoom } = useMapContext();
   const zoom = getZoom();
 
-  const [[west, south], [east, north]] = getBoundingBox();
+  const { settledZoom, isZooming } = useSettledZoom(zoom);
+  const showData = visible && settledZoom >= MIN_ZOOM - 1;
 
-  // Always include all in-bounds POIs so deck.gl can transition their alpha.
-  // Visibility is controlled purely by getColor alpha below.
-  const inBoundsPois = useMemo(() => {
-    if (!visible || zoom < MIN_ZOOM) return [];
-    return pois.filter(
-      (poi) =>
-        !!poi.name &&
-        poi.coordinates[0] >= south &&
-        poi.coordinates[0] <= north &&
-        poi.coordinates[1] >= west &&
-        poi.coordinates[1] <= east
-    );
-  }, [pois, south, north, west, east, visible, zoom]);
+  // Data is emptied while zooming so items disappear instantly.
+  // When isZooming flips false the array repopulates and deck.gl's
+  // enter-transition fades each icon in from alpha 0.
+  const visiblePois = useMemo(
+    () => (showData && !isZooming ? pois.filter((poi) => !!poi.name) : []),
+    [pois, showData, isZooming]
+  );
 
-  const layers = useMemo(() => {
-    if (inBoundsPois.length === 0) return [];
-
-    return [
+  // Always create the layer so deck.gl preserves transition state across
+  // data changes. Returning [] would destroy the layer and lose all
+  // in-flight enter/color transitions.
+  const layers = useMemo(
+    () => [
       new IconLayer<POI, CollisionFilterExtensionProps<POI>>({
         id: "pois",
-        data: inBoundsPois,
+        data: visiblePois,
         updateTriggers: {
-          getColor: [zoom],
+          getColor: [settledZoom],
         },
         getPosition: (d) => [d.coordinates[1], d.coordinates[0]],
         getIcon: (d) => (d.type && d.type in iconMapping ? d.type : "unknown"),
         getSize: (d) => (isBusStop(d) ? 14 : 22),
-        // Fade in: alpha ramps 0→255 over one zoom level past the tier threshold.
-        // Items below their tier are fully transparent (hidden).
         getColor: (d) => {
           const tier = ZOOM_TIERS[d.type ?? "unknown"] ?? MIN_ZOOM;
-          const alpha = Math.round(Math.max(0, Math.min(1, zoom - tier)) * 255);
+          const alpha = settledZoom >= tier ? 255 : 0;
           return [255, 255, 255, alpha];
         },
         iconAtlas,
@@ -107,17 +108,26 @@ export default function POIs({ visible, onClick }: POIMarkerProps) {
         sizeUnits: "pixels",
         sizeMinPixels: 8,
         sizeMaxPixels: 36,
-        transitions: { getColor: { duration: FADE_DURATION_MS } },
+        transitions: {
+          getColor: {
+            duration: FADE_DURATION_MS,
+            enter: (value: number[]) => [value[0], value[1], value[2], 0],
+          },
+        },
         extensions: [collisionFilter],
         ...({
           collisionEnabled: true,
-          collisionGroup: "poi-markers",
+          collisionGroup: "map-markers",
           getCollisionPriority: (d: POI) => TYPE_PRIORITY[d.type ?? "unknown"] ?? 0,
-          collisionTestProps: { sizeScale: COLLISION_SIZE_SCALE },
+          collisionTestProps: {
+            sizeScale: COLLISION_SIZE_SCALE,
+            sizeMaxPixels: 200,
+          },
         } as Record<string, unknown>),
       }),
-    ];
-  }, [inBoundsPois, onClick, zoom]);
+    ],
+    [visiblePois, onClick, settledZoom]
+  );
 
   useRegisterLayers("pois", layers, 45);
 

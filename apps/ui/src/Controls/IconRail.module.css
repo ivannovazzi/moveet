@@ -9,6 +9,18 @@
   background: var(--panel-surface);
   border-right: var(--panel-border);
   z-index: 31;
+  opacity: 0;
+  transform: translateX(-16px);
+  pointer-events: none;
+  transition:
+    opacity 800ms cubic-bezier(0.22, 1, 0.36, 1) 500ms,
+    transform 800ms cubic-bezier(0.22, 1, 0.36, 1) 500ms;
+}
+
+:global([data-ready]) .rail {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
 }
 
 .railButton {

@@ -5,7 +5,7 @@ type HandlerFn<T = unknown> = (data: T) => void;
 
 const MAX_RECONNECT_ATTEMPTS = 10;
 
-export type ConnectionState = "connected" | "reconnecting" | "disconnected";
+export type ConnectionState = "connecting" | "connected" | "reconnecting" | "disconnected";
 
 export type ConnectionStateInfo = {
   state: ConnectionState;
@@ -31,6 +31,7 @@ export class WebSocketClient {
   private manualClose = false;
   private connectionStateListeners = new Set<ConnectionStateListener>();
   private _connectionState: ConnectionState = "disconnected";
+  private hasEverConnected = false;
 
   constructor(
     private wsUrl: string,
@@ -76,6 +77,9 @@ export class WebSocketClient {
   connect() {
     if (this.ws) return; // Already connected
     this.manualClose = false;
+    if (!this.hasEverConnected) {
+      this.setConnectionState("connecting");
+    }
     this.ws = new WebSocket(this.wsUrl);
 
     // Capture reference so closures can detect stale sockets.
@@ -108,6 +112,7 @@ export class WebSocketClient {
 
     ws.onopen = () => {
       if (this.ws !== ws) return;
+      this.hasEverConnected = true;
       // Reset reconnect attempts on successful connection
       this.reconnectAttempts = 0;
       this.setConnectionState("connected");
@@ -134,12 +139,13 @@ export class WebSocketClient {
 
       // Implement exponential backoff for reconnection
       if (this.reconnectAttempts < maxReconnectAttempts) {
-        this.setConnectionState("reconnecting");
+        this.setConnectionState(this.hasEverConnected ? "reconnecting" : "connecting");
         const delay = calculateBackoffDelay(this.reconnectAttempts);
 
         if (this.options.logReconnects !== false) {
+          const verb = this.hasEverConnected ? "Reconnecting" : "Connecting";
           (this.options.logger ?? console).log(
-            `Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${maxReconnectAttempts})`
+            `${verb} in ${delay}ms (attempt ${this.reconnectAttempts + 1}/${maxReconnectAttempts})`
           );
         }
 
@@ -198,6 +204,7 @@ export class WebSocketClient {
       this.reconnectTimeout = null;
     }
     this.reconnectAttempts = 0;
+    this.hasEverConnected = false;
     this.ws?.close();
     this.ws = null;
     this.setConnectionState("disconnected");

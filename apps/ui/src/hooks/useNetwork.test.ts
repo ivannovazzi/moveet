@@ -13,6 +13,17 @@ vi.mock("@/utils/client", () => ({
   },
 }));
 
+// Single-attempt mock — retry logic is tested separately in fetchWithRetry.test.ts
+vi.mock("@/utils/fetchWithRetry", () => ({
+  fetchUntil: vi.fn(async (fn: () => Promise<unknown>) => {
+    try {
+      return await fn();
+    } catch {
+      return null;
+    }
+  }),
+}));
+
 function createWrapper() {
   return function Wrapper({ children }: { children: React.ReactNode }) {
     const [network, setNetwork] = useState<RoadNetwork>({
@@ -52,16 +63,20 @@ describe("useNetwork", () => {
     });
   });
 
-  it("sets loading to false after failed fetch", async () => {
-    vi.mocked(client.getNetwork).mockRejectedValue(new Error("Network error"));
+  it("keeps loading true when fetch returns no data", async () => {
+    vi.mocked(client.getNetwork).mockResolvedValue({ data: undefined });
 
     const { result } = renderHook(() => useNetwork(), {
       wrapper: createWrapper(),
     });
 
+    // Allow the fetch promise to settle
     await vi.waitFor(() => {
-      expect(result.current.loading).toBe(false);
+      expect(client.getNetwork).toHaveBeenCalled();
     });
+
+    // Loading stays true because no data was received
+    expect(result.current.loading).toBe(true);
   });
 
   it("sets network data on success", async () => {
@@ -91,41 +106,5 @@ describe("useNetwork", () => {
     });
 
     expect(result.current.network.features[0].properties.id).toBe("road-1");
-  });
-
-  it("logs warning on response.error", async () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    vi.mocked(client.getNetwork).mockResolvedValue({
-      data: undefined,
-      error: "Server error",
-    });
-
-    renderHook(() => useNetwork(), {
-      wrapper: createWrapper(),
-    });
-
-    await vi.waitFor(() => {
-      expect(warnSpy).toHaveBeenCalledWith("useNetwork: failed to fetch network", "Server error");
-    });
-
-    warnSpy.mockRestore();
-  });
-
-  it("logs warning on network exception (.catch)", async () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    vi.mocked(client.getNetwork).mockRejectedValue(new Error("Connection refused"));
-
-    renderHook(() => useNetwork(), {
-      wrapper: createWrapper(),
-    });
-
-    await vi.waitFor(() => {
-      expect(warnSpy).toHaveBeenCalledWith(
-        "useNetwork: failed to fetch network",
-        "Connection refused"
-      );
-    });
-
-    warnSpy.mockRestore();
   });
 });

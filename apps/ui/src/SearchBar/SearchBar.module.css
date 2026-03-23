@@ -4,7 +4,7 @@
   position: absolute;
   top: var(--space-4);
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateY(-14px);
   width: min(640px, calc(100% - 72px));
   z-index: 50;
   display: flex;
@@ -14,9 +14,19 @@
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
   box-shadow: var(--glass-shadow);
+  opacity: 0;
+  pointer-events: none;
   transition:
     border-radius 120ms ease,
-    box-shadow 120ms ease;
+    box-shadow 120ms ease,
+    opacity 800ms cubic-bezier(0.22, 1, 0.36, 1) 700ms,
+    transform 800ms cubic-bezier(0.22, 1, 0.36, 1) 700ms;
+}
+
+:global([data-ready]) .searchBar {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%);
 }
 
 .searchBar.open {

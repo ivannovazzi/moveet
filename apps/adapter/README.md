@@ -22,24 +22,24 @@ Simulator ───────────────────────�
 
 **Sources** fetch vehicle data from a configured backend:
 
-| Source | Description |
-|--------|-------------|
-| GraphQL | Queries a GraphQL API for vehicle data |
-| REST | Fetches from a REST endpoint |
-| Static | Returns generated mock vehicles (for development) |
-| MySQL | Queries a MySQL database |
-| Postgres | Queries a PostgreSQL database |
+| Source   | Description                                       |
+| -------- | ------------------------------------------------- |
+| GraphQL  | Queries a GraphQL API for vehicle data            |
+| REST     | Fetches from a REST endpoint                      |
+| Static   | Returns generated mock vehicles (for development) |
+| MySQL    | Queries a MySQL database                          |
+| Postgres | Queries a PostgreSQL database                     |
 
 **Sinks** push vehicle position updates to one or more destinations:
 
-| Sink | Description |
-|------|-------------|
-| GraphQL | Pushes updates via GraphQL mutation |
-| REST | POSTs updates to a REST endpoint |
+| Sink           | Description                                     |
+| -------------- | ----------------------------------------------- |
+| GraphQL        | Pushes updates via GraphQL mutation             |
+| REST           | POSTs updates to a REST endpoint                |
 | Redpanda/Kafka | Publishes updates as Kafka messages via KafkaJS |
-| Redis | Publishes updates via Redis Pub/Sub |
-| Webhook | POSTs updates to a webhook URL |
-| Console | Logs updates to stdout (for development) |
+| Redis          | Publishes updates via Redis Pub/Sub             |
+| Webhook        | POSTs updates to a webhook URL                  |
+| Console        | Logs updates to stdout (for development)        |
 
 Multiple sinks can be active simultaneously. Updates are published to all active sinks in parallel.
 
@@ -78,15 +78,16 @@ cp .env.example .env
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `5011` | Server port |
-| `API_URL` | -- | GraphQL API URL (GraphQL mode) |
-| `TOKEN` | -- | Auth token for GraphQL API (GraphQL mode) |
-| `USE_ALTERNATIVE_API` | `false` | Set to `true` for alternative mode |
-| `ALTERNATIVE_API_URL` | `http://localhost:4001/graphql` | Local GraphQL API URL (alternative mode) |
-| `REDPANDA_BROKERS` | `localhost:19092` | Comma-separated Redpanda/Kafka broker addresses |
-| `REDPANDA_TOPIC` | `dispatch.vehicle.positions` | Kafka topic for vehicle position updates |
+| Variable              | Default                         | Description                                                                                                                                     |
+| --------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PORT`                | `5011`                          | Server port                                                                                                                                     |
+| `CORS_ORIGINS`        | `*`                             | Allowed CORS origins. Use `*` to allow all origins, or a comma-separated list (e.g. `http://localhost:5010,http://localhost:5012`) to restrict. |
+| `API_URL`             | --                              | GraphQL API URL (GraphQL mode)                                                                                                                  |
+| `TOKEN`               | --                              | Auth token for GraphQL API (GraphQL mode)                                                                                                       |
+| `USE_ALTERNATIVE_API` | `false`                         | Set to `true` for alternative mode                                                                                                              |
+| `ALTERNATIVE_API_URL` | `http://localhost:4001/graphql` | Local GraphQL API URL (alternative mode)                                                                                                        |
+| `REDPANDA_BROKERS`    | `localhost:19092`               | Comma-separated Redpanda/Kafka broker addresses                                                                                                 |
+| `REDPANDA_TOPIC`      | `dispatch.vehicle.positions`    | Kafka topic for vehicle position updates                                                                                                        |
 
 ## API Endpoints
 
@@ -101,11 +102,13 @@ cp .env.example .env
 **`GET /config`** -- Returns the current plugin configuration and health status of all active sources/sinks.
 
 **`POST /config/source`** -- Sets the active source plugin.
+
 ```json
 { "type": "graphql", "config": { "url": "http://localhost:4001/graphql" } }
 ```
 
 **`POST /config/sinks`** -- Adds or replaces a sink plugin.
+
 ```json
 { "type": "redpanda", "config": { "brokers": "localhost:19092", "topic": "my.topic" } }
 ```

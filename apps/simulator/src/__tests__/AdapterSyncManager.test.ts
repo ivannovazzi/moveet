@@ -63,8 +63,8 @@ describe("AdapterSyncManager", () => {
       await syncManager.initFromAdapter(addVehicle, loadFallback);
 
       expect(addVehicle).toHaveBeenCalledTimes(2);
-      expect(addVehicle).toHaveBeenCalledWith("v1", "Vehicle 1", [1.0, 36.0]);
-      expect(addVehicle).toHaveBeenCalledWith("v2", "Vehicle 2", [1.1, 36.1]);
+      expect(addVehicle).toHaveBeenCalledWith("v1", "Vehicle 1", [1.0, 36.0], undefined);
+      expect(addVehicle).toHaveBeenCalledWith("v2", "Vehicle 2", [1.1, 36.1], undefined);
       expect(loadFallback).not.toHaveBeenCalled();
     });
 

@@ -1,4 +1,4 @@
-import type { DataVehicle, Vehicle } from "../types";
+import type { DataVehicle, Vehicle, VehicleType } from "../types";
 import { config } from "../utils/config";
 import Adapter from "./Adapter";
 import logger from "../utils/logger";
@@ -16,7 +16,7 @@ export class AdapterSyncManager {
    * Must be called after construction when ADAPTER_URL is configured.
    */
   async initFromAdapter(
-    addVehicle: (id: string, name: string, position?: [number, number]) => void,
+    addVehicle: (id: string, name: string, position?: [number, number], type?: VehicleType) => void,
     loadFallback: () => void
   ): Promise<void> {
     if (!config.adapterURL) return;
@@ -29,7 +29,7 @@ export class AdapterSyncManager {
         return;
       }
       adapterVehicles.forEach((v) => {
-        addVehicle(v.id, v.name, v.position);
+        addVehicle(v.id, v.name, v.position, v.type);
       });
       logger.info(`Loaded ${adapterVehicles.length} vehicles from adapter`);
     } catch (error) {

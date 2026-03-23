@@ -5,6 +5,7 @@ import { useMapContext } from "@/components/Map/hooks";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 import { useSpeedLimits, type SpeedLimitSign } from "@/hooks/useSpeedLimits";
 import { createSpeedLimitIconAtlas, speedToIconKey } from "./POI/iconAtlas";
+import { useSettledZoom } from "./hooks/useSettledZoom";
 
 // Build the atlas once at module level.
 const { iconAtlas, iconMapping } = createSpeedLimitIconAtlas();
@@ -18,10 +19,19 @@ const MIN_ZOOM = 7;
  * Collision spacing multiplier — how much larger the collision hitbox is
  * compared to the rendered icon. 1.0 = no extra spacing, 2.0 = double.
  */
-const COLLISION_SIZE_SCALE = 2.0;
+const COLLISION_SIZE_SCALE = 4.0;
 
 /** Fade-in duration in milliseconds. */
 const FADE_DURATION_MS = 500;
+
+/**
+ * Zoom is quantized to discrete steps so deck.gl color transitions can
+ * complete between updates instead of restarting on every animation frame.
+ * Quantization + debouncing lives in {@link useSettledZoom}.
+ */
+
+/** Collision priority — sits between POI craft (3) and office (5). */
+const SPEED_LIMIT_PRIORITY = 4;
 
 interface SpeedLimitSignsProps {
   visible: boolean;
@@ -29,51 +39,58 @@ interface SpeedLimitSignsProps {
 
 export default function SpeedLimitSigns({ visible }: SpeedLimitSignsProps) {
   const { signs } = useSpeedLimits();
-  const { getBoundingBox, getZoom } = useMapContext();
+  const { getZoom } = useMapContext();
   const zoom = getZoom();
 
-  const [[west, south], [east, north]] = getBoundingBox();
+  const { settledZoom, isZooming } = useSettledZoom(zoom);
+  const showData = visible && settledZoom >= MIN_ZOOM - 1;
 
-  const inBounds = useMemo(() => {
-    if (!visible || zoom < MIN_ZOOM) return [];
-    return signs.filter(
-      ({ coordinates: [lat, lng] }) => lat >= south && lat <= north && lng >= west && lng <= east
-    );
-  }, [signs, south, north, west, east, visible, zoom]);
+  // Data is emptied while zooming; enter-transitions handle the fade-in.
+  const visibleSigns = useMemo(
+    () => (showData && !isZooming ? signs : []),
+    [signs, showData, isZooming]
+  );
 
+  // Always create the layer so deck.gl preserves transition state.
   const layers = useMemo(() => {
-    if (inBounds.length === 0) return [];
-
-    // Fade in: alpha ramps 0→255 over one zoom level past threshold
-    const alpha = Math.round(Math.max(0, Math.min(1, zoom - MIN_ZOOM)) * 255);
+    const alpha = settledZoom >= MIN_ZOOM ? 255 : 0;
 
     return [
       new IconLayer<SpeedLimitSign, CollisionFilterExtensionProps>({
         id: "speed-limit-signs",
-        data: inBounds,
+        data: visibleSigns,
         updateTriggers: {
-          getColor: [zoom],
+          getColor: [settledZoom],
         },
         getPosition: (d) => [d.coordinates[1], d.coordinates[0]],
         getIcon: (d) => speedToIconKey(d.speed),
         getSize: 28,
-        getColor: [255, 255, 255, alpha],
+        getColor: () => [255, 255, 255, alpha],
         iconAtlas,
         iconMapping,
         pickable: false,
         sizeUnits: "pixels",
         sizeMinPixels: 14,
         sizeMaxPixels: 32,
-        transitions: { getColor: { duration: FADE_DURATION_MS } },
+        transitions: {
+          getColor: {
+            duration: FADE_DURATION_MS,
+            enter: (value: number[]) => [value[0], value[1], value[2], 0],
+          },
+        },
         extensions: [collisionFilter],
         ...({
           collisionEnabled: true,
-          collisionGroup: "speed-signs",
-          collisionTestProps: { sizeScale: COLLISION_SIZE_SCALE },
+          collisionGroup: "map-markers",
+          getCollisionPriority: () => SPEED_LIMIT_PRIORITY,
+          collisionTestProps: {
+            sizeScale: COLLISION_SIZE_SCALE,
+            sizeMaxPixels: 200,
+          },
         } as Record<string, unknown>),
       }),
     ];
-  }, [inBounds, zoom]);
+  }, [visibleSigns, settledZoom]);
 
   useRegisterLayers("speed-limit-signs", layers, 46);
 
