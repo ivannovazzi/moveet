@@ -15,12 +15,17 @@ interface SyncData {
   timestamp?: number;
 }
 
+const REQUEST_TIMEOUT_MS = config.syncAdapterTimeout || 10_000;
+
 export default class Adapter {
   private async request<T>(path: string, options: RequestInit): Promise<T> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
       const response = await fetch(`${config.adapterURL}${path}`, {
         ...options,
         keepalive: true,
+        signal: controller.signal,
       });
 
       if (!response.ok) {
@@ -30,9 +35,15 @@ export default class Adapter {
       const data = await response.json();
       return data as T;
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        logger.error(`Adapter request to ${path} timed out after ${REQUEST_TIMEOUT_MS}ms`);
+        throw new Error(`Adapter request to ${path} timed out`, { cause: error });
+      }
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error(`Error from adapter: ${errorMessage}`);
       throw new Error(`Adapter request to ${path} failed: ${errorMessage}`, { cause: error });
+    } finally {
+      clearTimeout(timer);
     }
   }
 

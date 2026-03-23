@@ -12,6 +12,9 @@ export const DEFAULT_ROAD_CLASSES = [
   "secondary_link",
   "tertiary",
   "tertiary_link",
+  "residential",
+  "living_street",
+  "unclassified",
 ] as const;
 
 export type RoadClass = (typeof DEFAULT_ROAD_CLASSES)[number];
