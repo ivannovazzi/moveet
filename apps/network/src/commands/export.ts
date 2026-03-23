@@ -22,7 +22,8 @@ export function buildExportArgs(opts: ExportCoreOptions): string[] {
     path.basename(opts.input),
     "--geometry-types=linestring,point",
     "--output-format=geojson",
-    "-o", path.basename(opts.output),
+    "-o",
+    path.basename(opts.output),
     "--overwrite",
   ];
 }
@@ -51,6 +52,6 @@ export function exportNetwork(opts: ExportOptions): void {
 
   fs.writeFileSync(
     `${opts.output}.meta.json`,
-    JSON.stringify(buildMetadata(opts), null, 2)
+    JSON.stringify(buildMetadata(opts), null, 2),
   );
 }

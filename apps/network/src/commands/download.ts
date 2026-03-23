@@ -21,7 +21,7 @@ export function getEtagPath(pbfPath: string): string {
 
 export function shouldSkipDownload(
   pbfPath: string,
-  newEtag: string | undefined
+  newEtag: string | undefined,
 ): boolean {
   if (!fs.existsSync(pbfPath)) return false;
   if (!newEtag) return false;
@@ -48,7 +48,9 @@ export async function download(opts: DownloadOptions): Promise<string> {
   const headEtag = await getEtag(url);
 
   if (!force && shouldSkipDownload(dest, headEtag ?? undefined)) {
-    process.stdout.write(`Skipping download (cached): ${path.basename(dest)}\n`);
+    process.stdout.write(
+      `Skipping download (cached): ${path.basename(dest)}\n`,
+    );
     return dest;
   }
 
@@ -70,7 +72,10 @@ function getEtag(url: string, redirects = 0): Promise<string | null> {
     const req = mod.request(url, { method: "HEAD" }, (res) => {
       if (res.statusCode && [301, 302, 307, 308].includes(res.statusCode)) {
         const location = res.headers["location"];
-        if (!location) { resolve(null); return; }
+        if (!location) {
+          resolve(null);
+          return;
+        }
         resolve(getEtag(location, redirects + 1));
         return;
       }
@@ -81,8 +86,13 @@ function getEtag(url: string, redirects = 0): Promise<string | null> {
   });
 }
 
-function streamDownload(url: string, dest: string, redirects = 0): Promise<void> {
-  if (redirects > 5) return Promise.reject(new Error(`Too many redirects downloading ${url}`));
+function streamDownload(
+  url: string,
+  dest: string,
+  redirects = 0,
+): Promise<void> {
+  if (redirects > 5)
+    return Promise.reject(new Error(`Too many redirects downloading ${url}`));
   return new Promise((resolve, reject) => {
     const parsedUrl = new URL(url);
     const mod = parsedUrl.protocol === "https:" ? https : http;
@@ -93,7 +103,10 @@ function streamDownload(url: string, dest: string, redirects = 0): Promise<void>
           file.close();
           fs.unlinkSync(dest);
           const location = res.headers["location"];
-          if (!location) { reject(new Error(`Redirect with no Location header from ${url}`)); return; }
+          if (!location) {
+            reject(new Error(`Redirect with no Location header from ${url}`));
+            return;
+          }
           resolve(streamDownload(location, dest, redirects + 1));
           return;
         }
@@ -109,7 +122,7 @@ function streamDownload(url: string, dest: string, redirects = 0): Promise<void>
           if (total > 0) {
             const pct = Math.round((received / total) * 100);
             process.stdout.write(
-              `\r  ${pct}% (${(received / 1e6).toFixed(1)} MB)`
+              `\r  ${pct}% (${(received / 1e6).toFixed(1)} MB)`,
             );
           }
         });

@@ -38,7 +38,7 @@ export function resolveRegion(opts: ResolveOptions): ResolvedRegion {
     const entry = manifest[opts.region];
     if (!entry) {
       throw new Error(
-        `Unknown region: ${opts.region}. Known regions: ${listRegions().join(", ")}`
+        `Unknown region: ${opts.region}. Known regions: ${listRegions().join(", ")}`,
       );
     }
     return entry;

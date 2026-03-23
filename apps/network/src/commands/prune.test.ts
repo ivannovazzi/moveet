@@ -15,8 +15,14 @@ describe("pruneNetwork", () => {
     const fc: FeatureCollection = {
       type: "FeatureCollection",
       features: [
-        makeLine([[0, 0], [1, 0]]),
-        makeLine([[1, 0], [2, 0]]),
+        makeLine([
+          [0, 0],
+          [1, 0],
+        ]),
+        makeLine([
+          [1, 0],
+          [2, 0],
+        ]),
       ],
     };
     const { pruned, removedFeatures } = pruneNetwork(fc);
@@ -29,11 +35,23 @@ describe("pruneNetwork", () => {
       type: "FeatureCollection",
       features: [
         // Large component (3 features)
-        makeLine([[0, 0], [1, 0]]),
-        makeLine([[1, 0], [2, 0]]),
-        makeLine([[2, 0], [3, 0]]),
+        makeLine([
+          [0, 0],
+          [1, 0],
+        ]),
+        makeLine([
+          [1, 0],
+          [2, 0],
+        ]),
+        makeLine([
+          [2, 0],
+          [3, 0],
+        ]),
         // Small disconnected island (1 feature)
-        makeLine([[10, 10], [11, 10]]),
+        makeLine([
+          [10, 10],
+          [11, 10],
+        ]),
       ],
     };
     const { pruned, removedFeatures } = pruneNetwork(fc);
@@ -46,17 +64,27 @@ describe("pruneNetwork", () => {
       type: "FeatureCollection",
       features: [
         // Component A: 1 feature, 2 nodes
-        makeLine([[0, 0], [1, 0]]),
+        makeLine([
+          [0, 0],
+          [1, 0],
+        ]),
         // Component B: 2 features, 3 nodes (larger)
-        makeLine([[10, 10], [11, 10]]),
-        makeLine([[11, 10], [12, 10]]),
+        makeLine([
+          [10, 10],
+          [11, 10],
+        ]),
+        makeLine([
+          [11, 10],
+          [12, 10],
+        ]),
       ],
     };
     const { pruned, removedFeatures } = pruneNetwork(fc);
     expect(pruned.features).toHaveLength(2);
     expect(removedFeatures).toBe(1);
     // Verify the kept features are from component B
-    const coords = (pruned.features[0] as Feature<LineString>).geometry.coordinates;
+    const coords = (pruned.features[0] as Feature<LineString>).geometry
+      .coordinates;
     expect(coords[0][0]).toBe(10);
   });
 

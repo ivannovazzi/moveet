@@ -31,20 +31,32 @@ program
   .option("--bbox <w,s,e,n>", "Custom bounding box (west,south,east,north)")
   .option("--geofabrik <path>", "Geofabrik path (e.g. africa/kenya)")
   .option("--force", "Re-download even if cached")
-  .action(async (opts: { region?: string; bbox?: string; geofabrik?: string; force?: boolean }) => {
-    const region = resolveRegion({
-      region: opts.region,
-      bbox: opts.bbox
-        ? (opts.bbox.split(",").map(Number) as [number, number, number, number])
-        : undefined,
-      geofabrik: opts.geofabrik,
-    });
-    await download({
-      geofabrik: region.geofabrik,
-      cacheDir: CACHE_DIR,
-      force: opts.force,
-    });
-  });
+  .action(
+    async (opts: {
+      region?: string;
+      bbox?: string;
+      geofabrik?: string;
+      force?: boolean;
+    }) => {
+      const region = resolveRegion({
+        region: opts.region,
+        bbox: opts.bbox
+          ? (opts.bbox.split(",").map(Number) as [
+              number,
+              number,
+              number,
+              number,
+            ])
+          : undefined,
+        geofabrik: opts.geofabrik,
+      });
+      await download({
+        geofabrik: region.geofabrik,
+        cacheDir: CACHE_DIR,
+        force: opts.force,
+      });
+    },
+  );
 
 program
   .command("extract")
@@ -56,7 +68,12 @@ program
     extract({
       input: opts.input,
       output: opts.output,
-      bbox: opts.bbox.split(",").map(Number) as [number, number, number, number],
+      bbox: opts.bbox.split(",").map(Number) as [
+        number,
+        number,
+        number,
+        number,
+      ],
     });
   });
 
@@ -65,7 +82,11 @@ program
   .description("Filter road classes from PBF using osmium")
   .requiredOption("--input <path>", "Input PBF file")
   .requiredOption("--output <path>", "Output filtered PBF file")
-  .option("--classes <list>", "Comma-separated road classes", [...DEFAULT_ROAD_CLASSES].join(","))
+  .option(
+    "--classes <list>",
+    "Comma-separated road classes",
+    [...DEFAULT_ROAD_CLASSES].join(","),
+  )
   .action((opts: { input: string; output: string; classes: string }) => {
     filter({
       input: opts.input,
@@ -78,7 +99,11 @@ program
   .command("export")
   .description("Export filtered PBF to GeoJSON using osmium")
   .requiredOption("--input <path>", "Input filtered roads PBF file")
-  .option("--output <path>", "Output GeoJSON path", "apps/simulator/data/network.geojson")
+  .option(
+    "--output <path>",
+    "Output GeoJSON path",
+    "apps/simulator/data/network.geojson",
+  )
   .option("--region <name>", "Region name for metadata", "unknown")
   .action((opts: { input: string; output: string; region: string }) => {
     exportNetwork({
@@ -118,20 +143,23 @@ program
 
 program
   .command("prepare [region]")
-  .description(
-    "Full pipeline: download → extract → filter → export → validate"
-  )
+  .description("Full pipeline: download → extract → filter → export → validate")
   .option("--output <path>", "Output GeoJSON path", DEFAULT_OUTPUT)
   .option("--force", "Force re-download even if cached")
   .option("--dry-run", "Print pipeline steps without executing")
-  .action(async (region: string | undefined, opts: { output: string; force?: boolean; dryRun?: boolean }) => {
-    await prepare({
-      region,
-      output: opts.output,
-      force: opts.force,
-      dryRun: opts.dryRun,
-    });
-  });
+  .action(
+    async (
+      region: string | undefined,
+      opts: { output: string; force?: boolean; dryRun?: boolean },
+    ) => {
+      await prepare({
+        region,
+        output: opts.output,
+        force: opts.force,
+        dryRun: opts.dryRun,
+      });
+    },
+  );
 
 export function runCLI(): void {
   program.parse();

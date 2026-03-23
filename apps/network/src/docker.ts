@@ -27,7 +27,7 @@ export function osmium(args: string[], workdir: string): void {
     const resolvedArgs = args.map((a) =>
       a.endsWith(".osm.pbf") || a.endsWith(".geojson") || a.endsWith(".json")
         ? path.join(absWorkdir, a)
-        : a
+        : a,
     );
     execSync(`osmium ${resolvedArgs.join(" ")}`, { stdio: "inherit" });
     return;
@@ -46,7 +46,7 @@ export function checkDockerAvailable(): void {
       "osmium-tool is not available. Install it with:\n" +
         "  macOS: brew install osmium-tool\n" +
         "  Linux: apt install osmium-tool\n" +
-        "Or install Docker: https://docs.docker.com/get-docker/"
+        "Or install Docker: https://docs.docker.com/get-docker/",
     );
   }
 }

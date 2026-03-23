@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { buildDownloadUrl, getCachePath, shouldSkipDownload } from "./download.js";
+import {
+  buildDownloadUrl,
+  getCachePath,
+  shouldSkipDownload,
+} from "./download.js";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -7,13 +11,15 @@ import path from "path";
 describe("buildDownloadUrl", () => {
   it("builds correct Geofabrik URL", () => {
     const url = buildDownloadUrl("africa/kenya");
-    expect(url).toBe("https://download.geofabrik.de/africa/kenya-latest.osm.pbf");
+    expect(url).toBe(
+      "https://download.geofabrik.de/africa/kenya-latest.osm.pbf",
+    );
   });
 
   it("handles sub-region paths", () => {
     const url = buildDownloadUrl("north-america/us/new-york");
     expect(url).toBe(
-      "https://download.geofabrik.de/north-america/us/new-york-latest.osm.pbf"
+      "https://download.geofabrik.de/north-america/us/new-york-latest.osm.pbf",
     );
   });
 });

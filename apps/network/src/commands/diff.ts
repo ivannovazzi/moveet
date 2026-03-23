@@ -25,8 +25,10 @@ function nodeSet(fc: FeatureCollection): Set<string> {
   const nodes = new Set<string>();
   for (const f of fc.features) {
     if (f.geometry.type !== "LineString") continue;
-    for (const c of (f as Feature<LineString>).geometry
-      .coordinates as [number, number][]) {
+    for (const c of (f as Feature<LineString>).geometry.coordinates as [
+      number,
+      number,
+    ][]) {
       nodes.add(`${c[0].toFixed(PRECISION)},${c[1].toFixed(PRECISION)}`);
     }
   }
@@ -37,8 +39,10 @@ function edgeMap(fc: FeatureCollection): Map<string, Record<string, unknown>> {
   const edges = new Map<string, Record<string, unknown>>();
   for (const f of fc.features) {
     if (f.geometry.type !== "LineString") continue;
-    const coords = (f as Feature<LineString>).geometry
-      .coordinates as [number, number][];
+    const coords = (f as Feature<LineString>).geometry.coordinates as [
+      number,
+      number,
+    ][];
     edges.set(edgeKey(coords), (f.properties ?? {}) as Record<string, unknown>);
   }
   return edges;
@@ -46,7 +50,7 @@ function edgeMap(fc: FeatureCollection): Map<string, Record<string, unknown>> {
 
 export function diffNetworks(
   oldFc: FeatureCollection,
-  newFc: FeatureCollection
+  newFc: FeatureCollection,
 ): DiffResult {
   const oldNodes = nodeSet(oldFc);
   const newNodes = nodeSet(newFc);
@@ -96,21 +100,27 @@ export function diffNetworks(
 }
 
 export function diff(oldPath: string, newPath: string): DiffResult {
-  const oldFc = JSON.parse(fs.readFileSync(oldPath, "utf8")) as FeatureCollection;
-  const newFc = JSON.parse(fs.readFileSync(newPath, "utf8")) as FeatureCollection;
+  const oldFc = JSON.parse(
+    fs.readFileSync(oldPath, "utf8"),
+  ) as FeatureCollection;
+  const newFc = JSON.parse(
+    fs.readFileSync(newPath, "utf8"),
+  ) as FeatureCollection;
   const result = diffNetworks(oldFc, newFc);
 
   console.log("\nRoad Network Diff");
   console.log("─".repeat(45));
   console.log(
-    `  Nodes        +${result.nodesAdded} added   |   -${result.nodesRemoved} removed`
+    `  Nodes        +${result.nodesAdded} added   |   -${result.nodesRemoved} removed`,
   );
   console.log(
-    `  Edges        +${result.edgesAdded} added   |   -${result.edgesRemoved} removed`
+    `  Edges        +${result.edgesAdded} added   |   -${result.edgesRemoved} removed`,
   );
   console.log(`  Speed limits  ${result.speedChanges} changed`);
   console.log(`  New one-way   ${result.newOneway} newly restricted`);
-  console.log(`\n  Result: ${result.identical ? "✔  Identical" : "⚡  Changed"}\n`);
+  console.log(
+    `\n  Result: ${result.identical ? "✔  Identical" : "⚡  Changed"}\n`,
+  );
 
   return result;
 }

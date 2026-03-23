@@ -2,11 +2,16 @@ import path from "path";
 import { osmium } from "../docker.js";
 
 export const DEFAULT_ROAD_CLASSES = [
-  "motorway", "motorway_link",
-  "trunk", "trunk_link",
-  "primary", "primary_link",
-  "secondary", "secondary_link",
-  "tertiary", "tertiary_link",
+  "motorway",
+  "motorway_link",
+  "trunk",
+  "trunk_link",
+  "primary",
+  "primary_link",
+  "secondary",
+  "secondary_link",
+  "tertiary",
+  "tertiary_link",
 ] as const;
 
 export type RoadClass = (typeof DEFAULT_ROAD_CLASSES)[number];
@@ -38,7 +43,8 @@ export function buildFilterArgs(opts: FilterOptions): string[] {
     "n/highway=bus_stop",
     // Turn restriction relations
     "r/type=restriction",
-    "-o", path.basename(opts.output),
+    "-o",
+    path.basename(opts.output),
     "--overwrite",
   ];
 }
