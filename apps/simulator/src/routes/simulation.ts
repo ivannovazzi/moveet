@@ -17,7 +17,11 @@ export function createSimulationRoutes(ctx: RouteContext): Router {
   const { vehicleManager, simulationController } = ctx;
 
   router.get("/status", (_req, res) => {
-    res.json(simulationController.getStatus());
+    try {
+      res.json(simulationController.getStatus());
+    } catch {
+      res.status(500).json({ error: "Failed to get status" });
+    }
   });
 
   router.post(
@@ -38,8 +42,12 @@ export function createSimulationRoutes(ctx: RouteContext): Router {
   );
 
   router.post("/stop", (_req, res) => {
-    simulationController.stop();
-    res.json({ status: "stopped" });
+    try {
+      simulationController.stop();
+      res.json({ status: "stopped" });
+    } catch {
+      res.status(500).json({ error: "Failed to stop simulation" });
+    }
   });
 
   router.get("/options", (_req, res) => {

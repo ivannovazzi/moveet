@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import express from "express";
 import request from "supertest";
+import path from "path";
 import { createReplayRoutes } from "../../routes/replay";
 import type { RouteContext } from "../../routes/types";
 
@@ -76,7 +77,7 @@ describe("Replay routes", () => {
       expect(res.body.status).toBe("replaying");
       expect(res.body.header).toBeDefined();
       expect(ctx.simulationController.startReplay).toHaveBeenCalledWith(
-        "recordings/test.ndjson",
+        path.resolve("recordings", "test.ndjson"),
         2
       );
     });
