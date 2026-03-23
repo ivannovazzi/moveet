@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { PolygonLayer, ScatterplotLayer } from "@deck.gl/layers";
-import type { Fleet } from "@/types";
+import type { Fleet, VehicleType } from "@/types";
 import { vehicleStore } from "../../hooks/vehicleStore";
 import { VEHICLE_INTERPOLATION } from "../../data/constants";
 import { useRegisterLayers } from "../../components/Map/hooks/useDeckLayers";
@@ -69,6 +69,7 @@ interface VehiclesLayerProps {
   scale: number;
   vehicleFleetMap: Map<string, Fleet>;
   hiddenFleetIds: Set<string>;
+  hiddenVehicleTypes: Set<VehicleType>;
   selectedId?: string;
   hoveredId?: string;
   onClick: (id: string) => void;
@@ -187,6 +188,7 @@ export default function VehiclesLayer({
   scale: _scale,
   vehicleFleetMap,
   hiddenFleetIds,
+  hiddenVehicleTypes,
   selectedId,
   hoveredId,
   onClick,
@@ -204,6 +206,8 @@ export default function VehiclesLayer({
   fleetMapRef.current = vehicleFleetMap;
   const hiddenFleetsRef = useRef(hiddenFleetIds);
   hiddenFleetsRef.current = hiddenFleetIds;
+  const hiddenTypesRef = useRef(hiddenVehicleTypes);
+  hiddenTypesRef.current = hiddenVehicleTypes;
   const onClickRef = useRef(onClick);
   onClickRef.current = onClick;
   const getZoomRef = useRef(getZoom);
@@ -307,6 +311,7 @@ export default function VehiclesLayer({
       const store = vehicleStore.getAll();
       const fleetMap = fleetMapRef.current;
       const hiddenFleets = hiddenFleetsRef.current;
+      const hiddenTypes = hiddenTypesRef.current;
       // Scale = 2^((REF_ZOOM - zoom) * exponent). At REF_ZOOM scale=1 (true size).
       // Exponent < 1 makes vehicles shrink slower than map when zooming out.
       const zoomScale = Math.pow(2, (REFERENCE_ZOOM - currentZoom) * ZOOM_EXPONENT);
@@ -317,6 +322,7 @@ export default function VehiclesLayer({
         if (v.position[0] === 0 && v.position[1] === 0) continue;
         const fleet = fleetMap.get(v.id);
         if (fleet && hiddenFleets.has(fleet.id)) continue;
+        if (hiddenTypes.size > 0 && hiddenTypes.has((v.type as VehicleType) || "car")) continue;
 
         // Interpolate position from stored state
         const state = interps.get(v.id);
