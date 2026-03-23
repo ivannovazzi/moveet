@@ -11,6 +11,7 @@ vi.mock("@/utils/client", () => ({
   default: {
     getHeatzones: vi.fn(),
     onHeatzones: vi.fn(),
+    offHeatzones: vi.fn(),
   },
 }));
 

@@ -14,6 +14,9 @@ vi.mock("@/utils/client", () => ({
     onFleetCreated: vi.fn(),
     onFleetDeleted: vi.fn(),
     onFleetAssigned: vi.fn(),
+    offFleetCreated: vi.fn(),
+    offFleetDeleted: vi.fn(),
+    offFleetAssigned: vi.fn(),
     subscribe: vi.fn(),
   },
 }));
