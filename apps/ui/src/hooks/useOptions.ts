@@ -5,7 +5,7 @@ import { useRef, useEffect } from "react";
 
 export function useOptions(timeout: number) {
   const { options, setOptions } = useOptionsContext();
-  const timer = useRef<NodeJS.Timeout | undefined>(undefined);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     client
