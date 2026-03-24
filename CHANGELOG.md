@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.0.7](https://github.com/ivannovazzi/moveet/compare/v0.0.6...v0.0.7) (2026-03-24)
+
+
+### Features
+
+* **network:** preserve POIs, traffic signals, turn restrictions & multilingual search ([#90](https://github.com/ivannovazzi/moveet/issues/90)) ([eed417b](https://github.com/ivannovazzi/moveet/commit/eed417b501afcf53a20ac8373716f94cda7ecfe4))
+* Scenario Engine — scripted simulation events ([#84](https://github.com/ivannovazzi/moveet/issues/84)) ([2438e92](https://github.com/ivannovazzi/moveet/commit/2438e923a55a58a9d204d5bfa2f1103cecd72c7e))
+* **simulator:** openapi spec with scalar API reference (fleetsim-all-xbc) ([#82](https://github.com/ivannovazzi/moveet/issues/82)) ([0c72834](https://github.com/ivannovazzi/moveet/commit/0c72834bc04249ea3dd921a9356ec18d57f10c4c))
+* ui loading transitions, fetch retry, adapter CORS & vehicle type propagation ([#95](https://github.com/ivannovazzi/moveet/issues/95)) ([4331f4e](https://github.com/ivannovazzi/moveet/commit/4331f4eb20aeaa38838a14134b833666faaa2c34))
+* ws subscribe filters & state persistence (fleetsim-all-p21o) ([#89](https://github.com/ivannovazzi/moveet/issues/89)) ([bab74d6](https://github.com/ivannovazzi/moveet/commit/bab74d6e7eee23acedbe750fb9f086c728e9ad4f))
+* **ws:** centralize subscribe filter with vehicle type + debounce (fleetsim-all-hpo.4) ([#83](https://github.com/ivannovazzi/moveet/issues/83)) ([7dad83c](https://github.com/ivannovazzi/moveet/commit/7dad83c03ddab1109f88a289d93986748977b5f3))
+* **ws:** subscribe filter — UI sends subscribe on fleet toggle (fleetsim-all-hpo.4) ([#79](https://github.com/ivannovazzi/moveet/issues/79)) ([15ca67f](https://github.com/ivannovazzi/moveet/commit/15ca67f7059177ebe2eecd4c9870376cfaad93f0))
+
+
+### Bug Fixes
+
+* codebase quality audit — 26 issues across all apps ([#94](https://github.com/ivannovazzi/moveet/issues/94)) ([4840958](https://github.com/ivannovazzi/moveet/commit/484095876d633e03b414e44b2fe3eccb505e90b7))
+* geofence events, trail visibility, fleet assignment + event naming ([#87](https://github.com/ivannovazzi/moveet/issues/87)) ([ab2d37d](https://github.com/ivannovazzi/moveet/commit/ab2d37d461e0d9f3643c44fb9021b81189500744))
+* **simulator:** use weighted vehicle type distribution in default mode ([#93](https://github.com/ivannovazzi/moveet/issues/93)) ([3c5f178](https://github.com/ivannovazzi/moveet/commit/3c5f17835bf64e6693df08fdbcad6a4487a48685))
+* **ui:** add --legacy-peer-deps to Docker build ([#91](https://github.com/ivannovazzi/moveet/issues/91)) ([79213cc](https://github.com/ivannovazzi/moveet/commit/79213ccceae053a5a911a5bc4c4b6bcdb9ea6976))
+* **ui:** comprehensive UI/UX audit — 16 issues across reliability, consistency, and accessibility ([#88](https://github.com/ivannovazzi/moveet/issues/88)) ([b298e69](https://github.com/ivannovazzi/moveet/commit/b298e691cc9f7a1a8a864db3441edceb72838227))
+* **ui:** resolve geofence draw offset, add confirm button, move draw zone control to panel ([#78](https://github.com/ivannovazzi/moveet/issues/78)) ([74ae7c3](https://github.com/ivannovazzi/moveet/commit/74ae7c384d120225d4f9bfcf063519a993a97078))
+* vehicle trails, adapter timeouts, and missing tests ([#96](https://github.com/ivannovazzi/moveet/issues/96)) ([fa5449f](https://github.com/ivannovazzi/moveet/commit/fa5449f192a9b46bb15495f43311f7dfdf32d26d))
+
+
+### Performance Improvements
+
+* **network:** Deck.gl, improved network ([#92](https://github.com/ivannovazzi/moveet/issues/92)) ([d2b31e3](https://github.com/ivannovazzi/moveet/commit/d2b31e370fc945d9df9fd16b9f2ee35ad0964cd0))
+* optimize pathfinding hot paths in simulator ([#109](https://github.com/ivannovazzi/moveet/issues/109)) ([10e2b10](https://github.com/ivannovazzi/moveet/commit/10e2b10839785164d01f4a99524b7ca34ac0458c))
+
 ## [0.0.6](https://github.com/ivannovazzi/moveet/compare/v0.0.5...v0.0.6) (2026-03-19)
 
 
