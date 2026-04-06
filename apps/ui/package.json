@@ -34,7 +34,7 @@
     "@deck.gl/layers": "^9.2.11",
     "@deck.gl/react": "^9.2.11",
     "@luma.gl/core": "^9.2.6",
-    "@luma.gl/webgl": "^9.2.6",
+    "@luma.gl/webgl": "^9.3.2",
     "@moveet/shared-types": "*",
     "@testing-library/dom": "^10.4.1",
     "classnames": "^2.5.1",
