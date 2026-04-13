@@ -58,6 +58,6 @@
   },
   "packageManager": "npm@11.12.0",
   "dependencies": {
-    "@deck.gl/widgets": "^9.2.11"
+    "@deck.gl/widgets": "^9.3.0"
   }
 }
