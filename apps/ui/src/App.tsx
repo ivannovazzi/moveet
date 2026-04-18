@@ -381,6 +381,32 @@ export default function App() {
   const maxSpeedRef = useRef(60);
   useTracking(vehicles, filters.selected, status.interval);
 
+  // Keyboard shortcuts while in dispatch mode: Enter dispatches, Esc exits.
+  useEffect(() => {
+    if (!dispatch.dispatchMode) return;
+    const handler = (e: KeyboardEvent) => {
+      // Don't intercept while typing in inputs/textareas.
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
+      ) {
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        dispatch.handleDone();
+      } else if (e.key === "Enter") {
+        if (dispatch.dispatchState === DispatchState.ROUTE && dispatch.assignments.length > 0) {
+          e.preventDefault();
+          void dispatch.handleDispatch();
+        }
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [dispatch]);
+
   return (
     <div className={styles.app}>
       <div
@@ -525,6 +551,9 @@ export default function App() {
               hiddenVehicleTypes={hiddenVehicleTypes}
               dispatchState={dispatch.dispatchState}
               assignments={dispatch.assignments}
+              selectedForDispatchCount={dispatch.selectedForDispatch.length}
+              onMoveWaypointGroup={dispatch.moveWaypointGroup}
+              onRemoveWaypointGroup={dispatch.removeWaypointGroup}
               incidents={incidents.incidents}
               fences={fences}
               drawingActive={drawingActive}

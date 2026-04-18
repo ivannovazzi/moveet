@@ -179,6 +179,78 @@ describe("useDispatchFlow", () => {
     expect(v2Assignment?.vehicleName).toBe("Beta");
   });
 
+  it("moveWaypointGroup updates positions for the referenced waypoints only", () => {
+    const { result } = renderHook(() => useDispatchFlow());
+
+    act(() => {
+      result.current.toggleDispatchMode();
+      result.current.setAssignments([
+        {
+          vehicleId: "v1",
+          vehicleName: "Alpha",
+          waypoints: [{ position: [-1.29, 36.82] }, { position: [-1.3, 36.83] }],
+        },
+        {
+          vehicleId: "v2",
+          vehicleName: "Beta",
+          waypoints: [{ position: [-1.29, 36.82] }],
+        },
+      ]);
+    });
+
+    // Move the shared first waypoint on both vehicles to a new location.
+    act(() => {
+      result.current.moveWaypointGroup(
+        [
+          { vehicleId: "v1", waypointIndex: 0 },
+          { vehicleId: "v2", waypointIndex: 0 },
+        ],
+        -1.4,
+        36.9
+      );
+    });
+
+    const v1 = result.current.assignments.find((a) => a.vehicleId === "v1")!;
+    const v2 = result.current.assignments.find((a) => a.vehicleId === "v2")!;
+    expect(v1.waypoints[0].position).toEqual([-1.4, 36.9]);
+    expect(v1.waypoints[1].position).toEqual([-1.3, 36.83]); // untouched
+    expect(v2.waypoints[0].position).toEqual([-1.4, 36.9]);
+  });
+
+  it("removeWaypointGroup drops the referenced waypoints and empty assignments", () => {
+    const { result } = renderHook(() => useDispatchFlow());
+
+    act(() => {
+      result.current.toggleDispatchMode();
+      result.current.setAssignments([
+        {
+          vehicleId: "v1",
+          vehicleName: "Alpha",
+          waypoints: [{ position: [-1.29, 36.82] }, { position: [-1.3, 36.83] }],
+        },
+        {
+          vehicleId: "v2",
+          vehicleName: "Beta",
+          waypoints: [{ position: [-1.29, 36.82] }],
+        },
+      ]);
+    });
+
+    act(() => {
+      result.current.removeWaypointGroup([
+        { vehicleId: "v1", waypointIndex: 0 },
+        { vehicleId: "v2", waypointIndex: 0 },
+      ]);
+    });
+
+    // v1 keeps its second waypoint; v2's assignment is dropped entirely.
+    expect(result.current.assignments).toHaveLength(1);
+    const v1 = result.current.assignments[0];
+    expect(v1.vehicleId).toBe("v1");
+    expect(v1.waypoints).toHaveLength(1);
+    expect(v1.waypoints[0].position).toEqual([-1.3, 36.83]);
+  });
+
   it("handleDispatch sends batch direction request and stores results", async () => {
     const mockResults = [{ vehicleId: "v1", status: "ok" as const }];
     vi.mocked(client.batchDirection).mockResolvedValue({

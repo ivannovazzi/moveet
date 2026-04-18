@@ -5,6 +5,12 @@ import type { DispatchState } from "./useDispatchState";
 import { useDispatchState } from "./useDispatchState";
 import { toLatLng } from "@/utils/coordinates";
 
+/** Identifies a specific waypoint within an assignment list. */
+export interface WaypointRef {
+  vehicleId: string;
+  waypointIndex: number;
+}
+
 export interface DispatchFlow {
   // State
   dispatchMode: boolean;
@@ -23,6 +29,8 @@ export interface DispatchFlow {
   onToggleVehicleForDispatch: (id: string) => void;
   onAddWaypoint: (vehicleId: string, position: Position) => void;
   addWaypointForSelected: (position: Position, vehicles: Vehicle[]) => void;
+  moveWaypointGroup: (refs: WaypointRef[], newLat: number, newLng: number) => void;
+  removeWaypointGroup: (refs: WaypointRef[]) => void;
   setAssignments: React.Dispatch<React.SetStateAction<DispatchAssignment[]>>;
 }
 
@@ -148,6 +156,58 @@ export function useDispatchFlow(): DispatchFlow {
     setResults([]);
   }, [results]);
 
+  const moveWaypointGroup = useCallback((refs: WaypointRef[], newLat: number, newLng: number) => {
+    if (refs.length === 0) return;
+    const byVehicle = new Map<string, Set<number>>();
+    for (const r of refs) {
+      let set = byVehicle.get(r.vehicleId);
+      if (!set) {
+        set = new Set();
+        byVehicle.set(r.vehicleId, set);
+      }
+      set.add(r.waypointIndex);
+    }
+    setAssignments((prev) =>
+      prev.map((a) => {
+        const indices = byVehicle.get(a.vehicleId);
+        if (!indices) return a;
+        return {
+          ...a,
+          waypoints: a.waypoints.map((wp, i) =>
+            indices.has(i) ? { ...wp, position: [newLat, newLng] } : wp
+          ),
+        };
+      })
+    );
+  }, []);
+
+  const removeWaypointGroup = useCallback((refs: WaypointRef[]) => {
+    if (refs.length === 0) return;
+    const byVehicle = new Map<string, Set<number>>();
+    for (const r of refs) {
+      let set = byVehicle.get(r.vehicleId);
+      if (!set) {
+        set = new Set();
+        byVehicle.set(r.vehicleId, set);
+      }
+      set.add(r.waypointIndex);
+    }
+    setAssignments((prev) => {
+      const result: DispatchAssignment[] = [];
+      for (const a of prev) {
+        const indices = byVehicle.get(a.vehicleId);
+        if (!indices) {
+          result.push(a);
+          continue;
+        }
+        const remaining = a.waypoints.filter((_, i) => !indices.has(i));
+        if (remaining.length === 0) continue; // drop empty assignment
+        result.push({ ...a, waypoints: remaining });
+      }
+      return result;
+    });
+  }, []);
+
   const onToggleVehicleForDispatch = useCallback((id: string) => {
     setSelectedForDispatch((prev) =>
       prev.includes(id) ? prev.filter((vid) => vid !== id) : [...prev, id]
@@ -169,6 +229,8 @@ export function useDispatchFlow(): DispatchFlow {
     onToggleVehicleForDispatch,
     onAddWaypoint,
     addWaypointForSelected,
+    moveWaypointGroup,
+    removeWaypointGroup,
     setAssignments,
   };
 }
