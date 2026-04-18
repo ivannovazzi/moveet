@@ -132,7 +132,6 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
       widthMinPixels: 2,
       jointRounded: true,
       capRounded: true,
-      _pathType: "open",
     });
 
     const scatterLayer =
