@@ -100,7 +100,8 @@ interface VehicleInterp {
   isNew: boolean;
 }
 
-const { DEFAULT_LERP_MS, MIN_LERP_MS, MAX_T } = VEHICLE_INTERPOLATION;
+const { DEFAULT_LERP_MS, MIN_LERP_MS, MAX_T, TELEPORT_FACTOR, TELEPORT_MIN_FLOOR_M } =
+  VEHICLE_INTERPOLATION;
 
 /** Lerp a single value from a to b by t in [0, 1]. */
 function lerp(a: number, b: number, t: number): number {
@@ -113,6 +114,17 @@ function lerpAngle(a: number, b: number, t: number): number {
   while (diff > Math.PI) diff -= 2 * Math.PI;
   while (diff < -Math.PI) diff += 2 * Math.PI;
   return a + diff * t;
+}
+
+/**
+ * Approximate geodesic distance in meters between two (lat, lng) points using
+ * the equirectangular projection. Accurate to ~0.5% at city scale — plenty for
+ * a teleport threshold check, and ~3× cheaper than a full haversine.
+ */
+function approxDistanceMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const dLatM = (lat2 - lat1) * 111320;
+  const dLngM = (lng2 - lng1) * 111320 * Math.cos(((lat1 + lat2) / 2) * (Math.PI / 180));
+  return Math.sqrt(dLatM * dLatM + dLngM * dLngM);
 }
 
 /**
@@ -254,8 +266,19 @@ export default function VehiclesLayer({
             const posChanged = lat !== existing.nextLat || lng !== existing.nextLng;
             if (!posChanged) continue;
 
-            // First movement after spawn: snap to position, don't animate
-            if (existing.isNew) {
+            // Teleport detection: if the new position is beyond what continuous
+            // motion could produce (bulk reset, WS reconnect resync, dispatch
+            // repositioning), snap instead of animating a fly-across.
+            const elapsed = now - existing.updateTime;
+            const speedMps = (v.speed ?? 0) * (1000 / 3600);
+            const maxPlausibleM =
+              speedMps * (elapsed / 1000) * TELEPORT_FACTOR + TELEPORT_MIN_FLOOR_M;
+            const distanceM = approxDistanceMeters(existing.nextLat, existing.nextLng, lat, lng);
+            const isTeleport = distanceM > maxPlausibleM;
+
+            // Snap when spawning or teleporting; reset lerpMs so the next
+            // normal tick doesn't animate using a polluted EMA.
+            if (existing.isNew || isTeleport) {
               existing.prevLat = lat;
               existing.prevLng = lng;
               existing.prevHeading = heading;
@@ -264,11 +287,11 @@ export default function VehiclesLayer({
               existing.nextHeading = heading;
               existing.updateTime = now;
               existing.isNew = false;
+              existing.lerpMs = DEFAULT_LERP_MS;
               continue;
             }
 
             // Update per-vehicle lerp duration via EMA (alpha = 0.3)
-            const elapsed = now - existing.updateTime;
             if (elapsed > MIN_LERP_MS) {
               existing.lerpMs =
                 existing.lerpMs === DEFAULT_LERP_MS

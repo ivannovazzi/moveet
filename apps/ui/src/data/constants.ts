@@ -38,6 +38,16 @@ export const VEHICLE_INTERPOLATION = {
   MIN_LERP_MS: 30,
   /** Allow interpolation to overshoot target by this factor to avoid pause at destination. */
   MAX_T: 1.15,
+  /**
+   * A position delta is treated as a teleport (and snapped, not animated) when
+   * it exceeds `speed × elapsed × TELEPORT_FACTOR + TELEPORT_MIN_FLOOR_M` meters.
+   * Catches bulk reset, WS reconnect resync, and dispatch-driven repositioning
+   * without needing an explicit lifecycle signal.
+   */
+  TELEPORT_FACTOR: 3,
+  /** Minimum teleport threshold — ensures stopped vehicles (speed≈0) still accept
+   *  small real-world repositions without snapping. */
+  TELEPORT_MIN_FLOOR_M: 50,
 } as const;
 
 // Heat layer contour density viewport
