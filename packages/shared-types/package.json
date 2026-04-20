@@ -17,8 +17,8 @@
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.1.1",
-    "typescript": "^6.0.2",
-    "vitest": "^4.1.1"
+    "@vitest/coverage-v8": "^4.1.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.4"
   }
 }
