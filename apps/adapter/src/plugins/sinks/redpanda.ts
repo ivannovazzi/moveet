@@ -53,7 +53,16 @@ export class RedpandaSink implements DataSink {
     const brokers = ((config.brokers as string) || "localhost:19092").split(",");
     this.topic = (config.topic as string) || "dispatch.vehicle.positions";
     this.batchSize = (config.batchSize as number) || 500;
-    this.acks = config.acks != null ? Number(config.acks) : 1;
+
+    // acks must be one of kafkajs's accepted values. Coercing silently (e.g.
+    // "all" → NaN, "2" → 2) produces a producer that throws on every send,
+    // turning the sink into a silent black hole — so validate up front.
+    const acks = config.acks != null ? Number(config.acks) : 1;
+    if (acks !== 0 && acks !== 1 && acks !== -1) {
+      throw new Error(`RedpandaSink: invalid acks value "${config.acks}" (must be 0, 1, or -1)`);
+    }
+    this.acks = acks;
+
     this.healthCheckTimeoutMs =
       (config.healthCheckTimeoutMs as number) || DEFAULT_HEALTH_CHECK_TIMEOUT_MS;
 
@@ -63,7 +72,17 @@ export class RedpandaSink implements DataSink {
     });
 
     this.producer = this.kafka.producer({ allowAutoTopicCreation: false });
-    await this.producer.connect();
+    try {
+      await this.producer.connect();
+    } catch (err) {
+      // Tear down the half-connected producer so its internal connection/retry
+      // machinery doesn't leak — connect() failing means the plugin is never
+      // stored in activeSinks, so disconnect() would never be called otherwise.
+      await this.producer.disconnect().catch(() => {});
+      this.producer = null;
+      this.kafka = null;
+      throw err;
+    }
   }
 
   async disconnect(): Promise<void> {

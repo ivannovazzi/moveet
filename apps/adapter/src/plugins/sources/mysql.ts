@@ -140,9 +140,14 @@ export class MySQLSource implements DataSource {
     if (!this.pool) return { healthy: false, message: "not connected" };
     try {
       const conn = await this.pool.getConnection();
-      await conn.ping();
-      conn.release();
-      return { healthy: true };
+      try {
+        await conn.ping();
+        return { healthy: true };
+      } finally {
+        // Always return the connection to the pool, even if ping() throws —
+        // otherwise repeated failing health checks exhaust the pool.
+        conn.release();
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return { healthy: false, message };

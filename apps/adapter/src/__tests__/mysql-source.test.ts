@@ -111,6 +111,47 @@ describe("MySQLSource", () => {
     expect(source.configSchema.find((f) => f.name === "password")!.type).toBe("password");
   });
 
+  describe("healthCheck", () => {
+    it("releases the connection even when ping fails", async () => {
+      const conn = {
+        ping: vi.fn().mockRejectedValue(new Error("ping timeout")),
+        release: vi.fn(),
+      };
+      mockGetConnection.mockResolvedValue(conn);
+
+      const source = new MySQLSource();
+      await source.connect({
+        host: "localhost",
+        user: "root",
+        password: "pass",
+        database: "fleet",
+      });
+      const result = await source.healthCheck();
+
+      expect(result.healthy).toBe(false);
+      // The pooled connection must be returned even on failure, or the pool
+      // is exhausted after a few failing health checks.
+      expect(conn.release).toHaveBeenCalled();
+    });
+
+    it("releases the connection on a successful ping", async () => {
+      const conn = { ping: vi.fn().mockResolvedValue(undefined), release: vi.fn() };
+      mockGetConnection.mockResolvedValue(conn);
+
+      const source = new MySQLSource();
+      await source.connect({
+        host: "localhost",
+        user: "root",
+        password: "pass",
+        database: "fleet",
+      });
+      const result = await source.healthCheck();
+
+      expect(result.healthy).toBe(true);
+      expect(conn.release).toHaveBeenCalled();
+    });
+  });
+
   describe("coordinate validation", () => {
     it("filters out rows with NaN coordinates", async () => {
       mockExecute.mockResolvedValue([

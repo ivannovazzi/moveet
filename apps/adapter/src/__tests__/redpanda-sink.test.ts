@@ -80,6 +80,35 @@ describe("RedpandaSink", () => {
     expect(mockProducerDisconnect).toHaveBeenCalled();
   });
 
+  describe("acks validation", () => {
+    it.each([0, 1, -1])("accepts valid acks value %s", async (acks) => {
+      const sink = new RedpandaSink();
+      await expect(sink.connect({ acks })).resolves.toBeUndefined();
+    });
+
+    it.each([2, "all", "x"])("rejects invalid acks value %s", async (acks) => {
+      const sink = new RedpandaSink();
+      await expect(sink.connect({ acks })).rejects.toThrow(/acks/i);
+    });
+  });
+
+  describe("connect failure cleanup", () => {
+    it("disconnects and clears the producer when producer.connect() fails", async () => {
+      mockProducerConnect.mockRejectedValueOnce(new Error("broker unreachable"));
+
+      const sink = new RedpandaSink();
+      await expect(sink.connect({})).rejects.toThrow("broker unreachable");
+
+      // The half-connected producer must be torn down, not leaked.
+      expect(mockProducerDisconnect).toHaveBeenCalled();
+
+      // A subsequent publish must be a no-op (producer was cleared), not a throw.
+      await expect(
+        sink.publishUpdates([{ id: "v1", latitude: -1.3, longitude: 36.8 }])
+      ).resolves.toBeUndefined();
+    });
+  });
+
   it("has config schema with batchSize field", () => {
     const sink = new RedpandaSink();
     expect(sink.configSchema.length).toBeGreaterThan(0);
