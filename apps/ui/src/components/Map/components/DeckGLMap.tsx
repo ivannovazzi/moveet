@@ -119,6 +119,11 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
 
   const getZoom = useCallback(() => viewState.zoom ?? 0, [viewState.zoom]);
 
+  // Stable accessor for the overlay container — passing a fresh closure each
+  // render would recompute the overlay context value and re-render every
+  // consumer (HTMLMarkers, overlays) on every map render.
+  const getRef = useCallback(() => deckContainerRef.current, []);
+
   const project = useCallback(
     (position: Position): [number, number] | null => {
       if (!viewport) return null;
@@ -170,7 +175,7 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
       project={project}
     >
       <DeckControlsProvider controls={controls}>
-        <DeckOverlayProvider viewport={viewport} getRef={() => deckContainerRef.current}>
+        <DeckOverlayProvider viewport={viewport} getRef={getRef}>
           <DeckLayersContext.Provider value={layerContextValue}>
             <div
               ref={containerRef}

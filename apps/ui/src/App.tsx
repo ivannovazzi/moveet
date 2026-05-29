@@ -57,6 +57,8 @@ import { isRoad } from "./utils/typeGuards";
 import ErrorBoundary, { SectionErrorFallback } from "./components/ErrorBoundary";
 import { toLatLng } from "./utils/coordinates";
 import { analyticsStore } from "./hooks/analyticsStore";
+import type { AnalyticsSnapshot } from "./hooks/analyticsStore";
+import type { ResetPayload } from "./utils/wsTypes";
 import { useAnalytics } from "./hooks/useAnalytics";
 import { useNetwork } from "./hooks/useNetwork";
 import { useRoads } from "./hooks/useRoads";
@@ -116,6 +118,9 @@ export default function App() {
   useSubscribeFilter(fleets, hiddenFleetIds, hiddenVehicleTypes, viewportBbox);
 
   const onBboxChange = useCallback((bbox: BoundingBox | null) => setViewportBbox(bbox), []);
+  // Stable so the POI IconLayer's onClick-keyed useMemo isn't rebuilt each render
+  // (which would discard deck.gl's in-flight enter/color transitions).
+  const onPOIClick = useCallback((poi: POI) => setSelectedItem(poi), []);
 
   const { network, loading: networkLoading } = useNetwork();
   const { loading: roadsLoading } = useRoads();
@@ -334,46 +339,54 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    client.onConnect(() => {
+    // Register named handlers so cleanup can remove exactly these — passing no
+    // handler to off* deletes the whole handler set for that event type, which
+    // would also wipe handlers other hooks (e.g. useDirections) registered for
+    // the shared "connect"/"reset" events.
+    const handleConnect = () => {
       setConnected(true);
       analyticsStore.clear();
       // Re-fetch full state on reconnect
       client.getVehicles().then((response) => {
         if (response.data) setVehicles(response.data);
       });
-    });
-    client.onDisconnect(() => setConnected(false));
-    client.onAnalytics((snapshot) => analyticsStore.push(snapshot));
-    client.onStatus((data) => {
-      setStatus(data);
-    });
-    client.onReset((data) => {
+    };
+    const handleDisconnect = () => setConnected(false);
+    const handleAnalytics = (snapshot: AnalyticsSnapshot) => analyticsStore.push(snapshot);
+    const handleStatus = (data: SimulationStatus) => setStatus(data);
+    const handleReset = (data: ResetPayload) => {
       setVehicles(data.vehicles);
       setSelectedItem(null);
       setDestination(null);
       onUnselectVehicle();
-    });
+    };
+    const handleGeofenceEvent = (event: GeoFenceEvent) => {
+      setAlerts((prev) => {
+        const next = [event, ...prev];
+        return next.length > 200 ? next.slice(0, 200) : next;
+      });
+    };
+
+    client.onConnect(handleConnect);
+    client.onDisconnect(handleDisconnect);
+    client.onAnalytics(handleAnalytics);
+    client.onStatus(handleStatus);
+    client.onReset(handleReset);
     client.getStatus().then((response) => {
       if (response.data) {
         setStatus(response.data);
       }
     });
-
-    client.onGeofenceEvent((event) => {
-      setAlerts((prev) => {
-        const next = [event, ...prev];
-        return next.length > 200 ? next.slice(0, 200) : next;
-      });
-    });
+    client.onGeofenceEvent(handleGeofenceEvent);
 
     client.connectWebSocket();
     return () => {
-      client.offConnect();
-      client.offDisconnect();
-      client.offAnalytics();
-      client.offStatus();
-      client.offReset();
-      client.offGeofenceEvent();
+      client.offConnect(handleConnect);
+      client.offDisconnect(handleDisconnect);
+      client.offAnalytics(handleAnalytics);
+      client.offStatus(handleStatus);
+      client.offReset(handleReset);
+      client.offGeofenceEvent(handleGeofenceEvent);
       client.disconnect();
     };
   }, [setVehicles, onUnselectVehicle]);
@@ -382,8 +395,13 @@ export default function App() {
   useTracking(vehicles, filters.selected, status.interval);
 
   // Keyboard shortcuts while in dispatch mode: Enter dispatches, Esc exits.
+  // Destructure the specific (stable) fields used so this effect depends on
+  // them rather than the whole `dispatch` object — which is a fresh literal
+  // every render and would otherwise re-subscribe the window listener constantly.
+  const { dispatchMode, dispatchState, handleDone, handleDispatch } = dispatch;
+  const assignmentCount = assignments.length;
   useEffect(() => {
-    if (!dispatch.dispatchMode) return;
+    if (!dispatchMode) return;
     const handler = (e: KeyboardEvent) => {
       // Don't intercept while typing in inputs/textareas.
       const target = e.target as HTMLElement | null;
@@ -395,17 +413,17 @@ export default function App() {
       }
       if (e.key === "Escape") {
         e.preventDefault();
-        dispatch.handleDone();
+        handleDone();
       } else if (e.key === "Enter") {
-        if (dispatch.dispatchState === DispatchState.ROUTE && dispatch.assignments.length > 0) {
+        if (dispatchState === DispatchState.ROUTE && assignmentCount > 0) {
           e.preventDefault();
-          void dispatch.handleDispatch();
+          void handleDispatch();
         }
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [dispatch]);
+  }, [dispatchMode, dispatchState, assignmentCount, handleDone, handleDispatch]);
 
   return (
     <div className={styles.app}>
@@ -545,7 +563,7 @@ export default function App() {
               onClick={onSelectVehicle}
               onMapClick={onMapClick}
               onMapContextClick={onMapContextClick}
-              onPOIClick={(poi) => setSelectedItem(poi)}
+              onPOIClick={onPOIClick}
               vehicleFleetMap={vehicleFleetMap}
               hiddenFleetIds={hiddenFleetIds}
               hiddenVehicleTypes={hiddenVehicleTypes}

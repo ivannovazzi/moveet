@@ -295,3 +295,43 @@ describe("WebSocketClient connection state", () => {
     expect(stateSequence).toEqual(["connecting", "connected", "reconnecting", "connected"]);
   });
 });
+
+describe("WebSocketClient handler registration", () => {
+  it("off(type, handler) removes only that handler, leaving co-registered handlers active", () => {
+    const client = createClient();
+    client.connect();
+    const ws = mockInstances[0];
+
+    const a = vi.fn();
+    const b = vi.fn();
+    client.on("connect", a);
+    client.on("connect", b);
+
+    // Targeted removal — App relies on this so its cleanup does not wipe
+    // "connect"/"reset" handlers registered by other hooks (e.g. useDirections).
+    client.off("connect", a);
+
+    ws.onopen?.(); // dispatches "connect" to all registered handlers
+
+    expect(a).not.toHaveBeenCalled();
+    expect(b).toHaveBeenCalledTimes(1);
+  });
+
+  it("off(type) with no handler removes ALL handlers for that type", () => {
+    const client = createClient();
+    client.connect();
+    const ws = mockInstances[0];
+
+    const a = vi.fn();
+    const b = vi.fn();
+    client.on("connect", a);
+    client.on("connect", b);
+
+    client.off("connect"); // no handler arg → removes the whole set
+
+    ws.onopen?.();
+
+    expect(a).not.toHaveBeenCalled();
+    expect(b).not.toHaveBeenCalled();
+  });
+});
