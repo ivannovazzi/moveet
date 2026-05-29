@@ -33,3 +33,6 @@ typings/
 data/*
 # But track scenario files (user-facing content)
 !data/scenarios/
+
+# Replay recordings — runtime artifacts, not source-controlled
+recordings/

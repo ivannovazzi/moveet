@@ -94,7 +94,7 @@ function ReplayDock({
     [onSetReplaySpeed]
   );
 
-  const fileName = replayStatus.file?.replace(/^recordings\//, "");
+  const fileName = replayStatus.file?.split("/").pop();
 
   return (
     <div className={styles.dock}>

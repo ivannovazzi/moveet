@@ -65,13 +65,14 @@ describe("IncidentManager", () => {
       expect(incident.speedFactor).toBeCloseTo(0.45);
     });
 
-    it("should emit incident:created event", () => {
+    it("should emit incident:created event with DTO (expiresAt included)", () => {
       const handler = vi.fn();
       im.on("incident:created", handler);
 
       const incident = im.createIncident(["e1"], "accident", 5000);
       expect(handler).toHaveBeenCalledOnce();
-      expect(handler).toHaveBeenCalledWith(incident);
+      expect(handler).toHaveBeenCalledWith(im.toDTO(incident));
+      expect(handler.mock.calls[0][0].expiresAt).toBe(incident.startTime + incident.duration);
     });
 
     it("should set startTime to approximately now", () => {

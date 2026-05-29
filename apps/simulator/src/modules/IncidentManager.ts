@@ -52,7 +52,7 @@ export class IncidentManager extends EventEmitter {
       ids.add(incident.id);
     }
 
-    this.emit("incident:created", incident);
+    this.emit("incident:created", this.toDTO(incident));
     return incident;
   }
 

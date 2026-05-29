@@ -61,12 +61,18 @@ function Sparkline({ data, width = 120, height = 40, color = "#4f9" }: Sparkline
   return (
     <svg
       className={styles.sparkline}
-      width={width}
+      width="100%"
       height={height}
       viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="none"
       aria-hidden="true"
     >
-      <path className={styles.sparklinePath} d={pathD} stroke={color} />
+      <path
+        className={styles.sparklinePath}
+        d={pathD}
+        stroke={color}
+        vectorEffect="non-scaling-stroke"
+      />
     </svg>
   );
 }

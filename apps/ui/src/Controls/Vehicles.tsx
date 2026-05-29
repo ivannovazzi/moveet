@@ -37,6 +37,13 @@ function formatRouteDistance(distance?: number) {
   return distance === undefined ? "No route" : `Route ${distance.toFixed(1)} km`;
 }
 
+const VEHICLE_TYPE_LABELS: Record<string, string> = {
+  truck: "Truck",
+  motorcycle: "Moto",
+  ambulance: "Ambulance",
+  bus: "Bus",
+};
+
 function WaypointBadge({ assignment }: { assignment: DispatchAssignment }) {
   const count = assignment.waypoints.length;
   return (
@@ -193,7 +200,9 @@ export default function VehicleList({
                   )}
                   <span className={styles.name}>{vehicle.name}</span>
                   {vehicle.type && vehicle.type !== "car" && (
-                    <span className={styles.typeBadge}>{vehicle.type}</span>
+                    <span className={styles.typeBadge}>
+                      {VEHICLE_TYPE_LABELS[vehicle.type] ?? vehicle.type}
+                    </span>
                   )}
                 </span>
                 <span className={styles.speed}>

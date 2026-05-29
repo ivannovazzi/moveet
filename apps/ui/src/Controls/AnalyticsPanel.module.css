@@ -161,6 +161,8 @@
 .sparkline {
   display: block;
   overflow: visible;
+  flex: 1;
+  min-width: 0;
 }
 
 .sparklinePath {
