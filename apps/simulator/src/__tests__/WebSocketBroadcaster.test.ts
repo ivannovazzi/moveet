@@ -384,6 +384,21 @@ describe("WebSocketBroadcaster", () => {
       // Should not throw
       expect(() => broadcaster.stop()).not.toThrow();
     });
+
+    it("clearVehicles empties the buffer and the spatial index", () => {
+      const wss = createMockWSS();
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer);
+
+      broadcaster.queueVehicleUpdate(makeVehicle("v1", { position: [-1.25, 36.85] }));
+      broadcaster.queueVehicleUpdate(makeVehicle("v2", { position: [-1.26, 36.86] }));
+      expect(broadcaster.pendingUpdates).toBe(2);
+      expect(broadcaster.indexedVehicleCount).toBe(2);
+
+      broadcaster.clearVehicles();
+
+      expect(broadcaster.pendingUpdates).toBe(0);
+      expect(broadcaster.indexedVehicleCount).toBe(0);
+    });
   });
 
   describe("sendTo", () => {

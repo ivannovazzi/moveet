@@ -89,6 +89,21 @@ describe("RouteManager", () => {
       expect(nextEdge.bearing).toBe((vehicle.currentEdge.bearing + 180) % 360);
       vi.restoreAllMocks();
     });
+
+    it("should follow the assigned route's next edge, not an arbitrary connected edge", () => {
+      const vehicle = firstVehicle();
+      // Synthetic next edge with a unique id that cannot come from the
+      // connected-edge fallback, so we can prove the route was consulted.
+      const routeNext = { ...vehicle.currentEdge, id: "route-next-edge" };
+      routeManager.setRoute(vehicle.id, {
+        edges: [vehicle.currentEdge, routeNext],
+        distance: 1,
+      });
+      vehicle.edgeIndex = 0;
+
+      const nextEdge = routeManager.peekNextEdge(vehicle);
+      expect(nextEdge.id).toBe("route-next-edge");
+    });
   });
 
   // ─── getNextEdge ──────────────────────────────────────────────────

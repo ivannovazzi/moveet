@@ -134,6 +134,17 @@ export class WebSocketBroadcaster {
   }
 
   /**
+   * Drops all buffered updates and clears the spatial index without stopping
+   * the flush/heartbeat timers. Call on simulation reset, when the previous
+   * vehicle set is discarded, to prevent the spatial index from accumulating
+   * stale entries across resets.
+   */
+  clearVehicles(): void {
+    this.vehicleBuffer.clear();
+    this.spatialIndex.clear();
+  }
+
+  /**
    * Sets or clears a subscribe filter for a specific client.
    * Passing null removes the filter (client receives all vehicle updates).
    */
@@ -338,6 +349,14 @@ export class WebSocketBroadcaster {
    */
   get pendingUpdates(): number {
     return this.vehicleBuffer.size;
+  }
+
+  /**
+   * Returns the number of vehicles currently tracked in the spatial index.
+   * Useful for observability and for asserting the index does not leak.
+   */
+  get indexedVehicleCount(): number {
+    return this.spatialIndex.size;
   }
 }
 

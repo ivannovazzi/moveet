@@ -766,7 +766,9 @@ export class RoadNetwork extends EventEmitter {
         const tentativeCost = current.gScore + travelTime;
         const existingCost = gScore.get(edge.end.id);
 
-        if (!existingCost || tentativeCost < existingCost) {
+        // Use === undefined (not falsy) so a legitimate gScore of 0 is not
+        // treated as unvisited; matches the worker-thread A* implementation.
+        if (existingCost === undefined || tentativeCost < existingCost) {
           cameFrom.set(edge.end.id, { prevId: current.id, edge });
           gScore.set(edge.end.id, tentativeCost);
 
@@ -837,6 +839,13 @@ export class RoadNetwork extends EventEmitter {
     end: Node,
     restrictedHighways?: string[]
   ): Promise<Route | null> {
+    // Check cache first — keyed identically to the sync path, plus the
+    // restricted-highway profile (a different profile yields a different route).
+    const highwayKey = restrictedHighways?.length ? restrictedHighways.join(",") : "";
+    const cacheKey = `${start.id}|${end.id}|${this.incidentFingerprint()}|${highwayKey}`;
+    const cached = this.routeCache.get(cacheKey);
+    if (cached) return { edges: [...cached.edges], distance: cached.distance };
+
     // Lazy-init the pool on first async call
     if (!this.pathfindingPool) {
       this.pathfindingPool = new PathfindingPool(this.geojsonPath);
@@ -869,7 +878,9 @@ export class RoadNetwork extends EventEmitter {
       edges.push(edge);
     }
 
-    return { edges, distance: result.distance };
+    const route = { edges, distance: result.distance };
+    this.routeCache.set(cacheKey, route);
+    return { edges: [...route.edges], distance: route.distance };
   }
 
   /**

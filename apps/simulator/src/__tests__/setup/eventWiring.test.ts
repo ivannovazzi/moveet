@@ -12,6 +12,7 @@ function createMockBroadcaster() {
   return {
     queueVehicleUpdate: vi.fn(),
     broadcast: vi.fn(),
+    clearVehicles: vi.fn(),
   } as unknown as EventWiringContext["broadcaster"];
 }
 
@@ -185,6 +186,11 @@ describe("wireEvents", () => {
       const data = { vehicles: [], directions: [] };
       simulationController.emit("reset", data);
       expect(broadcaster.broadcast).toHaveBeenCalledWith("reset", data);
+    });
+
+    it("should clear the broadcaster's vehicles on reset", () => {
+      simulationController.emit("reset", { vehicles: [], directions: [] });
+      expect(broadcaster.clearVehicles).toHaveBeenCalled();
     });
 
     it("should broadcast clock events", () => {
