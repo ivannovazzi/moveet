@@ -303,6 +303,138 @@ describe("VehiclesLayer (deck.gl)", () => {
   });
 });
 
+describe("VehiclesLayer teleport detection", () => {
+  /**
+   * After isNew has cleared, a small continuous-motion update should interpolate
+   * between the previous and new position (not snap).
+   */
+  it("interpolates small, plausible position changes", () => {
+    // Spawn
+    vehicleStore.replace([
+      { id: "v1", name: "V1", position: [36.82, -1.29], speed: 30, heading: 0 },
+    ]);
+    renderAndTick();
+
+    // First movement — clears isNew by snapping. Vehicle now at B.
+    vehicleStore.replace([
+      { id: "v1", name: "V1", position: [36.8205, -1.29], speed: 30, heading: 0 },
+    ]);
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+
+    // Second small movement (~5m, plausible at 30 km/h) → should animate.
+    vehicleStore.replace([
+      { id: "v1", name: "V1", position: [36.8206, -1.29], speed: 30, heading: 0 },
+    ]);
+    // Tick briefly — should be mid-interpolation between 36.8205 and 36.8206.
+    act(() => {
+      vi.advanceTimersByTime(50);
+    });
+
+    const data = getVehiclesLayerData();
+    // position[1] is lat. Should be between prev and next (interpolation in progress).
+    expect(data[0].position[1]).toBeGreaterThanOrEqual(36.8205);
+    expect(data[0].position[1]).toBeLessThanOrEqual(36.8206);
+  });
+
+  /**
+   * A position jump far exceeding `speed × elapsed` is a teleport
+   * (dispatch reposition, bulk reset, WS reconnect). Render should snap
+   * to the destination — not interpolate from the previous position.
+   */
+  it("snaps on large position jumps (teleport)", () => {
+    // Spawn
+    vehicleStore.replace([
+      { id: "v1", name: "V1", position: [36.82, -1.29], speed: 30, heading: 0 },
+    ]);
+    renderAndTick();
+
+    // First real move — clears isNew via the existing snap.
+    vehicleStore.replace([
+      { id: "v1", name: "V1", position: [36.821, -1.29], speed: 30, heading: 0 },
+    ]);
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+
+    // Teleport ~1° of latitude away (~111 km) — far beyond any plausible
+    // motion at 30 km/h over 100 ms.
+    vehicleStore.replace([
+      { id: "v1", name: "V1", position: [37.821, -1.29], speed: 30, heading: 0 },
+    ]);
+    act(() => {
+      vi.advanceTimersByTime(50);
+    });
+
+    const data = getVehiclesLayerData();
+    // Should render at the destination, not somewhere between 36.821 and 37.821.
+    expect(data[0].position[1]).toBeCloseTo(37.821, 2);
+  });
+
+  /**
+   * A stopped vehicle (speed=0) shouldn't be classified as teleporting when it
+   * receives a small real-world reposition (e.g. 20 m dispatch nudge). The floor
+   * allows small moves to still animate normally.
+   */
+  it("treats small moves as continuous even at speed=0 (floor)", () => {
+    vehicleStore.replace([
+      { id: "v1", name: "V1", position: [36.82, -1.29], speed: 0, heading: 0 },
+    ]);
+    renderAndTick();
+
+    // Move ~11 m (under the 50 m floor). isNew clears here via existing snap.
+    vehicleStore.replace([
+      { id: "v1", name: "V1", position: [36.8201, -1.29], speed: 0, heading: 0 },
+    ]);
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+
+    // Another ~11 m move — should animate (not teleport-snap).
+    vehicleStore.replace([
+      { id: "v1", name: "V1", position: [36.8202, -1.29], speed: 0, heading: 0 },
+    ]);
+    act(() => {
+      vi.advanceTimersByTime(50);
+    });
+
+    const data = getVehiclesLayerData();
+    expect(data[0].position[1]).toBeGreaterThanOrEqual(36.8201);
+    expect(data[0].position[1]).toBeLessThanOrEqual(36.8202);
+  });
+
+  /**
+   * Bulk replace (as used by onReset / reconnect resync) must not animate surviving
+   * vehicles across large distances — the heuristic catches this without needing
+   * an explicit lifecycle signal.
+   */
+  it("snaps surviving vehicles on bulk replace with large deltas", () => {
+    vehicleStore.replace([
+      { id: "v1", name: "V1", position: [36.82, -1.29], speed: 30, heading: 0 },
+    ]);
+    renderAndTick();
+
+    // Normal progression to clear isNew.
+    vehicleStore.replace([
+      { id: "v1", name: "V1", position: [36.821, -1.29], speed: 30, heading: 0 },
+    ]);
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+
+    // Simulated reset / reconnect: same vehicle ID reappears far away.
+    vehicleStore.replace([{ id: "v1", name: "V1", position: [36.9, -1.4], speed: 30, heading: 0 }]);
+    act(() => {
+      vi.advanceTimersByTime(50);
+    });
+
+    const data = getVehiclesLayerData();
+    expect(data[0].position[1]).toBeCloseTo(36.9, 2);
+    expect(data[0].position[0]).toBeCloseTo(-1.4, 2);
+  });
+});
+
 describe("VehiclesLayer hit testing (deck.gl)", () => {
   it("vehicles layer is pickable for click handling", () => {
     vehicleStore.replace([

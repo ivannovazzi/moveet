@@ -114,7 +114,9 @@ export class AnalyticsAccumulator {
         speedCount += 1;
       }
       if (vs.optimalDistance > 0 && vs.actualDistance > 0) {
-        efficiencySum += vs.optimalDistance / vs.actualDistance;
+        // Cap at 1.0: a vehicle mid-route has actual << optimal, which would
+        // otherwise explode the ratio. 1.0 = perfect (on-path so far).
+        efficiencySum += Math.min(vs.optimalDistance / vs.actualDistance, 1);
         efficiencyCount += 1;
       }
 
@@ -165,7 +167,9 @@ export class AnalyticsAccumulator {
         speedCount += 1;
       }
       if (vs.optimalDistance > 0 && vs.actualDistance > 0) {
-        efficiencySum += vs.optimalDistance / vs.actualDistance;
+        // Cap at 1.0: a vehicle mid-route has actual << optimal, which would
+        // otherwise explode the ratio. 1.0 = perfect (on-path so far).
+        efficiencySum += Math.min(vs.optimalDistance / vs.actualDistance, 1);
         efficiencyCount += 1;
       }
     }

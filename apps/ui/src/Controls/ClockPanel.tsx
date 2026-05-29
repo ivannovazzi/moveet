@@ -78,7 +78,7 @@ export default function ClockPanel() {
             aria-label="Speed multiplier"
           >
             <SliderTrack className={styles.sliderTrack}>
-              <SliderThumb className={styles.sliderThumb} aria-label="Speed multiplier" />
+              <SliderThumb className={styles.sliderThumb} />
             </SliderTrack>
           </Slider>
           <div className={styles.speedSummary}>

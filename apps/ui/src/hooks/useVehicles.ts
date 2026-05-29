@@ -147,15 +147,19 @@ export function useVehicles(): UseVehicle {
   const mappedVehicles = useMemo(() => {
     const visibleSet = filters.visible.length > 0 ? new Set(filters.visible) : null;
 
-    return vehicles.map((vehicle) => ({
-      ...vehicle,
-      position: [vehicle.position[1], vehicle.position[0]] as Position,
-      visible:
-        (visibleSet === null || visibleSet.has(vehicle.id)) &&
-        (vehicle.name ?? "").toLowerCase().includes(lowerCaseFilter),
-      selected: filters.selected === vehicle.id,
-      hovered: filters.hovered === vehicle.id,
-    }));
+    return vehicles.map((vehicle) => {
+      const matchesFilter =
+        !lowerCaseFilter ||
+        (vehicle.name ?? "").toLowerCase().includes(lowerCaseFilter) ||
+        (vehicle.type ?? "").toLowerCase().includes(lowerCaseFilter);
+      return {
+        ...vehicle,
+        position: [vehicle.position[1], vehicle.position[0]] as Position,
+        visible: (visibleSet === null || visibleSet.has(vehicle.id)) && matchesFilter,
+        selected: filters.selected === vehicle.id,
+        hovered: filters.hovered === vehicle.id,
+      };
+    });
   }, [vehicles, filters.visible, filters.selected, filters.hovered, lowerCaseFilter]);
 
   return {

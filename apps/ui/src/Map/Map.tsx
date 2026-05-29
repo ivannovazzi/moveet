@@ -13,13 +13,15 @@ import type {
 } from "@/types";
 import type { BoundingBox, GeoFence } from "@moveet/shared-types";
 import type { Filters } from "@/hooks/useVehicles";
-import { type DispatchState, cursorForDispatchState } from "@/hooks/useDispatchState";
+import { DispatchState, cursorForDispatchState } from "@/hooks/useDispatchState";
+import type { WaypointRef } from "@/hooks/useDispatchFlow";
 
 import { DeckGLMap } from "@/components/Map/components/DeckGLMap";
 import VehiclesLayer from "./Vehicle/VehiclesLayer";
 import Direction from "./Direction";
 import RoadRenderer from "./Road";
 import PendingDispatch from "./PendingDispatch";
+import DispatchHint from "./DispatchHint";
 import IncidentMarkers from "./IncidentMarkers";
 import { isPOI, isRoad } from "@/utils/typeGuards";
 import POIMarker from "./POI/POI";
@@ -49,6 +51,9 @@ interface MapProps {
   hiddenVehicleTypes: Set<VehicleType>;
   dispatchState?: DispatchState;
   assignments?: DispatchAssignment[];
+  selectedForDispatchCount?: number;
+  onMoveWaypointGroup?: (refs: WaypointRef[], newLat: number, newLng: number) => void;
+  onRemoveWaypointGroup?: (refs: WaypointRef[]) => void;
   incidents?: IncidentDTO[];
   fences?: GeoFence[];
   selectedFenceId?: string;
@@ -75,6 +80,9 @@ export default function Map({
   hiddenVehicleTypes,
   dispatchState,
   assignments = [],
+  selectedForDispatchCount = 0,
+  onMoveWaypointGroup,
+  onRemoveWaypointGroup,
   incidents,
   fences = [],
   selectedFenceId,
@@ -158,7 +166,20 @@ export default function Map({
         )}
         {selectedItem && isRoad(selectedItem) && <RoadRenderer road={selectedItem} />}
         {assignments.length > 0 && (
-          <PendingDispatch assignments={assignments} vehicles={vehicles} />
+          <PendingDispatch
+            assignments={assignments}
+            vehicles={vehicles}
+            editable={dispatchState === DispatchState.ROUTE}
+            onMoveWaypointGroup={onMoveWaypointGroup ?? (() => {})}
+            onRemoveWaypointGroup={onRemoveWaypointGroup ?? (() => {})}
+          />
+        )}
+        {dispatchState && dispatchState !== DispatchState.BROWSE && (
+          <DispatchHint
+            state={dispatchState}
+            selectedCount={selectedForDispatchCount}
+            stopCount={assignments.reduce((sum, a) => sum + a.waypoints.length, 0)}
+          />
         )}
         <GeofenceDrawTool
           active={drawingActive}
