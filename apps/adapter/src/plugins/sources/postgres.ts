@@ -148,9 +148,14 @@ export class PostgresSource implements DataSource {
     if (!this.pool) return { healthy: false, message: "not connected" };
     try {
       const client = await this.pool.connect();
-      await client.query("SELECT 1");
-      client.release();
-      return { healthy: true };
+      try {
+        await client.query("SELECT 1");
+        return { healthy: true };
+      } finally {
+        // Always return the client to the pool, even if the probe query throws —
+        // otherwise repeated failing health checks exhaust the pool.
+        client.release();
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return { healthy: false, message };

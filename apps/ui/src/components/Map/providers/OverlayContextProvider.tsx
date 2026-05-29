@@ -26,6 +26,11 @@ export const DeckOverlayProvider: React.FC<DeckOverlayProps> = ({ viewport, getR
     return { mapHTMLElement, htmlTransform };
   }, [getRef, htmlTransform]);
 
+  // Published synchronously (not in an effect) on purpose: <Overlay> reads this
+  // module ref during its own render and must see the current frame's transform
+  // for HTML markers to track pan/zoom without a one-frame lag. With getRef now
+  // stable, legacyData only changes when the viewport changes, so this no longer
+  // runs every render.
   setHTMLTransformer(legacyData);
 
   const value = useMemo(() => {

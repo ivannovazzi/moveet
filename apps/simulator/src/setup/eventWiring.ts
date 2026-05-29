@@ -72,7 +72,12 @@ export function wireEvents(ctx: EventWiringContext): {
   vehicleManager.on("route:completed", (data) => broadcaster.broadcast("route:completed", data));
   vehicleManager.on("options", (data) => broadcaster.broadcast("options", data));
   simulationController.on("updateStatus", (data) => broadcaster.broadcast("status", data));
-  simulationController.on("reset", (data) => broadcaster.broadcast("reset", data));
+  simulationController.on("reset", (data) => {
+    // Discard the previous vehicle set so the spatial index does not retain
+    // stale entries across resets (would otherwise grow unbounded).
+    broadcaster.clearVehicles();
+    broadcaster.broadcast("reset", data);
+  });
   simulationController.on("clock", (clockState) => {
     broadcaster.broadcast("clock", clockState);
   });

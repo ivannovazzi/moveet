@@ -111,6 +111,23 @@ export class RouteManager extends EventEmitter {
    */
   peekNextEdge(vehicle: Vehicle): Edge {
     const currentEdge = vehicle.currentEdge;
+
+    // If the vehicle is following a route, the turn it will actually make is
+    // the next edge on that route — not an arbitrary connected edge. Resolve
+    // it without mutating any state (this method must stay side-effect-free).
+    const route = this.routes.get(vehicle.id);
+    if (route && route.edges.length > 0) {
+      let edgeIndex =
+        vehicle.edgeIndex !== undefined && vehicle.edgeIndex >= 0 ? vehicle.edgeIndex : -1;
+      if (edgeIndex < 0) {
+        edgeIndex = route.edges.findIndex((e) => e.id === currentEdge.id);
+      }
+      if (edgeIndex >= 0 && edgeIndex < route.edges.length - 1) {
+        return route.edges[edgeIndex + 1];
+      }
+      // Route exhausted or vehicle off-route → fall through to connected guess.
+    }
+
     const possibleEdges = this.network.getConnectedEdges(currentEdge);
     if (possibleEdges.length === 0) {
       return {

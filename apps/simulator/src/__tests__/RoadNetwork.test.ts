@@ -205,6 +205,22 @@ describe("RoadNetwork", () => {
         expect(edge.distance).toBeGreaterThan(0);
       }
     });
+
+    it("should cache results so a repeated identical query is a cache hit", async () => {
+      const start = network.findNearestNode([45.5017, -73.5673]);
+      const end = network.findNearestNode([45.5029, -73.5661]);
+
+      network.clearRouteCache();
+      const hitsBefore = network.routeCacheStats().hits;
+
+      const first = await network.findRouteAsync(start, end);
+      const second = await network.findRouteAsync(start, end);
+
+      expect(first).not.toBeNull();
+      expect(second).not.toBeNull();
+      expect(second!.distance).toBeCloseTo(first!.distance, 6);
+      expect(network.routeCacheStats().hits).toBeGreaterThan(hitsBefore);
+    });
   });
 
   describe("getEdge", () => {

@@ -100,6 +100,36 @@ describe("PostgresSource", () => {
     expect(source.configSchema.find((f) => f.name === "password")!.type).toBe("password");
   });
 
+  describe("healthCheck", () => {
+    it("releases the client even when the probe query fails", async () => {
+      const client = {
+        query: vi.fn().mockRejectedValue(new Error("query failed")),
+        release: vi.fn(),
+      };
+      mockPoolConnect.mockResolvedValue(client);
+
+      const source = new PostgresSource();
+      await source.connect({ connectionString: "postgresql://localhost/fleet" });
+      const result = await source.healthCheck();
+
+      expect(result.healthy).toBe(false);
+      // Must return the client to the pool or it leaks on every failing check.
+      expect(client.release).toHaveBeenCalled();
+    });
+
+    it("releases the client on a successful probe", async () => {
+      const client = { query: vi.fn().mockResolvedValue({ rows: [] }), release: vi.fn() };
+      mockPoolConnect.mockResolvedValue(client);
+
+      const source = new PostgresSource();
+      await source.connect({ connectionString: "postgresql://localhost/fleet" });
+      const result = await source.healthCheck();
+
+      expect(result.healthy).toBe(true);
+      expect(client.release).toHaveBeenCalled();
+    });
+  });
+
   describe("coordinate validation", () => {
     it("filters out rows with NaN coordinates", async () => {
       mockQuery.mockResolvedValue({

@@ -550,8 +550,8 @@ class SimulationService {
     this.ws.on("geofence:event", handler);
   }
 
-  offGeofenceEvent(): void {
-    this.ws.off("geofence:event");
+  offGeofenceEvent(handler?: (event: GeoFenceEvent) => void): void {
+    this.ws.off("geofence:event", handler);
   }
 
   subscribe(filter: SubscribeFilter | null): void {
