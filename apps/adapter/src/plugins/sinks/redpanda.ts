@@ -16,6 +16,26 @@ const logger = createLogger("RedpandaSink");
 /** Default timeout for health check broker probe (ms). Overridable via `healthCheckTimeoutMs` config. */
 const DEFAULT_HEALTH_CHECK_TIMEOUT_MS = 5000;
 
+/**
+ * Maps moveet's string vehicle id to the non-negative integer the
+ * trajectory-engine requires (and uses as its Kafka partition key). Numeric ids
+ * (`"0"`, `"1"`, … — the simulator's defaults) pass through unchanged; anything
+ * else (e.g. `"static-0"`, a UUID) is folded to a stable 31-bit FNV-1a hash so
+ * the same vehicle always maps to the same id across restarts.
+ */
+export function toIntegerVehicleId(id: string): number {
+  if (/^\d+$/.test(id)) {
+    const n = Number(id);
+    if (Number.isSafeInteger(n)) return n;
+  }
+  let hash = 0x811c9dc5; // FNV-1a 32-bit offset basis
+  for (let i = 0; i < id.length; i++) {
+    hash ^= id.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193); // FNV prime
+  }
+  return hash & 0x7fffffff; // mask to 31 bits → always non-negative
+}
+
 export class RedpandaSink implements DataSink {
   readonly type = "redpanda";
   readonly name = "Redpanda/Kafka Message Broker";
@@ -41,12 +61,39 @@ export class RedpandaSink implements DataSink {
         { label: "All (-1)", value: "-1" },
       ],
     },
+    {
+      name: "format",
+      label: "Payload Format",
+      type: "select",
+      default: "dispatch",
+      options: [
+        { label: "Dispatch (vehicle.position event)", value: "dispatch" },
+        { label: "Trajectory-engine telemetry", value: "trajectory" },
+      ],
+    },
+    {
+      name: "defaultAltitude",
+      label: "Default Altitude (m)",
+      type: "number",
+      default: 0,
+      placeholder: "metres above sea level (trajectory format)",
+    },
+    {
+      name: "defaultAccuracy",
+      label: "Default Accuracy (m)",
+      type: "number",
+      default: 5,
+      placeholder: "GPS horizontal accuracy (trajectory format)",
+    },
   ];
   private kafka: Kafka | null = null;
   private producer: Producer | null = null;
   private topic = "dispatch.vehicle.positions";
   private batchSize = 500;
   private acks: number = 1;
+  private format: "dispatch" | "trajectory" = "dispatch";
+  private defaultAltitude = 0;
+  private defaultAccuracy = 5;
   private healthCheckTimeoutMs: number = DEFAULT_HEALTH_CHECK_TIMEOUT_MS;
 
   async connect(config: PluginConfig): Promise<void> {
@@ -62,6 +109,19 @@ export class RedpandaSink implements DataSink {
       throw new Error(`RedpandaSink: invalid acks value "${config.acks}" (must be 0, 1, or -1)`);
     }
     this.acks = acks;
+
+    const format = (config.format as string) || "dispatch";
+    if (format !== "dispatch" && format !== "trajectory") {
+      throw new Error(
+        `RedpandaSink: invalid format "${format}" (must be "dispatch" or "trajectory")`
+      );
+    }
+    this.format = format;
+
+    const altitude = config.defaultAltitude != null ? Number(config.defaultAltitude) : 0;
+    this.defaultAltitude = Number.isFinite(altitude) ? altitude : 0;
+    const accuracy = config.defaultAccuracy != null ? Number(config.defaultAccuracy) : 5;
+    this.defaultAccuracy = Number.isFinite(accuracy) && accuracy >= 0 ? accuracy : 5;
 
     this.healthCheckTimeoutMs =
       (config.healthCheckTimeoutMs as number) || DEFAULT_HEALTH_CHECK_TIMEOUT_MS;
@@ -93,11 +153,10 @@ export class RedpandaSink implements DataSink {
     this.kafka = null;
   }
 
-  async publishUpdates(updates: VehicleUpdate[]): Promise<SinkPublishResult | void> {
-    if (!this.producer) return;
-
+  /** Native moveet event shape, published to `dispatch.vehicle.positions`. */
+  private buildDispatchMessages(updates: VehicleUpdate[]) {
     const now = new Date().toISOString();
-    const messages = updates.map((update) => ({
+    return updates.map((update) => ({
       key: update.id,
       value: JSON.stringify({
         eventType: "vehicle.position",
@@ -110,6 +169,45 @@ export class RedpandaSink implements DataSink {
         timestamp: now,
       }),
     }));
+  }
+
+  /**
+   * Pure-GPS telemetry shape consumed by the external trajectory-engine. Every
+   * field is required by the engine's frozen schema; `altitude`/`accuracy` are
+   * sourced from config defaults (moveet does not simulate them) and `ignition`
+   * is derived from speed. The Kafka key is the integer vehicle id as a string,
+   * matching the engine's per-vehicle partitioning.
+   */
+  private buildTrajectoryMessages(updates: VehicleUpdate[]) {
+    const ts = Date.now();
+    return updates.map((update) => {
+      const vehicleId = toIntegerVehicleId(update.id);
+      const speed = Math.max(0, (update.speed ?? 0) / 3.6); // km/h → m/s
+      const heading = (((update.heading ?? 0) % 360) + 360) % 360; // → [0, 360)
+      return {
+        key: String(vehicleId),
+        value: JSON.stringify({
+          ts,
+          vehicleId,
+          lat: update.latitude,
+          lon: update.longitude,
+          speed,
+          heading,
+          altitude: this.defaultAltitude,
+          accuracy: this.defaultAccuracy,
+          ignition: speed > 0.5,
+        }),
+      };
+    });
+  }
+
+  async publishUpdates(updates: VehicleUpdate[]): Promise<SinkPublishResult | void> {
+    if (!this.producer) return;
+
+    const messages =
+      this.format === "trajectory"
+        ? this.buildTrajectoryMessages(updates)
+        : this.buildDispatchMessages(updates);
 
     if (messages.length <= this.batchSize) {
       await this.producer.send({ topic: this.topic, messages, acks: this.acks });

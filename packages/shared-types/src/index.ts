@@ -40,6 +40,10 @@ export interface VehicleUpdate {
   longitude: number;
   id: string;
   type?: VehicleType;
+  /** Ground speed in km/h, when the source provides it (e.g. the simulator). */
+  speed?: number;
+  /** Heading / course over ground in degrees, when the source provides it. */
+  heading?: number;
 }
 
 // ─── Fleet ──────────────────────────────────────────────────────────

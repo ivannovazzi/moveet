@@ -8,6 +8,10 @@ interface SyncVehicle {
   latitude: number;
   longitude: number;
   type?: string;
+  /** Ground speed in km/h. */
+  speed?: number;
+  /** Heading / course over ground in degrees. */
+  heading?: number;
 }
 
 interface SyncData {

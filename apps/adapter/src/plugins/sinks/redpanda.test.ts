@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { RedpandaSink } from "./redpanda";
+import { RedpandaSink, toIntegerVehicleId } from "./redpanda";
 
 // Mock kafkajs so we can intercept producer.send() and admin calls
 const mockSend = vi.fn().mockResolvedValue(undefined);
@@ -130,6 +130,96 @@ describe("RedpandaSink", () => {
     });
   });
 
+  describe("trajectory format", () => {
+    it("emits the trajectory-engine pure-GPS schema", async () => {
+      await sink.connect({ brokers: "localhost:9092", format: "trajectory" });
+      await sink.publishUpdates([
+        { id: "42", latitude: -1.2863, longitude: 36.8172, speed: 36, heading: 90, type: "car" },
+      ]);
+
+      const message = mockSend.mock.calls[0][0].messages[0];
+      const payload = JSON.parse(message.value);
+
+      // Exactly the 9 required fields, nothing else.
+      expect(Object.keys(payload).sort()).toEqual(
+        [
+          "accuracy",
+          "altitude",
+          "heading",
+          "ignition",
+          "lat",
+          "lon",
+          "speed",
+          "ts",
+          "vehicleId",
+        ].sort()
+      );
+      expect(payload).toMatchObject({
+        vehicleId: 42,
+        lat: -1.2863,
+        lon: 36.8172,
+        speed: 10, // 36 km/h ÷ 3.6
+        heading: 90,
+        altitude: 0,
+        accuracy: 5,
+        ignition: true,
+      });
+      expect(typeof payload.ts).toBe("number");
+      // Kafka key is the integer vehicle id as a string (per-vehicle partitioning).
+      expect(message.key).toBe("42");
+    });
+
+    it("converts km/h to m/s and derives ignition from speed", async () => {
+      await sink.connect({ brokers: "localhost:9092", format: "trajectory" });
+      await sink.publishUpdates([
+        { id: "1", latitude: 0, longitude: 0, speed: 0, heading: 0 }, // stationary
+      ]);
+
+      const payload = JSON.parse(mockSend.mock.calls[0][0].messages[0].value);
+      expect(payload.speed).toBe(0);
+      expect(payload.ignition).toBe(false);
+    });
+
+    it("normalizes heading into [0, 360) and synthesizes missing fields", async () => {
+      await sink.connect({ brokers: "localhost:9092", format: "trajectory" });
+      await sink.publishUpdates([{ id: "1", latitude: 0, longitude: 0, heading: 450 }]);
+
+      const payload = JSON.parse(mockSend.mock.calls[0][0].messages[0].value);
+      expect(payload.heading).toBe(90); // 450 mod 360
+      expect(payload.speed).toBe(0); // speed omitted → 0
+      expect(payload.ignition).toBe(false);
+    });
+
+    it("honours configurable altitude and accuracy defaults", async () => {
+      await sink.connect({
+        brokers: "localhost:9092",
+        format: "trajectory",
+        defaultAltitude: 1650,
+        defaultAccuracy: 8,
+      });
+      await sink.publishUpdates([{ id: "1", latitude: 0, longitude: 0, speed: 36, heading: 0 }]);
+
+      const payload = JSON.parse(mockSend.mock.calls[0][0].messages[0].value);
+      expect(payload.altitude).toBe(1650);
+      expect(payload.accuracy).toBe(8);
+    });
+
+    it("rejects an invalid format value", async () => {
+      await expect(sink.connect({ brokers: "localhost:9092", format: "bogus" })).rejects.toThrow(
+        /invalid format/
+      );
+    });
+
+    it("still emits the native dispatch shape by default", async () => {
+      await sink.connect({ brokers: "localhost:9092" });
+      await sink.publishUpdates([{ id: "v1", latitude: -1.28, longitude: 36.8, type: "car" }]);
+
+      const payload = JSON.parse(mockSend.mock.calls[0][0].messages[0].value);
+      expect(payload.eventType).toBe("vehicle.position");
+      expect(payload.vehicleId).toBe("v1");
+    });
+  });
+
   describe("configSchema", () => {
     it("includes acks in configSchema", () => {
       const acksField = sink.configSchema.find((f) => f.name === "acks");
@@ -247,5 +337,29 @@ describe("RedpandaSink", () => {
 
       expect(mockAdminDisconnect).toHaveBeenCalled();
     });
+  });
+});
+
+describe("toIntegerVehicleId", () => {
+  it("passes numeric ids through unchanged", () => {
+    expect(toIntegerVehicleId("0")).toBe(0);
+    expect(toIntegerVehicleId("42")).toBe(42);
+    expect(toIntegerVehicleId("5000")).toBe(5000);
+  });
+
+  it("hashes non-numeric ids to a stable non-negative 31-bit integer", () => {
+    const a = toIntegerVehicleId("static-0");
+    const b = toIntegerVehicleId("static-0");
+    expect(a).toBe(b); // deterministic
+    expect(a).toBeGreaterThanOrEqual(0);
+    expect(a).toBeLessThanOrEqual(0x7fffffff);
+    expect(Number.isInteger(a)).toBe(true);
+  });
+
+  it("maps distinct ids to distinct integers", () => {
+    expect(toIntegerVehicleId("static-0")).not.toBe(toIntegerVehicleId("static-1"));
+    expect(toIntegerVehicleId("550e8400-e29b-41d4-a716-446655440000")).not.toBe(
+      toIntegerVehicleId("550e8400-e29b-41d4-a716-446655440001")
+    );
   });
 });

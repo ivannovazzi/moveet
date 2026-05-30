@@ -117,6 +117,36 @@ cp .env.example .env
 
 **`GET /health`** -- Returns health check status for the active source and all sinks.
 
+### Redpanda sink: payload formats
+
+The Redpanda sink supports two output shapes via its `format` config field:
+
+- **`dispatch`** (default) -- moveet's native event:
+  `{ eventType, eventId, occurredOn, vehicleId, vehicleType, latitude, longitude, timestamp }`.
+- **`trajectory`** -- pure-GPS telemetry consumed by the external **trajectory-engine**:
+  `{ ts, vehicleId, lat, lon, speed, heading, altitude, accuracy, ignition }`, keyed
+  by the integer `vehicleId`. `speed` is converted km/h → m/s, `heading` is
+  normalized to `[0, 360)`, `ignition` is derived from speed, and
+  `altitude`/`accuracy` (which moveet does not simulate) come from the
+  `defaultAltitude` / `defaultAccuracy` config fields.
+
+```json
+{
+  "type": "redpanda",
+  "config": {
+    "brokers": "suite_redpanda:9092",
+    "topic": "trajectory.telemetry.raw",
+    "format": "trajectory",
+    "defaultAltitude": 0,
+    "defaultAccuracy": 5
+  }
+}
+```
+
+For the engine to receive real `speed` and `heading`, run the simulator with
+`ADAPTER_URL` set -- the simulator forwards both on `/sync` (without it, speed
+falls back to 0 and ignition to `false`).
+
 ## Commands
 
 ```bash

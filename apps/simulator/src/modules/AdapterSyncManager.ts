@@ -78,6 +78,8 @@ export class AdapterSyncManager {
             type: v.type,
             latitude: v.position[0],
             longitude: v.position[1],
+            speed: v.speed, // km/h
+            heading: v.bearing, // degrees
           })),
           timestamp: Date.now(),
         });
