@@ -232,33 +232,60 @@
   cursor: pointer;
 }
 
+/* Unfilled portion of the track. */
 .rangeTrack::before {
   content: "";
   display: block;
   position: absolute;
-  background: var(--color-overlay-2);
-  height: 4px;
+  background: var(--color-overlay-1);
+  height: 5px;
   width: 100%;
-  border-radius: 2px;
+  border-radius: var(--radius-full);
   left: 0;
+  transition: height var(--transition-fast);
+}
+
+/* Filled portion (start → thumb), width set inline from the slider value. */
+.rangeFill {
+  position: absolute;
+  left: 0;
+  height: 5px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(90deg, var(--color-accent-dark), var(--color-accent));
+  pointer-events: none;
+  transition: height var(--transition-fast);
+}
+
+.rangeTrack[data-hovered]::before,
+.rangeTrack[data-hovered] .rangeFill {
+  height: 7px;
 }
 
 .rangeThumb {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border-radius: var(--radius-full);
-  background: var(--color-gray-light);
+  background: var(--color-white, #fff);
+  border: 2px solid var(--color-accent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
   cursor: grab;
-  transition: background var(--transition-fast);
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast),
+    border-color var(--transition-fast),
+    background var(--transition-fast);
 }
 
 .rangeThumb[data-hovered] {
-  background: var(--color-gray-lightest);
+  transform: scale(1.18);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
 }
 
 .rangeThumb[data-dragging] {
   background: var(--color-accent);
+  border-color: var(--color-white, #fff);
   cursor: grabbing;
+  transform: scale(1.12);
 }
 
 .rangeThumb[data-focus-visible] {

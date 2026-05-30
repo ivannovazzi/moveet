@@ -177,16 +177,17 @@
 }
 
 .progressBar {
-  height: 4px;
-  border-radius: 2px;
+  height: 5px;
+  border-radius: var(--radius-full);
   background: var(--color-overlay-1);
   overflow: hidden;
 }
 
 .progressFill {
   height: 100%;
-  border-radius: 2px;
-  background: var(--color-accent);
+  border-radius: var(--radius-full);
+  background: linear-gradient(90deg, var(--color-accent-dark), var(--color-accent));
+  box-shadow: 0 0 6px rgba(51, 153, 255, 0.4);
   transition: width 300ms linear;
 }
 
