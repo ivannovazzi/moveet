@@ -19,6 +19,7 @@ const DEFAULT_OPTIONS: StartOptions = {
   deceleration: 7,
   turnThreshold: 45,
   heatZoneSpeedFactor: 0.5,
+  adapterSyncInterval: 1000,
 };
 
 describe("RouteManager", () => {

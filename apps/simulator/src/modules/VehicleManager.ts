@@ -51,6 +51,9 @@ export class VehicleManager extends EventEmitter {
 
   private options: StartOptions = {
     updateInterval: config.updateInterval,
+    // 0 means "follow updateInterval"; resolve to a concrete value up front so
+    // the option is always a usable number.
+    adapterSyncInterval: config.adapterSyncInterval || config.updateInterval,
     minSpeed: config.minSpeed,
     maxSpeed: config.maxSpeed,
     speedVariation: config.speedVariation,
@@ -250,6 +253,7 @@ export class VehicleManager extends EventEmitter {
       this.pendingVehicleTypes = vehicleTypes;
     }
     const prevInterval = this.options.updateInterval;
+    const prevSyncInterval = this.options.adapterSyncInterval;
     this.options = { ...this.options, ...startOptions };
 
     if (
@@ -261,6 +265,18 @@ export class VehicleManager extends EventEmitter {
     }
 
     this.gameLoop.setGameLoopIntervalMs(this.options.updateInterval);
+
+    // Restart the adapter-sync timer at the new cadence if it changed while a
+    // run with a configured adapter is in flight.
+    if (
+      startOptions.adapterSyncInterval &&
+      startOptions.adapterSyncInterval !== prevSyncInterval &&
+      config.adapterURL &&
+      this.gameLoop.getActiveVehicles().size > 0
+    ) {
+      this.startLocationUpdates(this.options.adapterSyncInterval);
+    }
+
     this.emit("options", this.options);
   }
 

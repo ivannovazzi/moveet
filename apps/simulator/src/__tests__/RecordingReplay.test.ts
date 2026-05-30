@@ -56,6 +56,7 @@ const defaultOptions: StartOptions = {
   deceleration: 15,
   turnThreshold: 45,
   heatZoneSpeedFactor: 0.6,
+  adapterSyncInterval: 1000,
   updateInterval: 1000,
 };
 

@@ -82,7 +82,14 @@ export interface StartOptions {
   deceleration: number;
   turnThreshold: number;
   heatZoneSpeedFactor: number;
+  /** How often (ms) the simulation loop steps and broadcasts vehicle state. */
   updateInterval: number;
+  /**
+   * How often (ms) vehicle positions are pushed to the adapter and on to
+   * downstream sinks. Independent of `updateInterval` so the publish/telemetry
+   * rate can be tuned separately from the movement/broadcast rate.
+   */
+  adapterSyncInterval: number;
 }
 
 // ─── Road Network (shared subset) ──────────────────────────────────

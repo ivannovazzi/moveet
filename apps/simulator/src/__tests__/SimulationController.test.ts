@@ -37,6 +37,7 @@ function writeTestRecording(filePath: string, events: RecordingEvent[] = []): vo
       deceleration: 7,
       turnThreshold: 30,
       heatZoneSpeedFactor: 0.5,
+      adapterSyncInterval: 1000,
       updateInterval: 500,
     },
   };

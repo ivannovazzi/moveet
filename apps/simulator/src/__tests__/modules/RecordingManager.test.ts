@@ -30,6 +30,7 @@ describe("RecordingManager", () => {
     deceleration: 10,
     turnThreshold: 0.5,
     heatZoneSpeedFactor: 0.5,
+    adapterSyncInterval: 1000,
     updateInterval: 100,
   };
 
