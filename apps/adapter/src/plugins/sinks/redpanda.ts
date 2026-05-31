@@ -9,6 +9,7 @@ import type {
   SinkPublishResult,
 } from "../types";
 import type { VehicleUpdate } from "../../types";
+import { fleetRoster } from "../fleetRoster";
 import { createLogger } from "../../utils/logger";
 
 const logger = createLogger("RedpandaSink");
@@ -72,6 +73,16 @@ export class RedpandaSink implements DataSink {
       ],
     },
     {
+      name: "keyBy",
+      label: "Trajectory Key Source",
+      type: "select",
+      default: "vehicleId",
+      options: [
+        { label: "Vehicle id (synthetic / default)", value: "vehicleId" },
+        { label: "Connector device id (real fleet roster)", value: "deviceId" },
+      ],
+    },
+    {
       name: "defaultAltitude",
       label: "Default Altitude (m)",
       type: "number",
@@ -92,6 +103,7 @@ export class RedpandaSink implements DataSink {
   private batchSize = 500;
   private acks: number = 1;
   private format: "dispatch" | "trajectory" = "dispatch";
+  private keyBy: "vehicleId" | "deviceId" = "vehicleId";
   private defaultAltitude = 0;
   private defaultAccuracy = 5;
   private healthCheckTimeoutMs: number = DEFAULT_HEALTH_CHECK_TIMEOUT_MS;
@@ -117,6 +129,12 @@ export class RedpandaSink implements DataSink {
       );
     }
     this.format = format;
+
+    const keyBy = (config.keyBy as string) || "vehicleId";
+    if (keyBy !== "vehicleId" && keyBy !== "deviceId") {
+      throw new Error(`RedpandaSink: invalid keyBy "${keyBy}" (must be "vehicleId" or "deviceId")`);
+    }
+    this.keyBy = keyBy;
 
     const altitude = config.defaultAltitude != null ? Number(config.defaultAltitude) : 0;
     this.defaultAltitude = Number.isFinite(altitude) ? altitude : 0;
@@ -175,17 +193,29 @@ export class RedpandaSink implements DataSink {
    * Pure-GPS telemetry shape consumed by the external trajectory-engine. Every
    * field is required by the engine's frozen schema; `altitude`/`accuracy` are
    * sourced from config defaults (moveet does not simulate them) and `ignition`
-   * is derived from speed. The Kafka key is the integer vehicle id as a string,
-   * matching the engine's per-vehicle partitioning.
+   * is derived from speed.
+   *
+   * Keying (`keyBy`):
+   *  - `vehicleId` (default): one message per update, keyed by the integer
+   *    vehicle id derived from the simulator's vehicle id. Unchanged synthetic
+   *    behaviour.
+   *  - `deviceId`: the simulator is driving the connector's *real* vehicles, so
+   *    each update fans out to the device(s) currently bound to that vehicle in
+   *    the shared {@link fleetRoster}. The Kafka key is the real connector
+   *    `deviceId`, and the payload's integer `vehicleId` is derived from that
+   *    same device id — stable and device-scoped, so each real device maps to a
+   *    distinct, deterministic engine vehicle id. Updates for a vehicle with no
+   *    currently-bound device produce no messages (an unbind silently stops
+   *    telemetry for that device).
    */
   private buildTrajectoryMessages(updates: VehicleUpdate[]) {
     const ts = Date.now();
-    return updates.map((update) => {
-      const vehicleId = toIntegerVehicleId(update.id);
+    const toMessage = (idForKey: string, update: VehicleUpdate) => {
+      const vehicleId = toIntegerVehicleId(idForKey);
       const speed = Math.max(0, (update.speed ?? 0) / 3.6); // km/h → m/s
       const heading = (((update.heading ?? 0) % 360) + 360) % 360; // → [0, 360)
       return {
-        key: String(vehicleId),
+        key: idForKey,
         value: JSON.stringify({
           ts,
           vehicleId,
@@ -198,7 +228,18 @@ export class RedpandaSink implements DataSink {
           ignition: speed > 0.5,
         }),
       };
-    });
+    };
+
+    if (this.keyBy === "deviceId") {
+      return updates.flatMap((update) => {
+        const devices = fleetRoster.devicesForVehicle(update.id);
+        return devices.map((d) => toMessage(d.deviceId, update));
+      });
+    }
+
+    // Default: key by the integer vehicle id (as a string), matching the
+    // engine's per-vehicle partitioning for synthetic fleets.
+    return updates.map((update) => toMessage(String(toIntegerVehicleId(update.id)), update));
   }
 
   async publishUpdates(updates: VehicleUpdate[]): Promise<SinkPublishResult | void> {

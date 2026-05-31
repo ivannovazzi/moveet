@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { RedpandaSink, toIntegerVehicleId } from "./redpanda";
+import { fleetRoster } from "../fleetRoster";
 
 // Mock kafkajs so we can intercept producer.send() and admin calls
 const mockSend = vi.fn().mockResolvedValue(undefined);
@@ -210,6 +211,12 @@ describe("RedpandaSink", () => {
       );
     });
 
+    it("rejects an invalid keyBy value", async () => {
+      await expect(
+        sink.connect({ brokers: "localhost:9092", format: "trajectory", keyBy: "bogus" })
+      ).rejects.toThrow(/invalid keyBy/);
+    });
+
     it("still emits the native dispatch shape by default", async () => {
       await sink.connect({ brokers: "localhost:9092" });
       await sink.publishUpdates([{ id: "v1", latitude: -1.28, longitude: 36.8, type: "car" }]);
@@ -217,6 +224,59 @@ describe("RedpandaSink", () => {
       const payload = JSON.parse(mockSend.mock.calls[0][0].messages[0].value);
       expect(payload.eventType).toBe("vehicle.position");
       expect(payload.vehicleId).toBe("v1");
+    });
+
+    it("keys by the integer vehicle id by default (keyBy omitted)", async () => {
+      await sink.connect({ brokers: "localhost:9092", format: "trajectory" });
+      await sink.publishUpdates([{ id: "static-7", latitude: 0, longitude: 0, speed: 10 }]);
+
+      const message = mockSend.mock.calls[0][0].messages[0];
+      const expectedId = toIntegerVehicleId("static-7");
+      expect(message.key).toBe(String(expectedId));
+      expect(JSON.parse(message.value).vehicleId).toBe(expectedId);
+    });
+  });
+
+  describe("trajectory format keyed by connector device id", () => {
+    beforeEach(() => {
+      fleetRoster.clear();
+    });
+
+    it("fans an update out to each bound device, keyed by the real device id", async () => {
+      // Vehicle V1 has both a fitted_gps and a shift device bound.
+      fleetRoster.applyAssignment("dev-gps-1", "V1", "fitted_gps");
+      fleetRoster.applyAssignment("dev-shift-1", "V1", "shift");
+
+      await sink.connect({ brokers: "localhost:9092", format: "trajectory", keyBy: "deviceId" });
+      await sink.publishUpdates([{ id: "V1", latitude: -1.3, longitude: 36.8, speed: 36 }]);
+
+      const messages = mockSend.mock.calls[0][0].messages;
+      expect(messages).toHaveLength(2);
+
+      const byKey = Object.fromEntries(messages.map((m: { key: string }) => [m.key, m]));
+      expect(Object.keys(byKey).sort()).toEqual(["dev-gps-1", "dev-shift-1"]);
+
+      // Payload vehicleId is derived from the *device* id, so each device maps
+      // to a distinct, deterministic engine vehicle id.
+      const gpsPayload = JSON.parse(byKey["dev-gps-1"].value);
+      const shiftPayload = JSON.parse(byKey["dev-shift-1"].value);
+      expect(gpsPayload.vehicleId).toBe(toIntegerVehicleId("dev-gps-1"));
+      expect(shiftPayload.vehicleId).toBe(toIntegerVehicleId("dev-shift-1"));
+      expect(gpsPayload.vehicleId).not.toBe(shiftPayload.vehicleId);
+      // GPS transforms still apply.
+      expect(gpsPayload.speed).toBe(10);
+      expect(gpsPayload.lat).toBe(-1.3);
+    });
+
+    it("emits nothing for a vehicle with no currently-bound device (unbind)", async () => {
+      fleetRoster.applyAssignment("dev-1", "V1", "fitted_gps");
+      fleetRoster.applyAssignment("dev-1", null, "fitted_gps"); // unbind
+
+      await sink.connect({ brokers: "localhost:9092", format: "trajectory", keyBy: "deviceId" });
+      await sink.publishUpdates([{ id: "V1", latitude: 0, longitude: 0, speed: 10 }]);
+
+      const messages = mockSend.mock.calls[0][0].messages;
+      expect(messages).toHaveLength(0);
     });
   });
 

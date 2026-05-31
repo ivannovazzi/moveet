@@ -147,6 +147,48 @@ For the engine to receive real `speed` and `heading`, run the simulator with
 `ADAPTER_URL` set -- the simulator forwards both on `/sync` (without it, speed
 falls back to 0 and ignition to `false`).
 
+The trajectory sink also takes a `keyBy` field that selects the Kafka key (and
+the derived integer `vehicleId`):
+
+- **`vehicleId`** (default) -- key by the integer id derived from the
+  simulator's vehicle id. Use with synthetic sources; behaviour is unchanged.
+- **`deviceId`** -- the simulator is driving the connector's **real** vehicles
+  (see the `connector` source below), so each update fans out to the device(s)
+  currently bound to that vehicle and is keyed by the real `deviceId`. The
+  payload `vehicleId` is derived deterministically from that device id, so each
+  real device maps to a distinct, stable engine vehicle id. Vehicles with no
+  currently-bound device emit nothing.
+
+### `connector` source: load the real fleet roster
+
+`SOURCE_TYPE=connector` makes the adapter consume the connector's
+(dispatch-cc-consumer) two **compacted AVRO topics** to build an in-memory fleet
+roster instead of synthesising vehicles:
+
+- `trajectory.fleet.vehicle` (key = `vehicleId`) -- the vehicle catalogue.
+- `trajectory.fleet.assignment` (key = `deviceId`) -- device→vehicle bindings;
+  a `null` `vehicle_id` unbinds the device.
+
+Messages are decoded through the **Confluent Schema Registry** (the writer
+schema is resolved by the id embedded in each message, so moveet doesn't carry
+the AVRO definitions — it re-validates the decoded shape with Zod). The source
+drains both topics from the beginning to the current end of log, then exposes
+one vehicle per **bound** vehicle (real `vehicleId`s). Pair it with the
+`trajectory` sink keyed by `deviceId` so the engine joins moveet's telemetry to
+the connector's assignments by the same real device ids.
+
+```json
+{
+  "type": "connector",
+  "config": {
+    "brokers": "suite_redpanda:9092",
+    "schemaRegistry": "http://suite_redpanda:18081",
+    "vehicleTopic": "trajectory.fleet.vehicle",
+    "assignmentTopic": "trajectory.fleet.assignment"
+  }
+}
+```
+
 ## Commands
 
 ```bash
