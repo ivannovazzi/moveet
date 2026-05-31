@@ -12,6 +12,12 @@ const logger = createLogger("ConnectorSource");
 /** Default time (ms) to drain the compacted topics before resolving connect(). */
 const DEFAULT_ROSTER_LOAD_TIMEOUT_MS = 10_000;
 
+/** Default REST endpoint for the connector's fleet-roster pull API. */
+const DEFAULT_FLEET_ROSTER_URL = "http://suite_connector:3002/api/fleet/roster";
+
+/** Default time (ms) to wait for the roster pull API before giving up. */
+const DEFAULT_ROSTER_FETCH_TIMEOUT_MS = 5_000;
+
 /**
  * Decoded envelopes published by the connector (dispatch-cc-consumer) on the
  * `trajectory.fleet.*` topics. Only the fields moveet needs are validated; the
@@ -41,7 +47,31 @@ const FleetAssignmentEnvelopeSchema = z.object({
   }),
 });
 
-/** Per-vehicle metadata captured from `trajectory.fleet.vehicle`. */
+/**
+ * Contract for the connector's REST pull API (`GET <rosterUrl>`). Mirrors the
+ * connector's response shape; camelCase here (the REST API), snake_case on the
+ * AVRO topics. Only the fields moveet needs are validated.
+ */
+const RosterResponseSchema = z.object({
+  vehicles: z.array(
+    z.object({
+      vehicleId: z.string(),
+      plate: z.string().nullable().optional(),
+      kind: z.string().nullable().optional(),
+      callsign: z.string().nullable().optional(),
+    })
+  ),
+  assignments: z.array(
+    z.object({
+      deviceId: z.string(),
+      vehicleId: z.string(),
+      source: z.enum(["fitted_gps", "shift"]),
+      effectiveFrom: z.string(),
+    })
+  ),
+});
+
+/** Per-vehicle metadata captured from the roster. */
 interface VehicleMeta {
   id: string;
   name: string;
@@ -49,62 +79,89 @@ interface VehicleMeta {
 }
 
 /**
- * Loads the real fleet roster from the connector by consuming its two compacted
- * AVRO topics:
+ * Loads the real fleet roster from the connector (dispatch-cc-consumer) so the
+ * adapter drives the connector's *real* vehicles and the `redpanda` sink in
+ * `trajectory` format keys telemetry by the real `deviceId`.
  *
- *  - `trajectory.fleet.vehicle`    (key = vehicleId) — the vehicle catalogue.
- *  - `trajectory.fleet.assignment` (key = deviceId)  — device→vehicle bindings.
+ * Two bootstrap strategies, selected by the `bootstrap` config field:
  *
- * The plugin drains both topics from the beginning to the current end of log
- * (compacted topics retain the latest record per key, so a single pass yields
- * the current roster), populates the shared {@link fleetRoster}, and exposes one
- * vehicle per *bound* vehicle. The `redpanda` sink in `trajectory` format then
- * keys telemetry by the real `deviceId` looked up from the roster.
+ *  - **`api`** (default) — a single `GET <rosterUrl>` against the connector's
+ *    REST pull API returns the full `{ vehicles, assignments }` snapshot. Simple
+ *    and AVRO-free; preferred for bootstrap.
+ *  - **`topic`** — consume the two compacted AVRO topics
+ *    (`trajectory.fleet.vehicle`, `trajectory.fleet.assignment`) via the
+ *    Confluent Schema Registry, draining from the beginning to the current end
+ *    of log. Kept for environments without the pull API.
+ *
+ * Either way the source populates the shared {@link fleetRoster} — one
+ * ExportVehicle per *bound* vehicle, with the `vehicleId → device(s)` map built
+ * from assignments — and the sink keys telemetry by the real `deviceId`.
  *
  * Use this with `SOURCE_TYPE=connector`. The default `static` source is
  * unchanged.
  */
 export class ConnectorSource implements DataSource {
   readonly type = "connector";
-  readonly name = "Connector Fleet Roster (trajectory.fleet.*)";
+  readonly name = "Connector Fleet Roster";
   readonly configSchema: ConfigField[] = [
     {
-      name: "brokers",
-      label: "Brokers",
+      name: "bootstrap",
+      label: "Bootstrap Strategy",
+      type: "select",
+      default: "api",
+      options: [
+        { label: "REST pull API", value: "api" },
+        { label: "Compacted AVRO topics", value: "topic" },
+      ],
+    },
+    {
+      name: "rosterUrl",
+      label: "Fleet Roster URL",
       type: "string",
-      required: true,
+      default: DEFAULT_FLEET_ROSTER_URL,
+      placeholder: "http://suite_connector:3002/api/fleet/roster",
+    },
+    {
+      name: "fetchTimeoutMs",
+      label: "Roster Fetch Timeout (ms)",
+      type: "number",
+      default: DEFAULT_ROSTER_FETCH_TIMEOUT_MS,
+    },
+    {
+      name: "brokers",
+      label: "Brokers (topic bootstrap)",
+      type: "string",
       default: "localhost:19092",
       placeholder: "host1:9092,host2:9092",
     },
     {
       name: "schemaRegistry",
-      label: "Schema Registry URL",
+      label: "Schema Registry URL (topic bootstrap)",
       type: "string",
-      required: true,
       default: "http://localhost:18081",
       placeholder: "http://localhost:8081",
     },
     {
       name: "vehicleTopic",
-      label: "Vehicle Topic",
+      label: "Vehicle Topic (topic bootstrap)",
       type: "string",
       default: "trajectory.fleet.vehicle",
     },
     {
       name: "assignmentTopic",
-      label: "Assignment Topic",
+      label: "Assignment Topic (topic bootstrap)",
       type: "string",
       default: "trajectory.fleet.assignment",
     },
     {
       name: "groupId",
-      label: "Consumer Group Id",
+      label: "Consumer Group Id (topic bootstrap)",
       type: "string",
       default: "moveet-adapter.fleet-roster",
     },
     {
       name: "loadTimeoutMs",
-      label: "Roster Load Timeout (ms)",
+      label: "Roster Load Timeout (ms, topic bootstrap)",
       type: "number",
       default: DEFAULT_ROSTER_LOAD_TIMEOUT_MS,
     },
@@ -115,8 +172,97 @@ export class ConnectorSource implements DataSource {
   private registry: SchemaRegistry | null = null;
   private vehicleMeta = new Map<string, VehicleMeta>();
   private connected = false;
+  /** Set when the bootstrap pull/drain failed; surfaced via healthCheck. */
+  private loadError: string | null = null;
 
   async connect(config: PluginConfig): Promise<void> {
+    const bootstrap = ((config.bootstrap as string) || "api").toLowerCase();
+
+    // A fresh roster on every (re)connect.
+    fleetRoster.clear();
+    this.vehicleMeta.clear();
+    this.loadError = null;
+
+    if (bootstrap === "topic") {
+      await this.connectViaTopics(config);
+      return;
+    }
+
+    await this.connectViaApi(config);
+  }
+
+  // ── REST pull API bootstrap (default) ───────────────────────────────
+
+  /**
+   * Bootstrap the roster from the connector's REST pull API. A connect-time
+   * fetch failure is GRACEFUL: it does not throw (which would crash the adapter
+   * at startup) — instead the source connects with an empty roster and reports
+   * unhealthy via {@link healthCheck}, matching the source error-handling
+   * contract for an upstream that is reachable later.
+   */
+  private async connectViaApi(config: PluginConfig): Promise<void> {
+    const rosterUrl =
+      (config.rosterUrl as string) || process.env.FLEET_ROSTER_URL || DEFAULT_FLEET_ROSTER_URL;
+    const fetchTimeoutMs =
+      config.fetchTimeoutMs != null
+        ? Number(config.fetchTimeoutMs)
+        : DEFAULT_ROSTER_FETCH_TIMEOUT_MS;
+
+    // connect() always succeeds for the API strategy; load failures are
+    // surfaced through healthCheck so the adapter keeps running.
+    this.connected = true;
+
+    try {
+      const res = await fetch(rosterUrl, {
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(fetchTimeoutMs),
+      });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status} ${res.statusText}`);
+      }
+      const json: unknown = await res.json();
+      const roster = RosterResponseSchema.parse(json);
+      this.applyRoster(roster);
+
+      logger.info(
+        {
+          rosterUrl,
+          vehicles: this.vehicleMeta.size,
+          boundVehicles: fleetRoster.boundVehicleIds().length,
+          totalKnown: fleetRoster.snapshot().vehicleIds.length,
+        },
+        "Fleet roster loaded from connector pull API"
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.loadError = message;
+      fleetRoster.clear();
+      this.vehicleMeta.clear();
+      logger.error(
+        { rosterUrl, err: message },
+        "Failed to load fleet roster from connector pull API; roster is empty"
+      );
+    }
+  }
+
+  /** Populate {@link fleetRoster} + vehicle metadata from a pulled roster. */
+  private applyRoster(roster: z.infer<typeof RosterResponseSchema>): void {
+    for (const v of roster.vehicles) {
+      this.vehicleMeta.set(v.vehicleId, {
+        id: v.vehicleId,
+        name: v.callsign ?? v.plate ?? v.vehicleId,
+        kind: v.kind ?? null,
+      });
+      fleetRoster.upsertVehicle(v.vehicleId);
+    }
+    for (const a of roster.assignments) {
+      fleetRoster.applyAssignment(a.deviceId, a.vehicleId, a.source);
+    }
+  }
+
+  // ── Compacted AVRO topic bootstrap (opt-in: bootstrap="topic") ──────
+
+  private async connectViaTopics(config: PluginConfig): Promise<void> {
     const brokersRaw = (config.brokers as string) || "";
     const brokers = brokersRaw
       .split(",")
@@ -150,11 +296,6 @@ export class ConnectorSource implements DataSource {
       logLevel: logLevel.NOTHING,
     });
 
-    // A fresh roster on every (re)connect; compacted topics give us the full
-    // current state on replay.
-    fleetRoster.clear();
-    this.vehicleMeta.clear();
-
     this.consumer = this.kafka.consumer({ groupId });
 
     try {
@@ -172,7 +313,7 @@ export class ConnectorSource implements DataSource {
           boundVehicles: fleetRoster.boundVehicleIds().length,
           totalKnown: snapshot.vehicleIds.length,
         },
-        "Fleet roster loaded from connector"
+        "Fleet roster loaded from connector topics"
       );
     } catch (err) {
       await this.consumer.disconnect().catch(() => {});
@@ -290,6 +431,7 @@ export class ConnectorSource implements DataSource {
     this.registry = null;
     this.vehicleMeta.clear();
     this.connected = false;
+    this.loadError = null;
     fleetRoster.clear();
   }
 
@@ -311,6 +453,9 @@ export class ConnectorSource implements DataSource {
   async healthCheck(): Promise<HealthCheckResult> {
     if (!this.connected) {
       return { healthy: false, message: "not connected" };
+    }
+    if (this.loadError) {
+      return { healthy: false, message: `roster load failed: ${this.loadError}` };
     }
     const bound = fleetRoster.boundVehicleIds().length;
     return {

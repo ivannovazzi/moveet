@@ -163,9 +163,50 @@ Kafka key and the payload's `deviceId`:
 
 ### `connector` source: load the real fleet roster
 
-`SOURCE_TYPE=connector` makes the adapter consume the connector's
-(dispatch-cc-consumer) two **compacted AVRO topics** to build an in-memory fleet
-roster instead of synthesising vehicles:
+`SOURCE_TYPE=connector` makes the adapter load an in-memory fleet roster from
+the connector (dispatch-cc-consumer) instead of synthesising vehicles. It
+exposes one vehicle per **bound** vehicle (real `vehicleId`s) and records each
+vehicle's currently-bound device(s). Pair it with the `trajectory` sink keyed by
+`deviceId` so the engine joins moveet's telemetry to the connector's assignments
+by the same real device ids.
+
+The roster is built once at source connect/bootstrap. Two strategies are
+selectable via the `bootstrap` config field:
+
+#### `bootstrap: "api"` (default) — REST pull
+
+A single `GET <rosterUrl>` against the connector's pull API returns the full
+snapshot, which is validated with Zod and turned into the roster. No AVRO /
+Schema Registry needed. The fetch uses a `~5s` `AbortSignal.timeout`
+(`fetchTimeoutMs`). If the pull fails (network, non-200, or invalid shape) the
+source connects with an **empty roster** and reports unhealthy via its health
+check rather than crashing the adapter — it can be retried by re-setting the
+source once the connector is reachable.
+
+Expected response (`200`):
+
+```json
+{
+  "vehicles":    [{ "vehicleId": "<uuid>", "plate": "<string|null>", "kind": "<string|null>", "callsign": "<string|null>" }],
+  "assignments": [{ "deviceId": "<uuid>", "vehicleId": "<uuid>", "source": "fitted_gps" | "shift", "effectiveFrom": "<ISO-8601>" }]
+}
+```
+
+`rosterUrl` may be omitted in config and supplied via the `FLEET_ROSTER_URL`
+environment variable instead.
+
+```json
+{
+  "type": "connector",
+  "config": {
+    "rosterUrl": "http://suite_connector:3002/api/fleet/roster"
+  }
+}
+```
+
+#### `bootstrap: "topic"` — compacted AVRO topics
+
+Consumes the connector's two **compacted AVRO topics** instead of the pull API:
 
 - `trajectory.fleet.vehicle` (key = `vehicleId`) -- the vehicle catalogue.
 - `trajectory.fleet.assignment` (key = `deviceId`) -- device→vehicle bindings;
@@ -175,14 +216,13 @@ Messages are decoded through the **Confluent Schema Registry** (the writer
 schema is resolved by the id embedded in each message, so moveet doesn't carry
 the AVRO definitions — it re-validates the decoded shape with Zod). The source
 drains both topics from the beginning to the current end of log, then exposes
-one vehicle per **bound** vehicle (real `vehicleId`s). Pair it with the
-`trajectory` sink keyed by `deviceId` so the engine joins moveet's telemetry to
-the connector's assignments by the same real device ids.
+one vehicle per **bound** vehicle.
 
 ```json
 {
   "type": "connector",
   "config": {
+    "bootstrap": "topic",
     "brokers": "suite_redpanda:9092",
     "schemaRegistry": "http://suite_redpanda:18081",
     "vehicleTopic": "trajectory.fleet.vehicle",

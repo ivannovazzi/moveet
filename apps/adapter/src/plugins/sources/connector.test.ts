@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ConnectorSource } from "./connector";
 import { fleetRoster } from "../fleetRoster";
 
-// ── kafkajs mock ────────────────────────────────────────────────────
+// ── kafkajs mock (topic bootstrap) ──────────────────────────────────
 // The consumer captures the `eachMessage` handler passed to run() so the test
 // can feed it decoded fleet messages, then lets the source's idle-window timer
 // resolve connect().
@@ -54,6 +54,216 @@ vi.mock("@kafkajs/confluent-schema-registry", () => {
 
 const VEHICLE_TOPIC = "trajectory.fleet.vehicle";
 const ASSIGNMENT_TOPIC = "trajectory.fleet.assignment";
+const ROSTER_URL = "http://connector.test/api/fleet/roster";
+
+// ── REST pull API (default bootstrap) ───────────────────────────────
+
+interface RosterVehicle {
+  vehicleId: string;
+  plate?: string | null;
+  kind?: string | null;
+  callsign?: string | null;
+}
+interface RosterAssignment {
+  deviceId: string;
+  vehicleId: string;
+  source: "fitted_gps" | "shift";
+  effectiveFrom?: string;
+}
+
+/** Build a mocked global.fetch that returns the given roster JSON once. */
+function mockFetchRoster(body: {
+  vehicles: RosterVehicle[];
+  assignments: Array<Omit<RosterAssignment, "effectiveFrom"> & { effectiveFrom?: string }>;
+}) {
+  const normalized = {
+    vehicles: body.vehicles,
+    assignments: body.assignments.map((a) => ({
+      effectiveFrom: "2026-01-01T00:00:00Z",
+      ...a,
+    })),
+  };
+  return vi.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    statusText: "OK",
+    json: async () => normalized,
+  } as Response);
+}
+
+describe("ConnectorSource — REST pull API bootstrap (default)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fleetRoster.clear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("has type 'connector'", () => {
+    expect(new ConnectorSource().type).toBe("connector");
+  });
+
+  it("fetches the roster from rosterUrl with a timeout signal", async () => {
+    const fetchMock = mockFetchRoster({
+      vehicles: [{ vehicleId: "V1", callsign: "AMB-1" }],
+      assignments: [{ deviceId: "D1", vehicleId: "V1", source: "fitted_gps" }],
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const source = new ConnectorSource();
+    await source.connect({ rosterUrl: ROSTER_URL });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [calledUrl, init] = fetchMock.mock.calls[0];
+    expect(calledUrl).toBe(ROSTER_URL);
+    expect((init as RequestInit).signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("builds a roster of bound vehicles keyed by real ids", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetchRoster({
+        vehicles: [
+          { vehicleId: "V1", callsign: "AMB-1" },
+          { vehicleId: "V2", callsign: "AMB-2" },
+        ],
+        // V2 has no assignment → unbound → omitted.
+        assignments: [{ deviceId: "D1", vehicleId: "V1", source: "fitted_gps" }],
+      })
+    );
+
+    const source = new ConnectorSource();
+    await source.connect({ rosterUrl: ROSTER_URL });
+
+    const vehicles = await source.getVehicles();
+    expect(vehicles).toHaveLength(1); // only V1 is bound
+    expect(vehicles[0]).toMatchObject({ id: "V1", name: "AMB-1" });
+
+    // The roster carries the real device id for V1 — telemetry keys off this.
+    expect(fleetRoster.devicesForVehicle("V1")).toEqual([{ deviceId: "D1", source: "fitted_gps" }]);
+  });
+
+  it("maps a vehicle to multiple bound devices (fitted_gps + shift)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetchRoster({
+        vehicles: [{ vehicleId: "V1", plate: "KCA-001" }],
+        assignments: [
+          { deviceId: "D-gps", vehicleId: "V1", source: "fitted_gps" },
+          { deviceId: "D-shift", vehicleId: "V1", source: "shift" },
+        ],
+      })
+    );
+
+    const source = new ConnectorSource();
+    await source.connect({ rosterUrl: ROSTER_URL });
+
+    expect(await source.getVehicles()).toEqual([{ id: "V1", name: "KCA-001" }]);
+    const devices = fleetRoster.devicesForVehicle("V1");
+    expect(devices.map((d) => d.deviceId).sort()).toEqual(["D-gps", "D-shift"]);
+  });
+
+  it("falls back rosterUrl → FLEET_ROSTER_URL env when no config url given", async () => {
+    const fetchMock = mockFetchRoster({ vehicles: [], assignments: [] });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubEnv("FLEET_ROSTER_URL", "http://env.test/roster");
+
+    const source = new ConnectorSource();
+    await source.connect({});
+
+    expect(fetchMock.mock.calls[0][0]).toBe("http://env.test/roster");
+  });
+
+  it("gracefully surfaces an empty/failed roster when the pull fails (no throw)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("ECONNREFUSED")));
+
+    const source = new ConnectorSource();
+    // connect() must NOT throw — a throw at bootstrap crashes the adapter.
+    await expect(source.connect({ rosterUrl: ROSTER_URL })).resolves.toBeUndefined();
+
+    expect(await source.getVehicles()).toEqual([]);
+    const health = await source.healthCheck();
+    expect(health.healthy).toBe(false);
+    expect(health.message).toMatch(/roster load failed/i);
+  });
+
+  it("gracefully handles a non-200 response", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 503,
+        statusText: "Service Unavailable",
+        json: async () => ({}),
+      } as Response)
+    );
+
+    const source = new ConnectorSource();
+    await expect(source.connect({ rosterUrl: ROSTER_URL })).resolves.toBeUndefined();
+    expect(await source.getVehicles()).toEqual([]);
+    expect((await source.healthCheck()).healthy).toBe(false);
+  });
+
+  it("gracefully handles a roster that fails schema validation", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: async () => ({ vehicles: [{ wrong: "shape" }] }),
+      } as Response)
+    );
+
+    const source = new ConnectorSource();
+    await expect(source.connect({ rosterUrl: ROSTER_URL })).resolves.toBeUndefined();
+    expect(await source.getVehicles()).toEqual([]);
+    expect((await source.healthCheck()).healthy).toBe(false);
+  });
+
+  it("reports healthy with bound count after a successful pull", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetchRoster({
+        vehicles: [{ vehicleId: "V1" }],
+        assignments: [{ deviceId: "D1", vehicleId: "V1", source: "shift" }],
+      })
+    );
+
+    const source = new ConnectorSource();
+    await source.connect({ rosterUrl: ROSTER_URL });
+    const health = await source.healthCheck();
+    expect(health.healthy).toBe(true);
+    expect(health.message).toMatch(/1 bound vehicle/);
+  });
+
+  it("clears roster and reports unhealthy after disconnect", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetchRoster({
+        vehicles: [{ vehicleId: "V1" }],
+        assignments: [{ deviceId: "D1", vehicleId: "V1", source: "shift" }],
+      })
+    );
+
+    const source = new ConnectorSource();
+    await source.connect({ rosterUrl: ROSTER_URL });
+    expect((await source.healthCheck()).healthy).toBe(true);
+
+    await source.disconnect();
+    expect(fleetRoster.boundVehicleIds()).toEqual([]);
+    expect((await source.healthCheck()).healthy).toBe(false);
+  });
+
+  it("throws from getVehicles when not connected", async () => {
+    const source = new ConnectorSource();
+    await expect(source.getVehicles()).rejects.toThrow(/not connected/);
+  });
+});
+
+// ── compacted AVRO topic bootstrap (opt-in: bootstrap="topic") ──────
 
 function vehicleMsg(data: {
   vehicle_id: string;
@@ -78,8 +288,9 @@ function assignmentMsg(data: {
 }
 
 /**
- * Connects the source and, in parallel, feeds the captured eachMessage handler.
- * A short `loadTimeoutMs` keeps the idle-window resolution fast.
+ * Connects the source via the topic strategy and, in parallel, feeds the
+ * captured eachMessage handler. A short `loadTimeoutMs` keeps the idle-window
+ * resolution fast.
  */
 async function connectWith(
   feed: (
@@ -89,6 +300,7 @@ async function connectWith(
 ): Promise<ConnectorSource> {
   const source = new ConnectorSource();
   const connectPromise = source.connect({
+    bootstrap: "topic",
     brokers: "localhost:9092",
     schemaRegistry: "http://localhost:8081",
     loadTimeoutMs: 400,
@@ -106,21 +318,21 @@ async function connectWith(
   return source;
 }
 
-describe("ConnectorSource", () => {
+describe("ConnectorSource — compacted AVRO topic bootstrap", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     eachMessage = null;
     fleetRoster.clear();
   });
 
-  it("has type 'connector'", () => {
-    expect(new ConnectorSource().type).toBe("connector");
-  });
-
   it("requires brokers and a schema registry url", async () => {
     const source = new ConnectorSource();
-    await expect(source.connect({ schemaRegistry: "http://x" })).rejects.toThrow(/broker/i);
-    await expect(source.connect({ brokers: "localhost:9092" })).rejects.toThrow(/schemaRegistry/i);
+    await expect(
+      source.connect({ bootstrap: "topic", schemaRegistry: "http://x" })
+    ).rejects.toThrow(/broker/i);
+    await expect(source.connect({ bootstrap: "topic", brokers: "localhost:9092" })).rejects.toThrow(
+      /schemaRegistry/i
+    );
   });
 
   it("subscribes to both fleet topics from the beginning", async () => {
@@ -182,11 +394,6 @@ describe("ConnectorSource", () => {
 
     const vehicles = await source.getVehicles();
     expect(vehicles.map((v) => v.id)).toEqual(["V1"]);
-  });
-
-  it("throws from getVehicles when not connected", async () => {
-    const source = new ConnectorSource();
-    await expect(source.getVehicles()).rejects.toThrow(/not connected/);
   });
 
   it("clears roster and reports unhealthy after disconnect", async () => {
