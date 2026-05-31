@@ -24,7 +24,6 @@
     "directory": "apps/adapter"
   },
   "dependencies": {
-    "@kafkajs/confluent-schema-registry": "^4.1.0",
     "@moveet/shared-types": "*",
     "compression": "^1.8.1",
     "cors": "^2.8.6",

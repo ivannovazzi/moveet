@@ -15,7 +15,6 @@ import { RestSource } from "./plugins/sources/rest";
 import { MySQLSource } from "./plugins/sources/mysql";
 import { PostgresSource } from "./plugins/sources/postgres";
 import { StaticSource } from "./plugins/sources/static";
-import { ConnectorSource } from "./plugins/sources/connector";
 
 // Sink plugins
 import { GraphQLSink } from "./plugins/sinks/graphql";
@@ -33,7 +32,6 @@ pluginManager.registerSource("rest", () => new RestSource());
 pluginManager.registerSource("mysql", () => new MySQLSource());
 pluginManager.registerSource("postgres", () => new PostgresSource());
 pluginManager.registerSource("static", () => new StaticSource());
-pluginManager.registerSource("connector", () => new ConnectorSource());
 
 pluginManager.registerSink("graphql", () => new GraphQLSink());
 pluginManager.registerSink("rest", () => new RestSink());

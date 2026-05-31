@@ -124,9 +124,11 @@ The Redpanda sink supports two output shapes via its `format` config field:
 - **`dispatch`** (default) -- moveet's native event:
   `{ eventType, eventId, occurredOn, vehicleId, vehicleType, latitude, longitude, timestamp }`.
 - **`trajectory`** -- pure-GPS telemetry consumed by the external **trajectory-engine**:
-  `{ ts, deviceId, lat, lon, speed, heading, altitude, accuracy, ignition }`, keyed
-  by the string `deviceId`. The payload carries `deviceId` as a string and has no
-  `vehicleId` — the engine resolves `deviceId → vehicleId` itself from the
+  `{ ts, deviceId, deviceType, lat, lon, speed, heading, altitude, accuracy, ignition }`.
+  `deviceId` comes from the update's `id`, and `deviceType` is sourced from
+  `metadata.deviceType` (omitted automatically when no metadata is present, so the
+  payload stays back-compatible with rosters that carry no device type). The payload
+  has no `vehicleId` — the engine resolves `deviceId → vehicleId` itself from the
   connector's assignment events. `speed` is converted km/h → m/s, `heading` is
   normalized to `[0, 360)`, `ignition` is derived from speed, and
   `altitude`/`accuracy` (which moveet does not simulate) come from the
@@ -149,86 +151,57 @@ For the engine to receive real `speed` and `heading`, run the simulator with
 `ADAPTER_URL` set -- the simulator forwards both on `/sync` (without it, speed
 falls back to 0 and ignition to `false`).
 
-The trajectory sink also takes a `keyBy` field that selects which id becomes the
-Kafka key and the payload's `deviceId`:
+The Kafka key is the `keyField` config field — a dot-path resolved against each
+message context (`id`, `metadata.deviceId`, etc.). For trajectory telemetry set
+`keyField: "id"` so each message is keyed by the device id the trajectory engine
+joins on.
 
-- **`vehicleId`** (default) -- synthetic mode: the simulator's own id (e.g.
-  `"static-0"`) is emitted verbatim as the string `deviceId` and used as the
-  Kafka key. Use with synthetic sources; behaviour is unchanged.
-- **`deviceId`** -- the simulator is driving the connector's **real** vehicles
-  (see the `connector` source below), so each update fans out to the device(s)
-  currently bound to that vehicle. Both the Kafka key and the payload `deviceId`
-  are the real connector `deviceId`. Vehicles with no currently-bound device
-  emit nothing.
+### Recipe: drive the real fleet from the connector (pure config)
 
-### `connector` source: load the real fleet roster
+There is no bespoke connector source. The connector use-case is just the generic
+`rest` source pointed at the connector's fleet-roster pull API, plus the
+`trajectory` sink preset. The `rest` source pulls the roster, maps each
+assignment's `deviceId` to the simulated entity id, and captures `deviceType` /
+`vehicleId` as metadata; the `trajectory` sink keys telemetry by that `deviceId`
+and emits `deviceType` from the metadata.
 
-`SOURCE_TYPE=connector` makes the adapter load an in-memory fleet roster from
-the connector (dispatch-cc-consumer) instead of synthesising vehicles. It
-exposes one vehicle per **bound** vehicle (real `vehicleId`s) and records each
-vehicle's currently-bound device(s). Pair it with the `trajectory` sink keyed by
-`deviceId` so the engine joins moveet's telemetry to the connector's assignments
-by the same real device ids.
+```bash
+SOURCE_TYPE=rest
+SOURCE_CONFIG={"url":"http://suite_connector:3002/api/fleet/roster","vehiclePath":"assignments","fieldMap":{"id":"deviceId"},"metadataMap":{"deviceType":"deviceType","vehicleId":"vehicleId"}}
 
-The roster is built once at source connect/bootstrap. Two strategies are
-selectable via the `bootstrap` config field:
-
-#### `bootstrap: "api"` (default) — REST pull
-
-A single `GET <rosterUrl>` against the connector's pull API returns the full
-snapshot, which is validated with Zod and turned into the roster. No AVRO /
-Schema Registry needed. The fetch uses a `~5s` `AbortSignal.timeout`
-(`fetchTimeoutMs`). If the pull fails (network, non-200, or invalid shape) the
-source connects with an **empty roster** and reports unhealthy via its health
-check rather than crashing the adapter — it can be retried by re-setting the
-source once the connector is reachable.
-
-Expected response (`200`):
-
-```json
-{
-  "vehicles":    [{ "vehicleId": "<uuid>", "plate": "<string|null>", "kind": "<string|null>", "callsign": "<string|null>" }],
-  "assignments": [{ "deviceId": "<uuid>", "vehicleId": "<uuid>", "source": "fitted_gps" | "shift", "effectiveFrom": "<ISO-8601>" }]
-}
+SINK_TYPES=redpanda
+SINK_REDPANDA_CONFIG={"brokers":"suite_redpanda:9092","topic":"trajectory.telemetry.raw","format":"trajectory","keyField":"id"}
 ```
 
-`rosterUrl` may be omitted in config and supplied via the `FLEET_ROSTER_URL`
-environment variable instead.
+How it maps:
 
-```json
-{
-  "type": "connector",
-  "config": {
-    "rosterUrl": "http://suite_connector:3002/api/fleet/roster"
-  }
-}
-```
+- **`vehiclePath: "assignments"`** -- iterate the roster's `assignments` array;
+  each assignment is one simulated entity. (A device with no `vehicleId` simply
+  carries `null` metadata; point `vehiclePath` at whichever array the roster
+  endpoint returns.)
+- **`fieldMap.id: "deviceId"`** -- the simulated entity's `id` **is** the real
+  `deviceId`. The simulator drives one moving entity per device, so positions are
+  generated per device and there is no synthetic `vehicleId → device` fan-out to
+  maintain.
+- **`metadataMap`** -- `deviceType` and `vehicleId` are captured into the
+  update's `metadata` and flow end-to-end to the sink.
+- **`format: "trajectory"` + `keyField: "id"`** -- the sink emits
+  `{ ts, deviceId: <id>, deviceType: <metadata.deviceType>, lat, lon, speed (m/s),
+heading, altitude, accuracy, ignition }` and keys each message by the
+  `deviceId` — exactly what the trajectory engine consumes. `deviceType` is
+  omitted when the roster carried none.
 
-#### `bootstrap: "topic"` — compacted AVRO topics
+The roster endpoint may return coordinates or not; the `rest` source treats
+position as optional (the simulator seeds positions when absent). Supply
+`fieldMap.lat` / `fieldMap.lng` if the endpoint does carry coordinates.
 
-Consumes the connector's two **compacted AVRO topics** instead of the pull API:
+#### Equivalent with an explicit `payloadTemplate`
 
-- `trajectory.fleet.vehicle` (key = `vehicleId`) -- the vehicle catalogue.
-- `trajectory.fleet.assignment` (key = `deviceId`) -- device→vehicle bindings;
-  a `null` `vehicle_id` unbinds the device.
+`format: "trajectory"` is shorthand for the template below; use the explicit
+template when you need to add or rename fields:
 
-Messages are decoded through the **Confluent Schema Registry** (the writer
-schema is resolved by the id embedded in each message, so moveet doesn't carry
-the AVRO definitions — it re-validates the decoded shape with Zod). The source
-drains both topics from the beginning to the current end of log, then exposes
-one vehicle per **bound** vehicle.
-
-```json
-{
-  "type": "connector",
-  "config": {
-    "bootstrap": "topic",
-    "brokers": "suite_redpanda:9092",
-    "schemaRegistry": "http://suite_redpanda:18081",
-    "vehicleTopic": "trajectory.fleet.vehicle",
-    "assignmentTopic": "trajectory.fleet.assignment"
-  }
-}
+```bash
+SINK_REDPANDA_CONFIG={"brokers":"suite_redpanda:9092","topic":"trajectory.telemetry.raw","keyField":"id","payloadTemplate":{"ts":"ts","deviceId":"id","deviceType":"metadata.deviceType","lat":"lat","lon":"lon","speed":"speed","heading":"heading","altitude":"altitude","accuracy":"accuracy","ignition":"ignition"}}
 ```
 
 ## Commands
