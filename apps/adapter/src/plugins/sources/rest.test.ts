@@ -197,6 +197,117 @@ describe("RestSource getVehicles", () => {
   });
 });
 
+describe("RestSource getVehicles groupBy", () => {
+  let source: RestSource;
+
+  const roster = () =>
+    new Response(
+      JSON.stringify({
+        assignments: [
+          { deviceId: "d1", deviceType: "gps", vehicleId: "v1" },
+          { deviceId: "d2", deviceType: "mobile", vehicleId: "v1" },
+          { deviceId: "d3", deviceType: "gps", vehicleId: "v2" },
+        ],
+      }),
+      { status: 200 }
+    );
+
+  beforeEach(() => {
+    source = new RestSource();
+    mockHttpFetch.mockReset();
+  });
+
+  it("produces one entity per group with metadata.devices", async () => {
+    mockHttpFetch.mockResolvedValue(roster());
+    await source.connect({
+      url: "http://example.com/roster",
+      vehiclePath: "assignments",
+      groupBy: "vehicleId",
+      fieldMap: { id: "deviceId" },
+      metadataMap: { deviceType: "deviceType" },
+    });
+
+    const vehicles = await source.getVehicles();
+
+    expect(vehicles).toHaveLength(2);
+    expect(vehicles[0]).toMatchObject({
+      id: "v1",
+      name: "v1",
+      metadata: {
+        devices: [
+          { id: "d1", deviceType: "gps" },
+          { id: "d2", deviceType: "mobile" },
+        ],
+      },
+    });
+    expect(vehicles[0].position).toBeUndefined();
+    expect(vehicles[1]).toMatchObject({
+      id: "v2",
+      name: "v2",
+      metadata: { devices: [{ id: "d3", deviceType: "gps" }] },
+    });
+  });
+
+  it("applies limit to the number of groups, not items", async () => {
+    mockHttpFetch.mockResolvedValue(roster());
+    await source.connect({
+      url: "http://example.com/roster",
+      vehiclePath: "assignments",
+      groupBy: "vehicleId",
+      fieldMap: { id: "deviceId" },
+      metadataMap: { deviceType: "deviceType" },
+      limit: 1,
+    });
+
+    const vehicles = await source.getVehicles();
+
+    expect(vehicles).toHaveLength(1);
+    expect(vehicles[0].id).toBe("v1");
+    expect(vehicles[0].metadata!.devices as unknown[]).toHaveLength(2);
+  });
+
+  it("seeds position from the group's first item when coords resolve", async () => {
+    mockHttpFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          assignments: [
+            { deviceId: "d1", vehicleId: "v1", lat: -1.28, lng: 36.8 },
+            { deviceId: "d2", vehicleId: "v1", lat: -1.5, lng: 37.0 },
+          ],
+        }),
+        { status: 200 }
+      )
+    );
+    await source.connect({
+      url: "http://example.com/roster",
+      vehiclePath: "assignments",
+      groupBy: "vehicleId",
+      fieldMap: { id: "deviceId" },
+    });
+
+    const vehicles = await source.getVehicles();
+
+    expect(vehicles).toHaveLength(1);
+    expect(vehicles[0].position).toEqual([-1.28, 36.8]);
+  });
+
+  it("is unchanged (one entity per item) when groupBy is unset", async () => {
+    mockHttpFetch.mockResolvedValue(roster());
+    await source.connect({
+      url: "http://example.com/roster",
+      vehiclePath: "assignments",
+      fieldMap: { id: "deviceId" },
+      metadataMap: { deviceType: "deviceType" },
+    });
+
+    const vehicles = await source.getVehicles();
+
+    expect(vehicles).toHaveLength(3);
+    expect(vehicles.map((v) => v.id)).toEqual(["d1", "d2", "d3"]);
+    expect(vehicles[0].metadata).toEqual({ deviceType: "gps" });
+  });
+});
+
 describe("RestSource getVehicles limit", () => {
   let source: RestSource;
 

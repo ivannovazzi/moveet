@@ -204,6 +204,39 @@ template when you need to add or rename fields:
 SINK_REDPANDA_CONFIG={"brokers":"suite_redpanda:9092","topic":"trajectory.telemetry.raw","keyField":"id","payloadTemplate":{"ts":"ts","deviceId":"id","deviceType":"metadata.deviceType","lat":"lat","lon":"lon","speed":"speed","heading":"heading","altitude":"altitude","accuracy":"accuracy","ignition":"ignition"}}
 ```
 
+### Recipe: co-locate a vehicle's devices (no jumping)
+
+A single vehicle often carries **several devices** — e.g. a fitted GPS unit and
+the driver's shift phone. If each device is driven as its own simulated entity,
+the two are routed independently and the vehicle appears to "jump" between them.
+The fix is two generic, composable features:
+
+- **`groupBy` on the `rest` source** groups the roster by a field (here
+  `vehicleId`) so each **vehicle** is **one** simulated entity. Every item in
+  the group is recorded under `metadata.devices` as
+  `{ id: <deviceId>, ...<metadataMap> }` (e.g. `{ id, deviceType }`). The entity
+  `id` is the `groupBy` value; `limit` then caps the number of **groups**.
+- **`fanOut` on the `redpanda` sink** takes a dot-path to an array in the
+  message context (`metadata.devices`) and emits **one message per element**.
+  Every message shares the vehicle's `lat`/`lon`/`speed`/`heading`/`ts`/
+  `ignition` (so all the devices are **co-located** — no jump), while the
+  current element is exposed as `device` for `keyField` / `payloadTemplate`
+  (`device.id`, `device.deviceType`, …). A missing/empty array emits nothing.
+
+```bash
+SOURCE_TYPE=rest
+SOURCE_CONFIG={"url":"http://suite_connector:3002/api/fleet/roster","vehiclePath":"assignments","groupBy":"vehicleId","fieldMap":{"id":"deviceId"},"metadataMap":{"deviceType":"deviceType"},"limit":30}
+
+SINK_TYPES=redpanda
+SINK_REDPANDA_CONFIG={"brokers":"suite_redpanda:9092","topic":"trajectory.telemetry.raw","keyField":"device.id","defaultAltitude":1650,"defaultAccuracy":5,"fanOut":"metadata.devices","payloadTemplate":{"ts":"ts","deviceId":"device.id","deviceType":"device.deviceType","lat":"lat","lon":"lon","speed":"speed","heading":"heading","altitude":"altitude","accuracy":"accuracy","ignition":"ignition"}}
+```
+
+Each vehicle is one moving entity; its devices ride along and are emitted at the
+**same** position, keyed by each **real** `deviceId`. The trajectory engine
+resolves every one of those device ids to that single vehicle — with no jumping.
+Both features are fully back-compatible: omit `groupBy` for one entity per item,
+omit `fanOut` for one message per update.
+
 ## Commands
 
 ```bash

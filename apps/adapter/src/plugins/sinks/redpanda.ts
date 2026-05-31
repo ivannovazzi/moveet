@@ -47,6 +47,12 @@ interface MessageContext {
   altitude: number;
   accuracy: number;
   metadata: Record<string, unknown>;
+  /**
+   * Present only when `fanOut` is configured: the current element of the
+   * fanned-out array, so per-device fields are reachable via `device.*` in
+   * `keyField` / `payloadTemplate`.
+   */
+  device?: unknown;
 }
 
 /**
@@ -159,6 +165,14 @@ export class RedpandaSink implements DataSink {
         'Overrides the format preset. Values: paths ("lat"), literals ("=const", 0, true, null), or nested objects.',
     },
     {
+      name: "fanOut",
+      label: "Fan-out Array Path",
+      type: "string",
+      placeholder: "e.g. metadata.devices",
+      description:
+        "Optional dot-path to an array in the message context. When set, one message is emitted per array element, each reachable via device.* in keyField/payloadTemplate. Missing/empty array = no messages. Unset = one message per update.",
+    },
+    {
       name: "defaultAltitude",
       label: "Default Altitude (m)",
       type: "number",
@@ -181,6 +195,9 @@ export class RedpandaSink implements DataSink {
   private format: "dispatch" | "trajectory" = "dispatch";
   private keyField = "id";
   private payloadTemplate: PayloadTemplate | null = null;
+  // Optional dot-path to an array in the context. When set, each update fans
+  // out to one message per array element. null = disabled.
+  private fanOut: string | null = null;
   private defaultAltitude = 0;
   private defaultAccuracy = 5;
   private healthCheckTimeoutMs: number = DEFAULT_HEALTH_CHECK_TIMEOUT_MS;
@@ -216,6 +233,9 @@ export class RedpandaSink implements DataSink {
     this.keyField = keyField;
 
     this.payloadTemplate = this.parsePayloadTemplate(config.payloadTemplate);
+
+    const fanOut = config.fanOut;
+    this.fanOut = typeof fanOut === "string" && fanOut.trim() !== "" ? fanOut : null;
 
     const altitude = config.defaultAltitude != null ? Number(config.defaultAltitude) : 0;
     this.defaultAltitude = Number.isFinite(altitude) ? altitude : 0;
@@ -329,31 +349,51 @@ export class RedpandaSink implements DataSink {
     };
   }
 
+  /** Resolve one context into a single Kafka message via the template. */
+  private buildMessage(template: PayloadTemplate, context: MessageContext) {
+    const keyValue = resolvePath(context, this.keyField);
+    return {
+      key: keyValue === undefined || keyValue === null ? undefined : String(keyValue),
+      value: JSON.stringify(resolveTemplate(template, context)),
+    };
+  }
+
   /**
-   * Build one message per update from a {@link PayloadTemplate}: the payload is
-   * the resolved template, the Kafka key is the `keyField` dot-path resolved
-   * against the same context (coerced to a string; omitted when undefined).
+   * Build the messages for a batch of updates from a {@link PayloadTemplate}:
+   * the payload is the resolved template and the Kafka key is the `keyField`
+   * dot-path, both resolved against the per-message context.
    *
-   * Entity-per-device: there is no per-device fan-out — each update maps to
-   * exactly one message.
+   * Without `fanOut`, each update maps to exactly one message. With `fanOut`
+   * set, the array at that path is resolved against the context and each
+   * element produces one message whose context carries `device: <element>`
+   * (so the shared position/speed/etc. are co-located across a vehicle's
+   * devices, while per-device fields are reachable via `device.*`). A
+   * missing/empty array emits nothing for that update.
    */
   private buildTemplateMessages(updates: VehicleUpdate[], template: PayloadTemplate) {
     const ts = Date.now();
-    return updates.map((update) => {
+    return updates.flatMap((update) => {
       const context = this.buildContext(update, ts);
-      const keyValue = resolvePath(context, this.keyField);
-      return {
-        key: keyValue === undefined || keyValue === null ? undefined : String(keyValue),
-        value: JSON.stringify(resolveTemplate(template, context)),
-      };
+
+      if (!this.fanOut) {
+        return [this.buildMessage(template, context)];
+      }
+
+      const array = resolvePath(context, this.fanOut);
+      if (!Array.isArray(array) || array.length === 0) {
+        return [];
+      }
+
+      return array.map((device) => this.buildMessage(template, { ...context, device }));
     });
   }
 
   /**
    * Build the Kafka messages for a batch of updates. An explicit
    * `payloadTemplate` (or the `trajectory` preset, expressed as a template)
-   * drives {@link buildTemplateMessages}; otherwise the `dispatch` preset's
-   * dedicated code path is used. One message per update — no fan-out.
+   * drives {@link buildTemplateMessages} (which honours `fanOut`); otherwise
+   * the `dispatch` preset's dedicated code path is used (one message per
+   * update, no fan-out).
    */
   private buildMessages(updates: VehicleUpdate[]) {
     const template = this.resolveActiveTemplate();

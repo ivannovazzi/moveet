@@ -428,6 +428,97 @@ describe("RedpandaSink", () => {
     });
   });
 
+  describe("fanOut", () => {
+    const template = {
+      ts: "ts",
+      deviceId: "device.id",
+      deviceType: "device.deviceType",
+      lat: "lat",
+      lon: "lon",
+    };
+
+    it("emits one co-located message per array element", async () => {
+      await sink.connect({
+        brokers: "localhost:9092",
+        keyField: "device.id",
+        fanOut: "metadata.devices",
+        payloadTemplate: template,
+      });
+      await sink.publishUpdates([
+        {
+          id: "v1",
+          latitude: -1.28,
+          longitude: 36.8,
+          metadata: {
+            devices: [
+              { id: "d1", deviceType: "gps" },
+              { id: "d2", deviceType: "mobile" },
+            ],
+          },
+        },
+      ]);
+
+      const messages = mockSend.mock.calls[0][0].messages;
+      expect(messages).toHaveLength(2);
+
+      expect(messages.map((m: { key: string }) => m.key)).toEqual(["d1", "d2"]);
+
+      const p1 = JSON.parse(messages[0].value);
+      const p2 = JSON.parse(messages[1].value);
+      // Same position across both devices → co-located.
+      expect(p1.lat).toBe(-1.28);
+      expect(p1.lon).toBe(36.8);
+      expect(p2.lat).toBe(-1.28);
+      expect(p2.lon).toBe(36.8);
+      // Per-device fields differ.
+      expect(p1.deviceId).toBe("d1");
+      expect(p1.deviceType).toBe("gps");
+      expect(p2.deviceId).toBe("d2");
+      expect(p2.deviceType).toBe("mobile");
+    });
+
+    it("emits nothing for an update with an empty array", async () => {
+      await sink.connect({
+        brokers: "localhost:9092",
+        keyField: "device.id",
+        fanOut: "metadata.devices",
+        payloadTemplate: template,
+      });
+      await sink.publishUpdates([
+        { id: "v1", latitude: 0, longitude: 0, metadata: { devices: [] } },
+      ]);
+
+      expect(mockSend.mock.calls[0][0].messages).toHaveLength(0);
+    });
+
+    it("emits nothing for an update with a missing array", async () => {
+      await sink.connect({
+        brokers: "localhost:9092",
+        keyField: "device.id",
+        fanOut: "metadata.devices",
+        payloadTemplate: template,
+      });
+      await sink.publishUpdates([{ id: "v1", latitude: 0, longitude: 0 }]);
+
+      expect(mockSend.mock.calls[0][0].messages).toHaveLength(0);
+    });
+
+    it("is unchanged (one message per update) when fanOut is unset", async () => {
+      await sink.connect({
+        brokers: "localhost:9092",
+        format: "trajectory",
+      });
+      await sink.publishUpdates([
+        { id: "a", latitude: 0, longitude: 0, speed: 10 },
+        { id: "b", latitude: 1, longitude: 1, speed: 20 },
+      ]);
+
+      const messages = mockSend.mock.calls[0][0].messages;
+      expect(messages).toHaveLength(2);
+      expect(messages.map((m: { key: string }) => m.key)).toEqual(["a", "b"]);
+    });
+  });
+
   describe("configSchema", () => {
     it("includes acks in configSchema", () => {
       const acksField = sink.configSchema.find((f) => f.name === "acks");
