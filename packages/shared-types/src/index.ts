@@ -33,6 +33,11 @@ export interface ExportVehicle {
   name: string;
   position?: Position;
   type?: VehicleType;
+  /**
+   * Arbitrary source-provided metadata, carried opaquely through the
+   * source → simulator → sink round-trip. Sinks may ignore it.
+   */
+  metadata?: Record<string, unknown>;
 }
 
 export interface VehicleUpdate {
@@ -44,6 +49,11 @@ export interface VehicleUpdate {
   speed?: number;
   /** Heading / course over ground in degrees, when the source provides it. */
   heading?: number;
+  /**
+   * Arbitrary source-provided metadata, carried opaquely from the source
+   * through the simulator to the sinks. Sinks may ignore it.
+   */
+  metadata?: Record<string, unknown>;
 }
 
 // ─── Fleet ──────────────────────────────────────────────────────────

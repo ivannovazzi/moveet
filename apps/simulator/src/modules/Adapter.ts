@@ -12,6 +12,8 @@ interface SyncVehicle {
   speed?: number;
   /** Heading / course over ground in degrees. */
   heading?: number;
+  /** Arbitrary source-provided metadata, carried opaquely through to the sinks. */
+  metadata?: Record<string, unknown>;
 }
 
 interface SyncData {

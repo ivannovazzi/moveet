@@ -162,8 +162,8 @@ export class VehicleManager extends EventEmitter {
 
   public async initFromAdapter(): Promise<void> {
     await this.adapterSync.initFromAdapter(
-      (id, name, position, type) => {
-        this.addVehicle(id, name, position, type ?? pickRandomType());
+      (id, name, position, type, metadata) => {
+        this.addVehicle(id, name, position, type ?? pickRandomType(), metadata);
       },
       () => this.loadFromData()
     );
@@ -187,13 +187,21 @@ export class VehicleManager extends EventEmitter {
     id: string,
     name: string,
     seedPosition?: [number, number],
-    vehicleType: VehicleType = "car"
+    vehicleType: VehicleType = "car",
+    metadata?: Record<string, unknown>
   ): void {
-    this.registry.addVehicle(id, name, seedPosition, vehicleType, (vehicleId) => {
-      const vehicle = this.registry.get(vehicleId)!;
-      this.traffic.enter(vehicle.currentEdge.id);
-      this.setRandomDestination(vehicleId);
-    });
+    this.registry.addVehicle(
+      id,
+      name,
+      seedPosition,
+      vehicleType,
+      (vehicleId) => {
+        const vehicle = this.registry.get(vehicleId)!;
+        this.traffic.enter(vehicle.currentEdge.id);
+        this.setRandomDestination(vehicleId);
+      },
+      metadata
+    );
   }
 
   // ─── Reset ────────────────────────────────────────────────────────
@@ -209,7 +217,7 @@ export class VehicleManager extends EventEmitter {
 
     if (adapterVehicles) {
       adapterVehicles.forEach((v) => {
-        this.addVehicle(v.id, v.name, v.position, v.type ?? pickRandomType());
+        this.addVehicle(v.id, v.name, v.position, v.type ?? pickRandomType(), v.metadata);
       });
     } else {
       this.loadFromData(this.pendingVehicleTypes);
