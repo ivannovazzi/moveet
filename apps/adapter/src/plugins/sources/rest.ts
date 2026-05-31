@@ -38,6 +38,7 @@ export class RestSource implements DataSource {
     { name: "body", label: "Body", type: "json" },
     { name: "vehiclePath", label: "Vehicle Path", type: "string", default: "vehicles" },
     { name: "fieldMap", label: "Field Map", type: "json" },
+    { name: "metadataMap", label: "Metadata Map", type: "json" },
   ];
   private url: string | null = null;
   private headers: Record<string, string> = {};
@@ -45,6 +46,7 @@ export class RestSource implements DataSource {
   private body: unknown = undefined;
   private vehiclePath: string = "vehicles";
   private fieldMap: FieldMap = { ...DEFAULT_FIELD_MAP };
+  private metadataMap: Record<string, string> = {};
 
   async connect(config: PluginConfig): Promise<void> {
     const url = config.url as string;
@@ -58,6 +60,7 @@ export class RestSource implements DataSource {
       ...DEFAULT_FIELD_MAP,
       ...((config.fieldMap as Partial<FieldMap>) || {}),
     };
+    this.metadataMap = (config.metadataMap as Record<string, string>) || {};
   }
 
   async disconnect(): Promise<void> {
@@ -67,6 +70,7 @@ export class RestSource implements DataSource {
     this.body = undefined;
     this.vehiclePath = "vehicles";
     this.fieldMap = { ...DEFAULT_FIELD_MAP };
+    this.metadataMap = {};
   }
 
   async getVehicles(): Promise<ExportVehicle[]> {
@@ -96,21 +100,40 @@ export class RestSource implements DataSource {
       const record = item as Record<string, unknown>;
       const id = String(getNestedValue(record, this.fieldMap.id) ?? "");
       const name = String(getNestedValue(record, this.fieldMap.name) ?? id);
-      const lat = Number(getNestedValue(record, this.fieldMap.lat));
-      const lng = Number(getNestedValue(record, this.fieldMap.lng));
 
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        logger.warn({ vehicleId: id, lat, lng }, `Skipping vehicle "${id}": invalid coordinates`);
-        return [];
+      const vehicle: ExportVehicle = { id, name };
+
+      // Position is optional: rosters without coordinates (e.g. a connector
+      // roster — the simulator seeds positions) are valid. Only attach a
+      // position when both lat/lng paths resolve to present, finite numbers.
+      const rawLat = getNestedValue(record, this.fieldMap.lat);
+      const rawLng = getNestedValue(record, this.fieldMap.lng);
+      const hasCoords = rawLat !== undefined && rawLng !== undefined;
+
+      if (hasCoords) {
+        const lat = Number(rawLat);
+        const lng = Number(rawLng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+          logger.warn({ vehicleId: id, lat, lng }, `Skipping vehicle "${id}": invalid coordinates`);
+          return [];
+        }
+        vehicle.position = [lat, lng] as [number, number];
       }
 
-      return [
-        {
-          id,
-          name,
-          position: [lat, lng] as [number, number],
-        },
-      ];
+      // Metadata: resolve each configured path against the item, keeping only
+      // present (non-undefined) values. Leave undefined when nothing resolves.
+      const metadata: Record<string, unknown> = {};
+      for (const [key, path] of Object.entries(this.metadataMap)) {
+        const value = getNestedValue(record, path);
+        if (value !== undefined) {
+          metadata[key] = value;
+        }
+      }
+      if (Object.keys(metadata).length > 0) {
+        vehicle.metadata = metadata;
+      }
+
+      return [vehicle];
     });
   }
 

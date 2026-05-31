@@ -64,7 +64,7 @@ describe("RestSource getVehicles", () => {
     mockHttpFetch.mockReset();
   });
 
-  it("filters out vehicles with NaN coordinates", async () => {
+  it("filters out vehicles with NaN coordinates but keeps coordinate-less ones", async () => {
     mockHttpFetch.mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -72,7 +72,8 @@ describe("RestSource getVehicles", () => {
             { id: "v1", name: "Good", lat: 1.5, lng: 36.8 },
             { id: "v2", name: "Bad Lat", lat: "not-a-number", lng: 36.8 },
             { id: "v3", name: "Bad Lng", lat: 1.5, lng: "abc" },
-            { id: "v4", name: "Missing", lat: undefined, lng: undefined },
+            // No coordinates at all → valid, position left undefined.
+            { id: "v4", name: "No Coords" },
           ],
         }),
         { status: 200 }
@@ -80,8 +81,11 @@ describe("RestSource getVehicles", () => {
     );
     await source.connect({ url: "http://example.com/api" });
     const vehicles = await source.getVehicles();
-    expect(vehicles).toHaveLength(1);
+    expect(vehicles).toHaveLength(2);
     expect(vehicles[0].id).toBe("v1");
+    expect(vehicles[0].position).toEqual([1.5, 36.8]);
+    expect(vehicles[1].id).toBe("v4");
+    expect(vehicles[1].position).toBeUndefined();
   });
 
   it("filters out vehicles with Infinity coordinates", async () => {
@@ -115,6 +119,80 @@ describe("RestSource getVehicles", () => {
     await source.connect({ url: "http://example.com/api" });
     const vehicles = await source.getVehicles();
     expect(vehicles).toHaveLength(1);
+    expect(vehicles[0].position).toEqual([-1.28, 36.82]);
+  });
+
+  it("captures metadata from a position-less roster via metadataMap", async () => {
+    mockHttpFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          assignments: [
+            { deviceId: "d1", deviceType: "gps", vehicleId: "v1" },
+            { deviceId: "d2", deviceType: "mobile", vehicleId: "v2" },
+          ],
+        }),
+        { status: 200 }
+      )
+    );
+    await source.connect({
+      url: "http://example.com/roster",
+      vehiclePath: "assignments",
+      fieldMap: { id: "deviceId" },
+      metadataMap: { deviceType: "deviceType", vehicleId: "vehicleId" },
+    });
+
+    const vehicles = await source.getVehicles();
+
+    expect(vehicles).toHaveLength(2);
+    expect(vehicles[0]).toMatchObject({
+      id: "d1",
+      metadata: { deviceType: "gps", vehicleId: "v1" },
+    });
+    expect(vehicles[0].position).toBeUndefined();
+    expect(vehicles[1]).toMatchObject({
+      id: "d2",
+      metadata: { deviceType: "mobile", vehicleId: "v2" },
+    });
+    expect(vehicles[1].position).toBeUndefined();
+  });
+
+  it("omits metadata that does not resolve and never attaches an empty object", async () => {
+    mockHttpFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          assignments: [{ deviceId: "d1", deviceType: "gps" }, { deviceId: "d2" }],
+        }),
+        { status: 200 }
+      )
+    );
+    await source.connect({
+      url: "http://example.com/roster",
+      vehiclePath: "assignments",
+      fieldMap: { id: "deviceId" },
+      metadataMap: { deviceType: "deviceType", vehicleId: "vehicleId" },
+    });
+
+    const vehicles = await source.getVehicles();
+
+    expect(vehicles[0].metadata).toEqual({ deviceType: "gps" });
+    expect(vehicles[1].metadata).toBeUndefined();
+  });
+
+  it("attaches no metadata when metadataMap is absent (back-compat)", async () => {
+    mockHttpFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          vehicles: [{ id: "v1", name: "Vehicle 1", lat: -1.28, lng: 36.82 }],
+        }),
+        { status: 200 }
+      )
+    );
+    await source.connect({ url: "http://example.com/api" });
+
+    const vehicles = await source.getVehicles();
+
+    expect(vehicles).toHaveLength(1);
+    expect(vehicles[0].metadata).toBeUndefined();
     expect(vehicles[0].position).toEqual([-1.28, 36.82]);
   });
 });
