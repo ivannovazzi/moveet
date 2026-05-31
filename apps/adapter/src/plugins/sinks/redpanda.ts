@@ -17,26 +17,6 @@ const logger = createLogger("RedpandaSink");
 /** Default timeout for health check broker probe (ms). Overridable via `healthCheckTimeoutMs` config. */
 const DEFAULT_HEALTH_CHECK_TIMEOUT_MS = 5000;
 
-/**
- * Maps moveet's string vehicle id to the non-negative integer the
- * trajectory-engine requires (and uses as its Kafka partition key). Numeric ids
- * (`"0"`, `"1"`, … — the simulator's defaults) pass through unchanged; anything
- * else (e.g. `"static-0"`, a UUID) is folded to a stable 31-bit FNV-1a hash so
- * the same vehicle always maps to the same id across restarts.
- */
-export function toIntegerVehicleId(id: string): number {
-  if (/^\d+$/.test(id)) {
-    const n = Number(id);
-    if (Number.isSafeInteger(n)) return n;
-  }
-  let hash = 0x811c9dc5; // FNV-1a 32-bit offset basis
-  for (let i = 0; i < id.length; i++) {
-    hash ^= id.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193); // FNV prime
-  }
-  return hash & 0x7fffffff; // mask to 31 bits → always non-negative
-}
-
 export class RedpandaSink implements DataSink {
   readonly type = "redpanda";
   readonly name = "Redpanda/Kafka Message Broker";
@@ -195,30 +175,32 @@ export class RedpandaSink implements DataSink {
    * sourced from config defaults (moveet does not simulate them) and `ignition`
    * is derived from speed.
    *
+   * The payload carries the device's **`deviceId` as a string** and has NO
+   * `vehicleId` — the engine resolves `deviceId → vehicleId` itself via the
+   * connector's assignment events. The Kafka message key is the same
+   * `deviceId`.
+   *
    * Keying (`keyBy`):
-   *  - `vehicleId` (default): one message per update, keyed by the integer
-   *    vehicle id derived from the simulator's vehicle id. Unchanged synthetic
-   *    behaviour.
+   *  - `vehicleId` (default / synthetic): one message per update. The
+   *    simulator's own id (e.g. `"static-0"`, `"42"`) is emitted verbatim as the
+   *    `deviceId` string and used as the Kafka key.
    *  - `deviceId`: the simulator is driving the connector's *real* vehicles, so
    *    each update fans out to the device(s) currently bound to that vehicle in
-   *    the shared {@link fleetRoster}. The Kafka key is the real connector
-   *    `deviceId`, and the payload's integer `vehicleId` is derived from that
-   *    same device id — stable and device-scoped, so each real device maps to a
-   *    distinct, deterministic engine vehicle id. Updates for a vehicle with no
-   *    currently-bound device produce no messages (an unbind silently stops
+   *    the shared {@link fleetRoster}. Both the Kafka key and the payload
+   *    `deviceId` are the real connector `deviceId`. Updates for a vehicle with
+   *    no currently-bound device produce no messages (an unbind silently stops
    *    telemetry for that device).
    */
   private buildTrajectoryMessages(updates: VehicleUpdate[]) {
     const ts = Date.now();
-    const toMessage = (idForKey: string, update: VehicleUpdate) => {
-      const vehicleId = toIntegerVehicleId(idForKey);
+    const toMessage = (deviceId: string, update: VehicleUpdate) => {
       const speed = Math.max(0, (update.speed ?? 0) / 3.6); // km/h → m/s
       const heading = (((update.heading ?? 0) % 360) + 360) % 360; // → [0, 360)
       return {
-        key: idForKey,
+        key: deviceId,
         value: JSON.stringify({
           ts,
-          vehicleId,
+          deviceId,
           lat: update.latitude,
           lon: update.longitude,
           speed,
@@ -237,9 +219,10 @@ export class RedpandaSink implements DataSink {
       });
     }
 
-    // Default: key by the integer vehicle id (as a string), matching the
-    // engine's per-vehicle partitioning for synthetic fleets.
-    return updates.map((update) => toMessage(String(toIntegerVehicleId(update.id)), update));
+    // Default (synthetic): the simulator's vehicle id is the device id; emit it
+    // verbatim as a string so the trajectory payload always carries a string
+    // deviceId.
+    return updates.map((update) => toMessage(update.id, update));
   }
 
   async publishUpdates(updates: VehicleUpdate[]): Promise<SinkPublishResult | void> {

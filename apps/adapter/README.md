@@ -124,8 +124,10 @@ The Redpanda sink supports two output shapes via its `format` config field:
 - **`dispatch`** (default) -- moveet's native event:
   `{ eventType, eventId, occurredOn, vehicleId, vehicleType, latitude, longitude, timestamp }`.
 - **`trajectory`** -- pure-GPS telemetry consumed by the external **trajectory-engine**:
-  `{ ts, vehicleId, lat, lon, speed, heading, altitude, accuracy, ignition }`, keyed
-  by the integer `vehicleId`. `speed` is converted km/h → m/s, `heading` is
+  `{ ts, deviceId, lat, lon, speed, heading, altitude, accuracy, ignition }`, keyed
+  by the string `deviceId`. The payload carries `deviceId` as a string and has no
+  `vehicleId` — the engine resolves `deviceId → vehicleId` itself from the
+  connector's assignment events. `speed` is converted km/h → m/s, `heading` is
   normalized to `[0, 360)`, `ignition` is derived from speed, and
   `altitude`/`accuracy` (which moveet does not simulate) come from the
   `defaultAltitude` / `defaultAccuracy` config fields.
@@ -147,17 +149,17 @@ For the engine to receive real `speed` and `heading`, run the simulator with
 `ADAPTER_URL` set -- the simulator forwards both on `/sync` (without it, speed
 falls back to 0 and ignition to `false`).
 
-The trajectory sink also takes a `keyBy` field that selects the Kafka key (and
-the derived integer `vehicleId`):
+The trajectory sink also takes a `keyBy` field that selects which id becomes the
+Kafka key and the payload's `deviceId`:
 
-- **`vehicleId`** (default) -- key by the integer id derived from the
-  simulator's vehicle id. Use with synthetic sources; behaviour is unchanged.
+- **`vehicleId`** (default) -- synthetic mode: the simulator's own id (e.g.
+  `"static-0"`) is emitted verbatim as the string `deviceId` and used as the
+  Kafka key. Use with synthetic sources; behaviour is unchanged.
 - **`deviceId`** -- the simulator is driving the connector's **real** vehicles
   (see the `connector` source below), so each update fans out to the device(s)
-  currently bound to that vehicle and is keyed by the real `deviceId`. The
-  payload `vehicleId` is derived deterministically from that device id, so each
-  real device maps to a distinct, stable engine vehicle id. Vehicles with no
-  currently-bound device emit nothing.
+  currently bound to that vehicle. Both the Kafka key and the payload `deviceId`
+  are the real connector `deviceId`. Vehicles with no currently-bound device
+  emit nothing.
 
 ### `connector` source: load the real fleet roster
 

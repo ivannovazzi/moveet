@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { RedpandaSink, toIntegerVehicleId } from "./redpanda";
+import { RedpandaSink } from "./redpanda";
 import { fleetRoster } from "../fleetRoster";
 
 // Mock kafkajs so we can intercept producer.send() and admin calls
@@ -146,17 +146,17 @@ describe("RedpandaSink", () => {
         [
           "accuracy",
           "altitude",
+          "deviceId",
           "heading",
           "ignition",
           "lat",
           "lon",
           "speed",
           "ts",
-          "vehicleId",
         ].sort()
       );
       expect(payload).toMatchObject({
-        vehicleId: 42,
+        deviceId: "42",
         lat: -1.2863,
         lon: 36.8172,
         speed: 10, // 36 km/h ÷ 3.6
@@ -165,8 +165,9 @@ describe("RedpandaSink", () => {
         accuracy: 5,
         ignition: true,
       });
+      expect(typeof payload.deviceId).toBe("string");
       expect(typeof payload.ts).toBe("number");
-      // Kafka key is the integer vehicle id as a string (per-vehicle partitioning).
+      // Kafka key is the device id string (= the simulator id in synthetic mode).
       expect(message.key).toBe("42");
     });
 
@@ -226,14 +227,15 @@ describe("RedpandaSink", () => {
       expect(payload.vehicleId).toBe("v1");
     });
 
-    it("keys by the integer vehicle id by default (keyBy omitted)", async () => {
+    it("emits the simulator id verbatim as a string deviceId by default (keyBy omitted)", async () => {
       await sink.connect({ brokers: "localhost:9092", format: "trajectory" });
       await sink.publishUpdates([{ id: "static-7", latitude: 0, longitude: 0, speed: 10 }]);
 
       const message = mockSend.mock.calls[0][0].messages[0];
-      const expectedId = toIntegerVehicleId("static-7");
-      expect(message.key).toBe(String(expectedId));
-      expect(JSON.parse(message.value).vehicleId).toBe(expectedId);
+      const payload = JSON.parse(message.value);
+      expect(message.key).toBe("static-7");
+      expect(payload.deviceId).toBe("static-7");
+      expect(payload).not.toHaveProperty("vehicleId");
     });
   });
 
@@ -256,13 +258,14 @@ describe("RedpandaSink", () => {
       const byKey = Object.fromEntries(messages.map((m: { key: string }) => [m.key, m]));
       expect(Object.keys(byKey).sort()).toEqual(["dev-gps-1", "dev-shift-1"]);
 
-      // Payload vehicleId is derived from the *device* id, so each device maps
-      // to a distinct, deterministic engine vehicle id.
+      // Payload carries the real device id as a string; no vehicleId (the engine
+      // resolves deviceId → vehicleId itself via assignment events).
       const gpsPayload = JSON.parse(byKey["dev-gps-1"].value);
       const shiftPayload = JSON.parse(byKey["dev-shift-1"].value);
-      expect(gpsPayload.vehicleId).toBe(toIntegerVehicleId("dev-gps-1"));
-      expect(shiftPayload.vehicleId).toBe(toIntegerVehicleId("dev-shift-1"));
-      expect(gpsPayload.vehicleId).not.toBe(shiftPayload.vehicleId);
+      expect(gpsPayload.deviceId).toBe("dev-gps-1");
+      expect(shiftPayload.deviceId).toBe("dev-shift-1");
+      expect(gpsPayload).not.toHaveProperty("vehicleId");
+      expect(shiftPayload).not.toHaveProperty("vehicleId");
       // GPS transforms still apply.
       expect(gpsPayload.speed).toBe(10);
       expect(gpsPayload.lat).toBe(-1.3);
@@ -397,29 +400,5 @@ describe("RedpandaSink", () => {
 
       expect(mockAdminDisconnect).toHaveBeenCalled();
     });
-  });
-});
-
-describe("toIntegerVehicleId", () => {
-  it("passes numeric ids through unchanged", () => {
-    expect(toIntegerVehicleId("0")).toBe(0);
-    expect(toIntegerVehicleId("42")).toBe(42);
-    expect(toIntegerVehicleId("5000")).toBe(5000);
-  });
-
-  it("hashes non-numeric ids to a stable non-negative 31-bit integer", () => {
-    const a = toIntegerVehicleId("static-0");
-    const b = toIntegerVehicleId("static-0");
-    expect(a).toBe(b); // deterministic
-    expect(a).toBeGreaterThanOrEqual(0);
-    expect(a).toBeLessThanOrEqual(0x7fffffff);
-    expect(Number.isInteger(a)).toBe(true);
-  });
-
-  it("maps distinct ids to distinct integers", () => {
-    expect(toIntegerVehicleId("static-0")).not.toBe(toIntegerVehicleId("static-1"));
-    expect(toIntegerVehicleId("550e8400-e29b-41d4-a716-446655440000")).not.toBe(
-      toIntegerVehicleId("550e8400-e29b-41d4-a716-446655440001")
-    );
   });
 });
