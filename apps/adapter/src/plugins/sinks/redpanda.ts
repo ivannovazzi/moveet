@@ -9,13 +9,105 @@ import type {
   SinkPublishResult,
 } from "../types";
 import type { VehicleUpdate } from "../../types";
-import { fleetRoster } from "../fleetRoster";
 import { createLogger } from "../../utils/logger";
 
 const logger = createLogger("RedpandaSink");
 
 /** Default timeout for health check broker probe (ms). Overridable via `healthCheckTimeoutMs` config. */
 const DEFAULT_HEALTH_CHECK_TIMEOUT_MS = 5000;
+
+/**
+ * A single value in a {@link PayloadTemplate}. Resolved per-message against the
+ * {@link MessageContext}:
+ *  - `number` / `boolean` / `null` → emitted literally.
+ *  - `string` starting with `"="` → literal string (the `=` is stripped).
+ *  - any other `string` → a dot-path into the context; resolving to `undefined`
+ *    omits the key entirely.
+ *  - nested object → recursed.
+ */
+type TemplateToken = string | number | boolean | null | { [key: string]: TemplateToken };
+type PayloadTemplate = Record<string, TemplateToken>;
+
+/**
+ * The per-message context every template / `keyField` resolves against. Built
+ * once per {@link VehicleUpdate} in {@link RedpandaSink.buildContext}.
+ */
+interface MessageContext {
+  id: string;
+  type: VehicleUpdate["type"];
+  lat: number;
+  lon: number;
+  heading: number;
+  /** Ground speed in km/h. */
+  speedKmh: number;
+  /** Ground speed in m/s. */
+  speed: number;
+  ts: number;
+  ignition: boolean;
+  altitude: number;
+  accuracy: number;
+  metadata: Record<string, unknown>;
+}
+
+/**
+ * Built-in `trajectory` preset, expressed as a template. Reproduces the
+ * pure-GPS telemetry payload consumed by the trajectory-engine, plus a
+ * metadata-sourced `deviceType` (omitted automatically when absent, preserving
+ * back-compat with the prior payload that had no deviceType).
+ */
+const TRAJECTORY_TEMPLATE: PayloadTemplate = {
+  ts: "ts",
+  deviceId: "id",
+  deviceType: "metadata.deviceType",
+  lat: "lat",
+  lon: "lon",
+  speed: "speed",
+  heading: "heading",
+  altitude: "altitude",
+  accuracy: "accuracy",
+  ignition: "ignition",
+};
+
+/** Resolve a dot-path (e.g. `"metadata.deviceType"`) against a context object. */
+function resolvePath(context: unknown, path: string): unknown {
+  return path.split(".").reduce<unknown>((acc, segment) => {
+    if (acc != null && typeof acc === "object" && segment in (acc as Record<string, unknown>)) {
+      return (acc as Record<string, unknown>)[segment];
+    }
+    return undefined;
+  }, context);
+}
+
+/**
+ * Resolve a {@link PayloadTemplate} against a context into a plain JSON object.
+ * Keys whose value is a path resolving to `undefined` are omitted.
+ */
+function resolveTemplate(
+  template: PayloadTemplate,
+  context: MessageContext
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, token] of Object.entries(template)) {
+    const resolved = resolveToken(token, context);
+    if (resolved !== undefined) out[key] = resolved;
+  }
+  return out;
+}
+
+function resolveToken(token: TemplateToken, context: MessageContext): unknown {
+  // Literals: number / boolean / null are emitted verbatim.
+  if (typeof token === "number" || typeof token === "boolean" || token === null) {
+    return token;
+  }
+  if (typeof token === "string") {
+    // "=literal" → literal string (strip the leading "=").
+    if (token.startsWith("=")) return token.slice(1);
+    // Otherwise a dot-path into the context.
+    return resolvePath(context, token);
+  }
+  // Nested object → recurse.
+  return resolveTemplate(token as PayloadTemplate, context);
+}
 
 export class RedpandaSink implements DataSink {
   readonly type = "redpanda";
@@ -53,14 +145,18 @@ export class RedpandaSink implements DataSink {
       ],
     },
     {
-      name: "keyBy",
-      label: "Trajectory Key Source",
-      type: "select",
-      default: "vehicleId",
-      options: [
-        { label: "Vehicle id (synthetic / default)", value: "vehicleId" },
-        { label: "Connector device id (real fleet roster)", value: "deviceId" },
-      ],
+      name: "keyField",
+      label: "Message Key Field",
+      type: "string",
+      default: "id",
+      placeholder: "dot-path into the message context, e.g. id or metadata.deviceId",
+    },
+    {
+      name: "payloadTemplate",
+      label: "Payload Template (JSON)",
+      type: "json",
+      placeholder:
+        'Overrides the format preset. Values: paths ("lat"), literals ("=const", 0, true, null), or nested objects.',
     },
     {
       name: "defaultAltitude",
@@ -83,7 +179,8 @@ export class RedpandaSink implements DataSink {
   private batchSize = 500;
   private acks: number = 1;
   private format: "dispatch" | "trajectory" = "dispatch";
-  private keyBy: "vehicleId" | "deviceId" = "vehicleId";
+  private keyField = "id";
+  private payloadTemplate: PayloadTemplate | null = null;
   private defaultAltitude = 0;
   private defaultAccuracy = 5;
   private healthCheckTimeoutMs: number = DEFAULT_HEALTH_CHECK_TIMEOUT_MS;
@@ -110,11 +207,15 @@ export class RedpandaSink implements DataSink {
     }
     this.format = format;
 
-    const keyBy = (config.keyBy as string) || "vehicleId";
-    if (keyBy !== "vehicleId" && keyBy !== "deviceId") {
-      throw new Error(`RedpandaSink: invalid keyBy "${keyBy}" (must be "vehicleId" or "deviceId")`);
+    const keyField = (config.keyField as string) || "id";
+    if (typeof keyField !== "string" || keyField.trim() === "") {
+      throw new Error(
+        `RedpandaSink: invalid keyField "${keyField}" (must be a non-empty dot-path)`
+      );
     }
-    this.keyBy = keyBy;
+    this.keyField = keyField;
+
+    this.payloadTemplate = this.parsePayloadTemplate(config.payloadTemplate);
 
     const altitude = config.defaultAltitude != null ? Number(config.defaultAltitude) : 0;
     this.defaultAltitude = Number.isFinite(altitude) ? altitude : 0;
@@ -170,68 +271,101 @@ export class RedpandaSink implements DataSink {
   }
 
   /**
-   * Pure-GPS telemetry shape consumed by the external trajectory-engine. Every
-   * field is required by the engine's frozen schema; `altitude`/`accuracy` are
-   * sourced from config defaults (moveet does not simulate them) and `ignition`
-   * is derived from speed.
-   *
-   * The payload carries the device's **`deviceId` as a string** and has NO
-   * `vehicleId` — the engine resolves `deviceId → vehicleId` itself via the
-   * connector's assignment events. The Kafka message key is the same
-   * `deviceId`.
-   *
-   * Keying (`keyBy`):
-   *  - `vehicleId` (default / synthetic): one message per update. The
-   *    simulator's own id (e.g. `"static-0"`, `"42"`) is emitted verbatim as the
-   *    `deviceId` string and used as the Kafka key.
-   *  - `deviceId`: the simulator is driving the connector's *real* vehicles, so
-   *    each update fans out to the device(s) currently bound to that vehicle in
-   *    the shared {@link fleetRoster}. Both the Kafka key and the payload
-   *    `deviceId` are the real connector `deviceId`. Updates for a vehicle with
-   *    no currently-bound device produce no messages (an unbind silently stops
-   *    telemetry for that device).
+   * Parse + validate the optional `payloadTemplate` config. Accepts either an
+   * already-parsed object or a JSON string (the `json` config field may arrive
+   * as either). Returns `null` when unset (→ fall back to the `format` preset).
    */
-  private buildTrajectoryMessages(updates: VehicleUpdate[]) {
-    const ts = Date.now();
-    const toMessage = (deviceId: string, update: VehicleUpdate) => {
-      const speed = Math.max(0, (update.speed ?? 0) / 3.6); // km/h → m/s
-      const heading = (((update.heading ?? 0) % 360) + 360) % 360; // → [0, 360)
-      return {
-        key: deviceId,
-        value: JSON.stringify({
-          ts,
-          deviceId,
-          lat: update.latitude,
-          lon: update.longitude,
-          speed,
-          heading,
-          altitude: this.defaultAltitude,
-          accuracy: this.defaultAccuracy,
-          ignition: speed > 0.5,
-        }),
-      };
-    };
-
-    if (this.keyBy === "deviceId") {
-      return updates.flatMap((update) => {
-        const devices = fleetRoster.devicesForVehicle(update.id);
-        return devices.map((d) => toMessage(d.deviceId, update));
-      });
+  private parsePayloadTemplate(raw: unknown): PayloadTemplate | null {
+    if (raw == null || raw === "") return null;
+    let parsed: unknown = raw;
+    if (typeof raw === "string") {
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        throw new Error("RedpandaSink: payloadTemplate is not valid JSON");
+      }
     }
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      throw new Error("RedpandaSink: payloadTemplate must be a JSON object");
+    }
+    return parsed as PayloadTemplate;
+  }
 
-    // Default (synthetic): the simulator's vehicle id is the device id; emit it
-    // verbatim as a string so the trajectory payload always carries a string
-    // deviceId.
-    return updates.map((update) => toMessage(update.id, update));
+  /**
+   * The effective template for the current config: an explicit
+   * `payloadTemplate` overrides the `format` preset. Presets are implemented
+   * internally as templates — see {@link TRAJECTORY_TEMPLATE}. The `dispatch`
+   * preset keeps its dedicated code path (it injects a fresh UUID / timestamp
+   * per message, which a static template can't express) and so returns `null`
+   * here, signalling {@link buildMessages} to use {@link buildDispatchMessages}.
+   */
+  private resolveActiveTemplate(): PayloadTemplate | null {
+    if (this.payloadTemplate) return this.payloadTemplate;
+    if (this.format === "trajectory") return TRAJECTORY_TEMPLATE;
+    return null;
+  }
+
+  /**
+   * Build the per-message context every template / `keyField` resolves against.
+   * `speed` is m/s (the trajectory-engine's unit), `speedKmh` is the raw
+   * source value; `ignition` is derived from m/s speed.
+   */
+  private buildContext(update: VehicleUpdate, ts: number): MessageContext {
+    const speedKmh = update.speed ?? 0;
+    const speed = speedKmh / 3.6; // km/h → m/s
+    return {
+      id: update.id,
+      type: update.type,
+      lat: update.latitude,
+      lon: update.longitude,
+      heading: update.heading ?? 0,
+      speedKmh,
+      speed,
+      ts,
+      ignition: speed > 0.5,
+      altitude: this.defaultAltitude,
+      accuracy: this.defaultAccuracy,
+      metadata: update.metadata ?? {},
+    };
+  }
+
+  /**
+   * Build one message per update from a {@link PayloadTemplate}: the payload is
+   * the resolved template, the Kafka key is the `keyField` dot-path resolved
+   * against the same context (coerced to a string; omitted when undefined).
+   *
+   * Entity-per-device: there is no per-device fan-out — each update maps to
+   * exactly one message.
+   */
+  private buildTemplateMessages(updates: VehicleUpdate[], template: PayloadTemplate) {
+    const ts = Date.now();
+    return updates.map((update) => {
+      const context = this.buildContext(update, ts);
+      const keyValue = resolvePath(context, this.keyField);
+      return {
+        key: keyValue === undefined || keyValue === null ? undefined : String(keyValue),
+        value: JSON.stringify(resolveTemplate(template, context)),
+      };
+    });
+  }
+
+  /**
+   * Build the Kafka messages for a batch of updates. An explicit
+   * `payloadTemplate` (or the `trajectory` preset, expressed as a template)
+   * drives {@link buildTemplateMessages}; otherwise the `dispatch` preset's
+   * dedicated code path is used. One message per update — no fan-out.
+   */
+  private buildMessages(updates: VehicleUpdate[]) {
+    const template = this.resolveActiveTemplate();
+    return template
+      ? this.buildTemplateMessages(updates, template)
+      : this.buildDispatchMessages(updates);
   }
 
   async publishUpdates(updates: VehicleUpdate[]): Promise<SinkPublishResult | void> {
     if (!this.producer) return;
 
-    const messages =
-      this.format === "trajectory"
-        ? this.buildTrajectoryMessages(updates)
-        : this.buildDispatchMessages(updates);
+    const messages = this.buildMessages(updates);
 
     if (messages.length <= this.batchSize) {
       await this.producer.send({ topic: this.topic, messages, acks: this.acks });
