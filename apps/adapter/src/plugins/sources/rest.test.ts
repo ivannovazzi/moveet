@@ -197,6 +197,65 @@ describe("RestSource getVehicles", () => {
   });
 });
 
+describe("RestSource getVehicles limit", () => {
+  let source: RestSource;
+
+  const rosterOf = (n: number) =>
+    new Response(
+      JSON.stringify({
+        vehicles: Array.from({ length: n }, (_, i) => ({
+          id: `v${i + 1}`,
+          name: `Vehicle ${i + 1}`,
+          lat: 1.5,
+          lng: 36.8,
+        })),
+      }),
+      { status: 200 }
+    );
+
+  beforeEach(() => {
+    source = new RestSource();
+    mockHttpFetch.mockReset();
+  });
+
+  it("samples only the first N entities when limit is set", async () => {
+    mockHttpFetch.mockResolvedValue(rosterOf(5));
+    await source.connect({ url: "http://example.com/api", limit: 2 });
+
+    const vehicles = await source.getVehicles();
+
+    expect(vehicles).toHaveLength(2);
+    expect(vehicles.map((v) => v.id)).toEqual(["v1", "v2"]);
+  });
+
+  it("returns all entities when limit is unset", async () => {
+    mockHttpFetch.mockResolvedValue(rosterOf(5));
+    await source.connect({ url: "http://example.com/api" });
+
+    const vehicles = await source.getVehicles();
+
+    expect(vehicles).toHaveLength(5);
+  });
+
+  it("returns all entities when limit is 0", async () => {
+    mockHttpFetch.mockResolvedValue(rosterOf(5));
+    await source.connect({ url: "http://example.com/api", limit: 0 });
+
+    const vehicles = await source.getVehicles();
+
+    expect(vehicles).toHaveLength(5);
+  });
+
+  it("returns all entities when limit exceeds the roster size", async () => {
+    mockHttpFetch.mockResolvedValue(rosterOf(3));
+    await source.connect({ url: "http://example.com/api", limit: 10 });
+
+    const vehicles = await source.getVehicles();
+
+    expect(vehicles).toHaveLength(3);
+  });
+});
+
 describe("RestSource getVehicles timeout", () => {
   let source: RestSource;
 

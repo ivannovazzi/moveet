@@ -39,6 +39,14 @@ export class RestSource implements DataSource {
     { name: "vehiclePath", label: "Vehicle Path", type: "string", default: "vehicles" },
     { name: "fieldMap", label: "Field Map", type: "json" },
     { name: "metadataMap", label: "Metadata Map", type: "json" },
+    {
+      name: "limit",
+      label: "Limit",
+      type: "number",
+      placeholder: "0",
+      description:
+        "Sample only the first N entities from the roster (0 or unset = no limit). Useful for capping a large source.",
+    },
   ];
   private url: string | null = null;
   private headers: Record<string, string> = {};
@@ -47,6 +55,8 @@ export class RestSource implements DataSource {
   private vehiclePath: string = "vehicles";
   private fieldMap: FieldMap = { ...DEFAULT_FIELD_MAP };
   private metadataMap: Record<string, string> = {};
+  // 0 = no limit. Otherwise, sample only the first N items from the roster.
+  private limit: number = 0;
 
   async connect(config: PluginConfig): Promise<void> {
     const url = config.url as string;
@@ -61,6 +71,9 @@ export class RestSource implements DataSource {
       ...((config.fieldMap as Partial<FieldMap>) || {}),
     };
     this.metadataMap = (config.metadataMap as Record<string, string>) || {};
+    // Coerce to a non-negative integer; anything invalid/unset means no limit.
+    const rawLimit = Number(config.limit);
+    this.limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.floor(rawLimit) : 0;
   }
 
   async disconnect(): Promise<void> {
@@ -71,6 +84,7 @@ export class RestSource implements DataSource {
     this.vehiclePath = "vehicles";
     this.fieldMap = { ...DEFAULT_FIELD_MAP };
     this.metadataMap = {};
+    this.limit = 0;
   }
 
   async getVehicles(): Promise<ExportVehicle[]> {
@@ -96,7 +110,11 @@ export class RestSource implements DataSource {
       throw new Error(`Expected array at path "${this.vehiclePath}", got ${typeof items}`);
     }
 
-    return items.flatMap((item: unknown) => {
+    // Optionally sample the first N items before mapping (e.g. to keep a large
+    // roster from overwhelming downstream consumers). 0 = no limit.
+    const sampled = this.limit > 0 ? items.slice(0, this.limit) : items;
+
+    return sampled.flatMap((item: unknown) => {
       const record = item as Record<string, unknown>;
       const id = String(getNestedValue(record, this.fieldMap.id) ?? "");
       const name = String(getNestedValue(record, this.fieldMap.name) ?? id);

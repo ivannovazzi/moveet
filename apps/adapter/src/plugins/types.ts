@@ -11,6 +11,7 @@ export interface ConfigField {
   required?: boolean;
   default?: unknown;
   placeholder?: string;
+  description?: string;
   options?: Array<{ label: string; value: string }>;
 }
 
