@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { getHealth, getConfig, setSource, addSink, removeSink } from "./adapterClient";
+import { getHealth, getConfig, setSource, addSink, removeSink, setRealism } from "./adapterClient";
 
 const BASE_URL = "http://localhost:5011";
 
@@ -173,6 +173,30 @@ describe("removeSink", () => {
     await expect(removeSink("missing")).rejects.toThrow(
       "Adapter DELETE /config/sinks/missing: 404"
     );
+  });
+});
+
+describe("setRealism", () => {
+  it("posts to /config/realism with config body", async () => {
+    const realismResponse = { ok: true, realism: { config: {}, schema: [], status: {} } };
+    vi.mocked(fetch).mockResolvedValue(jsonResponse(realismResponse));
+
+    const result = await setRealism({ enabled: true });
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/config/realism`, {
+      method: "POST",
+      signal: expect.any(AbortSignal),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ config: { enabled: true } }),
+    });
+    expect(result).toEqual(realismResponse);
+  });
+
+  it("throws on non-ok response", async () => {
+    vi.mocked(fetch).mockResolvedValue(jsonResponse(null, 400));
+
+    await expect(setRealism({})).rejects.toThrow("Adapter POST /config/realism: 400");
   });
 });
 
