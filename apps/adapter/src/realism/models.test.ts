@@ -59,3 +59,46 @@ describe("gaussMarkovStep", () => {
     expect(variance).toBeLessThan(sigma * sigma * 1.15);
   });
 });
+
+import { markovStep, type ConnState, type MarkovRates } from "./models";
+
+const RATES: MarkovRates = {
+  meanConnectedS: 600,
+  meanDegradedS: 45,
+  meanDisconnectedS: 60,
+  degradedFromConnectedS: 120,
+};
+
+describe("markovStep", () => {
+  it("returns a valid state", () => {
+    const rng = mulberry32(1);
+    const s = markovStep("connected", RATES, 5, rng);
+    expect(["connected", "degraded", "disconnected"]).toContain(s);
+  });
+
+  it("mean dwell in disconnected ~ meanDisconnectedS", () => {
+    const rng = mulberry32(99);
+    const dt = 5;
+    // Measure average run-length while starting disconnected each run.
+    let totalDwell = 0;
+    let runs = 0;
+    for (let r = 0; r < 4000; r++) {
+      let state: ConnState = "disconnected";
+      let dwell = 0;
+      // step until we leave 'disconnected'
+      // cap to avoid infinite loops
+      for (let i = 0; i < 100000; i++) {
+        const next = markovStep(state, RATES, dt, rng);
+        dwell += dt;
+        if (next !== "disconnected") break;
+        state = next;
+      }
+      totalDwell += dwell;
+      runs++;
+    }
+    const mean = totalDwell / runs;
+    // geometric dwell mean ~ meanDisconnectedS (+ one dt bias); allow 25% tol
+    expect(mean).toBeGreaterThan(RATES.meanDisconnectedS * 0.75);
+    expect(mean).toBeLessThan(RATES.meanDisconnectedS * 1.4);
+  });
+});

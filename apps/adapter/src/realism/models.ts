@@ -37,3 +37,55 @@ export function gaussMarkovStep(
   const noiseStd = sigma * Math.sqrt(Math.max(0, 1 - alpha * alpha));
   return alpha * prev + noiseStd * gaussian();
 }
+
+export type ConnState = "connected" | "degraded" | "disconnected";
+
+export interface MarkovRates {
+  /** Mean time fully connected before any transition (s). */
+  meanConnectedS: number;
+  /** Mean time in degraded before transition (s). */
+  meanDegradedS: number;
+  /** Mean disconnected (outage) duration (s). */
+  meanDisconnectedS: number;
+  /** Of connected exits, mean time until a *degrade* (vs full drop) (s). */
+  degradedFromConnectedS: number;
+}
+
+/** Per-tick exit probability for a geometric dwell with mean `meanS`. */
+function exitProb(meanS: number, dt: number): number {
+  if (meanS <= 0) return 1;
+  return Math.min(1, dt / meanS);
+}
+
+/**
+ * Step the 3-state connectivity Markov chain by `dt` seconds.
+ *
+ * - connected   -> degraded (rate from degradedFromConnectedS) or disconnected
+ *                  (rate from meanConnectedS); else stays connected.
+ * - degraded    -> reconnect (connected) or fully drop (disconnected) on exit;
+ *                  split 50/50 on exit; else stays degraded.
+ * - disconnected-> connected on exit (reacquire); else stays disconnected.
+ */
+export function markovStep(
+  state: ConnState,
+  rates: MarkovRates,
+  dt: number,
+  rng: () => number
+): ConnState {
+  const r = rng();
+  if (state === "connected") {
+    const pDrop = exitProb(rates.meanConnectedS, dt);
+    const pDegrade = exitProb(rates.degradedFromConnectedS, dt);
+    if (r < pDrop) return "disconnected";
+    if (r < pDrop + pDegrade) return "degraded";
+    return "connected";
+  }
+  if (state === "degraded") {
+    const pExit = exitProb(rates.meanDegradedS, dt);
+    if (r < pExit) return r < pExit / 2 ? "connected" : "disconnected";
+    return "degraded";
+  }
+  // disconnected
+  const pReconnect = exitProb(rates.meanDisconnectedS, dt);
+  return r < pReconnect ? "connected" : "disconnected";
+}
