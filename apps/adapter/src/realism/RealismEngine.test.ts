@@ -13,7 +13,9 @@ function makeEngine(overrides = {}) {
     publish,
     now,
     rng: mulberry32(12345),
-    config: overrides,
+    // Default quiesce off so ingest-once-then-tick tests aren't evicted; the
+    // staleness behavior is exercised explicitly in its own test.
+    config: { emitStaleAfterMs: 0, ...overrides },
   });
   return { engine, publish, advance: (ms: number) => (t += ms), getT: () => t };
 }
@@ -44,6 +46,92 @@ describe("RealismEngine (enabled) ingest", () => {
 
     engine.reconfigure({ enabled: false });
     expect(engine.getStatus().devices).toBe(0);
+  });
+});
+
+describe("RealismEngine staleness quiesce", () => {
+  it("stops emitting and evicts a device once ingest goes stale (source paused)", async () => {
+    const { engine, publish, advance } = makeEngine({
+      enabled: true,
+      reportingPeriodMs: 1000,
+      jitterMs: 0,
+      emitStaleAfterMs: 3000,
+      // keep it connected so the only reason it stops is staleness
+      connectivity: {
+        meanConnectedS: 1e9,
+        meanDegradedS: 1,
+        meanDisconnectedS: 1,
+        degradedFromConnectedS: 1e9,
+      },
+    });
+    await engine.ingest([{ id: "v1", latitude: -1.29, longitude: 36.82 }]);
+
+    // Emits while fresh (no further ingest)...
+    for (let i = 0; i < 8; i++) {
+      advance(250);
+      await engine.tick();
+    }
+    const emitsWhileFresh = publish.mock.calls.length;
+    expect(emitsWhileFresh).toBeGreaterThan(0);
+
+    // ...then keep ticking past the stale window without re-ingesting.
+    for (let i = 0; i < 12; i++) {
+      advance(250);
+      await engine.tick();
+    }
+    // Device evicted; emission stopped.
+    expect(engine.getStatus().devices).toBe(0);
+    const emitsAfterStale = publish.mock.calls.length;
+
+    // A few more ticks produce no new emits.
+    for (let i = 0; i < 8; i++) {
+      advance(250);
+      await engine.tick();
+    }
+    expect(publish.mock.calls.length).toBe(emitsAfterStale);
+  });
+
+  it("re-creates the device fresh when ingest resumes after quiesce", async () => {
+    const { engine, advance } = makeEngine({
+      enabled: true,
+      reportingPeriodMs: 1000,
+      jitterMs: 0,
+      emitStaleAfterMs: 2000,
+    });
+    await engine.ingest([{ id: "v1", latitude: -1.29, longitude: 36.82 }]);
+    // Go stale → evicted.
+    for (let i = 0; i < 12; i++) {
+      advance(250);
+      await engine.tick();
+    }
+    expect(engine.getStatus().devices).toBe(0);
+
+    // Resume ingest → device comes back.
+    await engine.ingest([{ id: "v1", latitude: -1.29, longitude: 36.82 }]);
+    expect(engine.getStatus().devices).toBe(1);
+    expect(engine.getStatus().connected).toBe(1);
+  });
+
+  it("emitStaleAfterMs=0 keeps emitting frozen position indefinitely (opt-out)", async () => {
+    const { engine, publish, advance } = makeEngine({
+      enabled: true,
+      reportingPeriodMs: 1000,
+      jitterMs: 0,
+      emitStaleAfterMs: 0,
+      connectivity: {
+        meanConnectedS: 1e9,
+        meanDegradedS: 1,
+        meanDisconnectedS: 1,
+        degradedFromConnectedS: 1e9,
+      },
+    });
+    await engine.ingest([{ id: "v1", latitude: -1.29, longitude: 36.82 }]);
+    for (let i = 0; i < 40; i++) {
+      advance(250);
+      await engine.tick();
+    }
+    expect(engine.getStatus().devices).toBe(1);
+    expect(publish.mock.calls.length).toBeGreaterThan(5);
   });
 });
 

@@ -81,6 +81,7 @@ export class RealismEngine {
         existing.trueSpeed = u.speed;
         existing.trueHeading = u.heading;
         existing.metadata = u.metadata;
+        existing.lastIngestAt = t;
       } else {
         this.devices.set(u.id, {
           trueLat: u.latitude,
@@ -92,6 +93,7 @@ export class RealismEngine {
           errNorth: 0,
           conn: "connected",
           lastStepAt: t,
+          lastIngestAt: t,
           nextEmitAt: t,
           buffer: [],
         });
@@ -210,6 +212,16 @@ export class RealismEngine {
       const t = this.now();
       const batch: VehicleUpdate[] = [];
       for (const [id, d] of this.devices) {
+        // Source went quiet (e.g. simulator paused/stopped): stop emitting this
+        // device and evict it instead of replaying its frozen position forever.
+        // Any store-and-forward buffer is intentionally discarded — those are
+        // back-dated frozen samples the device never delivered, and replaying
+        // them would defeat the point of pause silencing telemetry. On resume,
+        // the next ingest re-creates the device fresh. (0 = never quiesce.)
+        if (this.cfg.emitStaleAfterMs > 0 && t - d.lastIngestAt > this.cfg.emitStaleAfterMs) {
+          this.devices.delete(id);
+          continue;
+        }
         if (d.nextEmitAt > t) continue;
         const prevConn = d.conn;
         const sample = this.buildSample(id, d, t);

@@ -25,6 +25,13 @@ export interface RealismConfig {
   /** Buffer + burst on reconnect (true) vs drop samples during outage (false). */
   storeAndForward: boolean;
   maxBufferPerDevice: number;
+  /**
+   * Stop emitting (and evict) a device whose true state hasn't been refreshed
+   * by an ingest within this many ms — so telemetry goes quiet shortly after
+   * the source (simulator) pauses/stops, instead of replaying frozen positions
+   * forever. `0` disables (emit last-known indefinitely).
+   */
+  emitStaleAfterMs: number;
   /** Optional deterministic seed (tests / reproducible runs). */
   seed?: number;
 }
@@ -51,6 +58,8 @@ export interface DeviceState {
   errNorth: number;
   conn: ConnState;
   lastStepAt: number;
+  /** Wall-clock of the last ingest that refreshed this device's true state. */
+  lastIngestAt: number;
   nextEmitAt: number;
   buffer: DegradedSample[];
 }

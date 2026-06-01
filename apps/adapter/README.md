@@ -289,9 +289,18 @@ keys (all optional; sensible defaults applied):
   },
   "storeAndForward": true,
   "maxBufferPerDevice": 500,
+  "emitStaleAfterMs": 15000, // stop emitting a device with no ingest within this window (0 = never)
   "seed": 0, // optional: deterministic RNG for reproducible runs
 }
 ```
+
+Because emission is decoupled from ingest, the engine would otherwise replay
+each device's last-known position forever — so a paused/stopped simulator (which
+stops calling `/sync`) would still produce telemetry. `emitStaleAfterMs` closes
+that: a device whose true state hasn't been refreshed within the window is
+**quiesced and evicted** (telemetry goes quiet a few seconds after pause, and
+memory stays bounded); the next ingest re-creates it fresh. Set `0` to keep
+emitting the last-known position indefinitely.
 
 `GET /config` returns a `realism` block (`{ config, schema, status }`); the
 `status` reports live per-state device counts and buffered-sample totals, which

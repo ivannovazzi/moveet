@@ -19,6 +19,7 @@ export const DEFAULT_REALISM_CONFIG: RealismConfig = {
   },
   storeAndForward: true,
   maxBufferPerDevice: 500,
+  emitStaleAfterMs: 15000,
 };
 
 function num(value: unknown, fallback: number, min = 0): number {
@@ -61,6 +62,7 @@ export function resolveRealismConfig(input: Record<string, unknown>): RealismCon
     },
     storeAndForward: bool(input.storeAndForward, d.storeAndForward),
     maxBufferPerDevice: num(input.maxBufferPerDevice, d.maxBufferPerDevice, 1),
+    emitStaleAfterMs: num(input.emitStaleAfterMs, d.emitStaleAfterMs, 0),
   };
   if (input.seed != null && Number.isFinite(Number(input.seed))) {
     resolved.seed = Number(input.seed);
@@ -109,5 +111,13 @@ export const REALISM_SCHEMA: ConfigField[] = [
     label: "Max buffer / device",
     type: "number",
     default: 500,
+  },
+  {
+    name: "emitStaleAfterMs",
+    label: "Quiesce after (ms)",
+    type: "number",
+    default: 15000,
+    description:
+      "Stop emitting a device with no ingest within this window (0 = never). Makes pause/stop go quiet.",
   },
 ];
