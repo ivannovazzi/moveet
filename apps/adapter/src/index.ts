@@ -4,6 +4,7 @@ import cors from "cors";
 import type { VehicleUpdate } from "./types";
 import type { PublishResult } from "./plugins/types";
 import { PluginManager } from "./plugins/manager";
+import { REALISM_SCHEMA } from "./realism/config";
 import { loadConfig, logConfig } from "./utils/config";
 import { createLogger } from "./utils/logger";
 import { correlationIdMiddleware } from "./middleware/correlationId";
@@ -47,6 +48,10 @@ async function startup(): Promise<void> {
 
   await pluginManager.setSource(config.source.type, config.source.config);
   logger.info({ source: config.source.type }, "Source configured");
+
+  // Apply startup realism config (starts the engine scheduler if enabled).
+  pluginManager.setRealismConfig(config.realism);
+  logger.info({ enabled: pluginManager.getRealismStatus().enabled }, "Realism configured");
 
   for (const sink of config.sinks) {
     await pluginManager.addSink(sink.type, sink.config);
@@ -157,7 +162,15 @@ async function startup(): Promise<void> {
 
   app.get("/config", async (_req, res) => {
     const status = await pluginManager.getStatus();
-    res.json({ ...pluginManager.getSafeConfig(), status });
+    res.json({
+      ...pluginManager.getSafeConfig(),
+      status,
+      realism: {
+        config: pluginManager.getRealismConfig(),
+        schema: REALISM_SCHEMA,
+        status: pluginManager.getRealismStatus(),
+      },
+    });
   });
 
   app.post("/config/source", async (req, res) => {
@@ -205,6 +218,27 @@ async function startup(): Promise<void> {
       await pluginManager.removeSink(req.params.type);
       const status = await pluginManager.getStatus();
       res.json({ ok: true, status });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      res.status(400).json({ error: msg });
+    }
+  });
+
+  app.post("/config/realism", async (req, res) => {
+    const { config: realismConfig } = req.body ?? {};
+    if (
+      realismConfig != null &&
+      (typeof realismConfig !== "object" || Array.isArray(realismConfig))
+    ) {
+      res.status(400).json({ error: "'config' must be a JSON object" });
+      return;
+    }
+    try {
+      const applied = pluginManager.setRealismConfig(realismConfig ?? {});
+      res.json({
+        ok: true,
+        realism: { config: applied, status: pluginManager.getRealismStatus() },
+      });
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Unknown error";
       res.status(400).json({ error: msg });

@@ -226,3 +226,41 @@ describe("RealismEngine store-and-forward", () => {
     expect(engine.getStatus().buffered).toBe(0);
   });
 });
+
+describe("RealismEngine reconfigure (deep merge)", () => {
+  it("partial connectivity reconfigure preserves the other connectivity means", () => {
+    const { engine } = makeEngine({
+      enabled: true,
+      connectivity: {
+        meanConnectedS: 1234,
+        meanDegradedS: 77,
+        meanDisconnectedS: 88,
+        degradedFromConnectedS: 99,
+      },
+    });
+
+    engine.reconfigure({ connectivity: { meanDisconnectedS: 5 } });
+
+    const c = engine.getConfig().connectivity;
+    expect(c.meanDisconnectedS).toBe(5); // overridden
+    // Siblings preserved at their prior values (not reset to defaults).
+    expect(c.meanConnectedS).toBe(1234);
+    expect(c.meanDegradedS).toBe(77);
+    expect(c.degradedFromConnectedS).toBe(99);
+  });
+
+  it("partial gps reconfigure preserves the other gps params", () => {
+    const { engine } = makeEngine({
+      enabled: true,
+      gps: { connectedSigmaM: 9, connectedTauS: 200, degradedSigmaM: 30, degradedTauS: 40 },
+    });
+
+    engine.reconfigure({ gps: { connectedSigmaM: 1 } });
+
+    const g = engine.getConfig().gps;
+    expect(g.connectedSigmaM).toBe(1); // overridden
+    expect(g.connectedTauS).toBe(200);
+    expect(g.degradedSigmaM).toBe(30);
+    expect(g.degradedTauS).toBe(40);
+  });
+});

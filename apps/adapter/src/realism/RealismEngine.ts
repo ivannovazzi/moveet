@@ -102,7 +102,20 @@ export class RealismEngine {
   /** Reconfigure live; (re)start or stop the scheduler on enabled change. */
   reconfigure(partial: Record<string, unknown>): RealismConfig {
     const wasEnabled = this.cfg.enabled;
-    this.cfg = resolveRealismConfig({ ...this.getConfig(), ...partial });
+    // Deep-merge the nested groups so a partial gps/connectivity body only
+    // overrides the supplied siblings (a shallow spread would reset the others
+    // to defaults via resolveRealismConfig). POST /config/realism sends partials.
+    const cur = this.getConfig();
+    const merged = {
+      ...cur,
+      ...partial,
+      gps: { ...cur.gps, ...((partial.gps as Record<string, unknown>) ?? {}) },
+      connectivity: {
+        ...cur.connectivity,
+        ...((partial.connectivity as Record<string, unknown>) ?? {}),
+      },
+    };
+    this.cfg = resolveRealismConfig(merged);
     if (this.cfg.seed != null) {
       this.rng = mulberry32(this.cfg.seed);
       this.gaussian = makeGaussian(this.rng);
