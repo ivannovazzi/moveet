@@ -123,7 +123,13 @@ export class RealismEngine {
       this.gaussian = makeGaussian(this.rng);
     }
     if (this.cfg.enabled && !wasEnabled) this.start();
-    if (!this.cfg.enabled && wasEnabled) this.stop();
+    if (!this.cfg.enabled && wasEnabled) {
+      this.stop();
+      // Drop accumulated per-device state so a later re-enable starts clean —
+      // otherwise stale positions and back-dated buffered samples would burst
+      // on the first tick after re-enabling.
+      this.devices.clear();
+    }
     return this.getConfig();
   }
 

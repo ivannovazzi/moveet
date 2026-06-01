@@ -272,7 +272,15 @@ export class RedpandaSink implements DataSink {
     this.kafka = null;
   }
 
-  /** Native moveet event shape, published to `dispatch.vehicle.positions`. */
+  /**
+   * Native moveet event shape, published to `dispatch.vehicle.positions`.
+   *
+   * Honors update-supplied telemetry fields (e.g. from the realism engine):
+   * `timestamp` back-dates the fix time (so store-and-forward bursts keep their
+   * original times rather than collapsing to wall-clock), and `accuracy` /
+   * `connected` are emitted when present. `occurredOn` always reflects emit
+   * (wall-clock) time, distinct from the fix `timestamp`.
+   */
   private buildDispatchMessages(updates: VehicleUpdate[]) {
     const now = new Date().toISOString();
     return updates.map((update) => ({
@@ -285,7 +293,9 @@ export class RedpandaSink implements DataSink {
         vehicleType: update.type,
         latitude: update.latitude,
         longitude: update.longitude,
-        timestamp: now,
+        timestamp: update.timestamp != null ? new Date(update.timestamp).toISOString() : now,
+        ...(update.accuracy != null ? { accuracy: update.accuracy } : {}),
+        ...(update.connected != null ? { connected: update.connected } : {}),
       }),
     }));
   }

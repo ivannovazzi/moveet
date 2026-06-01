@@ -226,6 +226,40 @@ describe("RedpandaSink", () => {
       expect(payload.vehicleId).toBe("v1");
     });
 
+    it("dispatch format honors update-supplied timestamp/accuracy/connected", async () => {
+      await sink.connect({ brokers: "localhost:9092" });
+      const fixTs = 1_700_000_000_000;
+      await sink.publishUpdates([
+        {
+          id: "v1",
+          latitude: -1.28,
+          longitude: 36.8,
+          type: "car",
+          timestamp: fixTs,
+          accuracy: 27.5,
+          connected: false,
+        },
+      ]);
+
+      const payload = JSON.parse(mockSend.mock.calls[0][0].messages[0].value);
+      // fix timestamp is back-dated (store-and-forward), occurredOn is wall-clock
+      expect(payload.timestamp).toBe(new Date(fixTs).toISOString());
+      expect(payload.occurredOn).not.toBe(payload.timestamp);
+      expect(payload.accuracy).toBe(27.5);
+      expect(payload.connected).toBe(false);
+    });
+
+    it("dispatch format omits accuracy/connected when absent (back-compat)", async () => {
+      await sink.connect({ brokers: "localhost:9092" });
+      await sink.publishUpdates([{ id: "v1", latitude: -1.28, longitude: 36.8, type: "car" }]);
+
+      const payload = JSON.parse(mockSend.mock.calls[0][0].messages[0].value);
+      expect(payload).not.toHaveProperty("accuracy");
+      expect(payload).not.toHaveProperty("connected");
+      // timestamp falls back to wall-clock (equals occurredOn in this path)
+      expect(payload.timestamp).toBe(payload.occurredOn);
+    });
+
     it("emits the simulator id verbatim as a string deviceId by default (keyBy omitted)", async () => {
       await sink.connect({ brokers: "localhost:9092", format: "trajectory" });
       await sink.publishUpdates([{ id: "static-7", latitude: 0, longitude: 0, speed: 10 }]);

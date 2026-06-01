@@ -36,6 +36,15 @@ describe("RealismEngine (enabled) ingest", () => {
     expect(res).toMatchObject({ status: "accepted" });
     expect(engine.getStatus().devices).toBe(1);
   });
+
+  it("clears device state when toggled off so re-enable starts clean", async () => {
+    const { engine } = makeEngine({ enabled: true });
+    await engine.ingest([{ id: "v1", latitude: 1, longitude: 2 }]);
+    expect(engine.getStatus().devices).toBe(1);
+
+    engine.reconfigure({ enabled: false });
+    expect(engine.getStatus().devices).toBe(0);
+  });
 });
 
 describe("RealismEngine scheduler", () => {
