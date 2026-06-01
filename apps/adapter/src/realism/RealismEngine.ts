@@ -15,6 +15,20 @@ export interface RealismEngineDeps {
   config?: Record<string, unknown>;
 }
 
+function sampleToUpdate(s: DegradedSample): VehicleUpdate {
+  return {
+    id: s.id,
+    latitude: s.latitude,
+    longitude: s.longitude,
+    speed: s.speed,
+    heading: s.heading,
+    accuracy: s.accuracy,
+    timestamp: s.timestamp,
+    connected: s.connected,
+    metadata: s.metadata,
+  };
+}
+
 /** Per-connection-state GPS parameters. */
 function gpsParams(state: ConnState, cfg: RealismConfig): { sigma: number; tau: number } {
   if (state === "degraded") {
@@ -132,8 +146,56 @@ export class RealismEngine {
     };
   }
 
-  /** One scheduler tick — implemented in the next task. */
+  /** Jittered next-emit time from now. */
+  private scheduleNext(t: number): number {
+    const jitter = this.cfg.jitterMs > 0 ? this.gaussian() * this.cfg.jitterMs : 0;
+    return t + Math.max(50, this.cfg.reportingPeriodMs + jitter);
+  }
+
+  /** Reported accuracy (m) for a connection state — correlates with sigma. */
+  private accuracyFor(state: ConnState): number {
+    const { sigma } = gpsParams(state, this.cfg);
+    return Math.round(sigma * 1.2 * 10) / 10; // ~R68-ish, 1 decimal
+  }
+
+  /** Build a degraded sample for a device at time t (advances FOGM + Markov). */
+  private buildSample(id: string, d: DeviceState, t: number): DegradedSample {
+    const dtS = Math.max(0, (t - d.lastStepAt) / 1000);
+    d.conn = markovStep(d.conn, this.cfg.connectivity, dtS, this.rng);
+    const { sigma, tau } = gpsParams(d.conn, this.cfg);
+    d.errEast = gaussMarkovStep(d.errEast, sigma, tau, dtS, this.gaussian);
+    d.errNorth = gaussMarkovStep(d.errNorth, sigma, tau, dtS, this.gaussian);
+    d.lastStepAt = t;
+    const { dLat, dLon } = metersToLatLon(d.errEast, d.errNorth, d.trueLat);
+    return {
+      id,
+      latitude: d.trueLat + dLat,
+      longitude: d.trueLon + dLon,
+      speed: d.trueSpeed,
+      heading: d.trueHeading,
+      accuracy: this.accuracyFor(d.conn),
+      timestamp: t,
+      connected: d.conn !== "disconnected",
+      metadata: d.metadata,
+    };
+  }
+
   async tick(): Promise<void> {
-    // placeholder; filled in Task 8
+    const t = this.now();
+    const batch: VehicleUpdate[] = [];
+    for (const [id, d] of this.devices) {
+      if (d.nextEmitAt > t) continue;
+      const sample = this.buildSample(id, d, t);
+      d.nextEmitAt = this.scheduleNext(t);
+      // connectivity handling (buffer/burst) added in Task 9
+      batch.push(sampleToUpdate(sample));
+    }
+    if (batch.length > 0) {
+      try {
+        await this.publish(batch);
+      } catch (err) {
+        logger.error({ err }, "Realism emit failed");
+      }
+    }
   }
 }
