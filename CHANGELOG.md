@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.0.8](https://github.com/ivannovazzi/moveet/compare/v0.0.7...v0.0.8) (2026-06-01)
+
+
+### Features
+
+* **adapter:** emit trajectory-engine telemetry from redpanda sink ([#141](https://github.com/ivannovazzi/moveet/issues/141)) ([136288e](https://github.com/ivannovazzi/moveet/commit/136288e5ac5d4f43245e14d5cb1b5e57251b2c08))
+* **ui:** inline waypoint editing on dispatch map ([#131](https://github.com/ivannovazzi/moveet/issues/131)) ([7ec844c](https://github.com/ivannovazzi/moveet/commit/7ec844c3154e64069ef8325b09321d6b9e8b9c2d))
+
+
+### Bug Fixes
+
+* critical + high audit findings across sim/ui/adapter ([#139](https://github.com/ivannovazzi/moveet/issues/139)) ([38f0ce1](https://github.com/ivannovazzi/moveet/commit/38f0ce1ab7441a6e76892309ce4f3bbc5fccdda0))
+* **ui:** route path rendering + geofence draw UX ([#130](https://github.com/ivannovazzi/moveet/issues/130)) ([d165266](https://github.com/ivannovazzi/moveet/commit/d16526604f5f27022ae5f8e567b25adf24b8107e))
+
 ## [0.0.7](https://github.com/ivannovazzi/moveet/compare/v0.0.6...v0.0.7) (2026-03-24)
 
 
