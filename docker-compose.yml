@@ -25,14 +25,19 @@ services:
     environment:
       PORT: "5011"
       CORS_ORIGINS: "*"
-      SOURCE_TYPE: static
-      SOURCE_CONFIG: '{"count":30}'
+      # Real fleet: the generic "rest" source pulls the connector's fleet-roster
+      # and GROUPS assignments by vehicleId → one simulated entity per vehicle,
+      # with its device(s) in metadata.devices[] ({id:deviceId, deviceType}). The
+      # sink fans those out, co-located at the vehicle's position (no jumping).
+      # (Use SOURCE_TYPE: static + SOURCE_CONFIG '{"count":N}' for synthetic.)
+      SOURCE_TYPE: rest
+      SOURCE_CONFIG: '{"url":"http://suite_connector:3002/api/fleet/roster","vehiclePath":"assignments","groupBy":"vehicleId","fieldMap":{"id":"deviceId"},"metadataMap":{"deviceType":"deviceType"},"limit":100}'
       SINK_TYPES: redpanda,console
       SINK_CONSOLE_CONFIG: '{"verbose":false}'
       # Publishes the engine's pure-GPS schema to its input topic on the shared
-      # broker (internal listener). Flip format to "dispatch" for moveet's
-      # native event shape, or swap SOURCE_TYPE to "connector" for the real fleet.
-      SINK_REDPANDA_CONFIG: '{"brokers":"suite_redpanda:9092","topic":"trajectory.telemetry.raw","format":"trajectory","defaultAltitude":1650,"defaultAccuracy":5}'
+      # broker. fanOut emits one message per device in metadata.devices[], all at
+      # the vehicle's shared position, keyed by the real deviceId (device.id).
+      SINK_REDPANDA_CONFIG: '{"brokers":"suite_redpanda:9092","topic":"trajectory.telemetry.raw","keyField":"device.id","defaultAltitude":1650,"defaultAccuracy":5,"fanOut":"metadata.devices","payloadTemplate":{"ts":"ts","deviceId":"device.id","deviceType":"device.deviceType","lat":"lat","lon":"lon","speed":"speed","heading":"heading","altitude":"altitude","accuracy":"accuracy","ignition":"ignition"}}'
     ports:
       - "5011:5011"
     networks:
