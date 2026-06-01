@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, expectTypeOf } from "vitest";
 import type {
   Position,
   VehicleType,
@@ -372,5 +372,21 @@ describe("@moveet/shared-types", () => {
       assertType<[number, number]>(pos);
       expect(pos).toHaveLength(2);
     });
+  });
+});
+
+describe("VehicleUpdate telemetry fields", () => {
+  it("accepts optional accuracy, timestamp, connected", () => {
+    const u: VehicleUpdate = {
+      id: "v1",
+      latitude: 1,
+      longitude: 2,
+      accuracy: 5,
+      timestamp: 1000,
+      connected: true,
+    };
+    expectTypeOf(u.accuracy).toEqualTypeOf<number | undefined>();
+    expectTypeOf(u.timestamp).toEqualTypeOf<number | undefined>();
+    expectTypeOf(u.connected).toEqualTypeOf<boolean | undefined>();
   });
 });

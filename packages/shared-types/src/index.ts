@@ -49,6 +49,12 @@ export interface VehicleUpdate {
   speed?: number;
   /** Heading / course over ground in degrees, when the source provides it. */
   heading?: number;
+  /** Reported horizontal accuracy in meters (e.g. GPS HDOP-derived). */
+  accuracy?: number;
+  /** Device fix timestamp (epoch ms). Distinct from server arrival time. */
+  timestamp?: number;
+  /** Device connectivity at fix time. */
+  connected?: boolean;
   /**
    * Arbitrary source-provided metadata, carried opaquely from the source
    * through the simulator to the sinks. Sinks may ignore it.
