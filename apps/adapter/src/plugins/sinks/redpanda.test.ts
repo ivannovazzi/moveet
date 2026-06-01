@@ -519,6 +519,50 @@ describe("RedpandaSink", () => {
     });
   });
 
+  describe("update-supplied telemetry fields", () => {
+    it("uses update.accuracy and update.timestamp when present", async () => {
+      await sink.connect({ brokers: "localhost:9092", format: "trajectory" });
+      await sink.publishUpdates([
+        {
+          id: "v1",
+          latitude: -1.29,
+          longitude: 36.82,
+          speed: 36,
+          heading: 90,
+          accuracy: 27.5,
+          timestamp: 1234567,
+          connected: false,
+        },
+      ]);
+
+      const payload = JSON.parse(mockSend.mock.calls[0][0].messages[0].value);
+      expect(payload.accuracy).toBe(27.5);
+      expect(payload.ts).toBe(1234567);
+      // connected:false forces ignition off even though speed > 0.5.
+      expect(payload.ignition).toBe(false);
+    });
+
+    it("falls back to defaults when accuracy/timestamp absent", async () => {
+      const before = Date.now();
+      await sink.connect({
+        brokers: "localhost:9092",
+        format: "trajectory",
+        defaultAccuracy: 8,
+      });
+      await sink.publishUpdates([{ id: "v1", latitude: -1.29, longitude: 36.82, speed: 36 }]);
+      const after = Date.now();
+
+      const payload = JSON.parse(mockSend.mock.calls[0][0].messages[0].value);
+      // Absent accuracy → configured default.
+      expect(payload.accuracy).toBe(8);
+      // Absent timestamp → batch Date.now() (existing behavior).
+      expect(payload.ts).toBeGreaterThanOrEqual(before);
+      expect(payload.ts).toBeLessThanOrEqual(after);
+      // Absent connected → ignition derived from speed (36 km/h → 10 m/s > 0.5).
+      expect(payload.ignition).toBe(true);
+    });
+  });
+
   describe("configSchema", () => {
     it("includes acks in configSchema", () => {
       const acksField = sink.configSchema.find((f) => f.name === "acks");
