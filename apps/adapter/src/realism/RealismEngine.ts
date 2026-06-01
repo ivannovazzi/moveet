@@ -185,9 +185,27 @@ export class RealismEngine {
     const batch: VehicleUpdate[] = [];
     for (const [id, d] of this.devices) {
       if (d.nextEmitAt > t) continue;
+      const prevConn = d.conn;
       const sample = this.buildSample(id, d, t);
       d.nextEmitAt = this.scheduleNext(t);
-      // connectivity handling (buffer/burst) added in Task 9
+
+      if (d.conn === "disconnected") {
+        if (this.cfg.storeAndForward) {
+          d.buffer.push(sample);
+          if (d.buffer.length > this.cfg.maxBufferPerDevice) {
+            d.buffer.shift();
+            logger.warn({ id }, "Realism buffer overflow — dropping oldest sample");
+          }
+        }
+        // drop mode: simply emit nothing
+        continue;
+      }
+
+      // connected/degraded: flush any buffered backlog first (burst), oldest-first
+      if (prevConn === "disconnected" && d.buffer.length > 0) {
+        for (const b of d.buffer) batch.push(sampleToUpdate(b));
+        d.buffer = [];
+      }
       batch.push(sampleToUpdate(sample));
     }
     if (batch.length > 0) {

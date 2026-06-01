@@ -95,3 +95,105 @@ describe("RealismEngine scheduler", () => {
     expect(typeof s.timestamp).toBe("number");
   });
 });
+
+describe("RealismEngine store-and-forward", () => {
+  function disconnectedEngine() {
+    // Force disconnected: connected->disconnected certain; disconnected stays.
+    return makeEngine({
+      enabled: true,
+      reportingPeriodMs: 1000,
+      jitterMs: 0,
+      storeAndForward: true,
+      connectivity: {
+        meanConnectedS: 0.001, // exit connected immediately -> drop
+        meanDegradedS: 0.001,
+        meanDisconnectedS: 1e9, // never reconnect
+        degradedFromConnectedS: 1e9, // never degrade (so it drops)
+      },
+    });
+  }
+
+  it("buffers (no emit) while disconnected", async () => {
+    const { engine, publish, advance } = disconnectedEngine();
+    await engine.ingest([{ id: "v1", latitude: -1.29, longitude: 36.82 }]);
+    for (let i = 0; i < 12; i++) {
+      advance(250);
+      await engine.tick();
+    }
+    expect(publish).not.toHaveBeenCalled();
+    expect(engine.getStatus().disconnected).toBe(1);
+    expect(engine.getStatus().buffered).toBeGreaterThan(0);
+  });
+
+  it("bursts buffered samples on reconnect with original timestamps", async () => {
+    // Start disconnected & buffering, then reconnect via mean-duration extremes.
+    const publish = vi.fn().mockResolvedValue({ status: "success", sinks: [] });
+    let t = 0;
+    // State is forced entirely by the connectivity means (tiny mean => p=1 exit,
+    // huge mean => p=0 exit), so the rng VALUE is irrelevant for transitions. It
+    // just must be non-degenerate: a constant 0 makes Box-Muller spin forever in
+    // makeGaussian's `while (u === 0) u = rng()` guard.
+    const engine = new RealismEngine({
+      publish,
+      now: () => t,
+      rng: mulberry32(777),
+      config: {
+        enabled: true,
+        reportingPeriodMs: 1000,
+        jitterMs: 0,
+        storeAndForward: true,
+        connectivity: {
+          meanConnectedS: 0.001,
+          meanDegradedS: 0.001,
+          meanDisconnectedS: 1e9,
+          degradedFromConnectedS: 1e9,
+        },
+      },
+    });
+    await engine.ingest([{ id: "v1", latitude: -1.29, longitude: 36.82 }]);
+    for (let i = 0; i < 6; i++) {
+      t += 250;
+      await engine.tick();
+    }
+    const buffered = engine.getStatus().buffered;
+    expect(buffered).toBeGreaterThan(0);
+    expect(publish).not.toHaveBeenCalled();
+
+    // Now make disconnected->connected fire: set meanDisconnectedS tiny via
+    // reconfigure. Advance a full reporting period so the device's nextEmitAt is
+    // due on this tick (buffering only emits once per period, not every 250ms).
+    engine.reconfigure({ connectivity: { meanDisconnectedS: 0.001 } });
+    t += 1000;
+    await engine.tick();
+
+    expect(publish).toHaveBeenCalledTimes(1);
+    const burst = publish.mock.calls[0][0] as Array<{ timestamp: number }>;
+    // burst contains the buffered samples plus the live one
+    expect(burst.length).toBeGreaterThanOrEqual(buffered);
+    // timestamps are non-decreasing and older than current t for buffered items
+    expect(burst[0].timestamp).toBeLessThanOrEqual(t);
+    expect(engine.getStatus().buffered).toBe(0);
+  });
+
+  it("drop mode discards during outage (no burst)", async () => {
+    const { engine, publish, advance } = makeEngine({
+      enabled: true,
+      reportingPeriodMs: 1000,
+      jitterMs: 0,
+      storeAndForward: false,
+      connectivity: {
+        meanConnectedS: 0.001,
+        meanDegradedS: 0.001,
+        meanDisconnectedS: 1e9,
+        degradedFromConnectedS: 1e9,
+      },
+    });
+    await engine.ingest([{ id: "v1", latitude: -1.29, longitude: 36.82 }]);
+    for (let i = 0; i < 8; i++) {
+      advance(250);
+      await engine.tick();
+    }
+    expect(publish).not.toHaveBeenCalled();
+    expect(engine.getStatus().buffered).toBe(0);
+  });
+});
