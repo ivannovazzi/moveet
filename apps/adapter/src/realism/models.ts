@@ -12,7 +12,8 @@ export function metersToLatLon(
 ): { dLat: number; dLon: number } {
   const dLat = north / METERS_PER_DEG_LAT;
   const cos = Math.cos((latitudeDeg * Math.PI) / 180);
-  const dLon = east / (METERS_PER_DEG_LAT * (cos === 0 ? 1e-9 : cos));
+  // Clamp near the poles where cos→0 (never exactly 0 in floating point).
+  const dLon = east / (METERS_PER_DEG_LAT * (Math.abs(cos) < 1e-9 ? 1e-9 : cos));
   return { dLat, dLon };
 }
 
@@ -74,6 +75,8 @@ export function markovStep(
 ): ConnState {
   const r = rng();
   if (state === "connected") {
+    // A single draw partitions disjoint exit bands [0,pDrop) and
+    // [pDrop, pDrop+pDegrade). Clamped means keep pDrop+pDegrade well under 1.
     const pDrop = exitProb(rates.meanConnectedS, dt);
     const pDegrade = exitProb(rates.degradedFromConnectedS, dt);
     if (r < pDrop) return "disconnected";
