@@ -3,9 +3,10 @@ import { PanelBadge, PanelHeader, PanelShell } from "../PanelPrimitives";
 import type { HealthResponse, ConfigResponse } from "./adapterClient";
 import SourceTab from "./SourceTab";
 import SinksTab from "./SinksTab";
+import RealismTab from "./RealismTab";
 import styles from "./AdapterDrawer.module.css";
 
-type Tab = "source" | "sinks";
+type Tab = "source" | "sinks" | "realism";
 
 interface AdapterDrawerProps {
   isOpen: boolean;
@@ -17,6 +18,7 @@ interface AdapterDrawerProps {
   onSetSource: (type: string, config?: Record<string, unknown>) => void;
   onAddSink: (type: string, config?: Record<string, unknown>) => void;
   onRemoveSink: (type: string) => void;
+  onSetRealism: (config: Record<string, unknown>) => void;
 }
 
 export default function AdapterDrawer({
@@ -29,6 +31,7 @@ export default function AdapterDrawer({
   onSetSource,
   onAddSink,
   onRemoveSink,
+  onSetRealism,
 }: AdapterDrawerProps) {
   const [tab, setTab] = useState<Tab>("source");
   const drawerStatus = !health
@@ -76,6 +79,14 @@ export default function AdapterDrawer({
         >
           Sinks ({health?.sinks.length ?? 0})
         </button>
+        <button
+          className={`${styles.tab} ${tab === "realism" ? styles.tabActive : ""}`}
+          onClick={() => setTab("realism")}
+          aria-label={`Realism${config?.realism?.status.enabled ? " (active)" : ""}`}
+        >
+          Realism
+          {config?.realism?.status.enabled ? <span aria-hidden="true"> ●</span> : null}
+        </button>
       </div>
 
       {error && <div className={styles.error}>{error}</div>}
@@ -94,6 +105,8 @@ export default function AdapterDrawer({
         </div>
       ) : tab === "source" ? (
         <SourceTab health={health} config={config} loading={loading} onConnect={onSetSource} />
+      ) : tab === "realism" ? (
+        <RealismTab config={config} loading={loading} onSetRealism={onSetRealism} />
       ) : (
         <SinksTab
           health={health}

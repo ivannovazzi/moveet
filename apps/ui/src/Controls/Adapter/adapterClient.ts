@@ -22,6 +22,22 @@ export interface HealthResponse {
   sinks: Array<{ type: string; healthy: boolean }>;
   availableSources: PluginInfo[];
   availableSinks: PluginInfo[];
+  realism?: RealismStatus;
+}
+
+export interface RealismStatus {
+  enabled: boolean;
+  devices: number;
+  connected: number;
+  degraded: number;
+  disconnected: number;
+  buffered: number;
+}
+
+export interface RealismBlock {
+  config: Record<string, unknown>;
+  schema: ConfigField[];
+  status: RealismStatus;
 }
 
 export interface ConfigResponse {
@@ -30,6 +46,7 @@ export interface ConfigResponse {
   sourceConfig: Record<string, Record<string, unknown>>;
   sinkConfig: Record<string, Record<string, unknown>>;
   status: HealthResponse;
+  realism?: RealismBlock;
 }
 
 interface MutationResponse {
@@ -89,5 +106,14 @@ export function addSink(type: string, config?: Record<string, unknown>): Promise
 export function removeSink(type: string): Promise<MutationResponse> {
   return request<MutationResponse>(`/config/sinks/${type}`, {
     method: "DELETE",
+  });
+}
+
+export function setRealism(
+  config: Record<string, unknown>
+): Promise<{ ok: boolean; realism: RealismBlock }> {
+  return request<{ ok: boolean; realism: RealismBlock }>("/config/realism", {
+    method: "POST",
+    body: JSON.stringify({ config }),
   });
 }

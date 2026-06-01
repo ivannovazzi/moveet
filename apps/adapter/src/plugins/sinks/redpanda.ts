@@ -272,7 +272,15 @@ export class RedpandaSink implements DataSink {
     this.kafka = null;
   }
 
-  /** Native moveet event shape, published to `dispatch.vehicle.positions`. */
+  /**
+   * Native moveet event shape, published to `dispatch.vehicle.positions`.
+   *
+   * Honors update-supplied telemetry fields (e.g. from the realism engine):
+   * `timestamp` back-dates the fix time (so store-and-forward bursts keep their
+   * original times rather than collapsing to wall-clock), and `accuracy` /
+   * `connected` are emitted when present. `occurredOn` always reflects emit
+   * (wall-clock) time, distinct from the fix `timestamp`.
+   */
   private buildDispatchMessages(updates: VehicleUpdate[]) {
     const now = new Date().toISOString();
     return updates.map((update) => ({
@@ -285,7 +293,9 @@ export class RedpandaSink implements DataSink {
         vehicleType: update.type,
         latitude: update.latitude,
         longitude: update.longitude,
-        timestamp: now,
+        timestamp: update.timestamp != null ? new Date(update.timestamp).toISOString() : now,
+        ...(update.accuracy != null ? { accuracy: update.accuracy } : {}),
+        ...(update.connected != null ? { connected: update.connected } : {}),
       }),
     }));
   }
@@ -328,7 +338,10 @@ export class RedpandaSink implements DataSink {
   /**
    * Build the per-message context every template / `keyField` resolves against.
    * `speed` is m/s (the trajectory-engine's unit), `speedKmh` is the raw
-   * source value; `ignition` is derived from m/s speed.
+   * source value. Update-supplied `timestamp`/`accuracy`/`connected` (e.g. from
+   * the realism engine) take precedence; otherwise `ts` falls back to the batch
+   * `Date.now()`, `accuracy` to the configured default, and `ignition` is
+   * derived from m/s speed.
    */
   private buildContext(update: VehicleUpdate, ts: number): MessageContext {
     const speedKmh = update.speed ?? 0;
@@ -341,10 +354,12 @@ export class RedpandaSink implements DataSink {
       heading: update.heading ?? 0,
       speedKmh,
       speed,
-      ts,
-      ignition: speed > 0.5,
+      ts: update.timestamp ?? ts,
+      // A disconnected fix means ignition off regardless of speed; otherwise
+      // derive it from ground speed as before.
+      ignition: update.connected === false ? false : speed > 0.5,
       altitude: this.defaultAltitude,
-      accuracy: this.defaultAccuracy,
+      accuracy: update.accuracy ?? this.defaultAccuracy,
       metadata: update.metadata ?? {},
     };
   }

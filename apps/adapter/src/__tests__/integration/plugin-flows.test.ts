@@ -8,9 +8,16 @@ import type {
   ConfigField,
   HealthCheckResult,
   PluginConfig,
+  IngestResult,
+  PublishResult,
   SinkPublishResult,
 } from "../../plugins/types";
 import type { ExportVehicle, VehicleUpdate } from "../../types";
+
+/** Narrows the realism-disabled publish path to its synchronous PublishResult. */
+function assertPublishResult(result: IngestResult): asserts result is PublishResult {
+  expect(result.status).not.toBe("accepted");
+}
 
 // ---------------------------------------------------------------------------
 // Helpers — mock plugins for failure/custom scenarios
@@ -147,6 +154,7 @@ describe("Plugin flow integration tests", () => {
       }));
 
       const result = await manager.publishUpdates(updates);
+      assertPublishResult(result);
 
       expect(result.status).toBe("success");
       expect(result.sinks).toHaveLength(2);
@@ -174,6 +182,7 @@ describe("Plugin flow integration tests", () => {
       }));
 
       const result = await manager.publishUpdates(updates);
+      assertPublishResult(result);
 
       expect(result.status).toBe("success");
       expect(result.sinks).toHaveLength(1);
@@ -192,6 +201,7 @@ describe("Plugin flow integration tests", () => {
       }
 
       const result = await manager.publishUpdates(sampleUpdates);
+      assertPublishResult(result);
 
       expect(result.status).toBe("success");
       expect(result.sinks).toHaveLength(3);
@@ -287,6 +297,7 @@ describe("Plugin flow integration tests", () => {
       await manager.addSink("good-b", {});
 
       const result = await manager.publishUpdates(sampleUpdates);
+      assertPublishResult(result);
 
       expect(result.status).toBe("partial");
 
@@ -321,6 +332,7 @@ describe("Plugin flow integration tests", () => {
       await manager.addSink("partial", {});
 
       const result = await manager.publishUpdates(sampleUpdates);
+      assertPublishResult(result);
 
       expect(result.status).toBe("partial");
 
@@ -351,6 +363,7 @@ describe("Plugin flow integration tests", () => {
       const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
       const result = await manager.publishUpdates(sampleUpdates);
+      assertPublishResult(result);
 
       expect(result.status).toBe("failure");
       expect(result.sinks).toHaveLength(2);
@@ -382,6 +395,7 @@ describe("Plugin flow integration tests", () => {
       await manager.addSink("recorder", {});
 
       const result = await manager.publishUpdates([]);
+      assertPublishResult(result);
 
       expect(result.status).toBe("success");
       expect(sink.received).toHaveLength(1);
@@ -410,6 +424,7 @@ describe("Plugin flow integration tests", () => {
       }));
 
       const result = await manager.publishUpdates(updates);
+      assertPublishResult(result);
 
       expect(result.status).toBe("success");
       expect(sink.received).toHaveLength(1);

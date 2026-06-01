@@ -3,6 +3,7 @@ import compression from "compression";
 import cors from "cors";
 import type { VehicleUpdate } from "./types";
 import { PluginManager } from "./plugins/manager";
+import { REALISM_SCHEMA } from "./realism/config";
 import { loadConfig, logConfig } from "./utils/config";
 import { createLogger } from "./utils/logger";
 import { correlationIdMiddleware } from "./middleware/correlationId";
@@ -46,6 +47,10 @@ async function startup(): Promise<void> {
 
   await pluginManager.setSource(config.source.type, config.source.config);
   logger.info({ source: config.source.type }, "Source configured");
+
+  // Apply startup realism config (starts the engine scheduler if enabled).
+  pluginManager.setRealismConfig(config.realism);
+  logger.info({ enabled: pluginManager.getRealismStatus().enabled }, "Realism configured");
 
   for (const sink of config.sinks) {
     await pluginManager.addSink(sink.type, sink.config);
@@ -136,6 +141,14 @@ async function startup(): Promise<void> {
 
     try {
       const result = await pluginManager.publishUpdates(vehicles);
+      // Realism-enabled path returns {status:"accepted"} (async emission via the
+      // engine scheduler); 202 is in the 2xx range so the simulator's
+      // Adapter.request (which only throws on !response.ok) treats it as success.
+      if (result.status === "accepted") {
+        res.status(202).json({ status: "accepted", count: vehicles.length });
+        return;
+      }
+      // result is now narrowed to PublishResult
       const httpStatus = result.status === "failure" ? 502 : 200;
       res
         .status(httpStatus)
@@ -150,7 +163,15 @@ async function startup(): Promise<void> {
 
   app.get("/config", async (_req, res) => {
     const status = await pluginManager.getStatus();
-    res.json({ ...pluginManager.getSafeConfig(), status });
+    res.json({
+      ...pluginManager.getSafeConfig(),
+      status,
+      realism: {
+        config: pluginManager.getRealismConfig(),
+        schema: REALISM_SCHEMA,
+        status: pluginManager.getRealismStatus(),
+      },
+    });
   });
 
   app.post("/config/source", async (req, res) => {
@@ -204,9 +225,30 @@ async function startup(): Promise<void> {
     }
   });
 
+  app.post("/config/realism", async (req, res) => {
+    const { config: realismConfig } = req.body ?? {};
+    if (
+      realismConfig != null &&
+      (typeof realismConfig !== "object" || Array.isArray(realismConfig))
+    ) {
+      res.status(400).json({ error: "'config' must be a JSON object" });
+      return;
+    }
+    try {
+      const applied = pluginManager.setRealismConfig(realismConfig ?? {});
+      res.json({
+        ok: true,
+        realism: { config: applied, status: pluginManager.getRealismStatus() },
+      });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      res.status(400).json({ error: msg });
+    }
+  });
+
   app.get("/health", async (_req, res) => {
     const status = await pluginManager.getStatus();
-    res.json(status);
+    res.json({ ...status, realism: pluginManager.getRealismStatus() });
   });
 
   process.on("SIGTERM", async () => {

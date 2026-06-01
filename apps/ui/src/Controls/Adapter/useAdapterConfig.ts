@@ -31,7 +31,15 @@ export function useAdapterConfig(isOpen: boolean) {
   const fetchHealth = useCallback(async () => {
     try {
       const health = await api.getHealth();
-      setState((prev) => ({ ...prev, health, error: null }));
+      setState((prev) => ({
+        ...prev,
+        health,
+        error: null,
+        config:
+          prev.config && prev.config.realism && health.realism
+            ? { ...prev.config, realism: { ...prev.config.realism, status: health.realism } }
+            : prev.config,
+      }));
     } catch {
       setState((prev) => {
         if (prev.health === null && prev.error === "Connections unreachable") return prev;
@@ -127,6 +135,24 @@ export function useAdapterConfig(isOpen: boolean) {
     [fetchConfig]
   );
 
+  const setRealism = useCallback(
+    async (realismConfig: Record<string, unknown>) => {
+      setState((prev) => ({ ...prev, loading: true, error: null }));
+      try {
+        await api.setRealism(realismConfig);
+        await fetchConfig();
+        setState((prev) => ({ ...prev, loading: false }));
+      } catch (e) {
+        setState((prev) => ({
+          ...prev,
+          loading: false,
+          error: e instanceof Error ? e.message : "Failed to set realism",
+        }));
+      }
+    },
+    [fetchConfig]
+  );
+
   return {
     health: state.health,
     config: state.config,
@@ -136,5 +162,6 @@ export function useAdapterConfig(isOpen: boolean) {
     setSource,
     addSink,
     removeSink,
+    setRealism,
   };
 }
