@@ -127,6 +127,24 @@ export function useAdapterConfig(isOpen: boolean) {
     [fetchConfig]
   );
 
+  const setRealism = useCallback(
+    async (realismConfig: Record<string, unknown>) => {
+      setState((prev) => ({ ...prev, loading: true, error: null }));
+      try {
+        await api.setRealism(realismConfig);
+        await fetchConfig();
+        setState((prev) => ({ ...prev, loading: false }));
+      } catch (e) {
+        setState((prev) => ({
+          ...prev,
+          loading: false,
+          error: e instanceof Error ? e.message : "Failed to set realism",
+        }));
+      }
+    },
+    [fetchConfig]
+  );
+
   return {
     health: state.health,
     config: state.config,
@@ -136,5 +154,6 @@ export function useAdapterConfig(isOpen: boolean) {
     setSource,
     addSink,
     removeSink,
+    setRealism,
   };
 }
