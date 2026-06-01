@@ -23,11 +23,15 @@ function fakeSink(): DataSink & { calls: unknown[][] } {
 describe("PluginManager realism integration", () => {
   it("passthrough when realism disabled: publishUpdates reaches sinks", async () => {
     const pm = new PluginManager();
-    pm.registerSink("fake", () => fakeSink());
+    const sink = fakeSink();
+    pm.registerSink("fake", () => sink);
     await pm.addSink("fake", {});
     await pm.publishUpdates([{ id: "v1", latitude: 1, longitude: 2 }]);
     const status = pm.getRealismStatus();
     expect(status.enabled).toBe(false);
+    // Passthrough must actually deliver the update to the sink.
+    expect(sink.calls).toHaveLength(1);
+    expect(sink.calls[0]).toEqual([{ id: "v1", latitude: 1, longitude: 2 }]);
   });
 
   it("setRealismConfig enables and reports status", async () => {

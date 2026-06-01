@@ -4,12 +4,13 @@ import { mulberry32, makeGaussian } from "./rng";
 import { resolveRealismConfig } from "./config";
 import { gaussMarkovStep, markovStep, metersToLatLon, type ConnState } from "./models";
 import type { DeviceState, RealismConfig, RealismStatus, DegradedSample } from "./types";
+import type { PublishResult, IngestResult, AcceptedResult } from "../plugins/types";
 
 const logger = createLogger("RealismEngine");
 
 export interface RealismEngineDeps {
   /** Publish degraded updates to all active sinks. */
-  publish: (updates: VehicleUpdate[]) => Promise<unknown>;
+  publish: (updates: VehicleUpdate[]) => Promise<PublishResult>;
   now?: () => number;
   rng?: () => number;
   config?: Record<string, unknown>;
@@ -67,7 +68,7 @@ export class RealismEngine {
     return this.cfg.enabled;
   }
 
-  async ingest(updates: VehicleUpdate[]): Promise<unknown> {
+  async ingest(updates: VehicleUpdate[]): Promise<IngestResult> {
     if (!this.cfg.enabled) {
       return this.publish(updates);
     }
@@ -96,7 +97,8 @@ export class RealismEngine {
         });
       }
     }
-    return { status: "accepted", accepted: updates.length };
+    const result: AcceptedResult = { status: "accepted", accepted: updates.length };
+    return result;
   }
 
   /** Reconfigure live; (re)start or stop the scheduler on enabled change. */

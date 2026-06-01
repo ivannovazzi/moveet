@@ -5,7 +5,7 @@ import type {
   PluginConfig,
   AdapterConfig,
   AdapterStatus,
-  PublishResult,
+  IngestResult,
 } from "./types";
 import { PluginRegistry } from "./registry";
 import { HealthAggregator } from "./health-aggregator";
@@ -116,7 +116,7 @@ export class PluginManager {
     return this.activeSource.getFleets();
   }
 
-  async publishUpdates(updates: VehicleUpdate[]): Promise<PublishResult | unknown> {
+  async publishUpdates(updates: VehicleUpdate[]): Promise<IngestResult> {
     return this.realism.ingest(updates);
   }
 
