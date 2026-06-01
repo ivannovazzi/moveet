@@ -170,9 +170,38 @@ describe("RealismEngine store-and-forward", () => {
     const burst = publish.mock.calls[0][0] as Array<{ timestamp: number }>;
     // burst contains the buffered samples plus the live one
     expect(burst.length).toBeGreaterThanOrEqual(buffered);
-    // timestamps are non-decreasing and older than current t for buffered items
+    // timestamps are non-decreasing (oldest-first) and older than current t.
+    for (let i = 1; i < burst.length; i++) {
+      expect(burst[i].timestamp).toBeGreaterThanOrEqual(burst[i - 1].timestamp);
+    }
     expect(burst[0].timestamp).toBeLessThanOrEqual(t);
     expect(engine.getStatus().buffered).toBe(0);
+  });
+
+  it("caps the buffer at maxBufferPerDevice, dropping the oldest", async () => {
+    const { engine, publish, advance } = makeEngine({
+      enabled: true,
+      reportingPeriodMs: 1000,
+      jitterMs: 0,
+      storeAndForward: true,
+      maxBufferPerDevice: 3,
+      connectivity: {
+        meanConnectedS: 0.001, // exit connected immediately -> drop
+        meanDegradedS: 0.001,
+        meanDisconnectedS: 1e9, // never reconnect
+        degradedFromConnectedS: 1e9, // never degrade (so it drops)
+      },
+    });
+    await engine.ingest([{ id: "v1", latitude: -1.29, longitude: 36.82 }]);
+    // 20 reporting periods worth of ticks — buffer would far exceed the cap.
+    for (let i = 0; i < 80; i++) {
+      advance(250);
+      await engine.tick();
+    }
+    expect(publish).not.toHaveBeenCalled();
+    expect(engine.getStatus().disconnected).toBe(1);
+    // Cap is respected: never exceeds maxBufferPerDevice (oldest dropped).
+    expect(engine.getStatus().buffered).toBe(3);
   });
 
   it("drop mode discards during outage (no burst)", async () => {

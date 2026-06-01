@@ -8,6 +8,7 @@ import type {
   ConfigField,
   HealthCheckResult,
   PluginConfig,
+  PublishResult,
   SinkPublishResult,
 } from "../../plugins/types";
 import type { ExportVehicle, VehicleUpdate } from "../../types";
@@ -146,7 +147,7 @@ describe("Plugin flow integration tests", () => {
         type: v.type,
       }));
 
-      const result = await manager.publishUpdates(updates);
+      const result = (await manager.publishUpdates(updates)) as PublishResult;
 
       expect(result.status).toBe("success");
       expect(result.sinks).toHaveLength(2);
@@ -173,7 +174,7 @@ describe("Plugin flow integration tests", () => {
         longitude: v.position?.[1] ?? 0,
       }));
 
-      const result = await manager.publishUpdates(updates);
+      const result = (await manager.publishUpdates(updates)) as PublishResult;
 
       expect(result.status).toBe("success");
       expect(result.sinks).toHaveLength(1);
@@ -191,7 +192,7 @@ describe("Plugin flow integration tests", () => {
         await manager.addSink(sink.type, {});
       }
 
-      const result = await manager.publishUpdates(sampleUpdates);
+      const result = (await manager.publishUpdates(sampleUpdates)) as PublishResult;
 
       expect(result.status).toBe("success");
       expect(result.sinks).toHaveLength(3);
@@ -286,7 +287,7 @@ describe("Plugin flow integration tests", () => {
       await manager.addSink("bad", {});
       await manager.addSink("good-b", {});
 
-      const result = await manager.publishUpdates(sampleUpdates);
+      const result = (await manager.publishUpdates(sampleUpdates)) as PublishResult;
 
       expect(result.status).toBe("partial");
 
@@ -320,7 +321,7 @@ describe("Plugin flow integration tests", () => {
       await manager.addSink("normal", {});
       await manager.addSink("partial", {});
 
-      const result = await manager.publishUpdates(sampleUpdates);
+      const result = (await manager.publishUpdates(sampleUpdates)) as PublishResult;
 
       expect(result.status).toBe("partial");
 
@@ -350,7 +351,7 @@ describe("Plugin flow integration tests", () => {
       // Suppress expected console.error from Publisher
       const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-      const result = await manager.publishUpdates(sampleUpdates);
+      const result = (await manager.publishUpdates(sampleUpdates)) as PublishResult;
 
       expect(result.status).toBe("failure");
       expect(result.sinks).toHaveLength(2);
@@ -381,7 +382,7 @@ describe("Plugin flow integration tests", () => {
       manager.registerSink("recorder", () => sink);
       await manager.addSink("recorder", {});
 
-      const result = await manager.publishUpdates([]);
+      const result = (await manager.publishUpdates([])) as PublishResult;
 
       expect(result.status).toBe("success");
       expect(sink.received).toHaveLength(1);
@@ -409,7 +410,7 @@ describe("Plugin flow integration tests", () => {
         longitude: v.position?.[1] ?? 0,
       }));
 
-      const result = await manager.publishUpdates(updates);
+      const result = (await manager.publishUpdates(updates)) as PublishResult;
 
       expect(result.status).toBe("success");
       expect(sink.received).toHaveLength(1);

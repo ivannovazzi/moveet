@@ -10,6 +10,8 @@ import type {
 import { PluginRegistry } from "./registry";
 import { HealthAggregator } from "./health-aggregator";
 import { Publisher } from "./publisher";
+import { RealismEngine } from "../realism/RealismEngine";
+import type { RealismConfig, RealismStatus } from "../realism/types";
 
 /**
  * PluginManager — backward-compatible facade that delegates to focused classes.
@@ -35,6 +37,15 @@ export class PluginManager {
     sourceConfig: {},
     sinkConfig: {},
   };
+
+  private readonly realism: RealismEngine;
+
+  constructor(realismConfig: Record<string, unknown> = {}) {
+    this.realism = new RealismEngine({
+      publish: (updates) => this.publisher.publishUpdates(updates, this.activeSinks),
+      config: realismConfig,
+    });
+  }
 
   registerSource(type: string, factory: () => DataSource): void {
     this.registry.registerSource(type, factory);
@@ -105,8 +116,20 @@ export class PluginManager {
     return this.activeSource.getFleets();
   }
 
-  async publishUpdates(updates: VehicleUpdate[]): Promise<PublishResult> {
-    return this.publisher.publishUpdates(updates, this.activeSinks);
+  async publishUpdates(updates: VehicleUpdate[]): Promise<PublishResult | unknown> {
+    return this.realism.ingest(updates);
+  }
+
+  getRealismConfig(): RealismConfig {
+    return this.realism.getConfig();
+  }
+
+  setRealismConfig(partial: Record<string, unknown>): RealismConfig {
+    return this.realism.reconfigure(partial);
+  }
+
+  getRealismStatus(): RealismStatus {
+    return this.realism.getStatus();
   }
 
   async getStatus(): Promise<AdapterStatus> {
@@ -132,6 +155,7 @@ export class PluginManager {
   }
 
   async shutdown(): Promise<void> {
+    this.realism.stop();
     if (this.activeSource) await this.activeSource.disconnect();
     for (const sink of this.activeSinks.values()) {
       await sink.disconnect();

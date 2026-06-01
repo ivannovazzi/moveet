@@ -2,6 +2,7 @@ import express from "express";
 import compression from "compression";
 import cors from "cors";
 import type { VehicleUpdate } from "./types";
+import type { PublishResult } from "./plugins/types";
 import { PluginManager } from "./plugins/manager";
 import { loadConfig, logConfig } from "./utils/config";
 import { createLogger } from "./utils/logger";
@@ -136,10 +137,16 @@ async function startup(): Promise<void> {
 
     try {
       const result = await pluginManager.publishUpdates(vehicles);
-      const httpStatus = result.status === "failure" ? 502 : 200;
-      res
-        .status(httpStatus)
-        .json({ status: result.status, count: vehicles.length, sinks: result.sinks });
+      // Realism-enabled path returns {status:"accepted"} (async emission via the
+      // engine scheduler); 202 is in the 2xx range so the simulator's
+      // Adapter.request (which only throws on !response.ok) treats it as success.
+      if (result && (result as { status?: string }).status === "accepted") {
+        res.status(202).json({ status: "accepted", count: vehicles.length });
+        return;
+      }
+      const pub = result as PublishResult;
+      const httpStatus = pub.status === "failure" ? 502 : 200;
+      res.status(httpStatus).json({ status: pub.status, count: vehicles.length, sinks: pub.sinks });
     } catch (error) {
       res.locals.logger.error({ err: error }, "Error publishing updates");
       res.status(500).json({ error: "Failed to publish updates" });
