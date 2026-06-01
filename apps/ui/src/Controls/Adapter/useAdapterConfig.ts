@@ -31,7 +31,15 @@ export function useAdapterConfig(isOpen: boolean) {
   const fetchHealth = useCallback(async () => {
     try {
       const health = await api.getHealth();
-      setState((prev) => ({ ...prev, health, error: null }));
+      setState((prev) => ({
+        ...prev,
+        health,
+        error: null,
+        config:
+          prev.config && prev.config.realism && health.realism
+            ? { ...prev.config, realism: { ...prev.config.realism, status: health.realism } }
+            : prev.config,
+      }));
     } catch {
       setState((prev) => {
         if (prev.health === null && prev.error === "Connections unreachable") return prev;

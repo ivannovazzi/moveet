@@ -248,7 +248,7 @@ async function startup(): Promise<void> {
 
   app.get("/health", async (_req, res) => {
     const status = await pluginManager.getStatus();
-    res.json(status);
+    res.json({ ...status, realism: pluginManager.getRealismStatus() });
   });
 
   process.on("SIGTERM", async () => {

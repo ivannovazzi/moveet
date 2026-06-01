@@ -82,8 +82,10 @@ export default function AdapterDrawer({
         <button
           className={`${styles.tab} ${tab === "realism" ? styles.tabActive : ""}`}
           onClick={() => setTab("realism")}
+          aria-label={`Realism${config?.realism?.status.enabled ? " (active)" : ""}`}
         >
-          Realism{config?.realism?.status.enabled ? " ●" : ""}
+          Realism
+          {config?.realism?.status.enabled ? <span aria-hidden="true"> ●</span> : null}
         </button>
       </div>
 

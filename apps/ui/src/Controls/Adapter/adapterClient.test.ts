@@ -50,6 +50,22 @@ describe("getHealth", () => {
     expect(result).toEqual(mockHealthResponse);
   });
 
+  it("passes through realism status when present", async () => {
+    const realism = {
+      enabled: true,
+      devices: 3,
+      connected: 2,
+      degraded: 1,
+      disconnected: 0,
+      buffered: 5,
+    };
+    vi.mocked(fetch).mockResolvedValue(jsonResponse({ ...mockHealthResponse, realism }));
+
+    const result = await getHealth();
+
+    expect(result.realism).toEqual(realism);
+  });
+
   it("throws on non-ok response", async () => {
     vi.mocked(fetch).mockResolvedValue(jsonResponse(null, 500));
 

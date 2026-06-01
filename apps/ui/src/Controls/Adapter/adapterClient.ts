@@ -22,6 +22,7 @@ export interface HealthResponse {
   sinks: Array<{ type: string; healthy: boolean }>;
   availableSources: PluginInfo[];
   availableSinks: PluginInfo[];
+  realism?: RealismStatus;
 }
 
 export interface RealismStatus {
