@@ -295,8 +295,7 @@ keys (all optional; sensible defaults applied):
 
 `GET /config` returns a `realism` block (`{ config, schema, status }`); the
 `status` reports live per-state device counts and buffered-sample totals, which
-the UI Realism tab polls. The design and model references are in
-`docs/plans/2026-06-01-telemetry-realism-engine-design.md`.
+the UI Realism tab polls.
 
 ## Commands
 
