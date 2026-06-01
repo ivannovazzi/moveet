@@ -41,6 +41,13 @@ export const envSchema = z
     /** Timeout for adapter sync requests in ms */
     SYNC_ADAPTER_TIMEOUT: z.coerce.number().int().min(0).default(5000),
 
+    /**
+     * How often (ms) to push vehicle positions to the adapter / downstream
+     * sinks. 0 (default) means "follow UPDATE_INTERVAL". Runtime-adjustable via
+     * the simulation options ("Publish Interval").
+     */
+    ADAPTER_SYNC_INTERVAL: z.coerce.number().int().min(0).default(0),
+
     /** Number of simulated vehicles */
     VEHICLE_COUNT: z.coerce.number().int().min(1).default(70),
 
@@ -118,6 +125,7 @@ function buildConfig(env: EnvConfig) {
     speedVariation: env.SPEED_VARIATION,
     heatZoneSpeedFactor: env.HEATZONE_SPEED_FACTOR,
     syncAdapterTimeout: env.SYNC_ADAPTER_TIMEOUT,
+    adapterSyncInterval: env.ADAPTER_SYNC_INTERVAL,
     vehicleCount: env.VEHICLE_COUNT,
     vehicleTypes: env.VEHICLE_TYPES,
     geojsonPath: env.GEOJSON_PATH,

@@ -130,6 +130,395 @@ describe("RedpandaSink", () => {
     });
   });
 
+  describe("trajectory format", () => {
+    it("emits the trajectory-engine pure-GPS schema", async () => {
+      await sink.connect({ brokers: "localhost:9092", format: "trajectory" });
+      await sink.publishUpdates([
+        { id: "42", latitude: -1.2863, longitude: 36.8172, speed: 36, heading: 90, type: "car" },
+      ]);
+
+      const message = mockSend.mock.calls[0][0].messages[0];
+      const payload = JSON.parse(message.value);
+
+      // Exactly the 9 required fields, nothing else.
+      expect(Object.keys(payload).sort()).toEqual(
+        [
+          "accuracy",
+          "altitude",
+          "deviceId",
+          "heading",
+          "ignition",
+          "lat",
+          "lon",
+          "speed",
+          "ts",
+        ].sort()
+      );
+      expect(payload).toMatchObject({
+        deviceId: "42",
+        lat: -1.2863,
+        lon: 36.8172,
+        speed: 10, // 36 km/h ÷ 3.6
+        heading: 90,
+        altitude: 0,
+        accuracy: 5,
+        ignition: true,
+      });
+      expect(typeof payload.deviceId).toBe("string");
+      expect(typeof payload.ts).toBe("number");
+      // Kafka key is the device id string (= the simulator id in synthetic mode).
+      expect(message.key).toBe("42");
+    });
+
+    it("converts km/h to m/s and derives ignition from speed", async () => {
+      await sink.connect({ brokers: "localhost:9092", format: "trajectory" });
+      await sink.publishUpdates([
+        { id: "1", latitude: 0, longitude: 0, speed: 0, heading: 0 }, // stationary
+      ]);
+
+      const payload = JSON.parse(mockSend.mock.calls[0][0].messages[0].value);
+      expect(payload.speed).toBe(0);
+      expect(payload.ignition).toBe(false);
+    });
+
+    it("synthesizes missing speed/ignition fields", async () => {
+      await sink.connect({ brokers: "localhost:9092", format: "trajectory" });
+      await sink.publishUpdates([{ id: "1", latitude: 0, longitude: 0, heading: 45 }]);
+
+      const payload = JSON.parse(mockSend.mock.calls[0][0].messages[0].value);
+      expect(payload.heading).toBe(45);
+      expect(payload.speed).toBe(0); // speed omitted → 0
+      expect(payload.ignition).toBe(false);
+    });
+
+    it("honours configurable altitude and accuracy defaults", async () => {
+      await sink.connect({
+        brokers: "localhost:9092",
+        format: "trajectory",
+        defaultAltitude: 1650,
+        defaultAccuracy: 8,
+      });
+      await sink.publishUpdates([{ id: "1", latitude: 0, longitude: 0, speed: 36, heading: 0 }]);
+
+      const payload = JSON.parse(mockSend.mock.calls[0][0].messages[0].value);
+      expect(payload.altitude).toBe(1650);
+      expect(payload.accuracy).toBe(8);
+    });
+
+    it("rejects an invalid format value", async () => {
+      await expect(sink.connect({ brokers: "localhost:9092", format: "bogus" })).rejects.toThrow(
+        /invalid format/
+      );
+    });
+
+    it("rejects an empty keyField value", async () => {
+      await expect(
+        sink.connect({ brokers: "localhost:9092", format: "trajectory", keyField: "   " })
+      ).rejects.toThrow(/invalid keyField/);
+    });
+
+    it("still emits the native dispatch shape by default", async () => {
+      await sink.connect({ brokers: "localhost:9092" });
+      await sink.publishUpdates([{ id: "v1", latitude: -1.28, longitude: 36.8, type: "car" }]);
+
+      const payload = JSON.parse(mockSend.mock.calls[0][0].messages[0].value);
+      expect(payload.eventType).toBe("vehicle.position");
+      expect(payload.vehicleId).toBe("v1");
+    });
+
+    it("emits the simulator id verbatim as a string deviceId by default (keyBy omitted)", async () => {
+      await sink.connect({ brokers: "localhost:9092", format: "trajectory" });
+      await sink.publishUpdates([{ id: "static-7", latitude: 0, longitude: 0, speed: 10 }]);
+
+      const message = mockSend.mock.calls[0][0].messages[0];
+      const payload = JSON.parse(message.value);
+      expect(message.key).toBe("static-7");
+      expect(payload.deviceId).toBe("static-7");
+      expect(payload).not.toHaveProperty("vehicleId");
+    });
+  });
+
+  describe("trajectory preset (metadata-aware)", () => {
+    it("includes deviceType from metadata and keys by id", async () => {
+      await sink.connect({ brokers: "localhost:9092", format: "trajectory" });
+      await sink.publishUpdates([
+        {
+          id: "dev-7",
+          latitude: -1.3,
+          longitude: 36.8,
+          speed: 36,
+          heading: 90,
+          metadata: { deviceType: "gps" },
+        },
+      ]);
+
+      const message = mockSend.mock.calls[0][0].messages[0];
+      const payload = JSON.parse(message.value);
+      expect(Object.keys(payload).sort()).toEqual(
+        [
+          "accuracy",
+          "altitude",
+          "deviceId",
+          "deviceType",
+          "heading",
+          "ignition",
+          "lat",
+          "lon",
+          "speed",
+          "ts",
+        ].sort()
+      );
+      expect(payload).toMatchObject({
+        deviceId: "dev-7",
+        deviceType: "gps",
+        lat: -1.3,
+        lon: 36.8,
+        speed: 10, // 36 km/h ÷ 3.6
+        heading: 90,
+        altitude: 0,
+        accuracy: 5,
+        ignition: true,
+      });
+      expect(message.key).toBe("dev-7");
+    });
+
+    it("omits deviceType when metadata has none (back-compat)", async () => {
+      await sink.connect({ brokers: "localhost:9092", format: "trajectory" });
+      await sink.publishUpdates([{ id: "42", latitude: -1.28, longitude: 36.8, speed: 36 }]);
+
+      const payload = JSON.parse(mockSend.mock.calls[0][0].messages[0].value);
+      expect(payload).not.toHaveProperty("deviceType");
+      expect(Object.keys(payload)).toHaveLength(9);
+    });
+
+    it("emits exactly one message per update (no fan-out)", async () => {
+      await sink.connect({ brokers: "localhost:9092", format: "trajectory" });
+      await sink.publishUpdates([
+        { id: "a", latitude: 0, longitude: 0, speed: 10 },
+        { id: "b", latitude: 1, longitude: 1, speed: 20 },
+      ]);
+
+      const messages = mockSend.mock.calls[0][0].messages;
+      expect(messages).toHaveLength(2);
+      expect(messages.map((m: { key: string }) => m.key)).toEqual(["a", "b"]);
+    });
+  });
+
+  describe("keyField", () => {
+    it("defaults to 'id'", async () => {
+      await sink.connect({ brokers: "localhost:9092", format: "trajectory" });
+      await sink.publishUpdates([
+        { id: "veh-1", latitude: 0, longitude: 0, metadata: { deviceId: "d-99" } },
+      ]);
+
+      expect(mockSend.mock.calls[0][0].messages[0].key).toBe("veh-1");
+    });
+
+    it("supports a custom dot-path into metadata", async () => {
+      await sink.connect({
+        brokers: "localhost:9092",
+        format: "trajectory",
+        keyField: "metadata.deviceId",
+      });
+      await sink.publishUpdates([
+        { id: "veh-1", latitude: 0, longitude: 0, metadata: { deviceId: "d-99" } },
+      ]);
+
+      expect(mockSend.mock.calls[0][0].messages[0].key).toBe("d-99");
+    });
+  });
+
+  describe("payloadTemplate", () => {
+    it("resolves paths, literals, undefined-omission and nested objects", async () => {
+      await sink.connect({
+        brokers: "localhost:9092",
+        payloadTemplate: {
+          lat: "lat",
+          speed: "speed", // m/s
+          deviceType: "metadata.deviceType",
+          missing: "metadata.nope", // undefined → omitted
+          zero: 0, // number literal
+          const: "=const", // string literal
+          on: true, // boolean literal
+          nothing: null, // null literal
+          nested: { id: "id", flag: "=yes" },
+        },
+      });
+      await sink.publishUpdates([
+        {
+          id: "x1",
+          latitude: -1.5,
+          longitude: 36.0,
+          speed: 36,
+          metadata: { deviceType: "gps" },
+        },
+      ]);
+
+      const payload = JSON.parse(mockSend.mock.calls[0][0].messages[0].value);
+      expect(payload).toEqual({
+        lat: -1.5,
+        speed: 10, // 36 km/h → m/s
+        deviceType: "gps",
+        zero: 0,
+        const: "const",
+        on: true,
+        nothing: null,
+        nested: { id: "x1", flag: "yes" },
+      });
+      expect(payload).not.toHaveProperty("missing");
+    });
+
+    it("overrides the format preset when set", async () => {
+      await sink.connect({
+        brokers: "localhost:9092",
+        format: "trajectory",
+        payloadTemplate: { only: "id" },
+      });
+      await sink.publishUpdates([{ id: "x1", latitude: 0, longitude: 0, speed: 10 }]);
+
+      const payload = JSON.parse(mockSend.mock.calls[0][0].messages[0].value);
+      expect(payload).toEqual({ only: "x1" });
+    });
+
+    it("accepts a JSON string template", async () => {
+      await sink.connect({
+        brokers: "localhost:9092",
+        payloadTemplate: JSON.stringify({ d: "id" }),
+      });
+      await sink.publishUpdates([{ id: "x1", latitude: 0, longitude: 0 }]);
+
+      const payload = JSON.parse(mockSend.mock.calls[0][0].messages[0].value);
+      expect(payload).toEqual({ d: "x1" });
+    });
+
+    it("rejects an invalid JSON template", async () => {
+      await expect(
+        sink.connect({ brokers: "localhost:9092", payloadTemplate: "{not json" })
+      ).rejects.toThrow(/not valid JSON/);
+    });
+
+    it("computes the context: km/h→m/s speed, ignition, ts", async () => {
+      await sink.connect({
+        brokers: "localhost:9092",
+        payloadTemplate: {
+          speed: "speed",
+          speedKmh: "speedKmh",
+          ignition: "ignition",
+          ts: "ts",
+        },
+      });
+      await sink.publishUpdates([{ id: "x1", latitude: 0, longitude: 0, speed: 36 }]);
+
+      const payload = JSON.parse(mockSend.mock.calls[0][0].messages[0].value);
+      expect(payload.speed).toBe(10);
+      expect(payload.speedKmh).toBe(36);
+      expect(payload.ignition).toBe(true);
+      expect(typeof payload.ts).toBe("number");
+    });
+
+    it("derives ignition=false when stationary", async () => {
+      await sink.connect({
+        brokers: "localhost:9092",
+        payloadTemplate: { ignition: "ignition" },
+      });
+      await sink.publishUpdates([{ id: "x1", latitude: 0, longitude: 0, speed: 0 }]);
+
+      const payload = JSON.parse(mockSend.mock.calls[0][0].messages[0].value);
+      expect(payload.ignition).toBe(false);
+    });
+  });
+
+  describe("fanOut", () => {
+    const template = {
+      ts: "ts",
+      deviceId: "device.id",
+      deviceType: "device.deviceType",
+      lat: "lat",
+      lon: "lon",
+    };
+
+    it("emits one co-located message per array element", async () => {
+      await sink.connect({
+        brokers: "localhost:9092",
+        keyField: "device.id",
+        fanOut: "metadata.devices",
+        payloadTemplate: template,
+      });
+      await sink.publishUpdates([
+        {
+          id: "v1",
+          latitude: -1.28,
+          longitude: 36.8,
+          metadata: {
+            devices: [
+              { id: "d1", deviceType: "gps" },
+              { id: "d2", deviceType: "mobile" },
+            ],
+          },
+        },
+      ]);
+
+      const messages = mockSend.mock.calls[0][0].messages;
+      expect(messages).toHaveLength(2);
+
+      expect(messages.map((m: { key: string }) => m.key)).toEqual(["d1", "d2"]);
+
+      const p1 = JSON.parse(messages[0].value);
+      const p2 = JSON.parse(messages[1].value);
+      // Same position across both devices → co-located.
+      expect(p1.lat).toBe(-1.28);
+      expect(p1.lon).toBe(36.8);
+      expect(p2.lat).toBe(-1.28);
+      expect(p2.lon).toBe(36.8);
+      // Per-device fields differ.
+      expect(p1.deviceId).toBe("d1");
+      expect(p1.deviceType).toBe("gps");
+      expect(p2.deviceId).toBe("d2");
+      expect(p2.deviceType).toBe("mobile");
+    });
+
+    it("emits nothing for an update with an empty array", async () => {
+      await sink.connect({
+        brokers: "localhost:9092",
+        keyField: "device.id",
+        fanOut: "metadata.devices",
+        payloadTemplate: template,
+      });
+      await sink.publishUpdates([
+        { id: "v1", latitude: 0, longitude: 0, metadata: { devices: [] } },
+      ]);
+
+      expect(mockSend.mock.calls[0][0].messages).toHaveLength(0);
+    });
+
+    it("emits nothing for an update with a missing array", async () => {
+      await sink.connect({
+        brokers: "localhost:9092",
+        keyField: "device.id",
+        fanOut: "metadata.devices",
+        payloadTemplate: template,
+      });
+      await sink.publishUpdates([{ id: "v1", latitude: 0, longitude: 0 }]);
+
+      expect(mockSend.mock.calls[0][0].messages).toHaveLength(0);
+    });
+
+    it("is unchanged (one message per update) when fanOut is unset", async () => {
+      await sink.connect({
+        brokers: "localhost:9092",
+        format: "trajectory",
+      });
+      await sink.publishUpdates([
+        { id: "a", latitude: 0, longitude: 0, speed: 10 },
+        { id: "b", latitude: 1, longitude: 1, speed: 20 },
+      ]);
+
+      const messages = mockSend.mock.calls[0][0].messages;
+      expect(messages).toHaveLength(2);
+      expect(messages.map((m: { key: string }) => m.key)).toEqual(["a", "b"]);
+    });
+  });
+
   describe("configSchema", () => {
     it("includes acks in configSchema", () => {
       const acksField = sink.configSchema.find((f) => f.name === "acks");

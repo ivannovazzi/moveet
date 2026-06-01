@@ -63,9 +63,34 @@ describe("AdapterSyncManager", () => {
       await syncManager.initFromAdapter(addVehicle, loadFallback);
 
       expect(addVehicle).toHaveBeenCalledTimes(2);
-      expect(addVehicle).toHaveBeenCalledWith("v1", "Vehicle 1", [1.0, 36.0], undefined);
-      expect(addVehicle).toHaveBeenCalledWith("v2", "Vehicle 2", [1.1, 36.1], undefined);
+      expect(addVehicle).toHaveBeenCalledWith("v1", "Vehicle 1", [1.0, 36.0], undefined, undefined);
+      expect(addVehicle).toHaveBeenCalledWith("v2", "Vehicle 2", [1.1, 36.1], undefined, undefined);
       expect(loadFallback).not.toHaveBeenCalled();
+    });
+
+    it("should pass source metadata through to addVehicle", async () => {
+      (config as any).adapterURL = "http://localhost:5011";
+      syncManager = new AdapterSyncManager();
+
+      const adapter = (syncManager as any).adapter;
+      vi.spyOn(adapter, "get").mockResolvedValue([
+        {
+          id: "v1",
+          name: "Vehicle 1",
+          position: [1.0, 36.0] as [number, number],
+          metadata: { deviceType: "gps", vehicleId: "v1" },
+        },
+      ]);
+
+      const addVehicle = vi.fn();
+      const loadFallback = vi.fn();
+
+      await syncManager.initFromAdapter(addVehicle, loadFallback);
+
+      expect(addVehicle).toHaveBeenCalledWith("v1", "Vehicle 1", [1.0, 36.0], undefined, {
+        deviceType: "gps",
+        vehicleId: "v1",
+      });
     });
 
     it("should call loadFallback when adapter throws", async () => {
@@ -172,6 +197,73 @@ describe("AdapterSyncManager", () => {
 
       expect(second).not.toBe(first);
       syncManager.stopLocationUpdates();
+    });
+
+    it("should carry vehicle sourceMetadata through to the sync payload", async () => {
+      const adapter = (syncManager as any).adapter;
+      const syncSpy = vi.spyOn(adapter, "sync").mockResolvedValue(undefined);
+
+      const getVehicles = function* () {
+        yield {
+          id: "v1",
+          name: "V1",
+          type: "car" as const,
+          position: [1.0, 36.0] as [number, number],
+          currentEdge: { id: "e1" } as any,
+          speed: 30,
+          bearing: 90,
+          progress: 0,
+          sourceMetadata: { deviceType: "gps", vehicleId: "v1" },
+        };
+      };
+
+      vi.useFakeTimers();
+      try {
+        syncManager.startLocationUpdates(1000, getVehicles as any);
+        await vi.advanceTimersByTimeAsync(1000);
+      } finally {
+        syncManager.stopLocationUpdates();
+        vi.useRealTimers();
+      }
+
+      expect(syncSpy).toHaveBeenCalledTimes(1);
+      const payload = syncSpy.mock.calls[0][0] as { vehicles: any[] };
+      expect(payload.vehicles[0]).toMatchObject({
+        id: "v1",
+        latitude: 1.0,
+        longitude: 36.0,
+        metadata: { deviceType: "gps", vehicleId: "v1" },
+      });
+    });
+
+    it("should omit metadata from the sync payload when the vehicle has none", async () => {
+      const adapter = (syncManager as any).adapter;
+      const syncSpy = vi.spyOn(adapter, "sync").mockResolvedValue(undefined);
+
+      const getVehicles = function* () {
+        yield {
+          id: "v1",
+          name: "V1",
+          type: "car" as const,
+          position: [1.0, 36.0] as [number, number],
+          currentEdge: { id: "e1" } as any,
+          speed: 30,
+          bearing: 90,
+          progress: 0,
+        };
+      };
+
+      vi.useFakeTimers();
+      try {
+        syncManager.startLocationUpdates(1000, getVehicles as any);
+        await vi.advanceTimersByTimeAsync(1000);
+      } finally {
+        syncManager.stopLocationUpdates();
+        vi.useRealTimers();
+      }
+
+      const payload = syncSpy.mock.calls[0][0] as { vehicles: any[] };
+      expect(payload.vehicles[0]).not.toHaveProperty("metadata");
     });
   });
 });

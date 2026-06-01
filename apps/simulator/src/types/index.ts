@@ -71,6 +71,11 @@ export interface Vehicle {
   fleetId?: string;
   waypoints?: Waypoint[]; // ordered waypoint sequence for multi-stop routing
   currentWaypointIndex?: number; // index of current target waypoint in waypoints[]
+  /**
+   * Arbitrary source-provided metadata from the originating ExportVehicle.
+   * Carried opaquely so it survives the sync egress back to the adapter/sinks.
+   */
+  sourceMetadata?: Record<string, unknown>;
 }
 
 // Time-of-day types

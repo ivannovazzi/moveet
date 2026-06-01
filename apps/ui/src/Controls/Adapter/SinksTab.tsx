@@ -12,8 +12,16 @@ interface SinksTabProps {
   onRemove: (type: string) => void;
 }
 
+/** Render a (redacted) config value for the read-only summary line. */
+function formatConfigValue(value: unknown): string {
+  if (value == null) return "—";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
 export default function SinksTab({ health, config, loading, onAdd, onRemove }: SinksTabProps) {
   const [addingType, setAddingType] = useState("");
+  const [editingType, setEditingType] = useState<string | null>(null);
 
   const activeSinks = health.sinks;
   const availableToAdd = health.availableSinks.filter(
@@ -30,29 +38,76 @@ export default function SinksTab({ health, config, loading, onAdd, onRemove }: S
             <span className={styles.statusText}>{activeSinks.length} connected</span>
           </div>
           <div className={styles.sinkList}>
-            {activeSinks.map((sink) => (
-              <div key={sink.type} className={styles.sinkItem}>
-                <div className={styles.sinkMeta}>
-                  <span
-                    className={styles.statusDot}
-                    style={{
-                      background: sink.healthy
-                        ? "var(--color-status-onshift)"
-                        : "var(--color-status-offline)",
-                    }}
-                  />
-                  <span className={styles.sinkName}>{sink.type}</span>
+            {activeSinks.map((sink) => {
+              const schema =
+                health.availableSinks.find((s) => s.type === sink.type)?.configSchema ?? [];
+              const current = config?.sinkConfig[sink.type];
+              const entries = current ? Object.entries(current) : [];
+              const isEditing = editingType === sink.type;
+              return (
+                <div key={sink.type} className={styles.sinkEntry}>
+                  <div className={styles.sinkItem}>
+                    <div className={styles.sinkMeta}>
+                      <span
+                        className={styles.statusDot}
+                        style={{
+                          background: sink.healthy
+                            ? "var(--color-status-onshift)"
+                            : "var(--color-status-offline)",
+                        }}
+                      />
+                      <span className={styles.sinkName}>{sink.type}</span>
+                    </div>
+                    <span className={styles.statusText}>
+                      {sink.healthy ? "Healthy" : "Unhealthy"}
+                    </span>
+                    <div className={styles.sinkActions}>
+                      {schema.length > 0 && (
+                        <Button
+                          className={styles.editBtn}
+                          onPress={() => setEditingType(isEditing ? null : sink.type)}
+                          aria-label={`${isEditing ? "Cancel editing" : "Edit"} ${sink.type}`}
+                        >
+                          {isEditing ? "Cancel" : "Edit"}
+                        </Button>
+                      )}
+                      <Button
+                        className={styles.removeBtn}
+                        onPress={() => onRemove(sink.type)}
+                        aria-label={`Remove ${sink.type}`}
+                      >
+                        &times;
+                      </Button>
+                    </div>
+                  </div>
+
+                  {!isEditing && entries.length > 0 && (
+                    <dl className={styles.sinkConfigSummary}>
+                      {entries.map(([key, value]) => (
+                        <div key={key} className={styles.sinkConfigRow}>
+                          <dt className={styles.sinkConfigKey}>{key}</dt>
+                          <dd className={styles.sinkConfigVal}>{formatConfigValue(value)}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
+
+                  {isEditing && schema.length > 0 && (
+                    <ConfigForm
+                      key={`edit-${sink.type}`}
+                      fields={schema}
+                      initial={current}
+                      submitLabel="Save"
+                      loading={loading}
+                      onSubmit={(values) => {
+                        onAdd(sink.type, values);
+                        setEditingType(null);
+                      }}
+                    />
+                  )}
                 </div>
-                <span className={styles.statusText}>{sink.healthy ? "Healthy" : "Unhealthy"}</span>
-                <Button
-                  className={styles.removeBtn}
-                  onPress={() => onRemove(sink.type)}
-                  aria-label={`Remove ${sink.type}`}
-                >
-                  &times;
-                </Button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}

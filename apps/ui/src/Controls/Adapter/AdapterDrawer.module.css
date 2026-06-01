@@ -597,6 +597,88 @@ input[type="number"].input::-webkit-inner-spin-button {
   background: var(--color-danger-bg);
 }
 
+/* ── Active sink entry: row + current config + inline edit ── */
+
+.sinkEntry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background: var(--bg-1);
+  border-radius: var(--radius-xs);
+}
+
+.sinkEntry .sinkItem {
+  padding: 0;
+  background: transparent;
+}
+
+.sinkEntry .sinkItem:hover {
+  background: transparent;
+}
+
+.sinkActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.editBtn {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 var(--space-2);
+  background: transparent;
+  border: 1px solid var(--color-overlay-2);
+  border-radius: var(--radius-xs);
+  color: var(--color-gray-light);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  line-height: 1;
+  transition:
+    color var(--transition-fast),
+    background var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.editBtn:hover,
+.editBtn[data-hovered] {
+  color: var(--color-white);
+  background: var(--color-overlay-2);
+}
+
+.sinkConfigSummary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-2);
+  background: var(--color-overlay-2);
+  border-radius: var(--radius-xs);
+}
+
+.sinkConfigRow {
+  display: grid;
+  grid-template-columns: minmax(0, 0.4fr) minmax(0, 0.6fr);
+  gap: var(--space-2);
+  align-items: baseline;
+}
+
+.sinkConfigKey {
+  color: var(--color-gray-light);
+  font-size: var(--text-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sinkConfigVal {
+  margin: 0;
+  color: var(--color-white);
+  font-size: var(--text-xs);
+  font-family: ui-monospace, monospace;
+  word-break: break-all;
+}
+
 /* ── Status indicators ── */
 
 .statusDot {

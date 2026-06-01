@@ -8,6 +8,7 @@ export const DEFAULT_START_OPTIONS: StartOptions = {
   deceleration: 7,
   turnThreshold: 30,
   updateInterval: 10000,
+  adapterSyncInterval: 1000,
   speedVariation: 0.1,
   heatZoneSpeedFactor: 0.5,
 };

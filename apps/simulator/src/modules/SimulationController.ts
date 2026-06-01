@@ -184,7 +184,9 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
     }
 
     if (config.adapterURL) {
-      this.vehicleManager.startLocationUpdates(config.syncAdapterTimeout);
+      this.vehicleManager.startLocationUpdates(
+        this.vehicleManager.getOptions().adapterSyncInterval
+      );
     }
 
     // Start incident cleanup and wire event listeners

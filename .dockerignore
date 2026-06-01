@@ -1,0 +1,17 @@
+# Keep the build context small and never copy host (macOS) artifacts over the
+# clean Linux install produced by `npm ci` inside the image.
+**/node_modules
+**/dist
+**/.turbo
+.git
+.github
+.husky
+.worktrees
+recordings
+**/*.log
+**/.env
+**/.env.*
+# Generated network data is mounted at runtime, not baked into the image.
+apps/simulator/data/*.geojson
+apps/simulator/data/*.meta.json
+apps/network/.cache

@@ -30,13 +30,15 @@ export class VehicleRegistry {
    * its connected edges as the starting edge instead of a random one.
    *
    * @param onVehicleAdded - callback invoked after vehicle is placed (e.g. to set a route)
+   * @param metadata - arbitrary source-provided metadata, stored opaquely on the vehicle
    */
   addVehicle(
     id: string,
     name: string,
     seedPosition?: [number, number],
     vehicleType: VehicleType = "car",
-    onVehicleAdded?: (vehicleId: string) => void
+    onVehicleAdded?: (vehicleId: string) => void,
+    metadata?: Record<string, unknown>
   ): void {
     let startEdge: Edge;
 
@@ -61,6 +63,7 @@ export class VehicleRegistry {
       speed: profile.minSpeed,
       bearing: startEdge.bearing,
       progress: 0,
+      ...(metadata !== undefined ? { sourceMetadata: metadata } : {}),
     });
 
     this.addToEdgeIndex(id, startEdge.id);

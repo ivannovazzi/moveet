@@ -108,6 +108,22 @@ describe("VehicleRegistry", () => {
       });
       expect(callbackId).toBe("v1");
     });
+
+    it("should store source-provided metadata on the vehicle", () => {
+      registry.addVehicle("v1", "V1", undefined, "car", undefined, {
+        deviceType: "gps",
+        vehicleId: "v1",
+      });
+      expect(registry.get("v1")!.sourceMetadata).toEqual({
+        deviceType: "gps",
+        vehicleId: "v1",
+      });
+    });
+
+    it("should leave sourceMetadata undefined when no metadata is provided", () => {
+      registry.addVehicle("v1", "V1");
+      expect(registry.get("v1")!.sourceMetadata).toBeUndefined();
+    });
   });
 
   // ─── has / get / getAll ───────────────────────────────────────────

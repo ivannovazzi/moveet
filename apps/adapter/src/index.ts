@@ -95,19 +95,20 @@ async function startup(): Promise<void> {
   });
 
   app.post("/sync", async (req, res) => {
-    let vehicles: VehicleUpdate[];
+    let rawVehicles: unknown[];
     if (Array.isArray(req.body)) {
-      vehicles = req.body;
+      rawVehicles = req.body;
     } else if (req.body.vehicles && Array.isArray(req.body.vehicles)) {
-      vehicles = req.body.vehicles;
+      rawVehicles = req.body.vehicles;
     } else {
       res.status(400).json({ error: "Invalid request body" });
       return;
     }
 
     const invalid: string[] = [];
-    for (let i = 0; i < vehicles.length; i++) {
-      const v = vehicles[i];
+    const vehicles: VehicleUpdate[] = [];
+    for (let i = 0; i < rawVehicles.length; i++) {
+      const v = rawVehicles[i] as Record<string, unknown>;
       if (
         typeof v.id !== "string" ||
         typeof v.latitude !== "number" ||
@@ -116,7 +117,17 @@ async function startup(): Promise<void> {
         invalid.push(
           `vehicles[${i}]: missing or invalid id (string), latitude (number), or longitude (number)`
         );
+        continue;
       }
+      if (
+        v.metadata !== undefined &&
+        (typeof v.metadata !== "object" || v.metadata === null || Array.isArray(v.metadata))
+      ) {
+        invalid.push(`vehicles[${i}]: metadata, when present, must be a JSON object`);
+        continue;
+      }
+      // Carry the update through, including optional source-provided metadata.
+      vehicles.push(v as unknown as VehicleUpdate);
     }
     if (invalid.length > 0) {
       res.status(400).json({ error: "Invalid vehicle updates", details: invalid });

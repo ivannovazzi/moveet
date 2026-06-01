@@ -18,6 +18,7 @@ function makeHeader(overrides: Partial<RecordingHeader> = {}): RecordingHeader {
       deceleration: 4,
       turnThreshold: 45,
       heatZoneSpeedFactor: 0.5,
+      adapterSyncInterval: 1000,
       updateInterval: 100,
     },
     ...overrides,

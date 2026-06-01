@@ -51,6 +51,9 @@ export class VehicleManager extends EventEmitter {
 
   private options: StartOptions = {
     updateInterval: config.updateInterval,
+    // 0 means "follow updateInterval"; resolve to a concrete value up front so
+    // the option is always a usable number.
+    adapterSyncInterval: config.adapterSyncInterval || config.updateInterval,
     minSpeed: config.minSpeed,
     maxSpeed: config.maxSpeed,
     speedVariation: config.speedVariation,
@@ -159,8 +162,8 @@ export class VehicleManager extends EventEmitter {
 
   public async initFromAdapter(): Promise<void> {
     await this.adapterSync.initFromAdapter(
-      (id, name, position, type) => {
-        this.addVehicle(id, name, position, type ?? pickRandomType());
+      (id, name, position, type, metadata) => {
+        this.addVehicle(id, name, position, type ?? pickRandomType(), metadata);
       },
       () => this.loadFromData()
     );
@@ -184,13 +187,21 @@ export class VehicleManager extends EventEmitter {
     id: string,
     name: string,
     seedPosition?: [number, number],
-    vehicleType: VehicleType = "car"
+    vehicleType: VehicleType = "car",
+    metadata?: Record<string, unknown>
   ): void {
-    this.registry.addVehicle(id, name, seedPosition, vehicleType, (vehicleId) => {
-      const vehicle = this.registry.get(vehicleId)!;
-      this.traffic.enter(vehicle.currentEdge.id);
-      this.setRandomDestination(vehicleId);
-    });
+    this.registry.addVehicle(
+      id,
+      name,
+      seedPosition,
+      vehicleType,
+      (vehicleId) => {
+        const vehicle = this.registry.get(vehicleId)!;
+        this.traffic.enter(vehicle.currentEdge.id);
+        this.setRandomDestination(vehicleId);
+      },
+      metadata
+    );
   }
 
   // ─── Reset ────────────────────────────────────────────────────────
@@ -206,7 +217,7 @@ export class VehicleManager extends EventEmitter {
 
     if (adapterVehicles) {
       adapterVehicles.forEach((v) => {
-        this.addVehicle(v.id, v.name, v.position, v.type ?? pickRandomType());
+        this.addVehicle(v.id, v.name, v.position, v.type ?? pickRandomType(), v.metadata);
       });
     } else {
       this.loadFromData(this.pendingVehicleTypes);
@@ -250,6 +261,7 @@ export class VehicleManager extends EventEmitter {
       this.pendingVehicleTypes = vehicleTypes;
     }
     const prevInterval = this.options.updateInterval;
+    const prevSyncInterval = this.options.adapterSyncInterval;
     this.options = { ...this.options, ...startOptions };
 
     if (
@@ -261,6 +273,18 @@ export class VehicleManager extends EventEmitter {
     }
 
     this.gameLoop.setGameLoopIntervalMs(this.options.updateInterval);
+
+    // Restart the adapter-sync timer at the new cadence if it changed while a
+    // run with a configured adapter is in flight.
+    if (
+      startOptions.adapterSyncInterval &&
+      startOptions.adapterSyncInterval !== prevSyncInterval &&
+      config.adapterURL &&
+      this.gameLoop.getActiveVehicles().size > 0
+    ) {
+      this.startLocationUpdates(this.options.adapterSyncInterval);
+    }
+
     this.emit("options", this.options);
   }
 

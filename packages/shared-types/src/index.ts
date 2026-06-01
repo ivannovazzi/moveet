@@ -33,6 +33,11 @@ export interface ExportVehicle {
   name: string;
   position?: Position;
   type?: VehicleType;
+  /**
+   * Arbitrary source-provided metadata, carried opaquely through the
+   * source → simulator → sink round-trip. Sinks may ignore it.
+   */
+  metadata?: Record<string, unknown>;
 }
 
 export interface VehicleUpdate {
@@ -40,6 +45,15 @@ export interface VehicleUpdate {
   longitude: number;
   id: string;
   type?: VehicleType;
+  /** Ground speed in km/h, when the source provides it (e.g. the simulator). */
+  speed?: number;
+  /** Heading / course over ground in degrees, when the source provides it. */
+  heading?: number;
+  /**
+   * Arbitrary source-provided metadata, carried opaquely from the source
+   * through the simulator to the sinks. Sinks may ignore it.
+   */
+  metadata?: Record<string, unknown>;
 }
 
 // ─── Fleet ──────────────────────────────────────────────────────────
@@ -78,7 +92,14 @@ export interface StartOptions {
   deceleration: number;
   turnThreshold: number;
   heatZoneSpeedFactor: number;
+  /** How often (ms) the simulation loop steps and broadcasts vehicle state. */
   updateInterval: number;
+  /**
+   * How often (ms) vehicle positions are pushed to the adapter and on to
+   * downstream sinks. Independent of `updateInterval` so the publish/telemetry
+   * rate can be tuned separately from the movement/broadcast rate.
+   */
+  adapterSyncInterval: number;
 }
 
 // ─── Road Network (shared subset) ──────────────────────────────────

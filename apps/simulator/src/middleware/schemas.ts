@@ -20,6 +20,7 @@ export const startSchema = z
     turnThreshold: z.number().optional(),
     heatZoneSpeedFactor: z.number().min(0).max(1).optional(),
     updateInterval: z.number().positive().optional(),
+    adapterSyncInterval: z.number().positive().optional(),
     vehicleTypes: z.record(z.string(), z.number().int().nonnegative()).optional(),
   })
   .strict()
@@ -35,6 +36,7 @@ export const optionsSchema = z.object({
   turnThreshold: z.number(),
   heatZoneSpeedFactor: z.number().min(0).max(1),
   updateInterval: z.number().positive(),
+  adapterSyncInterval: z.number().positive().optional(),
 });
 
 // ─── Direction / waypoints ──────────────────────────────────────────

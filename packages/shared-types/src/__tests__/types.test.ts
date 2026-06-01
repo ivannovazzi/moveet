@@ -189,9 +189,11 @@ describe("@moveet/shared-types", () => {
         turnThreshold: 45,
         heatZoneSpeedFactor: 0.5,
         updateInterval: 100,
+        adapterSyncInterval: 1000,
       };
       expect(opts.minSpeed).toBe(10);
       expect(opts.updateInterval).toBe(100);
+      expect(opts.adapterSyncInterval).toBe(1000);
     });
   });
 

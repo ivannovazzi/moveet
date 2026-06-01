@@ -25,7 +25,15 @@ export function Range({ label, value, min = 0, max = 100, step = 1, onChange }: 
         <span className={styles.rangeValue}>{value}</span>
       </div>
       <SliderTrack className={styles.rangeTrack}>
-        <SliderThumb className={styles.rangeThumb} />
+        {({ state }) => (
+          <>
+            <div
+              className={styles.rangeFill}
+              style={{ width: `${state.getThumbPercent(0) * 100}%` }}
+            />
+            <SliderThumb className={styles.rangeThumb} />
+          </>
+        )}
       </SliderTrack>
     </Slider>
   );

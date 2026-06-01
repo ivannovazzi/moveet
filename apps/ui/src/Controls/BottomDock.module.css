@@ -214,8 +214,9 @@
 
 .progressFill {
   height: 100%;
-  background: var(--color-accent, rgba(59, 130, 246, 0.7));
+  background: linear-gradient(90deg, var(--color-accent-dark), var(--color-accent));
   border-radius: 999px;
+  box-shadow: 0 0 8px rgba(51, 153, 255, 0.45);
   transition: width 1s linear;
   pointer-events: none;
 }

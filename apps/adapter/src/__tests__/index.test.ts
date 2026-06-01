@@ -67,19 +67,20 @@ function createAdapterApp({ isReady = true }: { isReady?: boolean } = {}) {
   });
 
   app.post("/sync", async (req, res) => {
-    let vehicles: any[];
+    let rawVehicles: any[];
     if (Array.isArray(req.body)) {
-      vehicles = req.body;
+      rawVehicles = req.body;
     } else if (req.body.vehicles && Array.isArray(req.body.vehicles)) {
-      vehicles = req.body.vehicles;
+      rawVehicles = req.body.vehicles;
     } else {
       res.status(400).json({ error: "Invalid request body" });
       return;
     }
 
     const invalid: string[] = [];
-    for (let i = 0; i < vehicles.length; i++) {
-      const v = vehicles[i];
+    const vehicles: any[] = [];
+    for (let i = 0; i < rawVehicles.length; i++) {
+      const v = rawVehicles[i];
       if (
         typeof v.id !== "string" ||
         typeof v.latitude !== "number" ||
@@ -88,7 +89,16 @@ function createAdapterApp({ isReady = true }: { isReady?: boolean } = {}) {
         invalid.push(
           `vehicles[${i}]: missing or invalid id (string), latitude (number), or longitude (number)`
         );
+        continue;
       }
+      if (
+        v.metadata !== undefined &&
+        (typeof v.metadata !== "object" || v.metadata === null || Array.isArray(v.metadata))
+      ) {
+        invalid.push(`vehicles[${i}]: metadata, when present, must be a JSON object`);
+        continue;
+      }
+      vehicles.push(v);
     }
     if (invalid.length > 0) {
       res.status(400).json({ error: "Invalid vehicle updates", details: invalid });
@@ -282,6 +292,37 @@ describe("Adapter routes", () => {
       const app = createAdapterApp();
       const res = await request(app).post("/sync").send(validPayload);
       expect(res.status).toBe(500);
+    });
+
+    it("should carry per-vehicle metadata through to publishUpdates", async () => {
+      const app = createAdapterApp();
+      const payload = [
+        {
+          id: "v1",
+          latitude: -1.3,
+          longitude: 36.8,
+          metadata: { deviceType: "gps", vehicleId: "v1" },
+        },
+      ];
+      const res = await request(app).post("/sync").send(payload);
+      expect(res.status).toBe(200);
+      expect(mockPluginManager.publishUpdates).toHaveBeenCalledTimes(1);
+      const passed = mockPluginManager.publishUpdates.mock.calls[0][0];
+      expect(passed[0]).toMatchObject({
+        id: "v1",
+        latitude: -1.3,
+        longitude: 36.8,
+        metadata: { deviceType: "gps", vehicleId: "v1" },
+      });
+    });
+
+    it("should reject non-object metadata", async () => {
+      const app = createAdapterApp();
+      const res = await request(app)
+        .post("/sync")
+        .send([{ id: "v1", latitude: -1.3, longitude: 36.8, metadata: "nope" }]);
+      expect(res.status).toBe(400);
+      expect(res.body.details[0]).toContain("metadata");
     });
   });
 

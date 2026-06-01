@@ -16,7 +16,13 @@ export class AdapterSyncManager {
    * Must be called after construction when ADAPTER_URL is configured.
    */
   async initFromAdapter(
-    addVehicle: (id: string, name: string, position?: [number, number], type?: VehicleType) => void,
+    addVehicle: (
+      id: string,
+      name: string,
+      position?: [number, number],
+      type?: VehicleType,
+      metadata?: Record<string, unknown>
+    ) => void,
     loadFallback: () => void
   ): Promise<void> {
     if (!config.adapterURL) return;
@@ -29,7 +35,7 @@ export class AdapterSyncManager {
         return;
       }
       adapterVehicles.forEach((v) => {
-        addVehicle(v.id, v.name, v.position, v.type);
+        addVehicle(v.id, v.name, v.position, v.type, v.metadata);
       });
       logger.info(`Loaded ${adapterVehicles.length} vehicles from adapter`);
     } catch (error) {
@@ -78,6 +84,10 @@ export class AdapterSyncManager {
             type: v.type,
             latitude: v.position[0],
             longitude: v.position[1],
+            speed: v.speed, // km/h
+            heading: v.bearing, // degrees
+            // Carry source-provided metadata opaquely back to the adapter/sinks.
+            ...(v.sourceMetadata !== undefined ? { metadata: v.sourceMetadata } : {}),
           })),
           timestamp: Date.now(),
         });
