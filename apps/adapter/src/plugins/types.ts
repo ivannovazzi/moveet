@@ -52,6 +52,16 @@ export interface PublishResult {
   sinks: SinkResult[];
 }
 
+/** Returned by the realism engine when it accepts updates for async emission. */
+export interface AcceptedResult {
+  status: "accepted";
+  accepted: number;
+}
+
+/** Result of routing updates through the realism engine: either a synchronous
+ *  per-sink publish result (realism disabled) or an async-accepted ack (enabled). */
+export type IngestResult = PublishResult | AcceptedResult;
+
 /**
  * Interface for data source plugins that provide vehicle data.
  *

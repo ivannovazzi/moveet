@@ -545,6 +545,7 @@ export default function App() {
                   onSetSource={adapter.setSource}
                   onAddSink={adapter.addSink}
                   onRemoveSink={adapter.removeSink}
+                  onSetRealism={adapter.setRealism}
                 />
               )}
             </div>

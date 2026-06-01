@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PluginManager } from "./manager";
-import type { DataSource, DataSink } from "./types";
+import type { DataSource, DataSink, IngestResult, PublishResult } from "./types";
 import type { VehicleUpdate } from "../types";
+
+/** Narrows the realism-disabled publish path to its synchronous PublishResult. */
+function assertPublishResult(result: IngestResult): asserts result is PublishResult {
+  expect(result.status).not.toBe("accepted");
+}
 
 function createMockSource(overrides?: Partial<DataSource>): DataSource {
   return {
@@ -201,6 +206,7 @@ describe("PluginManager", () => {
 
       const updates: VehicleUpdate[] = [{ id: "v1", latitude: -1.28, longitude: 36.8 }];
       const result = await manager.publishUpdates(updates);
+      assertPublishResult(result);
 
       expect(result.status).toBe("success");
       expect(result.sinks).toEqual([
@@ -222,6 +228,7 @@ describe("PluginManager", () => {
 
       const updates: VehicleUpdate[] = [{ id: "v1", latitude: -1.28, longitude: 36.8 }];
       const result = await manager.publishUpdates(updates);
+      assertPublishResult(result);
 
       expect(result.status).toBe("partial");
       expect(result.sinks).toContainEqual({ type: "fail", success: false, error: "network error" });
@@ -244,6 +251,7 @@ describe("PluginManager", () => {
 
       const updates: VehicleUpdate[] = [{ id: "v1", latitude: -1.28, longitude: 36.8 }];
       const result = await manager.publishUpdates(updates);
+      assertPublishResult(result);
 
       expect(result.status).toBe("failure");
       expect(result.sinks).toContainEqual({ type: "f1", success: false, error: "err1" });
@@ -253,6 +261,7 @@ describe("PluginManager", () => {
     it("returns success with empty sinks when none configured", async () => {
       const updates: VehicleUpdate[] = [{ id: "v1", latitude: -1.28, longitude: 36.8 }];
       const result = await manager.publishUpdates(updates);
+      assertPublishResult(result);
 
       expect(result.status).toBe("success");
       expect(result.sinks).toEqual([]);

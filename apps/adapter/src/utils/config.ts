@@ -24,6 +24,9 @@ export const envSchema = z.object({
 
   /** Comma-separated CORS origins, or "*" for all */
   CORS_ORIGINS: z.string().default("http://localhost:5010,http://localhost:5012"),
+
+  /** JSON config for the realism engine (off by default). */
+  REALISM_CONFIG: z.string().default(""),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;
@@ -78,6 +81,7 @@ export interface StartupConfig {
   corsOrigins: string[] | "*";
   source: { type: string; config: Record<string, unknown> };
   sinks: Array<{ type: string; config: Record<string, unknown> }>;
+  realism: Record<string, unknown>;
 }
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): StartupConfig {
@@ -94,11 +98,14 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     sinks.push({ type: "console", config: {} });
   }
 
+  const realism = parseJSON(parsed.REALISM_CONFIG);
+
   return {
     port: parsed.PORT,
     corsOrigins: parseCorsOrigins(parsed.CORS_ORIGINS),
     source: { type: parsed.SOURCE_TYPE, config: sourceConfig },
     sinks,
+    realism,
   };
 }
 

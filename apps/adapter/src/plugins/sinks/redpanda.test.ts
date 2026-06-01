@@ -226,6 +226,40 @@ describe("RedpandaSink", () => {
       expect(payload.vehicleId).toBe("v1");
     });
 
+    it("dispatch format honors update-supplied timestamp/accuracy/connected", async () => {
+      await sink.connect({ brokers: "localhost:9092" });
+      const fixTs = 1_700_000_000_000;
+      await sink.publishUpdates([
+        {
+          id: "v1",
+          latitude: -1.28,
+          longitude: 36.8,
+          type: "car",
+          timestamp: fixTs,
+          accuracy: 27.5,
+          connected: false,
+        },
+      ]);
+
+      const payload = JSON.parse(mockSend.mock.calls[0][0].messages[0].value);
+      // fix timestamp is back-dated (store-and-forward), occurredOn is wall-clock
+      expect(payload.timestamp).toBe(new Date(fixTs).toISOString());
+      expect(payload.occurredOn).not.toBe(payload.timestamp);
+      expect(payload.accuracy).toBe(27.5);
+      expect(payload.connected).toBe(false);
+    });
+
+    it("dispatch format omits accuracy/connected when absent (back-compat)", async () => {
+      await sink.connect({ brokers: "localhost:9092" });
+      await sink.publishUpdates([{ id: "v1", latitude: -1.28, longitude: 36.8, type: "car" }]);
+
+      const payload = JSON.parse(mockSend.mock.calls[0][0].messages[0].value);
+      expect(payload).not.toHaveProperty("accuracy");
+      expect(payload).not.toHaveProperty("connected");
+      // timestamp falls back to wall-clock (equals occurredOn in this path)
+      expect(payload.timestamp).toBe(payload.occurredOn);
+    });
+
     it("emits the simulator id verbatim as a string deviceId by default (keyBy omitted)", async () => {
       await sink.connect({ brokers: "localhost:9092", format: "trajectory" });
       await sink.publishUpdates([{ id: "static-7", latitude: 0, longitude: 0, speed: 10 }]);
@@ -516,6 +550,50 @@ describe("RedpandaSink", () => {
       const messages = mockSend.mock.calls[0][0].messages;
       expect(messages).toHaveLength(2);
       expect(messages.map((m: { key: string }) => m.key)).toEqual(["a", "b"]);
+    });
+  });
+
+  describe("update-supplied telemetry fields", () => {
+    it("uses update.accuracy and update.timestamp when present", async () => {
+      await sink.connect({ brokers: "localhost:9092", format: "trajectory" });
+      await sink.publishUpdates([
+        {
+          id: "v1",
+          latitude: -1.29,
+          longitude: 36.82,
+          speed: 36,
+          heading: 90,
+          accuracy: 27.5,
+          timestamp: 1234567,
+          connected: false,
+        },
+      ]);
+
+      const payload = JSON.parse(mockSend.mock.calls[0][0].messages[0].value);
+      expect(payload.accuracy).toBe(27.5);
+      expect(payload.ts).toBe(1234567);
+      // connected:false forces ignition off even though speed > 0.5.
+      expect(payload.ignition).toBe(false);
+    });
+
+    it("falls back to defaults when accuracy/timestamp absent", async () => {
+      const before = Date.now();
+      await sink.connect({
+        brokers: "localhost:9092",
+        format: "trajectory",
+        defaultAccuracy: 8,
+      });
+      await sink.publishUpdates([{ id: "v1", latitude: -1.29, longitude: 36.82, speed: 36 }]);
+      const after = Date.now();
+
+      const payload = JSON.parse(mockSend.mock.calls[0][0].messages[0].value);
+      // Absent accuracy → configured default.
+      expect(payload.accuracy).toBe(8);
+      // Absent timestamp → batch Date.now() (existing behavior).
+      expect(payload.ts).toBeGreaterThanOrEqual(before);
+      expect(payload.ts).toBeLessThanOrEqual(after);
+      // Absent connected → ignition derived from speed (36 km/h → 10 m/s > 0.5).
+      expect(payload.ignition).toBe(true);
     });
   });
 
