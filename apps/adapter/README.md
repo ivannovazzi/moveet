@@ -78,16 +78,17 @@ cp .env.example .env
 
 ### Environment Variables
 
-| Variable              | Default                         | Description                                                                                                                                     |
-| --------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PORT`                | `5011`                          | Server port                                                                                                                                     |
-| `CORS_ORIGINS`        | `*`                             | Allowed CORS origins. Use `*` to allow all origins, or a comma-separated list (e.g. `http://localhost:5010,http://localhost:5012`) to restrict. |
-| `API_URL`             | --                              | GraphQL API URL (GraphQL mode)                                                                                                                  |
-| `TOKEN`               | --                              | Auth token for GraphQL API (GraphQL mode)                                                                                                       |
-| `USE_ALTERNATIVE_API` | `false`                         | Set to `true` for alternative mode                                                                                                              |
-| `ALTERNATIVE_API_URL` | `http://localhost:4001/graphql` | Local GraphQL API URL (alternative mode)                                                                                                        |
-| `REDPANDA_BROKERS`    | `localhost:19092`               | Comma-separated Redpanda/Kafka broker addresses                                                                                                 |
-| `REDPANDA_TOPIC`      | `dispatch.vehicle.positions`    | Kafka topic for vehicle position updates                                                                                                        |
+| Variable              | Default                         | Description                                                                                                                                                   |
+| --------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PORT`                | `5011`                          | Server port                                                                                                                                                   |
+| `CORS_ORIGINS`        | `*`                             | Allowed CORS origins. Use `*` to allow all origins, or a comma-separated list (e.g. `http://localhost:5010,http://localhost:5012`) to restrict.               |
+| `API_URL`             | --                              | GraphQL API URL (GraphQL mode)                                                                                                                                |
+| `TOKEN`               | --                              | Auth token for GraphQL API (GraphQL mode)                                                                                                                     |
+| `USE_ALTERNATIVE_API` | `false`                         | Set to `true` for alternative mode                                                                                                                            |
+| `ALTERNATIVE_API_URL` | `http://localhost:4001/graphql` | Local GraphQL API URL (alternative mode)                                                                                                                      |
+| `REDPANDA_BROKERS`    | `localhost:19092`               | Comma-separated Redpanda/Kafka broker addresses                                                                                                               |
+| `REDPANDA_TOPIC`      | `dispatch.vehicle.positions`    | Kafka topic for vehicle position updates                                                                                                                      |
+| `REALISM_CONFIG`      | `` (off)                        | JSON config for the telemetry realism engine (GPS noise / dropouts / cadence jitter). Off unless `enabled:true`. See [Telemetry realism](#telemetry-realism). |
 
 ## API Endpoints
 
@@ -115,7 +116,13 @@ cp .env.example .env
 
 **`DELETE /config/sinks/:type`** -- Removes a sink plugin by type.
 
-**`GET /health`** -- Returns health check status for the active source and all sinks.
+**`POST /config/realism`** -- Hot-applies the realism engine config at runtime (partial bodies are merged over the current config). See [Telemetry realism](#telemetry-realism).
+
+```json
+{ "config": { "enabled": true, "reportingPeriodMs": 5000, "jitterMs": 800 } }
+```
+
+**`GET /health`** -- Returns health check status for the active source and all sinks (plus a `realism` status block when the engine is active).
 
 ### Redpanda sink: payload formats
 
@@ -236,6 +243,60 @@ Each vehicle is one moving entity; its devices ride along and are emitted at the
 resolves every one of those device ids to that single vehicle — with no jumping.
 Both features are fully back-compatible: omit `groupBy` for one entity per item,
 omit `fanOut` for one message per update.
+
+## Telemetry realism
+
+An optional engine that degrades outgoing telemetry for **all** sinks to mimic
+real-world device behavior. **Off by default** — it only engages when
+`REALISM_CONFIG` (or a runtime `POST /config/realism`) sets `enabled: true`.
+When enabled it applies three independent effects:
+
+1. **Correlated GPS noise** -- a first-order Gauss-Markov process perturbs
+   lat/lon so error _drifts_ realistically over time instead of jumping each
+   tick. Reported `accuracy` is derived from the same model, and degrades in the
+   poor-signal state.
+2. **Connectivity dropouts (store-and-forward)** -- a 3-state Markov model
+   (connected / degraded / disconnected) toggles connectivity. Updates produced
+   while offline are buffered and flushed (with their original, back-dated
+   timestamps) on reconnect, or dropped if `storeAndForward:false`.
+3. **Jittered reporting cadence** -- emission is decoupled from ingest. The
+   engine reports each device on a jittered `reportingPeriodMs`, not on every
+   incoming `/sync`.
+
+Because emission becomes asynchronous when the engine is enabled, **`POST /sync`
+returns HTTP 202** (accepted) instead of per-sink results.
+
+Configure at startup via `REALISM_CONFIG` (a JSON string), at runtime via
+`POST /config/realism`, or interactively from the UI's **Realism** tab. Config
+keys (all optional; sensible defaults applied):
+
+```jsonc
+{
+  "enabled": false,
+  "reportingPeriodMs": 5000, // nominal per-device emit period
+  "jitterMs": 800, // std-dev of Gaussian cadence jitter
+  "gps": {
+    "connectedSigmaM": 4,
+    "connectedTauS": 120,
+    "degradedSigmaM": 25,
+    "degradedTauS": 30,
+  },
+  "connectivity": {
+    "meanConnectedS": 600,
+    "meanDegradedS": 45,
+    "meanDisconnectedS": 60,
+    "degradedFromConnectedS": 120,
+  },
+  "storeAndForward": true,
+  "maxBufferPerDevice": 500,
+  "seed": 0, // optional: deterministic RNG for reproducible runs
+}
+```
+
+`GET /config` returns a `realism` block (`{ config, schema, status }`); the
+`status` reports live per-state device counts and buffered-sample totals, which
+the UI Realism tab polls. The design and model references are in
+`docs/plans/2026-06-01-telemetry-realism-engine-design.md`.
 
 ## Commands
 
