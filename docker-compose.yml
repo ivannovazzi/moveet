@@ -25,6 +25,10 @@ services:
     environment:
       PORT: "5011"
       CORS_ORIGINS: "*"
+      # Where the adapter fetches generated recordings for POST /replay/emit.
+      # Must point at the simulator service (not localhost, which is the adapter
+      # container itself).
+      SIMULATOR_URL: http://simulator:3000
       # Real fleet: the generic "rest" source pulls the connector's fleet-roster
       # and GROUPS assignments by vehicleId → one simulated entity per vehicle,
       # with its device(s) in metadata.devices[] ({id:deviceId, deviceType}). The
