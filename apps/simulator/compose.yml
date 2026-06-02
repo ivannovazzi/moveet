@@ -1,42 +1,22 @@
-# Build context is the repo root (../..) for every service because the apps
-# depend on the @moveet/* npm workspace packages, which are not published to the
-# registry and must be installed from within the workspace.
 services:
   simulator:
-    build:
-      context: ../..
-      dockerfile: apps/simulator/Dockerfile
+    build: .
     volumes:
-      - ./data/network.geojson:/repo/apps/simulator/data/network.geojson:ro
+      - ./data/network.geojson:/app/data/network.geojson:ro
     environment:
       - UPDATE_INTERVAL=300
       - USE_ADAPTER=true
       - ADAPTER_URL=http://adapter:5011
-      # Persistence indexes recordings so generated ones are listable and
-      # downloadable by id (required by the generate -> emit UI flow).
-      - PERSISTENCE_ENABLED=true
-      - STATE_DB_PATH=/repo/apps/simulator/data/moveet.db
     ports:
       - "5010:3000"
   adapter:
-    build:
-      context: ../..
-      dockerfile: apps/adapter/Dockerfile
+    build: ../adapter
     environment:
       - SOURCE_TYPE=static
       - SINK_TYPES=console
-      # Lets the adapter fetch generated recordings from the simulator container
-      # for POST /replay/emit (historical telemetry replay through the sinks).
-      - SIMULATOR_URL=http://simulator:3000
-      # Dev stack: accept the UI from any host (localhost, 127.0.0.1, LAN IP).
-      # The simulator already uses permissive CORS; match it here so the adapter
-      # panel is reachable regardless of which host the UI is opened from.
-      - CORS_ORIGINS=*
     ports:
       - "5011:5011"
   ui:
-    build:
-      context: ../..
-      dockerfile: apps/ui/Dockerfile
+    build: ../ui
     ports:
       - "5012:8080"

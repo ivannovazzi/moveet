@@ -1,7 +1,4 @@
-# Plain HTTP on :8080. Using a bare port (not `localhost:8080`) avoids Caddy's
-# automatic HTTPS for the `localhost` name — the SPA is served over HTTP so it
-# can call the HTTP simulator/adapter without mixed-content blocking.
-:8080
+localhost:8080
 
 encode zstd gzip
 try_files {path} /index.html
