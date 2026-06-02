@@ -23,7 +23,8 @@ export class AdapterSyncManager {
       type?: VehicleType,
       metadata?: Record<string, unknown>
     ) => void,
-    loadFallback: () => void
+    loadFallback: () => void,
+    limit?: number
   ): Promise<void> {
     if (!config.adapterURL) return;
 
@@ -34,10 +35,14 @@ export class AdapterSyncManager {
         loadFallback();
         return;
       }
-      adapterVehicles.forEach((v) => {
+      // Cap to the requested count when a positive limit is given (e.g. the
+      // headless generator subsetting the fleet); otherwise take the whole fleet.
+      const selected =
+        limit !== undefined && limit > 0 ? adapterVehicles.slice(0, limit) : adapterVehicles;
+      selected.forEach((v) => {
         addVehicle(v.id, v.name, v.position, v.type, v.metadata);
       });
-      logger.info(`Loaded ${adapterVehicles.length} vehicles from adapter`);
+      logger.info(`Loaded ${selected.length} of ${adapterVehicles.length} vehicles from adapter`);
     } catch (error) {
       logger.error(`Failed to load vehicles from adapter: ${error}`);
       logger.warn("Falling back to default vehicle data");

@@ -160,12 +160,19 @@ export class VehicleManager extends EventEmitter {
     }
   }
 
-  public async initFromAdapter(): Promise<void> {
+  /**
+   * Loads vehicle definitions from the adapter source. When `limit` is a
+   * positive number, only the first `limit` source vehicles are taken (used by
+   * the headless generator so the requested vehicle count caps the fleet
+   * subset); otherwise the whole fleet is loaded.
+   */
+  public async initFromAdapter(limit?: number): Promise<void> {
     await this.adapterSync.initFromAdapter(
       (id, name, position, type, metadata) => {
         this.addVehicle(id, name, position, type ?? pickRandomType(), metadata);
       },
-      () => this.loadFromData()
+      () => this.loadFromData(),
+      limit
     );
   }
 

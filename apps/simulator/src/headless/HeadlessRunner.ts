@@ -140,9 +140,10 @@ export class HeadlessRunner {
       clock.setTime(simStart);
 
       // Load the real fleet from the configured source (ids + metadata.devices),
-      // assigning each a route so it moves — same path as the live sim.
+      // assigning each a route so it moves — same path as the live sim. The
+      // requested `vehicles` count caps the fleet subset (0 = whole fleet).
       if (useSource) {
-        await vehicleManager.initFromAdapter();
+        await vehicleManager.initFromAdapter(vehicles > 0 ? vehicles : undefined);
       }
 
       const actualVehicleCount = vehicleManager.getVehicles().length;
