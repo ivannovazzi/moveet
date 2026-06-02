@@ -217,3 +217,45 @@ export interface VehicleSnapshot {
   edgeId: string;
   fleetId?: string;
 }
+
+// ─── Headless Historical Truth (NDJSON contract, shared with Phase 2) ─
+
+/**
+ * Header line (line 1) of a `moveet-headless-truth` NDJSON file.
+ * Must stay in sync with the Phase 2 (adapter) reader — DO NOT diverge.
+ */
+export interface TruthHeader {
+  format: "moveet-headless-truth";
+  version: 1;
+  /** Absolute, historical ISO 8601 start of the simulated window. */
+  simStart: string;
+  /** Simulated milliseconds advanced per step. */
+  stepMs: number;
+  vehicleCount: number;
+  /** Sim RNG seed for reproducibility (best-effort; see HeadlessRunner). */
+  seed: number;
+  /** Network identifier (e.g. "nairobi"). */
+  network: string;
+}
+
+/** Per-vehicle entry inside a {@link TruthStepRecord}. */
+export interface TruthVehicle {
+  id: string;
+  /** [lat, lon] — matches VehicleDTO.position. */
+  position: [number, number];
+  /** Ground speed in km/h — matches VehicleDTO.speed. */
+  speed: number;
+  /** Heading in degrees. */
+  heading: number;
+  /** Whether the vehicle is powered/running this step. */
+  ignition: boolean;
+}
+
+/**
+ * One step record per simulated step. `simTime` is ABSOLUTE sim time, not a
+ * relative offset. Every active vehicle is present every step (no dedup).
+ */
+export interface TruthStepRecord {
+  simTime: string;
+  vehicles: TruthVehicle[];
+}

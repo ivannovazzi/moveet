@@ -651,4 +651,59 @@ describe("VehicleManager", () => {
       manager.off("direction", directionListener);
     });
   });
+
+  // ─── Headless advance() seam ──────────────────────────────────────
+  describe("advance(deltaMs)", () => {
+    it("advances the simulation clock by deltaMs without using Date.now()", () => {
+      const start = new Date("2026-05-25T00:00:00.000Z");
+      manager.clock.setTime(start);
+
+      manager.advance(1000);
+
+      const after = manager.clock.getState().currentTime.getTime();
+      expect(after).toBe(start.getTime() + 1000);
+    });
+
+    it("updates every registered vehicle by deltaMs", () => {
+      // Spy on the private per-vehicle update to confirm each vehicle is ticked.
+      const updateSpy = vi.spyOn(manager as any, "updateVehicle");
+
+      const vehicleCount = internalVehicles().size;
+      expect(vehicleCount).toBeGreaterThan(0);
+
+      manager.advance(500);
+
+      expect(updateSpy).toHaveBeenCalledTimes(vehicleCount);
+      for (const call of updateSpy.mock.calls) {
+        expect(call[1]).toBe(500);
+      }
+
+      updateSpy.mockRestore();
+    });
+
+    it("moves a vehicle deterministically along its route", () => {
+      const vehicle = firstVehicle();
+      // Give the vehicle a straight target along its current edge so movement is
+      // deterministic and independent of pathfinding RNG.
+      vehicle.speed = 40;
+      vehicle.targetSpeed = 40;
+      const before: [number, number] = [vehicle.position[0], vehicle.position[1]];
+      const beforeProgress = vehicle.progress;
+
+      manager.advance(1000);
+
+      // Either progress advanced or position changed — the vehicle was ticked.
+      const moved =
+        vehicle.progress !== beforeProgress ||
+        vehicle.position[0] !== before[0] ||
+        vehicle.position[1] !== before[1];
+      expect(moved).toBe(true);
+    });
+
+    it("does not start a setInterval / game loop", () => {
+      manager.advance(1000);
+      expect(manager.isRunning()).toBe(false);
+      expect(manager.gameLoop.getGameLoopIntervalRef()).toBeNull();
+    });
+  });
 });

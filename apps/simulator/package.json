@@ -6,6 +6,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "generate": "tsx src/headless/generate.ts",
     "start": "NODE_ENV=production node ./dist/index.js",
     "build": "tsc",
     "type-check": "tsc --noEmit",

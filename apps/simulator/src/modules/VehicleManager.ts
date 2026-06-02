@@ -241,6 +241,27 @@ export class VehicleManager extends EventEmitter {
     return this.gameLoop.isRunning();
   }
 
+  /**
+   * Headless fast-forward seam: the deterministic, explicit-`dt` equivalent of
+   * {@link GameLoop.gameLoopTick}, but with NO `Date.now()` and NO `setInterval`.
+   *
+   * Ticks the simulation clock by `deltaMs` and updates every registered vehicle
+   * by `deltaMs`. Per-vehicle analytics are accumulated exactly as the live loop
+   * does. This is the clean public seam over the otherwise-private
+   * `updateVehicle`, used by the headless generator to advance the whole sim a
+   * fixed step at a time without running in real time.
+   *
+   * @param deltaMs - Simulated milliseconds to advance this step.
+   */
+  public advance(deltaMs: number): void {
+    this.clock.tick(deltaMs);
+
+    for (const vehicle of this.registry.getAll().values()) {
+      this.updateVehicle(vehicle, deltaMs);
+      this.analytics.updateVehicleStats(vehicle, deltaMs);
+    }
+  }
+
   // ─── Adapter sync delegation ──────────────────────────────────────
 
   public startLocationUpdates(intervalMs: number): void {

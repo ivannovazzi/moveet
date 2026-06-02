@@ -1,14 +1,28 @@
 import { EventEmitter } from "events";
 import crypto from "crypto";
 import type { Incident, IncidentDTO, IncidentType } from "../types";
+import type { SimulationClock } from "./SimulationClock";
 
 export class IncidentManager extends EventEmitter {
   private incidents: Map<string, Incident> = new Map();
   private edgeIndex: Map<string, Set<string>> = new Map();
   private cleanupTimer: NodeJS.Timeout | null = null;
 
-  constructor() {
+  /**
+   * Optional simulation clock. When provided, incident timestamps use sim time
+   * so headless / back-dated runs stay consistent. Falls back to `Date.now()`
+   * (wall clock) when absent, preserving the live-server behavior.
+   */
+  private clock?: SimulationClock;
+
+  constructor(clock?: SimulationClock) {
     super();
+    this.clock = clock;
+  }
+
+  /** Current time in epoch ms: sim clock if injected, else wall clock. */
+  private now(): number {
+    return this.clock ? this.clock.getState().currentTime.getTime() : Date.now();
   }
 
   /**
@@ -35,7 +49,7 @@ export class IncidentManager extends EventEmitter {
       type,
       severity,
       speedFactor,
-      startTime: Date.now(),
+      startTime: this.now(),
       duration,
       autoClears: true,
       position: position ?? [0, 0],
@@ -254,7 +268,7 @@ export class IncidentManager extends EventEmitter {
    * Cleans up expired incidents that have autoClears enabled.
    */
   private cleanupExpired(): void {
-    const now = Date.now();
+    const now = this.now();
     for (const [id, incident] of this.incidents) {
       if (incident.autoClears && now > incident.startTime + incident.duration) {
         this.removeFromIndex(incident);
