@@ -23,6 +23,12 @@ export interface RecordingHeader {
   stepMs?: number;
   seed?: number;
   options?: Record<string, unknown>;
+  /**
+   * Per-vehicle source metadata (vehicleId → metadata, e.g. `{ devices: [...] }`)
+   * captured once at generation time. Attached to each emitted update so the
+   * sink can fan out to the real GPS device ids.
+   */
+  vehicleMeta?: Record<string, Record<string, unknown>>;
 }
 
 /** A vehicle as carried inside a `vehicle` recording event. */
@@ -80,8 +86,14 @@ export interface ReplayEmitterOptions {
  * - `speed` is km/h, carried through unchanged (the sinks convert to m/s).
  * - generated vehicles are always ignition/connected on while emitting.
  * - `timestamp` is the virtual (back-dated) time `t` — never `Date.now()`.
+ * - `meta` (from the header's `vehicleMeta[v.id]`) carries the real source
+ *   metadata (e.g. `{ devices: [...] }`) so the sink fans out to real device ids.
  */
-function toVehicleUpdate(v: RecordingVehicle, t: number): VehicleUpdate {
+function toVehicleUpdate(
+  v: RecordingVehicle,
+  t: number,
+  meta?: Record<string, unknown>
+): VehicleUpdate {
   return {
     id: v.id,
     latitude: v.position[0],
@@ -90,6 +102,7 @@ function toVehicleUpdate(v: RecordingVehicle, t: number): VehicleUpdate {
     heading: v.heading,
     timestamp: t,
     connected: true,
+    ...(meta !== undefined ? { metadata: meta } : {}),
   };
 }
 
@@ -157,7 +170,7 @@ export class ReplayEmitter {
     if (this.opts.realism) {
       await this.runRealism(header, startMs, iterator);
     } else {
-      await this.runRaw(startMs, iterator);
+      await this.runRaw(startMs, iterator, header.vehicleMeta);
     }
 
     logger.info({ events: this.processed, realism: this.opts.realism }, "Replay complete");
@@ -174,12 +187,18 @@ export class ReplayEmitter {
   }
 
   /** Realism-off: emit each vehicle event straight through, stamped virtual. */
-  private async runRaw(startMs: number, iterator: AsyncIterator<string>): Promise<void> {
+  private async runRaw(
+    startMs: number,
+    iterator: AsyncIterator<string>,
+    vehicleMeta?: Record<string, Record<string, unknown>>
+  ): Promise<void> {
     for (let next = await iterator.next(); !next.done; next = await iterator.next()) {
       const event = this.parseVehicleEvent(next.value);
       if (!event) continue;
       const virtual = startMs + event.timestamp;
-      const updates = event.data!.vehicles!.map((v) => toVehicleUpdate(v, virtual));
+      const updates = event.data!.vehicles!.map((v) =>
+        toVehicleUpdate(v, virtual, vehicleMeta?.[v.id])
+      );
       await this.opts.publish(updates); // await per batch for backpressure
       this.processed++;
       this.opts.onProgress?.(this.processed);
@@ -215,7 +234,9 @@ export class ReplayEmitter {
         await engine.tick();
       }
       virtual = target;
-      await engine.ingest(event.data!.vehicles!.map((v) => toVehicleUpdate(v, virtual)));
+      await engine.ingest(
+        event.data!.vehicles!.map((v) => toVehicleUpdate(v, virtual, header.vehicleMeta?.[v.id]))
+      );
       seenAny = true;
       this.processed++;
       this.opts.onProgress?.(this.processed);

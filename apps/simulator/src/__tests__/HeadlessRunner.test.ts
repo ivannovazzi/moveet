@@ -34,6 +34,7 @@ describe("HeadlessRunner (RecordingManager raw mode)", () => {
     const out = tmpPath();
     const metadata = await new HeadlessRunner({
       geojsonPath: FIXTURE_PATH,
+      useSource: false, // exercise the synthetic-vehicle path deterministically
       vehicles: 3,
       simStart: new Date("2026-05-25T00:00:00.000Z"),
       stepMs: 1000,
@@ -63,6 +64,7 @@ describe("HeadlessRunner (RecordingManager raw mode)", () => {
     const simStart = new Date("2026-05-25T00:00:00.000Z");
     await new HeadlessRunner({
       geojsonPath: FIXTURE_PATH,
+      useSource: false, // exercise the synthetic-vehicle path deterministically
       vehicles: 2,
       simStart,
       stepMs: 1000,
@@ -95,6 +97,7 @@ describe("HeadlessRunner (RecordingManager raw mode)", () => {
     const out = tmpPath();
     await new HeadlessRunner({
       geojsonPath: FIXTURE_PATH,
+      useSource: false, // exercise the synthetic-vehicle path deterministically
       vehicles: 3,
       simStart: new Date("2026-05-25T00:00:00.000Z"),
       stepMs: 1000,
@@ -118,6 +121,7 @@ describe("HeadlessRunner (RecordingManager raw mode)", () => {
     const make = (out: string) =>
       new HeadlessRunner({
         geojsonPath: FIXTURE_PATH,
+        useSource: false, // exercise the synthetic-vehicle path deterministically
         vehicles: 3,
         simStart: new Date("2026-05-25T00:00:00.000Z"),
         stepMs: 1000,

@@ -327,6 +327,22 @@ export class VehicleManager extends EventEmitter {
     return this.registry.getAllSerialized();
   }
 
+  /**
+   * Per-vehicle source metadata (e.g. `{ devices: [{ id, deviceType }] }`) keyed
+   * by vehicle id, for vehicles that carried it from the source. Used by the
+   * headless generator to record the real GPS device mapping once in the header
+   * so replay/emit can fan out to the real device ids.
+   */
+  public getVehicleMetadata(): Record<string, Record<string, unknown>> {
+    const out: Record<string, Record<string, unknown>> = {};
+    for (const [id, vehicle] of this.registry.getAll()) {
+      if (vehicle.sourceMetadata !== undefined) {
+        out[id] = vehicle.sourceMetadata;
+      }
+    }
+    return out;
+  }
+
   public getDirections(): Direction[] {
     return this.routeManager.getDirections();
   }

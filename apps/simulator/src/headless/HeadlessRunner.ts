@@ -29,6 +29,13 @@ export interface HeadlessRunnerOptions {
   seed: number;
   /** Steps to process between event-loop yields (keeps the server responsive). */
   chunkSteps?: number;
+  /**
+   * Load vehicles from the configured external source (adapter) instead of
+   * seeding synthetic ones — so generated vehicles carry their real ids and GPS
+   * device metadata (`metadata.devices`). Defaults to true when `config.adapterURL`
+   * is set (i.e. the simulator is wired to a source), false otherwise.
+   */
+  useSource?: boolean;
 }
 
 /** Progress callback fired roughly once per processed chunk. */
@@ -102,23 +109,28 @@ export class HeadlessRunner {
     // yields the same vehicle placement and routing.
     const restoreRandom = installSeededRandom(seed);
 
-    // Force the synthetic-vehicle creation path: an empty adapterURL makes the
-    // VehicleManager constructor call loadFromData() (seeding vehicles +
-    // assigning random destinations), and vehicleCount controls how many. We
-    // snapshot and restore the live config afterward.
+    // Vehicle origin: mirror the simulator's configured source. When an adapter
+    // URL is set we load the real fleet (real ids + GPS metadata.devices) the
+    // way the live sim does; otherwise we seed synthetic vehicles (empty
+    // adapterURL makes the VehicleManager constructor call loadFromData(), and
+    // vehicleCount controls how many). We snapshot/restore the live config.
+    const useSource = this.opts.useSource ?? !!config.adapterURL;
     const prevVehicleCount = config.vehicleCount;
     const prevAdapterURL = config.adapterURL;
     const prevGeojsonPath = config.geojsonPath;
-    (config as { vehicleCount: number }).vehicleCount = vehicles;
-    (config as { adapterURL: string }).adapterURL = "";
     (config as { geojsonPath: string }).geojsonPath = geojsonPath;
+    if (!useSource) {
+      (config as { vehicleCount: number }).vehicleCount = vehicles;
+      (config as { adapterURL: string }).adapterURL = "";
+    }
 
     const recordingManager = new RecordingManager();
 
     try {
       const roadNetwork = new RoadNetwork(geojsonPath);
       const fleetManager = new FleetManager();
-      // Construct so synthetic vehicles + routes are seeded in the constructor.
+      // With a source configured the constructor does NOT auto-seed; synthetic
+      // vehicles are seeded in the constructor when adapterURL is empty.
       const vehicleManager = new VehicleManager(roadNetwork, fleetManager);
       // IncidentManager shares the sim clock so any incident timestamps back-date
       // consistently (no Date.now() leak in the headless path).
@@ -127,17 +139,29 @@ export class HeadlessRunner {
       const clock = vehicleManager.clock;
       clock.setTime(simStart);
 
+      // Load the real fleet from the configured source (ids + metadata.devices),
+      // assigning each a route so it moves — same path as the live sim.
+      if (useSource) {
+        await vehicleManager.initFromAdapter();
+      }
+
       const actualVehicleCount = vehicleManager.getVehicles().length;
+      // Real GPS device mapping (vehicleId → { devices: [...] }), recorded once
+      // in the header so replay/emit fans out to the real device ids.
+      const vehicleMeta = vehicleManager.getVehicleMetadata();
 
       recordingManager.startRecording(vehicleManager.getOptions(), actualVehicleCount, out, {
         startTime: simStart,
         stepMs,
         seed,
+        vehicleMeta,
         clock,
       });
 
       log.info(
-        `Generating ${steps} steps (${totalSimMs}ms @ ${stepMs}ms) for ${actualVehicleCount} vehicles from ${simStart.toISOString()} → ${out}`
+        `Generating ${steps} steps (${totalSimMs}ms @ ${stepMs}ms) for ${actualVehicleCount} ` +
+          `vehicles (${useSource ? "from source" : "synthetic"}, ${Object.keys(vehicleMeta).length} ` +
+          `with device metadata) from ${simStart.toISOString()} → ${out}`
       );
 
       let i = 0;

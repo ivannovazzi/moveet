@@ -41,6 +41,11 @@ export interface RawRecordingOptions {
   /** Sim RNG seed for reproducibility (written into the header when present). */
   seed?: number;
   /**
+   * Per-vehicle source metadata (vehicleId → metadata, e.g. `{ devices: [...] }`)
+   * written once into the header so replay/emit can fan out to real device ids.
+   */
+  vehicleMeta?: Record<string, Record<string, unknown>>;
+  /**
    * Sim clock to read the current sim time from when stamping event timestamps.
    * The relative offset is `clock.now - startTime`.
    */
@@ -152,6 +157,9 @@ export class RecordingManager extends EventEmitter {
       header.generated = true;
       header.stepMs = this.raw.stepMs;
       if (this.raw.seed !== undefined) header.seed = this.raw.seed;
+      if (this.raw.vehicleMeta && Object.keys(this.raw.vehicleMeta).length > 0) {
+        header.vehicleMeta = this.raw.vehicleMeta;
+      }
     }
     fs.writeSync(this.fd, JSON.stringify(header) + "\n");
 
