@@ -168,6 +168,90 @@ manually with injected `now`/`rng`, so this only formalizes the existing seam.
 
 ## Out of Scope (YAGNI)
 
-- UI changes — this is a data-generation tool.
 - Resumable/checkpointed generation — a week generates in minutes; rerun if needed.
 - Parquet/S3 output — Kafka via existing sinks is the target.
+
+---
+
+# ADDENDUM v2 (2026-06-02) — UI-driven, no CLI
+
+**Decision change:** the feature must be driven from the **UI**, integrated with the
+existing recording panel. The CLI entry points from v1 are **removed**. The reusable
+engine modules (`HeadlessRunner`, `VehicleManager.advance`, `ReplayEmitter`, the
+`autoStart` seam, clock-injected `IncidentManager`) are **kept** and re-wired to HTTP
+routes + UI controls.
+
+**Flow:** Generate (fast-forward) → a back-dated recording in the existing recordings
+list → Emit that recording through the adapter sinks.
+
+**Format change (simplification):** generated recordings reuse the **existing
+RecordingManager NDJSON format** (header + relative-offset `vehicle` events) instead of
+the v1 custom `moveet-headless-truth` format. This makes a generated recording a
+first-class entry in the existing `/recordings` list (and even replays in the map for
+free). The v1 `TruthWriter`/truth types are dropped in favor of a **raw mode on
+RecordingManager**:
+
+- `header.startTime` = chosen historical start (ISO); add optional `generated: true`,
+  `stepMs`, `seed`, `vehicleCount` fields (backward compatible).
+- event `timestamp` = **sim-clock-relative** ms offset (not `Date.now()`-relative).
+- raw mode: **no position dedup**; each `vehicle` event carries all active vehicles.
+- Absolute fix time on replay/emit = `header.startTime + event.timestamp` → back-dated.
+
+## API Contracts (authoritative — all three agents adhere)
+
+### Simulator (apps/simulator, port 5010)
+
+- `POST /recording/generate` — body `{ startTime: ISO, hours?: number, steps?: number,
+vehicleCount: number, stepMs: number, seed?: number }`. Starts an **async** job
+  running `HeadlessRunner` → writes into `recordings/` via RecordingManager raw mode →
+  on completion inserts metadata into `stateStore` (so it appears in `/recordings`).
+  Returns `202 { status: "generating", jobId }`. **409** if a job is already running.
+- Progress over the existing **WebSocket** (sim already broadcasts): new message types
+  `generate:progress` `{ jobId, step, totalSteps, pct }`, `generate:complete`
+  `{ jobId, recording }` (recording = the list row), `generate:error` `{ jobId, error }`.
+- `GET /recording/generate/status` — `{ state: "idle"|"running"|"done"|"error",
+jobId?, step?, totalSteps?, pct? }` (for reconnect / non-WS polling).
+- `GET /recordings/:id/download` — streams the recording NDJSON
+  (`Content-Type: application/x-ndjson`). Validates id; 404 if missing. This is what the
+  adapter fetches.
+
+### Adapter (apps/adapter, port 5011)
+
+- `POST /replay/emit` — body `{ recordingId: number, realism: "on"|"off", seed?: number }`.
+  The adapter builds the source URL itself: `${SIMULATOR_URL}/recordings/${recordingId}/download`
+  using a new `SIMULATOR_URL` env (default `http://localhost:5010`; set to
+  `http://simulator:3000` in compose). Streams the NDJSON, parses the RecordingManager
+  format, runs `ReplayEmitter` (virtual clock = `header.startTime + event.timestamp`,
+  seeded rng, `autoStart:false`) through the **configured sinks**. Async job. Returns
+  `202 { status: "emitting", jobId }`. **409** if already emitting.
+- `GET /replay/emit/status` — `{ state, jobId?, emitted, total, pct, startedAt? }`. The
+  adapter has no WS to the UI, so the **UI polls** this endpoint for progress.
+
+### UI (apps/ui, port 5012)
+
+- Extend `Controls/RecordReplay.tsx`: a **"Generate historical"** form (start date,
+  duration in hours, vehicle count, step seconds, optional seed) → `POST /recording/generate`;
+  subscribe to `generate:progress`/`generate:complete` over the existing WS client and
+  show a progress bar; the finished recording appears in the existing list.
+- Per recording row, an **"Emit to sinks"** action with a realism on/off toggle →
+  `POST {adapterUrl}/replay/emit { recordingId, realism }`; poll `GET {adapterUrl}/replay/emit/status`
+  for a progress bar. Add the methods to `utils/client.ts` (simulator) and
+  `Controls/Adapter/adapterClient.ts` (adapter), and the new WS message types to
+  `utils/wsTypes.ts`.
+
+### Docker
+
+- Add `SIMULATOR_URL=http://simulator:3000` to the adapter service in
+  `apps/simulator/compose.yml` so the adapter can fetch recordings from the simulator
+  container. Console sink already configured — the back-dated timestamps are visible in
+  adapter logs. (Redpanda broker service is a follow-up, not required to test.)
+
+## Cleanup
+
+- Remove `apps/simulator/src/headless/generate.ts` + its `generate` npm script.
+- Remove `apps/adapter/src/replay/emit.ts` + its `emit` npm script.
+- Drop the v1 `moveet-headless-truth` types in `apps/simulator/src/types/index.ts`
+  (`TruthHeader`/`TruthVehicle`/`TruthStepRecord`) and `TruthWriter` — superseded by
+  RecordingManager raw mode. Keep `HeadlessRunner`, `VehicleManager.advance`,
+  `ReplayEmitter` (re-pointed at the recording format), `autoStart`, clock-injected
+  `IncidentManager`.
