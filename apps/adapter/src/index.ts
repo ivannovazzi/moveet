@@ -53,9 +53,21 @@ async function startup(): Promise<void> {
   pluginManager.setRealismConfig(config.realism);
   logger.info({ enabled: pluginManager.getRealismStatus().enabled }, "Realism configured");
 
+  // Wire sinks resiliently: a sink whose backend is unreachable at startup
+  // (e.g. a Kafka broker that is down) must NOT take the whole adapter down,
+  // otherwise the service — and the UI's adapter panel — become unreachable.
+  // The failed sink is skipped and logged; it can be (re)added via the API/UI
+  // once its backend is available.
   for (const sink of config.sinks) {
-    await pluginManager.addSink(sink.type, sink.config);
-    logger.info({ sink: sink.type }, "Sink configured");
+    try {
+      await pluginManager.addSink(sink.type, sink.config);
+      logger.info({ sink: sink.type }, "Sink configured");
+    } catch (err) {
+      logger.error(
+        { sink: sink.type, err: err instanceof Error ? err.message : err },
+        "Sink failed to connect at startup — skipping; add it via the API/UI once its backend is reachable"
+      );
+    }
   }
 
   // Replay/emit background job runner: fetches a recording from the simulator
