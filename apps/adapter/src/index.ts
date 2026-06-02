@@ -46,8 +46,19 @@ async function startup(): Promise<void> {
   const config = loadConfig();
   logConfig(config);
 
-  await pluginManager.setSource(config.source.type, config.source.config);
-  logger.info({ source: config.source.type }, "Source configured");
+  // Wire the source resiliently: a source whose backend is unreachable at
+  // startup (e.g. the fleet connector or a DB being down) must NOT take the
+  // adapter down. It is logged and left unset; it can be (re)configured via the
+  // API/UI once its backend is reachable.
+  try {
+    await pluginManager.setSource(config.source.type, config.source.config);
+    logger.info({ source: config.source.type }, "Source configured");
+  } catch (err) {
+    logger.error(
+      { source: config.source.type, err: err instanceof Error ? err.message : err },
+      "Source failed to connect at startup — continuing without it; configure it via the API/UI once its backend is reachable"
+    );
+  }
 
   // Apply startup realism config (starts the engine scheduler if enabled).
   pluginManager.setRealismConfig(config.realism);
