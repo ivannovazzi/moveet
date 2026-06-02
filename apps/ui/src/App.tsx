@@ -506,6 +506,7 @@ export default function App() {
                   recordings={recording.recordings}
                   replayStatus={replay.replayStatus}
                   onStartReplay={replay.startReplay}
+                  onRefreshRecordings={recording.refreshRecordings}
                 />
               )}
               {activePanel === "scenarios" && <ScenariosPanel />}

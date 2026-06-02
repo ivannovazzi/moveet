@@ -1,0 +1,5 @@
+{"format":"moveet-recording","version":1,"startTime":"2026-05-25T00:00:00.000Z","vehicleCount":2,"generated":true,"stepMs":1000,"seed":12345}
+{"timestamp":0,"type":"vehicle","data":{"vehicles":[{"id":"v1","position":[-1.2921,36.8219],"speed":42.1,"heading":270,"fleetId":"f1"},{"id":"v2","position":[-1.3001,36.81],"speed":0,"heading":90}]}}
+{"timestamp":0,"type":"direction","data":{"id":"v1","waypoints":[[-1.2921,36.8219],[-1.2925,36.823]]}}
+{"timestamp":1000,"type":"vehicle","data":{"vehicles":[{"id":"v1","position":[-1.2922,36.8221],"speed":40,"heading":272,"fleetId":"f1"},{"id":"v2","position":[-1.3001,36.81],"speed":0,"heading":90}]}}
+{"timestamp":2000,"type":"vehicle","data":{"vehicles":[{"id":"v1","position":[-1.2923,36.8223],"speed":38.5,"heading":274,"fleetId":"f1"},{"id":"v2","position":[-1.3001,36.81],"speed":1.2,"heading":91}]}}

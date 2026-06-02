@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import express from "express";
 import request from "supertest";
+import { Readable } from "stream";
 import { createRecordingRoutes } from "../../routes/recording";
 import type { RouteContext } from "../../routes/types";
 
@@ -39,6 +40,12 @@ vi.mock("fs", async (importOriginal) => {
         mtime: new Date("2026-03-16T00:00:00Z"),
       }),
       unlinkSync: vi.fn(),
+      createReadStream: vi.fn(() =>
+        Readable.from([
+          '{"format":"moveet-recording","version":1,"startTime":"2026-05-25T00:00:00.000Z","vehicleCount":3,"options":{},"generated":true,"stepMs":1000}\n',
+          '{"timestamp":1000,"type":"vehicle","data":{"vehicles":[]}}\n',
+        ])
+      ),
     },
   };
 });
@@ -66,6 +73,11 @@ function createMockContext(withStateStore = false): RouteContext {
       getVehicles: vi.fn().mockReturnValue([{ id: "v1" }, { id: "v2" }]),
     } as unknown as RouteContext["simulationController"],
     scenarioManager: {} as RouteContext["scenarioManager"],
+    generationManager: {
+      isRunning: vi.fn().mockReturnValue(false),
+      start: vi.fn().mockReturnValue("job-123"),
+      getStatus: vi.fn().mockReturnValue({ state: "idle" }),
+    } as unknown as RouteContext["generationManager"],
   };
 
   if (withStateStore) {
@@ -253,6 +265,119 @@ describe("Recording routes", () => {
       const res = await request(app).delete("/recordings/abc");
       expect(res.status).toBe(400);
       expect(res.body.error).toContain("Invalid recording id");
+    });
+  });
+
+  // ─── Generation ─────────────────────────────────────────────────────
+
+  describe("POST /recording/generate", () => {
+    const validBody = {
+      startTime: "2026-05-25T00:00:00.000Z",
+      steps: 5,
+      vehicleCount: 3,
+      stepMs: 1000,
+      seed: 1,
+    };
+
+    it("should return 202 with a jobId and call generationManager.start", async () => {
+      const res = await request(app).post("/recording/generate").send(validBody);
+      expect(res.status).toBe(202);
+      expect(res.body.status).toBe("generating");
+      expect(res.body.jobId).toBe("job-123");
+      expect(ctx.generationManager.start).toHaveBeenCalledWith(
+        expect.objectContaining({ vehicleCount: 3, stepMs: 1000, steps: 5 })
+      );
+    });
+
+    it("should return 409 when a job is already running", async () => {
+      (ctx.generationManager.isRunning as ReturnType<typeof vi.fn>).mockReturnValue(true);
+      const res = await request(app).post("/recording/generate").send(validBody);
+      expect(res.status).toBe(409);
+      expect(res.body.error).toContain("already running");
+    });
+
+    it("should return 400 for an invalid startTime", async () => {
+      const res = await request(app)
+        .post("/recording/generate")
+        .send({ ...validBody, startTime: "not-a-date" });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain("startTime");
+    });
+
+    it("should return 400 when neither hours nor steps is provided", async () => {
+      const { steps: _omit, ...body } = validBody;
+      const res = await request(app).post("/recording/generate").send(body);
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain("hours or steps");
+    });
+
+    it("should return 400 for a non-positive vehicleCount", async () => {
+      const res = await request(app)
+        .post("/recording/generate")
+        .send({ ...validBody, vehicleCount: 0 });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain("vehicleCount");
+    });
+  });
+
+  describe("GET /recording/generate/status", () => {
+    it("should report the generation manager status", async () => {
+      (ctx.generationManager.getStatus as ReturnType<typeof vi.fn>).mockReturnValue({
+        state: "running",
+        jobId: "job-123",
+        step: 2,
+        totalSteps: 5,
+        pct: 40,
+      });
+      const res = await request(app).get("/recording/generate/status");
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        state: "running",
+        jobId: "job-123",
+        step: 2,
+        totalSteps: 5,
+        pct: 40,
+      });
+    });
+  });
+
+  // ─── Download ───────────────────────────────────────────────────────
+
+  describe("GET /recordings/:id/download", () => {
+    it("should return 501 when persistence is not enabled", async () => {
+      const res = await request(app).get("/recordings/1/download");
+      expect(res.status).toBe(501);
+    });
+
+    it("should stream NDJSON with the correct content type", async () => {
+      ctx = createMockContext(true);
+      app = createApp(ctx);
+
+      const res = await request(app).get("/recordings/1/download");
+      expect(res.status).toBe(200);
+      expect(res.headers["content-type"]).toContain("application/x-ndjson");
+      // First line is the back-dated generated header.
+      const firstLine = res.text.trim().split("\n")[0];
+      const header = JSON.parse(firstLine);
+      expect(header.format).toBe("moveet-recording");
+      expect(header.generated).toBe(true);
+      expect(header.startTime).toBe("2026-05-25T00:00:00.000Z");
+    });
+
+    it("should return 404 for a non-existent recording", async () => {
+      ctx = createMockContext(true);
+      app = createApp(ctx);
+
+      const res = await request(app).get("/recordings/999/download");
+      expect(res.status).toBe(404);
+    });
+
+    it("should return 400 for an invalid id", async () => {
+      ctx = createMockContext(true);
+      app = createApp(ctx);
+
+      const res = await request(app).get("/recordings/abc/download");
+      expect(res.status).toBe(400);
     });
   });
 });

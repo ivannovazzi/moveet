@@ -9,6 +9,7 @@ import { VehicleManager } from "./modules/VehicleManager";
 import { FleetManager } from "./modules/FleetManager";
 import { IncidentManager } from "./modules/IncidentManager";
 import { RecordingManager } from "./modules/RecordingManager";
+import { GenerationManager } from "./modules/GenerationManager";
 import { SimulationController } from "./modules/SimulationController";
 import { GeoFenceManager } from "./modules/GeoFenceManager";
 import { ScenarioManager } from "./modules/scenario";
@@ -59,6 +60,7 @@ const incidentManager = new IncidentManager();
 const vehicleManager = new VehicleManager(network, fleetManager);
 const simulationController = new SimulationController(vehicleManager, incidentManager);
 const recordingManager = new RecordingManager();
+const generationManager = new GenerationManager();
 const scenarioManager = new ScenarioManager(vehicleManager, incidentManager, simulationController);
 const geoFenceManager = new GeoFenceManager();
 
@@ -88,6 +90,7 @@ const ctx: RouteContext = {
   recordingManager,
   simulationController,
   scenarioManager,
+  generationManager,
   stateStore,
 };
 

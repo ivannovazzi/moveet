@@ -1,5 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { getHealth, getConfig, setSource, addSink, removeSink, setRealism } from "./adapterClient";
+import {
+  getHealth,
+  getConfig,
+  setSource,
+  addSink,
+  removeSink,
+  setRealism,
+  emitRecording,
+  getEmitStatus,
+  AdapterHttpError,
+} from "./adapterClient";
 
 const BASE_URL = "http://localhost:5011";
 
@@ -213,6 +223,69 @@ describe("setRealism", () => {
     vi.mocked(fetch).mockResolvedValue(jsonResponse(null, 400));
 
     await expect(setRealism({})).rejects.toThrow("Adapter POST /config/realism: 400");
+  });
+});
+
+describe("emitRecording", () => {
+  it("posts to /replay/emit with recordingId and realism", async () => {
+    const accepted = { status: "emitting", jobId: "job-1" };
+    vi.mocked(fetch).mockResolvedValue(jsonResponse(accepted, 202));
+
+    const result = await emitRecording({ recordingId: 7, realism: "on" });
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/replay/emit`, {
+      method: "POST",
+      signal: expect.any(AbortSignal),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recordingId: 7, realism: "on" }),
+    });
+    expect(result).toEqual(accepted);
+  });
+
+  it("includes seed when provided", async () => {
+    vi.mocked(fetch).mockResolvedValue(jsonResponse({ status: "emitting", jobId: "j" }, 202));
+
+    await emitRecording({ recordingId: 1, realism: "off", seed: 42 });
+
+    expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/replay/emit`, {
+      method: "POST",
+      signal: expect.any(AbortSignal),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recordingId: 1, realism: "off", seed: 42 }),
+    });
+  });
+
+  it("throws AdapterHttpError carrying status 409 when already emitting", async () => {
+    vi.mocked(fetch).mockResolvedValue(jsonResponse(null, 409));
+
+    await expect(emitRecording({ recordingId: 1, realism: "on" })).rejects.toMatchObject({
+      status: 409,
+    });
+    await expect(emitRecording({ recordingId: 1, realism: "on" })).rejects.toBeInstanceOf(
+      AdapterHttpError
+    );
+  });
+});
+
+describe("getEmitStatus", () => {
+  it("fetches /replay/emit/status", async () => {
+    const status = { state: "emitting", emitted: 10, total: 100, pct: 10 };
+    vi.mocked(fetch).mockResolvedValue(jsonResponse(status));
+
+    const result = await getEmitStatus();
+
+    expect(fetch).toHaveBeenCalledWith(`${BASE_URL}/replay/emit/status`, {
+      signal: expect.any(AbortSignal),
+      headers: { "Content-Type": "application/json" },
+    });
+    expect(result).toEqual(status);
+  });
+
+  it("throws on non-ok response", async () => {
+    vi.mocked(fetch).mockResolvedValue(jsonResponse(null, 500));
+
+    await expect(getEmitStatus()).rejects.toThrow("Adapter GET /replay/emit/status: 500");
   });
 });
 

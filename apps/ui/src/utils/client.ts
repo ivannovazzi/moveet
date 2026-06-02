@@ -19,6 +19,9 @@ import type {
   RecordingFile,
   RecordingMetadata,
   ReplayStatus,
+  GenerateRecordingRequest,
+  GenerateAcceptedResponse,
+  GenerateStatus,
   ClockState,
   TrafficEdge,
   ScenarioFile,
@@ -33,6 +36,9 @@ import type {
   RouteCompletedPayload,
   IncidentClearedPayload,
   VehicleReroutedPayload,
+  GenerateProgressPayload,
+  GenerateCompletePayload,
+  GenerateErrorPayload,
 } from "./wsTypes";
 import type {
   GeoFence,
@@ -112,6 +118,15 @@ class SimulationService {
     this.getReplayStatus = this.getReplayStatus.bind(this);
     this.onReplayStatus = this.onReplayStatus.bind(this);
     this.offReplayStatus = this.offReplayStatus.bind(this);
+    // historical generation
+    this.generateRecording = this.generateRecording.bind(this);
+    this.getGenerateStatus = this.getGenerateStatus.bind(this);
+    this.onGenerateProgress = this.onGenerateProgress.bind(this);
+    this.offGenerateProgress = this.offGenerateProgress.bind(this);
+    this.onGenerateComplete = this.onGenerateComplete.bind(this);
+    this.offGenerateComplete = this.offGenerateComplete.bind(this);
+    this.onGenerateError = this.onGenerateError.bind(this);
+    this.offGenerateError = this.offGenerateError.bind(this);
     this.createIncidentAtPosition = this.createIncidentAtPosition.bind(this);
     // clock
     this.getClock = this.getClock.bind(this);
@@ -465,6 +480,45 @@ class SimulationService {
 
   offReplayStatus(handler?: (data: ReplayStatus) => void): void {
     this.ws.off("replay:status", handler);
+  }
+
+  // ─── Historical Generation ─────────────────────────────────────
+
+  async generateRecording(
+    body: GenerateRecordingRequest
+  ): Promise<ApiResponse<GenerateAcceptedResponse>> {
+    return this.http.post<GenerateRecordingRequest, GenerateAcceptedResponse>(
+      "/recording/generate",
+      body
+    );
+  }
+
+  async getGenerateStatus(): Promise<ApiResponse<GenerateStatus>> {
+    return this.http.get<GenerateStatus>("/recording/generate/status");
+  }
+
+  onGenerateProgress(handler: (data: GenerateProgressPayload) => void): void {
+    this.ws.on("generate:progress", handler);
+  }
+
+  offGenerateProgress(handler?: (data: GenerateProgressPayload) => void): void {
+    this.ws.off("generate:progress", handler);
+  }
+
+  onGenerateComplete(handler: (data: GenerateCompletePayload) => void): void {
+    this.ws.on("generate:complete", handler);
+  }
+
+  offGenerateComplete(handler?: (data: GenerateCompletePayload) => void): void {
+    this.ws.off("generate:complete", handler);
+  }
+
+  onGenerateError(handler: (data: GenerateErrorPayload) => void): void {
+    this.ws.on("generate:error", handler);
+  }
+
+  offGenerateError(handler?: (data: GenerateErrorPayload) => void): void {
+    this.ws.off("generate:error", handler);
   }
 
   // ─── Simulation Clock ──────────────────────────────────────────

@@ -7,6 +7,7 @@ import { REALISM_SCHEMA } from "./realism/config";
 import { loadConfig, logConfig } from "./utils/config";
 import { createLogger } from "./utils/logger";
 import { correlationIdMiddleware } from "./middleware/correlationId";
+import { EmitJobRunner } from "./replay/emitJob";
 
 const logger = createLogger("index");
 
@@ -56,6 +57,14 @@ async function startup(): Promise<void> {
     await pluginManager.addSink(sink.type, sink.config);
     logger.info({ sink: sink.type }, "Sink configured");
   }
+
+  // Replay/emit background job runner: fetches a recording from the simulator
+  // and re-emits it (back-dated) through the configured sinks.
+  const emitJob = new EmitJobRunner({
+    simulatorUrl: config.simulatorUrl,
+    publish: (updates) => pluginManager.publishToSinks(updates),
+    realismConfig: config.realism,
+  });
 
   let isReady = false;
 
@@ -244,6 +253,34 @@ async function startup(): Promise<void> {
       const msg = error instanceof Error ? error.message : "Unknown error";
       res.status(400).json({ error: msg });
     }
+  });
+
+  // === Replay / Emit API ===
+
+  app.post("/replay/emit", (req, res) => {
+    const { recordingId, realism, seed } = req.body ?? {};
+    if (typeof recordingId !== "number" || !Number.isInteger(recordingId)) {
+      res.status(400).json({ error: "'recordingId' must be an integer" });
+      return;
+    }
+    if (realism !== "on" && realism !== "off") {
+      res.status(400).json({ error: "'realism' must be 'on' or 'off'" });
+      return;
+    }
+    if (seed != null && typeof seed !== "number") {
+      res.status(400).json({ error: "'seed', when present, must be a number" });
+      return;
+    }
+    const jobId = emitJob.start({ recordingId, realism, seed });
+    if (jobId === null) {
+      res.status(409).json({ error: "An emit job is already running" });
+      return;
+    }
+    res.status(202).json({ status: "emitting", jobId });
+  });
+
+  app.get("/replay/emit/status", (_req, res) => {
+    res.json(emitJob.getStatus());
   });
 
   app.get("/health", async (_req, res) => {

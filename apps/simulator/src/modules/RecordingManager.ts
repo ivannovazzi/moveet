@@ -1,6 +1,7 @@
 import { EventEmitter } from "events";
 import fs from "fs";
 import path from "path";
+import type { SimulationClock } from "./SimulationClock";
 import type {
   RecordingEventType,
   RecordingHeader,
@@ -19,6 +20,32 @@ const BUFFER_FLUSH_COUNT = 1000;
 
 /** Flush interval in milliseconds. */
 const BUFFER_FLUSH_INTERVAL_MS = 1000;
+
+/**
+ * Options for starting a recording in RAW mode (used by headless generation).
+ *
+ * Raw mode differs from the default live-capture mode in three ways:
+ * 1. Event `timestamp` is a SIM-CLOCK-relative offset (clock-now minus the
+ *    historical start) rather than `Date.now() - startTime` wall-clock offset.
+ * 2. No position dedup — every active vehicle is captured every `vehicle` event.
+ * 3. The header `startTime` is the chosen historical start and carries
+ *    `generated: true`, `stepMs`, and (optionally) `seed`.
+ *
+ * Absolute fix time on replay/emit = `header.startTime + event.timestamp`.
+ */
+export interface RawRecordingOptions {
+  /** Historical start of the generated window (becomes header.startTime). */
+  startTime: Date;
+  /** Simulated milliseconds advanced per step (written into the header). */
+  stepMs: number;
+  /** Sim RNG seed for reproducibility (written into the header when present). */
+  seed?: number;
+  /**
+   * Sim clock to read the current sim time from when stamping event timestamps.
+   * The relative offset is `clock.now - startTime`.
+   */
+  clock: SimulationClock;
+}
 
 /**
  * Records simulation events to NDJSON files for later replay.
@@ -43,6 +70,18 @@ export class RecordingManager extends EventEmitter {
   /** Last known position per vehicle id, used for delta dedup. */
   private lastPositions: Map<string, [number, number]> = new Map();
 
+  /**
+   * Raw-mode state. When set, recording is in headless/generated mode:
+   * timestamps are sim-clock-relative, position dedup is disabled, and the
+   * header is back-dated to {@link RawRecordingOptions.startTime}. `null` in
+   * the default live-capture mode.
+   */
+  private raw: RawRecordingOptions | null = null;
+  /** Epoch ms of the historical start in raw mode (header.startTime). */
+  private rawStartMs = 0;
+  /** Largest event timestamp written so far (used for raw-mode duration). */
+  private maxEventTimestamp = 0;
+
   constructor() {
     super();
   }
@@ -53,16 +92,34 @@ export class RecordingManager extends EventEmitter {
    * @param options - Current simulation start options (written into the header)
    * @param vehicleCount - Number of vehicles at recording start
    * @param filePath - Optional explicit file path; auto-generated if omitted
+   * @param raw - Optional RAW-mode config (headless generation). When provided,
+   *   timestamps are sim-clock-relative, dedup is disabled, and the header is
+   *   back-dated to `raw.startTime` with `generated`/`stepMs`/`seed` set.
    */
-  startRecording(options: StartOptions, vehicleCount: number, filePath?: string): string {
+  startRecording(
+    options: StartOptions,
+    vehicleCount: number,
+    filePath?: string,
+    raw?: RawRecordingOptions
+  ): string {
     if (this.recording) {
       throw new Error("Recording already in progress");
     }
 
+    this.raw = raw ?? null;
     this.startTime = Date.now();
-    this.startTimeISO = new Date(this.startTime).toISOString();
+    if (this.raw) {
+      // In raw mode the header startTime is the chosen historical start, and the
+      // sim-clock-relative baseline is that same instant.
+      this.rawStartMs = this.raw.startTime.getTime();
+      this.startTimeISO = this.raw.startTime.toISOString();
+    } else {
+      this.rawStartMs = 0;
+      this.startTimeISO = new Date(this.startTime).toISOString();
+    }
     this.vehicleCount = vehicleCount;
     this.eventCount = 0;
+    this.maxEventTimestamp = 0;
     this.lastPositions.clear();
     this.buffer = [];
 
@@ -71,7 +128,8 @@ export class RecordingManager extends EventEmitter {
       this.filePath = filePath;
     } else {
       const safeDate = this.startTimeISO.replace(/:/g, "-");
-      const fileName = `moveet-${safeDate}-${vehicleCount}v.ndjson`;
+      const prefix = this.raw ? "moveet-generated" : "moveet";
+      const fileName = `${prefix}-${safeDate}-${vehicleCount}v.ndjson`;
       this.filePath = path.join("recordings", fileName);
     }
 
@@ -90,10 +148,18 @@ export class RecordingManager extends EventEmitter {
       vehicleCount,
       options,
     };
+    if (this.raw) {
+      header.generated = true;
+      header.stepMs = this.raw.stepMs;
+      if (this.raw.seed !== undefined) header.seed = this.raw.seed;
+    }
     fs.writeSync(this.fd, JSON.stringify(header) + "\n");
 
-    // Start periodic flush timer
-    this.flushTimer = setInterval(() => this.flushBuffer(), BUFFER_FLUSH_INTERVAL_MS);
+    // Start periodic flush timer (live mode only). In raw mode the headless
+    // loop drives writes synchronously and must not start a setInterval.
+    if (!this.raw) {
+      this.flushTimer = setInterval(() => this.flushBuffer(), BUFFER_FLUSH_INTERVAL_MS);
+    }
 
     this.recording = true;
     this.emit("recording:started", { filePath: this.filePath });
@@ -126,7 +192,11 @@ export class RecordingManager extends EventEmitter {
 
     this.recording = false;
 
-    const duration = Date.now() - this.startTime;
+    // Raw mode: duration is the simulated span (max sim-relative offset) so
+    // replay progress bars reflect simulated time, not wall-clock generation
+    // time. Live mode: elapsed wall-clock since recording began.
+    const duration = this.raw ? this.maxEventTimestamp : Date.now() - this.startTime;
+    this.raw = null;
     let fileSize = 0;
     try {
       fileSize = fs.statSync(this.filePath).size;
@@ -176,12 +246,15 @@ export class RecordingManager extends EventEmitter {
     const changed: VehicleSnapshot[] = [];
 
     for (const v of vehicles) {
-      const prev = this.lastPositions.get(v.id);
-      if (prev) {
-        const dlat = Math.abs(v.position[0] - prev[0]);
-        const dlng = Math.abs(v.position[1] - prev[1]);
-        if (dlat < POSITION_DELTA_THRESHOLD && dlng < POSITION_DELTA_THRESHOLD) {
-          continue;
+      // RAW mode: no dedup — every active vehicle is captured every step.
+      if (!this.raw) {
+        const prev = this.lastPositions.get(v.id);
+        if (prev) {
+          const dlat = Math.abs(v.position[0] - prev[0]);
+          const dlng = Math.abs(v.position[1] - prev[1]);
+          if (dlat < POSITION_DELTA_THRESHOLD && dlng < POSITION_DELTA_THRESHOLD) {
+            continue;
+          }
         }
       }
 
@@ -211,14 +284,22 @@ export class RecordingManager extends EventEmitter {
   recordEvent(type: RecordingEventType, data: Record<string, unknown>): void {
     if (!this.recording) return;
 
+    // RAW mode: stamp a SIM-CLOCK-relative offset (sim-now minus historical
+    // start) so `header.startTime + event.timestamp` reconstructs absolute sim
+    // time. Live mode: wall-clock offset since recording began.
+    const timestamp = this.raw
+      ? this.raw.clock.getState().currentTime.getTime() - this.rawStartMs
+      : Date.now() - this.startTime;
+
     const event: RecordingEvent = {
-      timestamp: Date.now() - this.startTime,
+      timestamp,
       type,
       data,
     };
 
     this.buffer.push(JSON.stringify(event));
     this.eventCount++;
+    if (timestamp > this.maxEventTimestamp) this.maxEventTimestamp = timestamp;
 
     if (this.buffer.length >= BUFFER_FLUSH_COUNT) {
       this.flushBuffer();

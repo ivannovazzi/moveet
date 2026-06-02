@@ -103,14 +103,12 @@
 
 .recordingItem {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
+  flex-direction: column;
+  gap: var(--space-2);
   padding: var(--space-3);
   border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.03);
   border: var(--surface-border);
-  cursor: pointer;
   transition:
     background var(--transition-fast),
     border-color var(--transition-fast);
@@ -162,4 +160,190 @@
 .playingLabel {
   color: var(--color-accent, #39f);
   font-weight: 500;
+}
+
+/* ── Generate historical form ── */
+
+.generateForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.03);
+  border: var(--surface-border);
+}
+
+.fieldRow {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+  min-width: 0;
+}
+
+.fieldLabel {
+  font-size: var(--text-xs);
+  color: var(--color-gray);
+}
+
+.input {
+  height: var(--control-sm);
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-sm);
+  color: var(--color-gray-lightest);
+  font-size: var(--text-sm);
+  font-family: inherit;
+  padding: 0 var(--space-2);
+  width: 100%;
+}
+
+.input:focus {
+  outline: none;
+  border-color: rgba(57, 153, 255, 0.5);
+}
+
+.input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.generateButton {
+  height: var(--control-sm);
+  background: rgba(57, 153, 255, 0.12);
+  border: 1px solid rgba(57, 153, 255, 0.3);
+  color: var(--color-white);
+  font-size: var(--text-sm);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: inherit;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.generateButton:hover,
+.generateButton[data-hovered] {
+  background: rgba(57, 153, 255, 0.2);
+}
+
+.generateButton[data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Progress bars (generate + emit) ── */
+
+.progressSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.progressLabel {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-xs);
+  color: var(--color-gray-light);
+  font-variant-numeric: tabular-nums;
+}
+
+.progressBar {
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--color-accent, #39f);
+  transition: width var(--transition-fast);
+}
+
+.errorText {
+  font-size: var(--text-xs);
+  color: #f66;
+}
+
+/* ── Recording row: play button + emit control ── */
+
+.recordingPlay {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  color: inherit;
+}
+
+.recordingPlay[data-disabled] {
+  cursor: default;
+}
+
+.generatedTag {
+  color: var(--color-accent, #39f);
+  text-transform: uppercase;
+  font-size: var(--text-xs);
+  letter-spacing: 0.04em;
+}
+
+.emitControl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  padding-top: var(--space-2);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.emitToggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-gray-light);
+  cursor: pointer;
+}
+
+.emitButton {
+  height: var(--control-sm);
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--color-gray-light);
+  font-size: var(--text-sm);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: inherit;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.emitButton:hover,
+.emitButton[data-hovered] {
+  background: var(--surface-bg-hover);
+  color: var(--color-white);
+}
+
+.emitButton[data-disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.emitDone {
+  font-size: var(--text-xs);
+  color: var(--color-gray-light);
 }

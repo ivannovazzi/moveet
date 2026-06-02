@@ -1,4 +1,0 @@
-{"format":"moveet-headless-truth","version":1,"simStart":"2026-05-25T00:00:00.000Z","stepMs":1000,"vehicleCount":2,"seed":12345,"network":"nairobi"}
-{"simTime":"2026-05-25T00:00:00.000Z","vehicles":[{"id":"v1","position":[-1.2921,36.8219],"speed":42.1,"heading":270,"ignition":true},{"id":"v2","position":[-1.3001,36.8100],"speed":0,"heading":90,"ignition":false}]}
-{"simTime":"2026-05-25T00:00:01.000Z","vehicles":[{"id":"v1","position":[-1.2922,36.8221],"speed":40.0,"heading":272,"ignition":true},{"id":"v2","position":[-1.3001,36.8100],"speed":0,"heading":90,"ignition":false}]}
-{"simTime":"2026-05-25T00:00:02.000Z","vehicles":[{"id":"v1","position":[-1.2923,36.8223],"speed":38.5,"heading":274,"ignition":true},{"id":"v2","position":[-1.3001,36.8100],"speed":1.2,"heading":91,"ignition":true}]}

@@ -1,9 +1,9 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import fs from "fs";
 import os from "os";
 import path from "path";
 import { HeadlessRunner } from "../headless/HeadlessRunner";
-import type { TruthHeader, TruthStepRecord } from "../types";
+import type { RecordingHeader, RecordingEvent, VehicleSnapshot } from "../types";
 
 const FIXTURE_PATH = path.join(__dirname, "fixtures", "test-network.geojson");
 
@@ -11,7 +11,7 @@ function readLines(file: string): string[] {
   return fs.readFileSync(file, "utf-8").trimEnd().split("\n");
 }
 
-describe("HeadlessRunner", () => {
+describe("HeadlessRunner (RecordingManager raw mode)", () => {
   const tmpFiles: string[] = [];
 
   function tmpPath(): string {
@@ -30,9 +30,9 @@ describe("HeadlessRunner", () => {
     }
   });
 
-  it("produces a header line matching the format contract", () => {
+  it("writes a parseable recording header back-dated to simStart with generated fields", async () => {
     const out = tmpPath();
-    const runner = new HeadlessRunner({
+    const metadata = await new HeadlessRunner({
       geojsonPath: FIXTURE_PATH,
       vehicles: 3,
       simStart: new Date("2026-05-25T00:00:00.000Z"),
@@ -40,42 +40,28 @@ describe("HeadlessRunner", () => {
       totalSimMs: 5000,
       out,
       seed: 12345,
-      network: "test",
-    });
-    runner.run();
-
-    const header = JSON.parse(readLines(out)[0]) as TruthHeader;
-    expect(header.format).toBe("moveet-headless-truth");
-    expect(header.version).toBe(1);
-    expect(header.simStart).toBe("2026-05-25T00:00:00.000Z");
-    expect(header.stepMs).toBe(1000);
-    expect(header.vehicleCount).toBe(3);
-    expect(header.seed).toBe(12345);
-    expect(header.network).toBe("test");
-  });
-
-  it("writes exactly totalSimMs/stepMs step records", () => {
-    const out = tmpPath();
-    new HeadlessRunner({
-      geojsonPath: FIXTURE_PATH,
-      vehicles: 2,
-      simStart: new Date("2026-05-25T00:00:00.000Z"),
-      stepMs: 1000,
-      totalSimMs: 10000,
-      out,
-      seed: 1,
-      network: "test",
     }).run();
 
-    const lines = readLines(out);
-    // 1 header + 10 step records
-    expect(lines.length).toBe(1 + 10);
+    const header = JSON.parse(readLines(out)[0]) as RecordingHeader;
+    expect(header.format).toBe("moveet-recording");
+    expect(header.version).toBe(1);
+    expect(header.startTime).toBe("2026-05-25T00:00:00.000Z");
+    expect(header.generated).toBe(true);
+    expect(header.stepMs).toBe(1000);
+    expect(header.seed).toBe(12345);
+    expect(header.vehicleCount).toBe(3);
+
+    // Metadata is ready to insert into stateStore like a normal recording.
+    expect(metadata.startTime).toBe("2026-05-25T00:00:00.000Z");
+    expect(metadata.filePath).toBe(out);
+    expect(metadata.vehicleCount).toBe(3);
+    expect(metadata.eventCount).toBeGreaterThan(0);
   });
 
-  it("stamps simTime monotonically starting one step after simStart", () => {
+  it("stamps vehicle events with sim-clock-relative offsets (header.startTime + offset = sim time)", async () => {
     const out = tmpPath();
     const simStart = new Date("2026-05-25T00:00:00.000Z");
-    new HeadlessRunner({
+    await new HeadlessRunner({
       geojsonPath: FIXTURE_PATH,
       vehicles: 2,
       simStart,
@@ -83,28 +69,31 @@ describe("HeadlessRunner", () => {
       totalSimMs: 5000,
       out,
       seed: 1,
-      network: "test",
     }).run();
 
-    const lines = readLines(out);
-    const records = lines.slice(1).map((l) => JSON.parse(l) as TruthStepRecord);
+    const events = readLines(out)
+      .slice(1)
+      .map((l) => JSON.parse(l) as RecordingEvent)
+      .filter((e) => e.type === "vehicle");
 
-    // First record is simStart + 1 step (clock ticks before capture).
-    expect(records[0].simTime).toBe("2026-05-25T00:00:01.000Z");
+    // 5 steps → 5 vehicle events, offsets 1000..5000 (clock ticks before capture).
+    expect(events.length).toBe(5);
+    expect(events[0].timestamp).toBe(1000);
+    expect(events[events.length - 1].timestamp).toBe(5000);
 
-    let prev = simStart.getTime();
-    for (const r of records) {
-      const t = new Date(r.simTime).getTime();
-      expect(t).toBeGreaterThan(prev);
-      prev = t;
+    let prev = -1;
+    for (const e of events) {
+      expect(e.timestamp).toBeGreaterThan(prev);
+      prev = e.timestamp;
+      // Absolute sim time reconstruction is back-dated, never wall-clock.
+      const abs = simStart.getTime() + e.timestamp;
+      expect(abs).toBeLessThan(Date.now());
     }
-    // Last record == simStart + totalSimMs.
-    expect(records[records.length - 1].simTime).toBe("2026-05-25T00:00:05.000Z");
   });
 
-  it("captures every active vehicle every step (no dedup)", () => {
+  it("captures every active vehicle every step (no dedup)", async () => {
     const out = tmpPath();
-    new HeadlessRunner({
+    await new HeadlessRunner({
       geojsonPath: FIXTURE_PATH,
       vehicles: 3,
       simStart: new Date("2026-05-25T00:00:00.000Z"),
@@ -112,19 +101,20 @@ describe("HeadlessRunner", () => {
       totalSimMs: 5000,
       out,
       seed: 1,
-      network: "test",
     }).run();
 
-    const records = readLines(out)
+    const events = readLines(out)
       .slice(1)
-      .map((l) => JSON.parse(l) as TruthStepRecord);
+      .map((l) => JSON.parse(l) as RecordingEvent)
+      .filter((e) => e.type === "vehicle");
 
-    for (const r of records) {
-      expect(r.vehicles).toHaveLength(3);
+    for (const e of events) {
+      const vehicles = (e.data as { vehicles: VehicleSnapshot[] }).vehicles;
+      expect(vehicles).toHaveLength(3);
     }
   });
 
-  it("is deterministic for a fixed seed (best-effort: seeds Math.random)", () => {
+  it("is deterministic for a fixed seed (best-effort: seeds Math.random)", async () => {
     const make = (out: string) =>
       new HeadlessRunner({
         geojsonPath: FIXTURE_PATH,
@@ -134,32 +124,13 @@ describe("HeadlessRunner", () => {
         totalSimMs: 5000,
         out,
         seed: 777,
-        network: "test",
       }).run();
 
     const a = tmpPath();
     const b = tmpPath();
-    make(a);
-    make(b);
+    await make(a);
+    await make(b);
 
     expect(fs.readFileSync(a, "utf-8")).toBe(fs.readFileSync(b, "utf-8"));
-  });
-
-  it("does not start any real timers / setInterval", () => {
-    const setIntervalSpy = vi.spyOn(global, "setInterval");
-    const out = tmpPath();
-    new HeadlessRunner({
-      geojsonPath: FIXTURE_PATH,
-      vehicles: 2,
-      simStart: new Date("2026-05-25T00:00:00.000Z"),
-      stepMs: 1000,
-      totalSimMs: 3000,
-      out,
-      seed: 1,
-      network: "test",
-    }).run();
-
-    expect(setIntervalSpy).not.toHaveBeenCalled();
-    setIntervalSpy.mockRestore();
   });
 });

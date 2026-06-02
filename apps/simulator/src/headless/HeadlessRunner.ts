@@ -2,12 +2,15 @@ import { RoadNetwork } from "../modules/RoadNetwork";
 import { VehicleManager } from "../modules/VehicleManager";
 import { FleetManager } from "../modules/FleetManager";
 import { IncidentManager } from "../modules/IncidentManager";
+import { RecordingManager } from "../modules/RecordingManager";
 import { config } from "../utils/config";
 import { createLogger } from "../utils/logger";
-import { TruthWriter } from "./TruthWriter";
-import type { TruthHeader } from "../types";
+import type { RecordingMetadata, VehicleSnapshot } from "../types";
 
 const log = createLogger("headless");
+
+/** Number of sim steps processed between event-loop yields. */
+const DEFAULT_CHUNK_STEPS = 200;
 
 export interface HeadlessRunnerOptions {
   /** Path to the GeoJSON road network. */
@@ -20,13 +23,16 @@ export interface HeadlessRunnerOptions {
   stepMs: number;
   /** Total simulated milliseconds to generate (steps = totalSimMs / stepMs). */
   totalSimMs: number;
-  /** Output NDJSON path. */
+  /** Output NDJSON path (inside the recordings/ dir). */
   out: string;
   /** Sim RNG seed (best-effort determinism — see {@link installSeededRandom}). */
   seed: number;
-  /** Network identifier written into the header (e.g. "nairobi"). */
-  network: string;
+  /** Steps to process between event-loop yields (keeps the server responsive). */
+  chunkSteps?: number;
 }
+
+/** Progress callback fired roughly once per processed chunk. */
+export type HeadlessProgress = (step: number, totalSteps: number) => void;
 
 /**
  * Builds a seeded mulberry32 PRNG.
@@ -43,15 +49,20 @@ function mulberry32(seed: number): () => number {
 }
 
 /**
- * Headless fast-forward generator (Phase 1).
+ * Headless fast-forward generator.
  *
  * Builds the real module graph the way `src/index.ts` does (RoadNetwork +
  * VehicleManager + sim clock), seeds N synthetic vehicles via the existing
  * synthetic-vehicle path (the VehicleManager constructor's `loadFromData` +
- * `setRandomDestination`, exercised by temporarily forcing the relevant config),
- * sets the clock to an absolute historical `simStart`, then advances the sim a
- * fixed `stepMs` at a time — with NO `setInterval` and NO `Date.now()` — writing
- * back-dated NDJSON "truth" per the format contract.
+ * `setRandomDestination`, exercised by forcing the relevant config), sets the
+ * clock to an absolute historical `simStart`, then advances the sim a fixed
+ * `stepMs` at a time — with NO `setInterval` and NO `Date.now()`.
+ *
+ * Output reuses the EXISTING RecordingManager NDJSON format (header +
+ * relative-offset `vehicle` events) in RAW mode: timestamps are
+ * sim-clock-relative, there is no position dedup, and the header is back-dated
+ * to `simStart`. The generated file is therefore a first-class entry in the
+ * existing `/recordings` list and replays in the map for free.
  */
 export class HeadlessRunner {
   /**
@@ -63,25 +74,38 @@ export class HeadlessRunner {
 
   constructor(private readonly opts: HeadlessRunnerOptions) {}
 
-  run(): void {
-    const { geojsonPath, vehicles, simStart, stepMs, totalSimMs, out, seed, network } = this.opts;
+  /** Total number of steps this run will produce. */
+  get totalSteps(): number {
+    return Math.floor(this.opts.totalSimMs / this.opts.stepMs);
+  }
+
+  /**
+   * Runs the fast-forward generation, writing a back-dated NDJSON recording via
+   * RecordingManager raw mode. Yields to the event loop between chunks so a
+   * long generation does not block the server. Resolves with the resulting
+   * {@link RecordingMetadata} (ready to insert into stateStore exactly like a
+   * normal recording).
+   *
+   * @param onProgress - Optional progress callback (step, totalSteps).
+   */
+  async run(onProgress?: HeadlessProgress): Promise<RecordingMetadata> {
+    const { geojsonPath, vehicles, simStart, stepMs, totalSimMs, out, seed } = this.opts;
 
     if (stepMs <= 0) throw new Error("stepMs must be > 0");
     if (totalSimMs <= 0) throw new Error("totalSimMs must be > 0");
 
-    const steps = Math.floor(totalSimMs / stepMs);
+    const steps = this.totalSteps;
+    const chunkSteps = this.opts.chunkSteps ?? DEFAULT_CHUNK_STEPS;
 
-    // Best-effort deterministic seeding: the sim's RNG is `Math.random` (in
-    // RoadNetwork.getRandomEdge / RouteManager.setRandomDestination, etc.). We
-    // swap it for a seeded mulberry32 for the duration of the run so a given
-    // --seed yields the same vehicle placement and routing. This is NOT a full
-    // RNG refactor; any non-Math.random source (e.g. crypto) is unaffected.
+    // Best-effort deterministic seeding: the sim's RNG is `Math.random`. We swap
+    // it for a seeded mulberry32 for the duration of the run so a given seed
+    // yields the same vehicle placement and routing.
     const restoreRandom = installSeededRandom(seed);
 
     // Force the synthetic-vehicle creation path: an empty adapterURL makes the
     // VehicleManager constructor call loadFromData() (seeding vehicles +
-    // assigning random destinations via setRandomDestination), and vehicleCount
-    // controls how many. We snapshot and restore the live config afterward.
+    // assigning random destinations), and vehicleCount controls how many. We
+    // snapshot and restore the live config afterward.
     const prevVehicleCount = config.vehicleCount;
     const prevAdapterURL = config.adapterURL;
     const prevGeojsonPath = config.geojsonPath;
@@ -89,13 +113,13 @@ export class HeadlessRunner {
     (config as { adapterURL: string }).adapterURL = "";
     (config as { geojsonPath: string }).geojsonPath = geojsonPath;
 
-    let vehicleManager: VehicleManager;
-    let writer: TruthWriter | undefined;
+    const recordingManager = new RecordingManager();
+
     try {
       const roadNetwork = new RoadNetwork(geojsonPath);
       const fleetManager = new FleetManager();
       // Construct so synthetic vehicles + routes are seeded in the constructor.
-      vehicleManager = new VehicleManager(roadNetwork, fleetManager);
+      const vehicleManager = new VehicleManager(roadNetwork, fleetManager);
       // IncidentManager shares the sim clock so any incident timestamps back-date
       // consistently (no Date.now() leak in the headless path).
       this.incidentManager = new IncidentManager(vehicleManager.clock);
@@ -105,31 +129,43 @@ export class HeadlessRunner {
 
       const actualVehicleCount = vehicleManager.getVehicles().length;
 
-      const header: TruthHeader = {
-        format: "moveet-headless-truth",
-        version: 1,
-        simStart: simStart.toISOString(),
+      recordingManager.startRecording(vehicleManager.getOptions(), actualVehicleCount, out, {
+        startTime: simStart,
         stepMs,
-        vehicleCount: actualVehicleCount,
         seed,
-        network,
-      };
-      writer = new TruthWriter(out, header);
+        clock,
+      });
 
       log.info(
         `Generating ${steps} steps (${totalSimMs}ms @ ${stepMs}ms) for ${actualVehicleCount} vehicles from ${simStart.toISOString()} → ${out}`
       );
 
-      for (let i = 0; i < steps; i++) {
-        vehicleManager.advance(stepMs);
-        writer.writeStep(clock.getState().currentTime, vehicleManager.getVehicles());
+      let i = 0;
+      while (i < steps) {
+        const end = Math.min(i + chunkSteps, steps);
+        for (; i < end; i++) {
+          vehicleManager.advance(stepMs);
+          recordingManager.captureVehicleSnapshot(vehicleManager.getVehicles());
+        }
+        onProgress?.(i, steps);
+        // Yield to the macrotask queue (not just microtasks) so pending I/O —
+        // incoming HTTP requests, WS progress broadcasts — can run between
+        // chunks and the server stays responsive during a long generation.
+        await new Promise<void>((resolve) => setImmediate(resolve));
       }
 
-      writer.close();
-      writer = undefined;
-      log.info(`Done: wrote ${steps} step records to ${out}`);
+      const metadata = recordingManager.stopRecording();
+      onProgress?.(steps, steps);
+      log.info(`Done: wrote ${steps} steps (${metadata.eventCount} events) to ${out}`);
+      return metadata;
     } finally {
-      writer?.close();
+      if (recordingManager.isRecording()) {
+        try {
+          recordingManager.stopRecording();
+        } catch {
+          // already stopped / never started
+        }
+      }
       (config as { vehicleCount: number }).vehicleCount = prevVehicleCount;
       (config as { adapterURL: string }).adapterURL = prevAdapterURL;
       (config as { geojsonPath: string }).geojsonPath = prevGeojsonPath;
@@ -138,10 +174,13 @@ export class HeadlessRunner {
   }
 }
 
+/** Re-exported for clarity; the snapshot shape written per `vehicle` event. */
+export type { VehicleSnapshot };
+
 /**
  * Overrides the global `Math.random` with a seeded mulberry32 PRNG and returns a
  * restore function. The simulator seeds vehicles and routes via `Math.random`,
- * so this makes a given `--seed` reproducible on a best-effort basis.
+ * so this makes a given `seed` reproducible on a best-effort basis.
  */
 function installSeededRandom(seed: number): () => void {
   const original = Math.random;

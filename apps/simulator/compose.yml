@@ -14,6 +14,9 @@ services:
     environment:
       - SOURCE_TYPE=static
       - SINK_TYPES=console
+      # Lets the adapter fetch generated recordings from the simulator container
+      # for POST /replay/emit (historical telemetry replay through the sinks).
+      - SIMULATOR_URL=http://simulator:3000
     ports:
       - "5011:5011"
   ui:

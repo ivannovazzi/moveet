@@ -354,6 +354,66 @@ describe("SimulationService", () => {
     });
   });
 
+  // ─── Historical generation ─────────────────────────────────────
+
+  describe("generateRecording", () => {
+    it("posts the body to /recording/generate", async () => {
+      const body = {
+        startTime: "2026-05-25T00:00:00.000Z",
+        hours: 24,
+        vehicleCount: 20,
+        stepMs: 1000,
+        seed: 42,
+      };
+      const response = { data: { status: "generating", jobId: "j1" } };
+      mockHttp.post.mockResolvedValue(response);
+
+      const result = await service.generateRecording(body);
+
+      expect(mockHttp.post).toHaveBeenCalledWith("/recording/generate", body);
+      expect(result).toBe(response);
+    });
+  });
+
+  describe("getGenerateStatus", () => {
+    it("gets /recording/generate/status", async () => {
+      const response = { data: { state: "idle" } };
+      mockHttp.get.mockResolvedValue(response);
+
+      const result = await service.getGenerateStatus();
+
+      expect(mockHttp.get).toHaveBeenCalledWith("/recording/generate/status");
+      expect(result).toBe(response);
+    });
+  });
+
+  describe("onGenerateProgress / onGenerateComplete / onGenerateError", () => {
+    it("registers handlers on the matching ws event names", () => {
+      const onProgress = vi.fn();
+      const onComplete = vi.fn();
+      const onError = vi.fn();
+
+      service.onGenerateProgress(onProgress);
+      service.onGenerateComplete(onComplete);
+      service.onGenerateError(onError);
+
+      expect(mockWs.on).toHaveBeenCalledWith("generate:progress", onProgress);
+      expect(mockWs.on).toHaveBeenCalledWith("generate:complete", onComplete);
+      expect(mockWs.on).toHaveBeenCalledWith("generate:error", onError);
+    });
+
+    it("unsubscribes via the off* helpers", () => {
+      const onProgress = vi.fn();
+      service.offGenerateProgress(onProgress);
+      service.offGenerateComplete();
+      service.offGenerateError();
+
+      expect(mockWs.off).toHaveBeenCalledWith("generate:progress", onProgress);
+      expect(mockWs.off).toHaveBeenCalledWith("generate:complete", undefined);
+      expect(mockWs.off).toHaveBeenCalledWith("generate:error", undefined);
+    });
+  });
+
   // ─── Bound methods ────────────────────────────────────────────
 
   describe("method binding", () => {
