@@ -1,16 +1,27 @@
+# Build context is the repo root (../..) for every service because the apps
+# depend on the @moveet/* npm workspace packages, which are not published to the
+# registry and must be installed from within the workspace.
 services:
   simulator:
-    build: .
+    build:
+      context: ../..
+      dockerfile: apps/simulator/Dockerfile
     volumes:
-      - ./data/network.geojson:/app/data/network.geojson:ro
+      - ./data/network.geojson:/repo/apps/simulator/data/network.geojson:ro
     environment:
       - UPDATE_INTERVAL=300
       - USE_ADAPTER=true
       - ADAPTER_URL=http://adapter:5011
+      # Persistence indexes recordings so generated ones are listable and
+      # downloadable by id (required by the generate -> emit UI flow).
+      - PERSISTENCE_ENABLED=true
+      - STATE_DB_PATH=/repo/apps/simulator/data/moveet.db
     ports:
       - "5010:3000"
   adapter:
-    build: ../adapter
+    build:
+      context: ../..
+      dockerfile: apps/adapter/Dockerfile
     environment:
       - SOURCE_TYPE=static
       - SINK_TYPES=console
@@ -20,6 +31,8 @@ services:
     ports:
       - "5011:5011"
   ui:
-    build: ../ui
+    build:
+      context: ../..
+      dockerfile: apps/ui/Dockerfile
     ports:
       - "5012:8080"
