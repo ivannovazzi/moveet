@@ -28,6 +28,10 @@ services:
       # Lets the adapter fetch generated recordings from the simulator container
       # for POST /replay/emit (historical telemetry replay through the sinks).
       - SIMULATOR_URL=http://simulator:3000
+      # Dev stack: accept the UI from any host (localhost, 127.0.0.1, LAN IP).
+      # The simulator already uses permissive CORS; match it here so the adapter
+      # panel is reachable regardless of which host the UI is opened from.
+      - CORS_ORIGINS=*
     ports:
       - "5011:5011"
   ui:
