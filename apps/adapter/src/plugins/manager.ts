@@ -6,6 +6,7 @@ import type {
   AdapterConfig,
   AdapterStatus,
   IngestResult,
+  PublishResult,
 } from "./types";
 import { PluginRegistry } from "./registry";
 import { HealthAggregator } from "./health-aggregator";
@@ -118,6 +119,15 @@ export class PluginManager {
 
   async publishUpdates(updates: VehicleUpdate[]): Promise<IngestResult> {
     return this.realism.ingest(updates);
+  }
+
+  /**
+   * Publish straight to the active sinks, bypassing the manager's realism
+   * engine. Used by the replay emitter, which owns its own virtual-clock-driven
+   * RealismEngine and so must not double-apply degradation here.
+   */
+  async publishToSinks(updates: VehicleUpdate[]): Promise<PublishResult> {
+    return this.publisher.publishUpdates(updates, this.activeSinks);
   }
 
   getRealismConfig(): RealismConfig {

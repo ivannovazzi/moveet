@@ -7,6 +7,7 @@ import { REALISM_SCHEMA } from "./realism/config";
 import { loadConfig, logConfig } from "./utils/config";
 import { createLogger } from "./utils/logger";
 import { correlationIdMiddleware } from "./middleware/correlationId";
+import { EmitJobRunner } from "./replay/emitJob";
 
 const logger = createLogger("index");
 
@@ -45,17 +46,48 @@ async function startup(): Promise<void> {
   const config = loadConfig();
   logConfig(config);
 
-  await pluginManager.setSource(config.source.type, config.source.config);
-  logger.info({ source: config.source.type }, "Source configured");
+  // Wire the source resiliently: a source whose backend is unreachable at
+  // startup (e.g. the fleet connector or a DB being down) must NOT take the
+  // adapter down. It is logged and left unset; it can be (re)configured via the
+  // API/UI once its backend is reachable.
+  try {
+    await pluginManager.setSource(config.source.type, config.source.config);
+    logger.info({ source: config.source.type }, "Source configured");
+  } catch (err) {
+    logger.error(
+      { source: config.source.type, err: err instanceof Error ? err.message : err },
+      "Source failed to connect at startup — continuing without it; configure it via the API/UI once its backend is reachable"
+    );
+  }
 
   // Apply startup realism config (starts the engine scheduler if enabled).
   pluginManager.setRealismConfig(config.realism);
   logger.info({ enabled: pluginManager.getRealismStatus().enabled }, "Realism configured");
 
+  // Wire sinks resiliently: a sink whose backend is unreachable at startup
+  // (e.g. a Kafka broker that is down) must NOT take the whole adapter down,
+  // otherwise the service — and the UI's adapter panel — become unreachable.
+  // The failed sink is skipped and logged; it can be (re)added via the API/UI
+  // once its backend is available.
   for (const sink of config.sinks) {
-    await pluginManager.addSink(sink.type, sink.config);
-    logger.info({ sink: sink.type }, "Sink configured");
+    try {
+      await pluginManager.addSink(sink.type, sink.config);
+      logger.info({ sink: sink.type }, "Sink configured");
+    } catch (err) {
+      logger.error(
+        { sink: sink.type, err: err instanceof Error ? err.message : err },
+        "Sink failed to connect at startup — skipping; add it via the API/UI once its backend is reachable"
+      );
+    }
   }
+
+  // Replay/emit background job runner: fetches a recording from the simulator
+  // and re-emits it (back-dated) through the configured sinks.
+  const emitJob = new EmitJobRunner({
+    simulatorUrl: config.simulatorUrl,
+    publish: (updates) => pluginManager.publishToSinks(updates),
+    realismConfig: config.realism,
+  });
 
   let isReady = false;
 
@@ -244,6 +276,34 @@ async function startup(): Promise<void> {
       const msg = error instanceof Error ? error.message : "Unknown error";
       res.status(400).json({ error: msg });
     }
+  });
+
+  // === Replay / Emit API ===
+
+  app.post("/replay/emit", (req, res) => {
+    const { recordingId, realism, seed } = req.body ?? {};
+    if (typeof recordingId !== "number" || !Number.isInteger(recordingId)) {
+      res.status(400).json({ error: "'recordingId' must be an integer" });
+      return;
+    }
+    if (realism !== "on" && realism !== "off") {
+      res.status(400).json({ error: "'realism' must be 'on' or 'off'" });
+      return;
+    }
+    if (seed != null && typeof seed !== "number") {
+      res.status(400).json({ error: "'seed', when present, must be a number" });
+      return;
+    }
+    const jobId = emitJob.start({ recordingId, realism, seed });
+    if (jobId === null) {
+      res.status(409).json({ error: "An emit job is already running" });
+      return;
+    }
+    res.status(202).json({ status: "emitting", jobId });
+  });
+
+  app.get("/replay/emit/status", (_req, res) => {
+    res.json(emitJob.getStatus());
   });
 
   app.get("/health", async (_req, res) => {

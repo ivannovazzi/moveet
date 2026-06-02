@@ -778,6 +778,132 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /recording/generate:
+    post:
+      operationId: generateRecording
+      summary: Start an async headless historical-data generation job
+      description: >
+        Fast-forwards the simulation from a historical start, writing a
+        back-dated recording (RecordingManager raw mode) into the recordings
+        directory so it appears in GET /recordings. Progress is broadcast over
+        WebSocket (generate:progress / generate:complete / generate:error).
+      tags: [Recording]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [startTime, vehicleCount, stepMs]
+              properties:
+                startTime:
+                  type: string
+                  format: date-time
+                  description: Historical ISO start of the generated window
+                hours:
+                  type: number
+                  description: Simulated hours to generate (ignored when steps is set)
+                steps:
+                  type: integer
+                  description: Explicit step count (wins over hours)
+                vehicleCount:
+                  type: integer
+                stepMs:
+                  type: number
+                  description: Simulated ms advanced per step
+                seed:
+                  type: number
+                  description: Sim RNG seed for reproducibility
+      responses:
+        "202":
+          description: Generation job started
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, jobId]
+                properties:
+                  status:
+                    type: string
+                    enum: [generating]
+                  jobId:
+                    type: string
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: A generation job is already running
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /recording/generate/status:
+    get:
+      operationId: getGenerateStatus
+      summary: Get the current generation job status
+      tags: [Recording]
+      responses:
+        "200":
+          description: Generation status
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [state]
+                properties:
+                  state:
+                    type: string
+                    enum: [idle, running, done, error]
+                  jobId:
+                    type: string
+                  step:
+                    type: integer
+                  totalSteps:
+                    type: integer
+                  pct:
+                    type: integer
+
+  /recordings/{id}/download:
+    get:
+      operationId: downloadRecording
+      summary: Stream a recording's NDJSON file
+      tags: [Recording]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: NDJSON recording stream
+          content:
+            application/x-ndjson:
+              schema:
+                type: string
+        "400":
+          description: Invalid recording ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Recording not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "501":
+          description: Persistence not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   # ─── Replay ─────────────────────────────────────────────────────────
   /replay/start:
     post:

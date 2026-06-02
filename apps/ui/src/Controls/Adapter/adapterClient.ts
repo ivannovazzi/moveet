@@ -54,7 +54,39 @@ interface MutationResponse {
   status: HealthResponse;
 }
 
+export interface EmitRecordingRequest {
+  recordingId: number;
+  realism: "on" | "off";
+  seed?: number;
+}
+
+export interface EmitAcceptedResponse {
+  status: "emitting";
+  jobId: string;
+}
+
+export interface EmitStatus {
+  state: "idle" | "emitting" | "done" | "error";
+  jobId?: string;
+  emitted: number;
+  total?: number;
+  pct?: number;
+  startedAt?: string;
+  error?: string;
+}
+
 const REQUEST_TIMEOUT = 10_000;
+
+/** Error carrying the HTTP status so callers can react (e.g. 409 = already emitting). */
+export class AdapterHttpError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(message);
+    this.name = "AdapterHttpError";
+  }
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const controller = new AbortController();
@@ -65,7 +97,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       signal: controller.signal,
       headers: { "Content-Type": "application/json", ...init?.headers },
     });
-    if (!res.ok) throw new Error(`Adapter ${init?.method ?? "GET"} ${path}: ${res.status}`);
+    if (!res.ok)
+      throw new AdapterHttpError(
+        `Adapter ${init?.method ?? "GET"} ${path}: ${res.status}`,
+        res.status
+      );
     return (await res.json()) as T;
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") {
@@ -116,4 +152,15 @@ export function setRealism(
     method: "POST",
     body: JSON.stringify({ config }),
   });
+}
+
+export function emitRecording(body: EmitRecordingRequest): Promise<EmitAcceptedResponse> {
+  return request<EmitAcceptedResponse>("/replay/emit", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function getEmitStatus(): Promise<EmitStatus> {
+  return request<EmitStatus>("/replay/emit/status");
 }

@@ -27,6 +27,12 @@ export const envSchema = z.object({
 
   /** JSON config for the realism engine (off by default). */
   REALISM_CONFIG: z.string().default(""),
+
+  /**
+   * Base URL of the simulator, used to fetch recordings for replay/emit.
+   * Defaults to localhost; compose sets `http://simulator:3000`.
+   */
+  SIMULATOR_URL: z.string().default("http://localhost:5010"),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;
@@ -82,6 +88,7 @@ export interface StartupConfig {
   source: { type: string; config: Record<string, unknown> };
   sinks: Array<{ type: string; config: Record<string, unknown> }>;
   realism: Record<string, unknown>;
+  simulatorUrl: string;
 }
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): StartupConfig {
@@ -106,6 +113,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     source: { type: parsed.SOURCE_TYPE, config: sourceConfig },
     sinks,
     realism,
+    simulatorUrl: parsed.SIMULATOR_URL,
   };
 }
 

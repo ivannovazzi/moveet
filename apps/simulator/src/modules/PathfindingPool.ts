@@ -56,10 +56,18 @@ export class PathfindingPool {
 
     const size = poolSize ?? Math.min(os.cpus().length, 4);
 
-    // Resolve worker path: prefer .ts (dev/tsx/vitest), fall back to .js (compiled)
-    const tsPath = path.join(__dirname, "..", "workers", "pathfinding-worker.ts");
-    const jsPath = path.join(__dirname, "..", "workers", "pathfinding-worker.js");
-    const workerPath = fs.existsSync(tsPath) ? tsPath : jsPath;
+    // Resolve the worker entry across run modes:
+    //  - dev/tsx/vitest: src/modules → src/workers/*.ts
+    //  - tsc output:     dist/modules → dist/workers/*.js
+    //  - esbuild bundle: dist (index bundled) → dist/workers/*.js
+    const workerCandidates = [
+      path.join(__dirname, "..", "workers", "pathfinding-worker.ts"),
+      path.join(__dirname, "..", "workers", "pathfinding-worker.js"),
+      path.join(__dirname, "workers", "pathfinding-worker.js"),
+    ];
+    const workerPath =
+      workerCandidates.find((p) => fs.existsSync(p)) ??
+      workerCandidates[workerCandidates.length - 1];
 
     for (let i = 0; i < size; i++) {
       const worker = new Worker(workerPath, {

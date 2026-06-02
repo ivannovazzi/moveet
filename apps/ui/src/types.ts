@@ -127,9 +127,40 @@ export interface TrafficEdge {
 // ─── Recording & Replay ────────────────────────────────────────────
 
 export interface RecordingFile {
+  /** Numeric id assigned by the simulator stateStore (present for generated/persisted recordings). */
+  id?: number;
   fileName: string;
   fileSize: number;
   modifiedAt: string;
+  /** Number of vehicles captured (populated for generated recordings). */
+  vehicleCount?: number;
+  /** True when produced by the headless historical generator. */
+  generated?: boolean;
+}
+
+// ─── Historical Generation ─────────────────────────────────────────
+
+export interface GenerateRecordingRequest {
+  /** Historical start time as an ISO 8601 string. */
+  startTime: string;
+  hours: number;
+  vehicleCount: number;
+  /** Sim-ms advanced per step. */
+  stepMs: number;
+  seed?: number;
+}
+
+export interface GenerateAcceptedResponse {
+  status: "generating";
+  jobId: string;
+}
+
+export interface GenerateStatus {
+  state: "idle" | "running" | "done" | "error";
+  jobId?: string;
+  step?: number;
+  totalSteps?: number;
+  pct?: number;
 }
 
 // ─── Scenarios ────────────────────────────────────────────────────

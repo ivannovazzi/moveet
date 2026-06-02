@@ -200,6 +200,15 @@ export interface RecordingHeader {
   startTime: string; // ISO 8601
   vehicleCount: number;
   options: StartOptions;
+  // ─── Optional fields for generated (headless) recordings ──────────
+  // Present only when the recording was produced by HeadlessRunner raw mode.
+  // Backward compatible: live recordings and existing files omit these.
+  /** True when this recording was generated headlessly (fast-forward), not live-captured. */
+  generated?: boolean;
+  /** Simulated milliseconds advanced per step (raw/generated recordings). */
+  stepMs?: number;
+  /** Sim RNG seed used for reproducibility (best-effort; see HeadlessRunner). */
+  seed?: number;
 }
 
 export interface RecordingEvent {

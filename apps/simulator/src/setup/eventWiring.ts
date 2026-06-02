@@ -8,6 +8,7 @@ import type { WebSocketBroadcaster } from "../modules/WebSocketBroadcaster";
 import type { GeoFenceManager } from "../modules/GeoFenceManager";
 import type { ScenarioManager } from "../modules/scenario";
 import type { StateStore } from "../modules/StateStore";
+import type { GenerationManager } from "../modules/GenerationManager";
 import type { VehicleDTO, RecordingMetadata } from "../types";
 import logger from "../utils/logger";
 
@@ -21,6 +22,7 @@ export interface EventWiringContext {
   broadcaster: WebSocketBroadcaster;
   geoFenceManager: GeoFenceManager;
   scenarioManager: ScenarioManager;
+  generationManager: GenerationManager;
   /** Optional — only present when PERSISTENCE_ENABLED=true */
   stateStore?: StateStore;
 }
@@ -47,6 +49,7 @@ export function wireEvents(ctx: EventWiringContext): {
     broadcaster,
     geoFenceManager,
     scenarioManager,
+    generationManager,
     stateStore,
   } = ctx;
 
@@ -127,6 +130,56 @@ export function wireEvents(ctx: EventWiringContext): {
       }
     });
   }
+
+  // ─── Headless generation events → stateStore + WS broadcaster ──────
+  generationManager.on("generate:progress", (data) => {
+    broadcaster.broadcast("generate:progress", data);
+  });
+
+  generationManager.on(
+    "generate:complete",
+    (payload: { jobId: string; metadata: RecordingMetadata }) => {
+      const { jobId, metadata } = payload;
+
+      // Persist metadata so the generated recording appears in /recordings, and
+      // build the same row shape /recordings returns for the WS payload.
+      let recording: Record<string, unknown> = {
+        filePath: metadata.filePath,
+        duration: metadata.duration,
+        eventCount: metadata.eventCount,
+        fileSize: metadata.fileSize,
+        vehicleCount: metadata.vehicleCount,
+        startTime: metadata.startTime,
+      };
+
+      if (stateStore) {
+        try {
+          stateStore.insertRecording(metadata);
+          const row = stateStore.getRecordingByPath(metadata.filePath);
+          if (row) {
+            recording = {
+              id: row.id,
+              filePath: row.file_path,
+              duration: row.duration,
+              eventCount: row.event_count,
+              fileSize: row.file_size,
+              vehicleCount: row.vehicle_count,
+              startTime: row.start_time,
+              createdAt: row.created_at,
+            };
+          }
+        } catch (err) {
+          logger.error(`Failed to persist generated recording metadata: ${err}`);
+        }
+      }
+
+      broadcaster.broadcast("generate:complete", { jobId, recording });
+    }
+  );
+
+  generationManager.on("generate:error", (data) => {
+    broadcaster.broadcast("generate:error", data);
+  });
 
   // ─── Replay events → WS broadcaster ────────────────────────────────
   simulationController.on("replayVehicle", (data) => {

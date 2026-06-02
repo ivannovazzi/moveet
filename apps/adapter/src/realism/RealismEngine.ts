@@ -14,6 +14,13 @@ export interface RealismEngineDeps {
   now?: () => number;
   rng?: () => number;
   config?: Record<string, unknown>;
+  /**
+   * Start the internal `setInterval` scheduler when the config is enabled
+   * (default `true`). Set `false` to drive {@link RealismEngine.tick} manually
+   * — e.g. the replay emitter walks a virtual clock and ticks by hand, so no
+   * wall-clock timer must run. Formalizes the seam the unit tests rely on.
+   */
+  autoStart?: boolean;
 }
 
 function sampleToUpdate(s: DegradedSample): VehicleUpdate {
@@ -57,7 +64,7 @@ export class RealismEngine {
     this.cfg = resolveRealismConfig(deps.config ?? {});
     this.rng = deps.rng ?? (this.cfg.seed != null ? mulberry32(this.cfg.seed) : Math.random);
     this.gaussian = makeGaussian(this.rng);
-    if (this.cfg.enabled) this.start();
+    if (this.cfg.enabled && deps.autoStart !== false) this.start();
   }
 
   getConfig(): RealismConfig {

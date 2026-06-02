@@ -63,6 +63,7 @@ describe("wireEvents", () => {
       broadcaster,
       geoFenceManager,
       scenarioManager: scenarioManager as unknown as EventWiringContext["scenarioManager"],
+      generationManager: createMockEmitter() as unknown as EventWiringContext["generationManager"],
     };
 
     result = wireEvents(ctx);

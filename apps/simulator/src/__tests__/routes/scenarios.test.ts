@@ -93,6 +93,7 @@ function createMockContext(
     recordingManager: {} as RouteContext["recordingManager"],
     simulationController: {} as RouteContext["simulationController"],
     scenarioManager: scenarioManager as unknown as RouteContext["scenarioManager"],
+    generationManager: {} as RouteContext["generationManager"],
   };
 }
 

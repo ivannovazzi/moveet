@@ -4,6 +4,7 @@ import path from "path";
 import os from "os";
 import { RecordingManager } from "../modules/RecordingManager";
 import { ReplayManager } from "../modules/ReplayManager";
+import { SimulationClock } from "../modules/SimulationClock";
 import type { StartOptions, VehicleDTO, RecordingHeader, RecordingEvent } from "../types";
 
 // ─── Helpers ────────────────────────────────────────────────────────
@@ -169,6 +170,117 @@ describe("RecordingManager", () => {
       const snap2Data = snap2.data as { vehicles: { id: string }[] };
       expect(snap2Data.vehicles.length).toBe(1);
       expect(snap2Data.vehicles[0].id).toBe("v1");
+    });
+  });
+
+  // ─── RAW mode (headless generation) ───────────────────────────
+
+  describe("raw mode (headless generation)", () => {
+    const SIM_START = new Date("2026-05-25T00:00:00.000Z");
+
+    function startRaw(filePath: string, clock: SimulationClock, vehicleCount = 2) {
+      rm.startRecording(defaultOptions, vehicleCount, filePath, {
+        startTime: SIM_START,
+        stepMs: 1000,
+        seed: 99,
+        clock,
+      });
+    }
+
+    it("writes a header back-dated to startTime with generated/stepMs/seed fields", () => {
+      const filePath = tmpFile("raw-header.ndjson");
+      const clock = new SimulationClock();
+      clock.setTime(SIM_START);
+      startRaw(filePath, clock);
+      rm.stopRecording();
+
+      const header = JSON.parse(
+        fs.readFileSync(filePath, "utf-8").trim().split("\n")[0]
+      ) as RecordingHeader;
+      expect(header.format).toBe("moveet-recording");
+      expect(header.version).toBe(1);
+      expect(header.startTime).toBe("2026-05-25T00:00:00.000Z");
+      expect(header.generated).toBe(true);
+      expect(header.stepMs).toBe(1000);
+      expect(header.seed).toBe(99);
+    });
+
+    it("stamps event timestamps as sim-clock-relative offsets (not Date.now()-relative)", () => {
+      const filePath = tmpFile("raw-ts.ndjson");
+      const clock = new SimulationClock();
+      clock.setTime(SIM_START);
+      startRaw(filePath, clock);
+
+      // Advance the sim clock and capture; offset must equal elapsed sim ms.
+      clock.tick(1000);
+      rm.captureVehicleSnapshot([makeVehicle("v1", 1, 1), makeVehicle("v2", 2, 2)]);
+      clock.tick(1000);
+      rm.captureVehicleSnapshot([makeVehicle("v1", 1, 1), makeVehicle("v2", 2, 2)]);
+      rm.stopRecording();
+
+      const events = fs
+        .readFileSync(filePath, "utf-8")
+        .trim()
+        .split("\n")
+        .slice(1)
+        .map((l) => JSON.parse(l) as RecordingEvent);
+
+      expect(events[0].timestamp).toBe(1000);
+      expect(events[1].timestamp).toBe(2000);
+      // header.startTime + offset reconstructs absolute sim time, back-dated.
+      const abs = SIM_START.getTime() + events[1].timestamp;
+      expect(new Date(abs).toISOString()).toBe("2026-05-25T00:00:02.000Z");
+    });
+
+    it("does NOT dedup: identical positions are captured every step", () => {
+      const filePath = tmpFile("raw-nodedup.ndjson");
+      const clock = new SimulationClock();
+      clock.setTime(SIM_START);
+      startRaw(filePath, clock);
+
+      const v1 = makeVehicle("v1", 45.5, -73.5);
+      const v2 = makeVehicle("v2", 45.6, -73.6);
+      clock.tick(1000);
+      rm.captureVehicleSnapshot([v1, v2]);
+      // identical positions next step — still captured (no dedup)
+      clock.tick(1000);
+      rm.captureVehicleSnapshot([v1, v2]);
+      rm.stopRecording();
+
+      const events = fs
+        .readFileSync(filePath, "utf-8")
+        .trim()
+        .split("\n")
+        .slice(1)
+        .map((l) => JSON.parse(l) as RecordingEvent);
+
+      expect(events).toHaveLength(2);
+      expect((events[0].data as { vehicles: unknown[] }).vehicles).toHaveLength(2);
+      expect((events[1].data as { vehicles: unknown[] }).vehicles).toHaveLength(2);
+    });
+
+    it("does not start a flush setInterval in raw mode", () => {
+      const filePath = tmpFile("raw-notimer.ndjson");
+      const clock = new SimulationClock();
+      clock.setTime(SIM_START);
+      const spy = vi.spyOn(global, "setInterval");
+      startRaw(filePath, clock);
+      rm.stopRecording();
+      expect(spy).not.toHaveBeenCalled();
+      spy.mockRestore();
+    });
+
+    it("reports duration as the simulated span and the recording stays parseable", () => {
+      const filePath = tmpFile("raw-duration.ndjson");
+      const clock = new SimulationClock();
+      clock.setTime(SIM_START);
+      startRaw(filePath, clock);
+      clock.tick(3000);
+      rm.captureVehicleSnapshot([makeVehicle("v1", 1, 1)]);
+      const metadata = rm.stopRecording();
+
+      expect(metadata.duration).toBe(3000);
+      expect(metadata.startTime).toBe("2026-05-25T00:00:00.000Z");
     });
   });
 

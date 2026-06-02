@@ -60,6 +60,8 @@ function createMockContext(): RouteContext {
       ]),
     } as unknown as RouteContext["simulationController"],
     scenarioManager: {} as RouteContext["scenarioManager"],
+
+    generationManager: {} as RouteContext["generationManager"],
   };
 }
 

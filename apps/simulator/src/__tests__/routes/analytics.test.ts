@@ -66,6 +66,8 @@ function createMockContext(opts: { withStateStore?: boolean } = {}): RouteContex
     recordingManager: {} as RouteContext["recordingManager"],
     simulationController: {} as RouteContext["simulationController"],
     scenarioManager: {} as RouteContext["scenarioManager"],
+
+    generationManager: {} as RouteContext["generationManager"],
   };
 }
 

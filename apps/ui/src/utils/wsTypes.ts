@@ -10,6 +10,7 @@ import type {
   ClockState,
   TrafficEdge,
   ScenarioEventPayload,
+  RecordingFile,
 } from "@/types";
 import type { GeoFenceEvent } from "@moveet/shared-types";
 import type { AnalyticsSnapshot } from "@/hooks/analyticsStore";
@@ -40,6 +41,23 @@ export interface VehicleReroutedPayload {
   incidentId: string;
 }
 
+export interface GenerateProgressPayload {
+  jobId: string;
+  step: number;
+  totalSteps: number;
+  pct: number;
+}
+
+export interface GenerateCompletePayload {
+  jobId: string;
+  recording: RecordingFile;
+}
+
+export interface GenerateErrorPayload {
+  jobId: string;
+  error: string;
+}
+
 // Discriminated union for WebSocket messages
 export type WebSocketMessage =
   | { type: "connect" }
@@ -60,6 +78,9 @@ export type WebSocketMessage =
   | { type: "incident:cleared"; data: IncidentClearedPayload }
   | { type: "vehicle:rerouted"; data: VehicleReroutedPayload }
   | { type: "replay:status"; data: ReplayStatus }
+  | { type: "generate:progress"; data: GenerateProgressPayload }
+  | { type: "generate:complete"; data: GenerateCompletePayload }
+  | { type: "generate:error"; data: GenerateErrorPayload }
   | { type: "clock"; data: ClockState }
   | { type: "traffic"; data: TrafficEdge[] }
   | { type: "analytics"; data: AnalyticsSnapshot }
@@ -103,6 +124,9 @@ export function isValidMessage(msg: unknown): msg is WebSocketMessage {
     case "incident:cleared":
     case "vehicle:rerouted":
     case "replay:status":
+    case "generate:progress":
+    case "generate:complete":
+    case "generate:error":
     case "clock":
     case "traffic":
     case "analytics":

@@ -8,9 +8,12 @@
 # @moveet/eslint-config) referenced as "*". Building from the repo root with
 # `npm ci` resolves them locally via npm workspaces.
 #
-# The simulator/adapter run from source via `tsx` (as in `npm run dev`): their
-# tsc output emits extensionless ESM imports that plain `node dist/...` can't
-# resolve, so running the TypeScript directly is both simpler and correct.
+# The simulator/adapter are bundled with esbuild into a single ESM file each
+# (deps kept external) and run on plain `node dist/...`. Bundling sidesteps the
+# extensionless-ESM imports that tsc emits under moduleResolution "bundler"
+# (which plain node can't resolve) without shipping a TS runtime. The simulator
+# also bundles its pathfinding worker into dist/workers (PathfindingPool resolves
+# the bundled path).
 #
 # Targets: `simulator`, `adapter`, `ui`. See docker-compose.yml.
 
@@ -30,20 +33,31 @@ RUN npm ci
 FROM deps AS source
 COPY . .
 
-# ── simulator runtime (tsx) ─────────────────────────────────────────────────
+# ── simulator runtime (bundled, plain node) ─────────────────────────────────
 FROM source AS simulator
+# Bundle the server and the pathfinding worker (preserving the workers/ subdir).
+RUN node_modules/.bin/esbuild \
+      apps/simulator/src/index.ts \
+      apps/simulator/src/workers/pathfinding-worker.ts \
+      --bundle --platform=node --format=esm --target=node24 --packages=external \
+      --outdir=apps/simulator/dist --outbase=apps/simulator/src
 ENV NODE_ENV=production \
     PORT=3000 \
     GEOJSON_PATH=/data/network.geojson
 EXPOSE 3000
-CMD ["node", "--import", "tsx", "apps/simulator/src/index.ts"]
+WORKDIR /repo/apps/simulator
+CMD ["node", "dist/index.js"]
 
-# ── adapter runtime (tsx) ───────────────────────────────────────────────────
+# ── adapter runtime (bundled, plain node) ───────────────────────────────────
 FROM source AS adapter
+RUN node_modules/.bin/esbuild apps/adapter/src/index.ts \
+      --bundle --platform=node --format=esm --target=node24 --packages=external \
+      --outfile=apps/adapter/dist/index.js
 ENV NODE_ENV=production \
     PORT=5011
 EXPOSE 5011
-CMD ["node", "--import", "tsx", "apps/adapter/src/index.ts"]
+WORKDIR /repo/apps/adapter
+CMD ["node", "dist/index.js"]
 
 # ── ui: static SPA built by vite, served by Caddy ───────────────────────────
 # VITE_* vars are baked at build with localhost defaults; the browser reaches
