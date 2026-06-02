@@ -39,9 +39,12 @@ services:
       SINK_TYPES: redpanda,console
       SINK_CONSOLE_CONFIG: '{"verbose":false}'
       # Publishes the engine's pure-GPS schema to its input topic on the shared
-      # broker. fanOut emits one message per device in metadata.devices[], all at
-      # the vehicle's shared position, keyed by the real deviceId (device.id).
-      SINK_REDPANDA_CONFIG: '{"brokers":"suite_redpanda:9092","topic":"trajectory.telemetry.raw","keyField":"device.id","defaultAltitude":1650,"defaultAccuracy":5,"fanOut":"metadata.devices","payloadTemplate":{"ts":"ts","deviceId":"device.id","deviceType":"device.deviceType","lat":"lat","lon":"lon","speed":"speed","heading":"heading","altitude":"altitude","accuracy":"accuracy","ignition":"ignition"}}'
+      # broker. One message per simulated vehicle, keyed by the vehicle id (used
+      # as deviceId). NOTE: no fanOut — generated/recorded simulations have no
+      # metadata.devices, so each vehicle IS the device. For the REAL multi-device
+      # fleet, switch to: "keyField":"device.id","fanOut":"metadata.devices" and a
+      # payloadTemplate sourcing deviceId/deviceType from device.*.
+      SINK_REDPANDA_CONFIG: '{"brokers":"suite_redpanda:9092","topic":"trajectory.telemetry.raw","keyField":"id","defaultAltitude":1650,"defaultAccuracy":5,"payloadTemplate":{"ts":"ts","deviceId":"id","lat":"lat","lon":"lon","speed":"speed","heading":"heading","altitude":"altitude","accuracy":"accuracy","ignition":"ignition"}}'
       # Telemetry realism (off by default): correlated GPS noise + connectivity
       # dropouts (store-and-forward) + jittered cadence, applied to all sinks.
       # REALISM_CONFIG: '{"enabled":true,"reportingPeriodMs":5000,"jitterMs":800}'
