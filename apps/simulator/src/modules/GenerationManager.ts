@@ -23,6 +23,8 @@ export interface GenerateJobParams {
   stepMs: number;
   /** Sim RNG seed for reproducibility. */
   seed?: number;
+  /** Road network GeoJSON path; defaults to the configured network. */
+  geojsonPath?: string;
 }
 
 /** Snapshot returned by {@link GenerationManager.getStatus}. */
@@ -99,7 +101,7 @@ export class GenerationManager extends EventEmitter {
     );
 
     const runner = new HeadlessRunner({
-      geojsonPath: config.geojsonPath,
+      geojsonPath: params.geojsonPath ?? config.geojsonPath,
       vehicles: params.vehicleCount,
       simStart: params.startTime,
       stepMs,

@@ -4,6 +4,8 @@ import path from "path";
 import { GenerationManager } from "../modules/GenerationManager";
 import type { RecordingMetadata, RecordingHeader } from "../types";
 
+const FIXTURE_PATH = path.join(__dirname, "fixtures", "test-network.geojson");
+
 /**
  * The GenerationManager drives the real HeadlessRunner, which writes into the
  * recordings/ dir (resolved from cwd). These tests run a tiny generation and
@@ -50,6 +52,7 @@ describe("GenerationManager", () => {
       vehicleCount: 2,
       stepMs: 1000,
       seed: 1,
+      geojsonPath: FIXTURE_PATH,
     });
 
     expect(jobId).toBeTruthy();
@@ -81,6 +84,7 @@ describe("GenerationManager", () => {
       steps: 5,
       vehicleCount: 2,
       stepMs: 1000,
+      geojsonPath: FIXTURE_PATH,
     });
     expect(first).toBeTruthy();
 
@@ -90,6 +94,7 @@ describe("GenerationManager", () => {
       steps: 5,
       vehicleCount: 2,
       stepMs: 1000,
+      geojsonPath: FIXTURE_PATH,
     });
     expect(second).toBeNull();
 
