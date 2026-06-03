@@ -39,7 +39,7 @@
     "@testing-library/dom": "^10.4.1",
     "classnames": "^2.5.1",
     "react": "^19.2.4",
-    "react-aria-components": "^1.16.0",
+    "react-aria-components": "^1.18.0",
     "react-dom": "^19.2.4",
     "the-new-css-reset": "^1.11.3"
   },
