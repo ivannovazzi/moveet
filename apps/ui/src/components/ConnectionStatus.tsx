@@ -1,6 +1,5 @@
-import classNames from "classnames";
+import { cn } from "@/lib/utils";
 import type { ConnectionStateInfo } from "@/utils/wsClient";
-import styles from "./ConnectionStatus.module.css";
 
 interface ConnectionStatusProps {
   connectionInfo: ConnectionStateInfo;
@@ -15,10 +14,10 @@ export default function ConnectionStatus({ connectionInfo }: ConnectionStatusPro
 
   return (
     <div
-      className={classNames(styles.banner, {
-        [styles.reconnecting]: isReconnecting,
-        [styles.disconnected]: !isReconnecting,
-      })}
+      className={cn(
+        "absolute inset-x-0 top-0 z-50 px-6 py-3 text-center text-sm font-medium tracking-wide text-background",
+        isReconnecting ? "bg-status-warn" : "bg-status-error"
+      )}
       role="alert"
       data-testid="connection-status"
     >

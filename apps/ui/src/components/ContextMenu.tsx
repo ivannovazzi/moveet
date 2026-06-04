@@ -1,7 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { FocusScope } from "@react-aria/focus";
-import styles from "./ContextMenu.module.css";
 
 export default function ContextMenu({
   position,
@@ -30,6 +28,37 @@ export default function ContextMenu({
     setAdjustedPosition(adjusted);
   }, [position]);
 
+  const getFocusable = () =>
+    Array.from(
+      menuRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      ) ?? []
+    );
+
+  // Move focus to the first focusable element on open
+  useEffect(() => {
+    if (!position) return;
+    const focusable = getFocusable();
+    (focusable[0] ?? menuRef.current)?.focus();
+  }, [position]);
+
+  // Trap Tab focus within the menu (wrap at both ends)
+  const handleTabKey = (e: React.KeyboardEvent) => {
+    if (e.key !== "Tab") return;
+    const focusable = getFocusable();
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = document.activeElement;
+    if (e.shiftKey && active === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && active === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+
   // Close on outside click
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -56,22 +85,22 @@ export default function ContextMenu({
   if (!position) return null;
 
   return createPortal(
-    <FocusScope autoFocus contain restoreFocus>
-      <div
-        ref={menuRef}
-        role="menu"
-        aria-label="Context menu"
-        className={styles.menu}
-        style={{
-          position: "fixed",
-          top: adjustedPosition.y,
-          left: adjustedPosition.x,
-          zIndex: 1000,
-        }}
-      >
-        {children}
-      </div>
-    </FocusScope>,
+    <div
+      ref={menuRef}
+      role="menu"
+      aria-label="Context menu"
+      tabIndex={-1}
+      onKeyDown={handleTabKey}
+      className="flex min-w-[180px] flex-col gap-1 rounded-md border border-border bg-popover p-2 text-sm text-popover-foreground shadow-md outline-none backdrop-blur-md"
+      style={{
+        position: "fixed",
+        top: adjustedPosition.y,
+        left: adjustedPosition.x,
+        zIndex: 1000,
+      }}
+    >
+      {children}
+    </div>,
     document.body
   );
 }

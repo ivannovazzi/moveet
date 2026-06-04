@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { IncidentDTO, IncidentType } from "@/types";
 import { Switch, SquaredButton } from "@/components/Inputs";
 import { PanelBadge, PanelBody, PanelEmptyState, PanelHeader } from "./PanelPrimitives";
-import styles from "./Incidents.module.css";
 
 interface IncidentsProps {
   incidents: IncidentDTO[];
@@ -72,15 +71,15 @@ export default function Incidents({ incidents, createRandom, remove }: Incidents
         badge={<PanelBadge>{incidents.length}</PanelBadge>}
       />
 
-      <PanelBody className={styles.body}>
-        <div className={styles.controlRow}>
-          <label className={styles.autoLabel}>
+      <PanelBody className="gap-3">
+        <div className="flex items-center justify-between">
+          <label className="inline-flex cursor-pointer items-center gap-2">
             <Switch
               isSelected={autoGenerate}
               onChange={toggleAutoGenerate}
               aria-label="Auto-generate incidents"
             />
-            <span className={styles.autoText}>Auto</span>
+            <span className="text-xs uppercase tracking-wide text-muted-foreground">Auto</span>
           </label>
           <SquaredButton
             icon={<span aria-hidden="true">+</span>}
@@ -92,32 +91,35 @@ export default function Incidents({ incidents, createRandom, remove }: Incidents
         </div>
         {incidents.length === 0 ? <PanelEmptyState>No active incidents</PanelEmptyState> : null}
 
-        <div className={styles.list}>
+        <div className="flex flex-col gap-2">
           {incidents.map((incident) => (
-            <div key={incident.id} className={styles.incident}>
+            <div
+              key={incident.id}
+              className="flex items-center gap-3 rounded-md border border-border bg-card p-3 transition-colors hover:bg-accent/10"
+            >
               <span
-                className={styles.indicator}
+                className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
                 style={{ backgroundColor: INCIDENT_COLORS[incident.type] }}
               />
-              <div className={styles.info}>
-                <span className={styles.typeLabel}>{incident.type}</span>
-                <div className={styles.meta}>
-                  <div className={styles.severityBar}>
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <span className="text-sm capitalize text-foreground">{incident.type}</span>
+                <div className="flex items-center gap-3">
+                  <div className="h-1 w-12 flex-shrink-0 overflow-hidden rounded-sm bg-muted">
                     <div
-                      className={styles.severityFill}
+                      className="h-full rounded-sm transition-[width]"
                       style={{
                         width: `${(incident.severity ?? 0) * 100}%`,
                         backgroundColor: INCIDENT_COLORS[incident.type],
                       }}
                     />
                   </div>
-                  <span className={styles.timeRemaining}>
+                  <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
                     {formatTimeRemaining(incident.expiresAt)}
                   </span>
                 </div>
               </div>
               <SquaredButton
-                className={styles.removeButton}
+                className="flex-shrink-0"
                 icon={<span aria-hidden="true">×</span>}
                 variant="ghost"
                 tone="danger"

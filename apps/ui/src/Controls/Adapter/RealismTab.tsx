@@ -1,6 +1,5 @@
 import type { ConfigResponse } from "./adapterClient";
 import ConfigForm from "./ConfigForm";
-import styles from "./AdapterDrawer.module.css";
 
 interface RealismTabProps {
   config: ConfigResponse | null;
@@ -12,46 +11,45 @@ export default function RealismTab({ config, loading, onSetRealism }: RealismTab
   const realism = config?.realism;
   if (!realism) {
     return (
-      <div className={styles.tabContent}>
-        <section className={styles.emptyState}>Realism unavailable</section>
+      <div className="flex flex-col gap-3">
+        <section className="rounded-md border border-dashed border-border bg-muted/40 p-4 text-center text-sm text-muted-foreground">
+          Realism unavailable
+        </section>
       </div>
     );
   }
   const s = realism.status;
+  const rows: Array<[string, number]> = [
+    ["devices", s.devices],
+    ["connected", s.connected],
+    ["degraded", s.degraded],
+    ["disconnected", s.disconnected],
+    ["buffered", s.buffered],
+  ];
   return (
-    <div className={styles.tabContent}>
-      <section className={styles.sectionCard}>
-        <div className={styles.sectionHeading}>
-          <span className={styles.sectionLabel}>Live status</span>
-          <span className={styles.statusText}>{s.enabled ? "Active" : "Off"}</span>
+    <div className="flex flex-col gap-3">
+      <section className="flex flex-col gap-2 rounded-md border border-border bg-card p-3">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+            Live status
+          </span>
+          <span className="text-sm text-muted-foreground">{s.enabled ? "Active" : "Off"}</span>
         </div>
-        <dl className={styles.sinkConfigSummary}>
-          <div className={styles.sinkConfigRow}>
-            <dt className={styles.sinkConfigKey}>devices</dt>
-            <dd className={styles.sinkConfigVal}>{s.devices}</dd>
-          </div>
-          <div className={styles.sinkConfigRow}>
-            <dt className={styles.sinkConfigKey}>connected</dt>
-            <dd className={styles.sinkConfigVal}>{s.connected}</dd>
-          </div>
-          <div className={styles.sinkConfigRow}>
-            <dt className={styles.sinkConfigKey}>degraded</dt>
-            <dd className={styles.sinkConfigVal}>{s.degraded}</dd>
-          </div>
-          <div className={styles.sinkConfigRow}>
-            <dt className={styles.sinkConfigKey}>disconnected</dt>
-            <dd className={styles.sinkConfigVal}>{s.disconnected}</dd>
-          </div>
-          <div className={styles.sinkConfigRow}>
-            <dt className={styles.sinkConfigKey}>buffered</dt>
-            <dd className={styles.sinkConfigVal}>{s.buffered}</dd>
-          </div>
+        <dl className="flex flex-col gap-1 text-sm">
+          {rows.map(([key, value]) => (
+            <div key={key} className="flex items-center justify-between gap-2">
+              <dt className="text-muted-foreground">{key}</dt>
+              <dd className="text-foreground">{value}</dd>
+            </div>
+          ))}
         </dl>
       </section>
-      <section className={styles.sectionCard}>
-        <div className={styles.sectionHeading}>
-          <span className={styles.sectionLabel}>Configuration</span>
-          <span className={styles.fieldHint}>Applied live to all sinks.</span>
+      <section className="flex flex-col gap-2 rounded-md border border-border bg-card p-3">
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+            Configuration
+          </span>
+          <span className="text-xs text-muted-foreground">Applied live to all sinks.</span>
         </div>
         <ConfigForm
           key="realism"

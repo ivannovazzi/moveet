@@ -24,6 +24,7 @@ export function Range({ label, value, min = 0, max = 100, step = 1, onChange }: 
         min={min}
         max={max}
         step={step}
+        aria-label={label}
         onValueChange={([v]) => onChange(v)}
       />
     </div>

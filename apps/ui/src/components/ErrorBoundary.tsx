@@ -1,6 +1,6 @@
 import type { ErrorInfo, ReactNode } from "react";
 import { Component } from "react";
-import styles from "./ErrorBoundary.module.css";
+import { Button } from "@/components/ui/button";
 
 interface Props {
   children: ReactNode;
@@ -41,14 +41,12 @@ class ErrorBoundary extends Component<Props, State> {
 
       // Default fallback UI
       return (
-        <div className={styles.container}>
-          <h1 className={styles.title}>Something went wrong</h1>
-          <p className={styles.message}>
+        <div className="flex h-screen flex-col items-center justify-center gap-4 bg-background p-8 text-center text-foreground">
+          <h1 className="text-2xl font-semibold">Something went wrong</h1>
+          <p className="text-muted-foreground">
             {this.state.error?.message || "An unexpected error occurred"}
           </p>
-          <button onClick={() => window.location.reload()} className={styles.reloadButton}>
-            Reload Page
-          </button>
+          <Button onClick={() => window.location.reload()}>Reload Page</Button>
         </div>
       );
     }
@@ -63,9 +61,12 @@ class ErrorBoundary extends Component<Props, State> {
  */
 export function SectionErrorFallback({ section }: { section: string }) {
   return (
-    <div className={styles.sectionFallback} role="alert">
-      <p className={styles.sectionTitle}>{section} failed to load</p>
-      <p className={styles.sectionHint}>
+    <div
+      className="flex min-h-0 flex-1 flex-col items-center justify-center p-6 text-center text-muted-foreground"
+      role="alert"
+    >
+      <p className="mb-2 text-base font-semibold text-foreground">{section} failed to load</p>
+      <p className="text-sm">
         Try reloading the page. If the problem persists, check the browser console.
       </p>
     </div>

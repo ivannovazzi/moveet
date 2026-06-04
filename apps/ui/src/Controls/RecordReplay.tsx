@@ -7,9 +7,10 @@ import {
   PanelHeader,
   PanelSectionLabel,
 } from "./PanelPrimitives";
-import styles from "./RecordReplay.module.css";
-import { Button } from "react-aria-components";
-import classNames from "classnames";
+import { Button } from "@/components/Inputs";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/Inputs";
+import { cn } from "@/lib/utils";
 import client from "@/utils/client";
 import {
   emitRecording,
@@ -75,6 +76,9 @@ interface GenerateProgress {
   totalSteps: number;
   pct: number;
 }
+
+const fieldLabelClass = "text-xs text-muted-foreground";
+const fieldClass = "flex min-w-0 flex-1 flex-col gap-1";
 
 export default function RecordReplay({
   recordings,
@@ -192,40 +196,40 @@ export default function RecordReplay({
         badge={<PanelBadge>{playableRecordings.length}</PanelBadge>}
       />
 
-      <PanelBody className={styles.body}>
+      <PanelBody className="gap-4">
         {/* ── Generate historical ── */}
         <PanelSectionLabel>Generate historical</PanelSectionLabel>
-        <div className={styles.generateForm}>
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>Start</span>
-            <input
+        <div className="flex flex-col gap-3 rounded-md border border-border bg-card p-3">
+          <label className={fieldClass}>
+            <span className={fieldLabelClass}>Start</span>
+            <Input
               type="datetime-local"
-              className={styles.input}
+              className="h-8 text-sm"
               value={startLocal}
               onChange={(e) => setStartLocal(e.target.value)}
               disabled={generating}
               aria-label="Start date and time"
             />
           </label>
-          <div className={styles.fieldRow}>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Hours</span>
-              <input
+          <div className="flex gap-3">
+            <label className={fieldClass}>
+              <span className={fieldLabelClass}>Hours</span>
+              <Input
                 type="number"
                 min={1}
-                className={styles.input}
+                className="h-8 text-sm"
                 value={hours}
                 onChange={(e) => setHours(Number(e.target.value))}
                 disabled={generating}
                 aria-label="Duration in hours"
               />
             </label>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Vehicles</span>
-              <input
+            <label className={fieldClass}>
+              <span className={fieldLabelClass}>Vehicles</span>
+              <Input
                 type="number"
                 min={1}
-                className={styles.input}
+                className="h-8 text-sm"
                 value={vehicleCount}
                 onChange={(e) => setVehicleCount(Number(e.target.value))}
                 disabled={generating}
@@ -233,25 +237,25 @@ export default function RecordReplay({
               />
             </label>
           </div>
-          <div className={styles.fieldRow}>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Step (s)</span>
-              <input
+          <div className="flex gap-3">
+            <label className={fieldClass}>
+              <span className={fieldLabelClass}>Step (s)</span>
+              <Input
                 type="number"
                 min={0.1}
                 step={0.1}
-                className={styles.input}
+                className="h-8 text-sm"
                 value={stepSeconds}
                 onChange={(e) => setStepSeconds(Number(e.target.value))}
                 disabled={generating}
                 aria-label="Step seconds"
               />
             </label>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>Seed</span>
-              <input
+            <label className={fieldClass}>
+              <span className={fieldLabelClass}>Seed</span>
+              <Input
                 type="number"
-                className={styles.input}
+                className="h-8 text-sm"
                 value={seed}
                 onChange={(e) => setSeed(e.target.value)}
                 disabled={generating}
@@ -261,8 +265,8 @@ export default function RecordReplay({
             </label>
           </div>
           <Button
-            className={styles.generateButton}
-            onPress={handleGenerate}
+            size="sm"
+            onClick={handleGenerate}
             isDisabled={generating}
             aria-label="Generate historical recording"
           >
@@ -270,66 +274,73 @@ export default function RecordReplay({
           </Button>
 
           {generating && (
-            <div className={styles.progressSection}>
-              <div className={styles.progressLabel}>
+            <div className="flex flex-col gap-1">
+              <div className="flex justify-between text-xs tabular-nums text-muted-foreground">
                 <span>
                   {progress ? `Step ${progress.step} / ${progress.totalSteps}` : "Starting…"}
                 </span>
                 <span>{Math.round(genPct)}%</span>
               </div>
               <div
-                className={styles.progressBar}
+                className="h-1 overflow-hidden rounded-full bg-muted"
                 role="progressbar"
                 aria-valuenow={Math.round(genPct)}
               >
-                <div className={styles.progressFill} style={{ width: `${genPct}%` }} />
+                <div
+                  className="h-full bg-accent transition-[width]"
+                  style={{ width: `${genPct}%` }}
+                />
               </div>
             </div>
           )}
 
-          {generateError && <div className={styles.errorText}>{generateError}</div>}
+          {generateError && <div className="text-xs text-status-error">{generateError}</div>}
         </div>
 
         {/* ── Saved recordings ── */}
-        <div className={styles.listHeader}>
+        <div className="flex items-center">
           <PanelSectionLabel>Saved</PanelSectionLabel>
         </div>
 
         {playableRecordings.length === 0 ? (
           <PanelEmptyState>No recordings yet</PanelEmptyState>
         ) : (
-          <div className={styles.recordingList}>
+          <div className="flex flex-col gap-2">
             {playableRecordings.map((file) => {
               const isActive = isReplayMode && activeFile === file.fileName;
 
               return (
                 <div
                   key={file.fileName}
-                  className={classNames(styles.recordingItem, {
-                    [styles.recordingItemActive]: isActive,
-                  })}
+                  className={cn(
+                    "flex flex-col gap-2 rounded-md border border-border bg-card p-3 transition-colors hover:border-border/80",
+                    isActive && "border-accent/25 bg-accent/10 hover:border-accent/25"
+                  )}
                 >
-                  <Button
-                    className={styles.recordingPlay}
-                    onPress={() => !isActive && onStartReplay(file.fileName, 1)}
-                    isDisabled={isActive}
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-3 text-left disabled:cursor-default"
+                    onClick={() => !isActive && onStartReplay(file.fileName, 1)}
+                    disabled={isActive}
                     aria-label={`Play recording ${formatLabel(file)}`}
                   >
-                    <div className={styles.recordingInfo}>
-                      <div className={styles.recordingName} title={file.fileName}>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm text-foreground" title={file.fileName}>
                         {formatLabel(file)}
                       </div>
-                      <div className={styles.recordingMeta}>
+                      <div className="mt-1 flex gap-3 text-xs text-muted-foreground">
                         <span>{formatFileSize(file.fileSize)}</span>
-                        {file.generated && <span className={styles.generatedTag}>generated</span>}
+                        {file.generated && (
+                          <span className="uppercase tracking-wide text-accent">generated</span>
+                        )}
                         {isActive && (
-                          <span className={styles.playingLabel}>
+                          <span className="font-medium text-accent">
                             {isPaused ? "Paused" : "Playing"}
                           </span>
                         )}
                       </div>
                     </div>
-                  </Button>
+                  </button>
                   <EmitControl recording={file} />
                 </div>
               );
@@ -412,20 +423,19 @@ function EmitControl({ recording }: EmitControlProps) {
   const canEmit = recording.id != null;
 
   return (
-    <div className={styles.emitControl}>
-      <label className={styles.emitToggle}>
-        <input
-          type="checkbox"
-          checked={realism}
-          onChange={(e) => setRealism(e.target.checked)}
-          disabled={emitting}
+    <div className="flex w-full flex-col gap-2 border-t border-border/60 pt-2">
+      <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+        <Switch
+          isSelected={realism}
+          onChange={setRealism}
+          isDisabled={emitting}
           aria-label="Realism"
         />
         <span>Realism</span>
       </label>
       <Button
-        className={styles.emitButton}
-        onPress={handleEmit}
+        size="sm"
+        onClick={handleEmit}
         isDisabled={emitting || !canEmit}
         aria-label={`Emit recording ${recording.fileName} to sinks`}
       >
@@ -433,8 +443,8 @@ function EmitControl({ recording }: EmitControlProps) {
       </Button>
 
       {emitting && (
-        <div className={styles.progressSection}>
-          <div className={styles.progressLabel}>
+        <div className="flex flex-col gap-1">
+          <div className="flex justify-between text-xs tabular-nums text-muted-foreground">
             <span>
               {status?.total != null
                 ? `${status.emitted} / ${status.total}`
@@ -442,16 +452,20 @@ function EmitControl({ recording }: EmitControlProps) {
             </span>
             <span>{Math.round(pct)}%</span>
           </div>
-          <div className={styles.progressBar} role="progressbar" aria-valuenow={Math.round(pct)}>
-            <div className={styles.progressFill} style={{ width: `${pct}%` }} />
+          <div
+            className="h-1 overflow-hidden rounded-full bg-muted"
+            role="progressbar"
+            aria-valuenow={Math.round(pct)}
+          >
+            <div className="h-full bg-accent transition-[width]" style={{ width: `${pct}%` }} />
           </div>
         </div>
       )}
 
       {status?.state === "done" && !emitting && (
-        <div className={styles.emitDone}>Emitted {status.emitted} fixes</div>
+        <div className="text-xs text-muted-foreground">Emitted {status.emitted} fixes</div>
       )}
-      {error && <div className={styles.errorText}>{error}</div>}
+      {error && <div className="text-xs text-status-error">{error}</div>}
     </div>
   );
 }

@@ -1,12 +1,11 @@
-import classNames from "classnames";
+import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import type { Fleet, Vehicle, DispatchAssignment, DirectionResult } from "@/types";
 import { DispatchState } from "@/hooks/useDispatchState";
 import { useDirectionContext } from "@/data/useData";
 import { PanelBadge, PanelBody, PanelEmptyState, PanelHeader } from "./PanelPrimitives";
-import styles from "./Vehicles.module.css";
 import { Search } from "@/components/Icons";
-import { SearchField, Input, Button } from "react-aria-components";
+import { Input } from "@/components/ui/input";
 
 const INITIAL_VISIBLE = 50;
 const LOAD_MORE_COUNT = 50;
@@ -14,7 +13,12 @@ const LOAD_MORE_COUNT = 50;
 function SpeedBar({ speed, maxSpeed }: { speed: number; maxSpeed: number }) {
   const width = maxSpeed > 0 ? Math.min((speed / maxSpeed) * 100, 100) : 0;
 
-  return <div className={styles.speedBar} style={{ width: `${width}%` }} />;
+  return (
+    <div
+      className="col-span-full h-[3px] rounded-r-full bg-gradient-to-r from-orange-500/60 via-yellow-400/65 to-status-ok/70 transition-[width] duration-700"
+      style={{ width: `${width}%`, gridArea: "bar" }}
+    />
+  );
 }
 
 interface VehicleListProps {
@@ -47,7 +51,7 @@ const VEHICLE_TYPE_LABELS: Record<string, string> = {
 function WaypointBadge({ assignment }: { assignment: DispatchAssignment }) {
   const count = assignment.waypoints.length;
   return (
-    <span className={styles.waypointBadge}>
+    <span className="inline-flex items-center whitespace-nowrap rounded-full border border-accent/20 bg-accent/10 px-2 py-px text-xs font-medium leading-snug text-accent">
       {count} {count === 1 ? "stop" : "stops"}
     </span>
   );
@@ -56,9 +60,14 @@ function WaypointBadge({ assignment }: { assignment: DispatchAssignment }) {
 function ResultBadge({ result }: { result: DirectionResult }) {
   if (result.status === "error") {
     return (
-      <span className={classNames(styles.resultBadge, styles.resultBadgeError)}>No route</span>
+      <span className="inline-flex items-center whitespace-nowrap text-xs font-medium leading-snug text-status-error">
+        No route
+      </span>
     );
   }
+
+  const okClass =
+    "inline-flex items-center whitespace-nowrap text-xs font-medium leading-snug text-status-ok";
 
   // Multi-stop result
   if (result.waypointCount && result.waypointCount > 1) {
@@ -66,7 +75,7 @@ function ResultBadge({ result }: { result: DirectionResult }) {
       ? result.legs.reduce((sum, leg) => sum + leg.distance, 0)
       : (result.route?.distance ?? 0);
     return (
-      <span className={classNames(styles.resultBadge, styles.resultBadgeOk)}>
+      <span className={okClass}>
         {result.waypointCount} stops, {totalDistance.toFixed(1)} km
       </span>
     );
@@ -74,15 +83,11 @@ function ResultBadge({ result }: { result: DirectionResult }) {
 
   // Single-stop with ETA
   if (result.eta !== undefined) {
-    return (
-      <span className={classNames(styles.resultBadge, styles.resultBadgeOk)}>
-        ETA {Math.round(result.eta)}s
-      </span>
-    );
+    return <span className={okClass}>ETA {Math.round(result.eta)}s</span>;
   }
 
   // OK without ETA
-  return <span className={classNames(styles.resultBadge, styles.resultBadgeOk)}>Dispatched</span>;
+  return <span className={okClass}>Dispatched</span>;
 }
 
 export default function VehicleList({
@@ -130,23 +135,32 @@ export default function VehicleList({
 
       <PanelBody
         padded={false}
-        className={classNames(styles.vehicles, { [styles.dimmed]: isDispatch })}
+        className={cn("gap-3 p-4", isDispatch && "pointer-events-none opacity-60")}
       >
-        <SearchField
-          value={filter}
-          onChange={onFilterChange}
-          onClear={() => onFilterChange("")}
-          className={styles.filterInputWrapper}
-          aria-label="Search vehicles"
-        >
-          <Search className={styles.filterIcon} aria-hidden="true" />
-          <Input placeholder="Search vehicles…" className={styles.filterInput} />
+        <div className="relative flex items-center">
+          <Search
+            className="pointer-events-none absolute left-3 size-4 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <Input
+            type="text"
+            value={filter}
+            onChange={(e) => onFilterChange(e.target.value)}
+            placeholder="Search vehicles…"
+            className="pl-9 pr-10"
+            aria-label="Search vehicles"
+          />
           {filter && (
-            <Button slot="clear" className={styles.filterClear} aria-label="Clear search">
+            <button
+              type="button"
+              onClick={() => onFilterChange("")}
+              className="absolute right-2 flex size-6 items-center justify-center rounded-md border border-transparent bg-accent/50 text-base leading-none text-muted-foreground transition-colors hover:border-border hover:bg-accent hover:text-foreground"
+              aria-label="Clear search"
+            >
               ×
-            </Button>
+            </button>
           )}
-        </SearchField>
+        </div>
         {visibleVehicles.length === 0 ? (
           <PanelEmptyState>
             {filter ? `No vehicles match "${filter}"` : "No vehicles"}
@@ -158,6 +172,8 @@ export default function VehicleList({
             const isChecked = selectedForDispatch?.includes(vehicle.id) ?? false;
             const assignment = assignments?.find((a) => a.vehicleId === vehicle.id);
             const result = results?.find((r) => r.vehicleId === vehicle.id);
+            const isSelected = !showCheckbox && !isResults && vehicle.selected;
+            const isDispatchSelected = showCheckbox && isChecked;
 
             const handleClick = () => {
               if (showCheckbox && onToggleVehicleForDispatch) {
@@ -170,10 +186,16 @@ export default function VehicleList({
             return (
               <button
                 key={vehicle.id}
-                className={classNames(styles.vehicle, {
-                  [styles.selected]: !showCheckbox && !isResults && vehicle.selected,
-                  [styles.dispatchSelected]: showCheckbox && isChecked,
-                })}
+                className={cn(
+                  "grid w-full flex-shrink-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 overflow-hidden rounded-md border border-border bg-card px-3 pb-2 pt-3 text-left transition-colors hover:border-border/80 hover:bg-accent/50 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                  isSelected &&
+                    "border-accent/25 bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)]",
+                  isDispatchSelected &&
+                    "border-accent/20 bg-accent/5 shadow-[inset_3px_0_0_var(--color-accent)]"
+                )}
+                style={{
+                  gridTemplateAreas: '"name speed" "route route" "bar bar"',
+                }}
                 type="button"
                 onClick={handleClick}
                 onMouseEnter={() => onHoverVehicle(vehicle.id)}
@@ -182,32 +204,40 @@ export default function VehicleList({
                 aria-label={`${vehicle.name}, ${Math.round(vehicle.speed)} km/h, ${formatRouteDistance(routeDistance)}`}
                 title={`${vehicle.name} · ${Math.round(vehicle.speed)} km/h · ${formatRouteDistance(routeDistance)}`}
               >
-                <span className={styles.nameGroup}>
+                <span className="flex min-w-0 items-center gap-2" style={{ gridArea: "name" }}>
                   {showCheckbox ? (
                     <span
                       role="checkbox"
                       aria-checked={isChecked}
                       aria-label={`Select ${vehicle.name}`}
-                      className={classNames(styles.checkbox, {
-                        [styles.checkboxChecked]: isChecked,
-                      })}
+                      className={cn(
+                        "size-3.5 flex-shrink-0 rounded-sm border border-foreground/25 transition-colors",
+                        isChecked && "border-accent bg-accent"
+                      )}
                     />
                   ) : (
                     <span
-                      className={styles.fleetDot}
+                      className="size-2 flex-shrink-0 rounded-full"
                       style={{ backgroundColor: vehicleFleet?.color ?? "transparent" }}
                     />
                   )}
-                  <span className={styles.name}>{vehicle.name}</span>
+                  <span className="min-w-0 self-center truncate text-sm font-medium text-foreground">
+                    {vehicle.name}
+                  </span>
                   {vehicle.type && vehicle.type !== "car" && (
-                    <span className={styles.typeBadge}>
+                    <span className="ml-2 rounded-sm bg-foreground/10 px-2 py-px text-xs font-medium uppercase tracking-wide text-muted-foreground">
                       {VEHICLE_TYPE_LABELS[vehicle.type] ?? vehicle.type}
                     </span>
                   )}
                 </span>
-                <span className={styles.speed}>
+                <span
+                  className="flex flex-shrink-0 items-baseline gap-1 justify-self-end tabular-nums text-foreground"
+                  style={{ gridArea: "speed" }}
+                >
                   {Math.round(vehicle.speed)}
-                  <span className={styles.speedUnit}>km/h</span>
+                  <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                    km/h
+                  </span>
                   {dispatchState === DispatchState.ROUTE && assignment && (
                     <>
                       {" "}
@@ -221,8 +251,10 @@ export default function VehicleList({
                     </>
                   )}
                 </span>
-                <span className={styles.routeRow}>
-                  <span className={styles.routeDistance}>{formatRouteDistance(routeDistance)}</span>
+                <span className="flex items-center gap-3" style={{ gridArea: "route" }}>
+                  <span className="text-sm text-muted-foreground">
+                    {formatRouteDistance(routeDistance)}
+                  </span>
                 </span>
                 <SpeedBar speed={vehicle.speed} maxSpeed={maxSpeed} />
               </button>
@@ -232,7 +264,7 @@ export default function VehicleList({
         {hasMore && (
           <button
             type="button"
-            className={styles.loadMore}
+            className="w-full rounded-md border border-dashed border-accent/20 p-3 text-sm text-accent transition-colors hover:border-accent/35 hover:bg-accent/5"
             onClick={() => setVisibleCount((c) => c + LOAD_MORE_COUNT)}
           >
             Show more ({visibleVehicles.length - visibleCount} remaining)

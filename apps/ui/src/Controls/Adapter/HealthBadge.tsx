@@ -1,12 +1,17 @@
 import type { AdapterStatus } from "./useAdapterConfig";
-import styles from "./AdapterDrawer.module.css";
+import { cn } from "@/lib/utils";
 
-const COLOR: Record<AdapterStatus, string> = {
-  healthy: "var(--color-status-onshift)",
-  unhealthy: "var(--color-status-offline)",
-  unreachable: "var(--color-gray)",
+const STATUS_CLASS: Record<AdapterStatus, string> = {
+  healthy: "bg-status-ok",
+  unhealthy: "bg-status-error",
+  unreachable: "bg-status-idle",
 };
 
 export default function HealthBadge({ status }: { status: AdapterStatus }) {
-  return <span className={styles.badge} style={{ background: COLOR[status] }} title={status} />;
+  return (
+    <span
+      className={cn("inline-block size-2.5 rounded-full", STATUS_CLASS[status])}
+      title={status}
+    />
+  );
 }

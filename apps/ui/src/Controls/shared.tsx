@@ -1,13 +1,12 @@
 import React from "react";
-import classNames from "classnames";
-import styles from "./Controls.module.css";
+import { cn } from "@/lib/utils";
 
 interface BlockProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
 }
-export function Block({ children, ...props }: BlockProps) {
+export function Block({ children, className, ...props }: BlockProps) {
   return (
-    <div {...props} className={classNames([props.className, styles.block])}>
+    <div {...props} className={cn("rounded-lg border border-border bg-card p-3", className)}>
       {children}
     </div>
   );
@@ -15,9 +14,9 @@ export function Block({ children, ...props }: BlockProps) {
 
 export function Item({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className={styles.item}>
-      <span className={styles.itemLabel}>{label}</span>
-      <span className={styles.itemValue}>{children}</span>
+    <div className="flex items-center justify-between gap-2 text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-foreground tabular-nums">{children}</span>
     </div>
   );
 }

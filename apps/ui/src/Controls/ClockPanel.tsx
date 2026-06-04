@@ -1,14 +1,23 @@
 import type { TimeOfDay } from "@/types";
 import { useClock } from "@/hooks/useClock";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/Inputs";
+import { Slider } from "@/components/ui/slider";
 import { PanelBody, PanelHeader } from "./PanelPrimitives";
-import styles from "./ClockPanel.module.css";
-import { Slider, SliderTrack, SliderThumb, Button } from "react-aria-components";
 
 const TIME_OF_DAY_LABELS: Record<TimeOfDay, string> = {
   morning_rush: "Morning Rush",
   midday: "Midday",
   evening_rush: "Evening Rush",
   night: "Night",
+};
+
+const EYEBROW_BASE = "text-xs font-bold uppercase tracking-[0.08em]";
+const EYEBROW_COLORS: Record<TimeOfDay, string> = {
+  morning_rush: "text-status-warn",
+  midday: "text-muted-foreground",
+  evening_rush: "text-status-warn",
+  night: "text-accent",
 };
 
 const SPEED_PRESETS = [
@@ -59,43 +68,51 @@ export default function ClockPanel() {
   return (
     <>
       <PanelHeader title="Simulation Clock" subtitle="Nairobi Fleet Simulation" />
-      <PanelBody className={styles.body}>
-        <div className={styles.clockDisplay}>
-          <span className={styles[`eyebrow_${clock.timeOfDay}`]}>
+      <PanelBody className="gap-5">
+        <div className="flex flex-col gap-1 pb-2">
+          <span className={cn(EYEBROW_BASE, EYEBROW_COLORS[clock.timeOfDay])}>
             {TIME_OF_DAY_LABELS[clock.timeOfDay]}
           </span>
-          <div className={styles.timeValue}>{timeStr}</div>
-        </div>
-
-        <div className={styles.speedSection}>
-          <span className={styles.sectionLabel}>SIMULATION SPEED</span>
-          <Slider
-            className={styles.slider}
-            minValue={0}
-            maxValue={100}
-            value={sliderValue}
-            onChange={handleSliderChange}
-            aria-label="Speed multiplier"
-          >
-            <SliderTrack className={styles.sliderTrack}>
-              <SliderThumb className={styles.sliderThumb} />
-            </SliderTrack>
-          </Slider>
-          <div className={styles.speedSummary}>
-            <span className={isRealTime ? styles.speedValueNeutral : styles.speedValueAccent}>
-              {clock.speedMultiplier}×
-            </span>
-            <span className={styles.speedDot}>·</span>
-            <span className={styles.speedDesc}>{speedDescription(clock.speedMultiplier)}</span>
+          <div className="font-mono text-5xl font-bold leading-none tracking-tight text-foreground">
+            {timeStr}
           </div>
         </div>
 
-        <div className={styles.presets}>
+        <div className="flex flex-col gap-2 border-t border-border pt-4">
+          <span className="text-xs font-bold uppercase tracking-[0.08em] text-muted-foreground">
+            SIMULATION SPEED
+          </span>
+          <Slider
+            min={0}
+            max={100}
+            value={[sliderValue]}
+            onValueChange={([v]) => handleSliderChange(v)}
+            aria-label="Speed multiplier"
+          />
+          <div className="flex items-baseline gap-2">
+            <span
+              className={cn(
+                "text-2xl font-bold leading-none tabular-nums",
+                isRealTime ? "text-foreground" : "text-accent"
+              )}
+            >
+              {clock.speedMultiplier}×
+            </span>
+            <span className="text-sm text-muted-foreground">·</span>
+            <span className="text-xs text-muted-foreground">
+              {speedDescription(clock.speedMultiplier)}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid w-full grid-cols-4 gap-2">
           {SPEED_PRESETS.map(({ label, value }) => (
             <Button
               key={value}
-              className={`${styles.presetBtn} ${clock.speedMultiplier === value ? styles.presetBtnActive : ""}`}
-              onPress={() => setSpeedMultiplier(value)}
+              variant={clock.speedMultiplier === value ? "default" : "outline"}
+              size="sm"
+              className="text-xs font-semibold"
+              onClick={() => setSpeedMultiplier(value)}
             >
               {label}
             </Button>

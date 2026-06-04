@@ -3,7 +3,6 @@ import type { Modifiers } from "@/types";
 import { Switch, Range } from "@/components/Inputs";
 import { vehicleStore } from "@/hooks/vehicleStore";
 import { PanelBody, PanelHeader } from "./PanelPrimitives";
-import styles from "./TogglesPanel.module.css";
 
 interface TogglesPanelProps {
   modifiers: Modifiers;
@@ -57,10 +56,13 @@ export default memo(function TogglesPanel({ modifiers, onChangeModifiers }: Togg
         title="Visibility"
         subtitle="Toggle map layers and overlays without leaving the panel."
       />
-      <PanelBody className={styles.body}>
+      <PanelBody className="gap-1">
         {toggles.map(({ key, label }) => (
-          <label key={key} className={styles.row}>
-            <span className={styles.label}>{label}</span>
+          <label
+            key={key}
+            className="flex cursor-pointer items-center justify-between rounded-md px-3 py-2 transition-colors hover:bg-accent/10"
+          >
+            <span className="text-sm text-muted-foreground">{label}</span>
             <Switch
               isSelected={modifiers[key]}
               onChange={onChangeModifiers(key)}
@@ -69,7 +71,7 @@ export default memo(function TogglesPanel({ modifiers, onChangeModifiers }: Togg
           </label>
         ))}
         {modifiers.showBreadcrumbs && (
-          <div className={styles.row}>
+          <div className="flex items-center justify-between rounded-md px-3 py-2">
             <Range
               label="Trail Length"
               value={trailLength}

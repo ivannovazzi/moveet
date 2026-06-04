@@ -1,7 +1,6 @@
-import { Button } from "react-aria-components";
 import type { DispatchAssignment, DirectionResult } from "@/types";
 import { DispatchState } from "@/hooks/useDispatchState";
-import styles from "./DispatchFooter.module.css";
+import { Button } from "@/components/Inputs";
 
 interface DispatchFooterProps {
   state: DispatchState;
@@ -15,6 +14,12 @@ interface DispatchFooterProps {
   dispatching: boolean;
   error?: string | null;
 }
+
+const footerClass =
+  "sticky bottom-0 flex items-center justify-between p-3 bg-card/90 backdrop-blur-md border-t border-border";
+const textClass = "flex items-center gap-3 text-sm text-muted-foreground";
+const buttonsClass = "flex items-center gap-2";
+const errorClass = "mt-1 text-xs leading-tight text-status-error";
 
 export default function DispatchFooter({
   state,
@@ -32,14 +37,14 @@ export default function DispatchFooter({
 
   if (state === DispatchState.SELECT) {
     return (
-      <div className={styles.footer}>
-        <span className={styles.text}>
+      <div className={footerClass}>
+        <span className={textClass}>
           {selectedCount > 0
-            ? `${selectedCount} selected \u2014 click map to add stops`
+            ? `${selectedCount} selected — click map to add stops`
             : "Select vehicles to dispatch"}
         </span>
-        <div className={styles.buttons}>
-          <Button className={styles.secondaryButton} onPress={onClear}>
+        <div className={buttonsClass}>
+          <Button variant="outline" size="sm" onClick={onClear}>
             Exit
           </Button>
         </div>
@@ -52,18 +57,19 @@ export default function DispatchFooter({
     const stopCount = assignments.reduce((sum, a) => sum + a.waypoints.length, 0);
 
     return (
-      <div className={styles.footer}>
-        <span className={styles.text}>
+      <div className={footerClass}>
+        <span className={textClass}>
           {vehicleCount} vehicle{vehicleCount !== 1 ? "s" : ""}, {stopCount} stop
           {stopCount !== 1 ? "s" : ""}
         </span>
-        <div className={styles.buttons}>
-          <Button className={styles.secondaryButton} onPress={onClear}>
+        <div className={buttonsClass}>
+          <Button variant="outline" size="sm" onClick={onClear}>
             Clear
           </Button>
           <Button
-            className={styles.primaryButton}
-            onPress={onDispatch}
+            variant="default"
+            size="sm"
+            onClick={onDispatch}
             isDisabled={assignments.length === 0}
           >
             Dispatch
@@ -75,19 +81,19 @@ export default function DispatchFooter({
 
   if (state === DispatchState.DISPATCH) {
     return (
-      <div className={styles.footer}>
+      <div className={footerClass}>
         <div>
-          <span className={styles.text}>
-            <span className={styles.spinner} />
+          <span className={textClass}>
+            <span className="inline-block size-4 shrink-0 animate-spin rounded-full border-2 border-transparent border-l-accent border-t-accent" />
             Dispatching...
           </span>
-          {error && <p className={styles.errorText}>{error}</p>}
+          {error && <p className={errorClass}>{error}</p>}
         </div>
-        <div className={styles.buttons}>
-          <Button className={styles.secondaryButton} isDisabled>
+        <div className={buttonsClass}>
+          <Button variant="outline" size="sm" isDisabled>
             Clear
           </Button>
-          <Button className={styles.primaryButton} isDisabled>
+          <Button variant="default" size="sm" isDisabled>
             Dispatch
           </Button>
         </div>
@@ -102,18 +108,18 @@ export default function DispatchFooter({
       failures > 0 ? `${successes} dispatched, ${failures} failed` : `${successes} dispatched`;
 
     return (
-      <div className={styles.footer}>
+      <div className={footerClass}>
         <div>
-          <span className={styles.text}>{text}</span>
-          {error && <p className={styles.errorText}>{error}</p>}
+          <span className={textClass}>{text}</span>
+          {error && <p className={errorClass}>{error}</p>}
         </div>
-        <div className={styles.buttons}>
+        <div className={buttonsClass}>
           {failures > 0 && (
-            <Button className={styles.secondaryButton} onPress={onRetryFailed}>
+            <Button variant="outline" size="sm" onClick={onRetryFailed}>
               Retry Failed
             </Button>
           )}
-          <Button className={styles.primaryButton} onPress={onDone}>
+          <Button variant="default" size="sm" onClick={onDone}>
             Done
           </Button>
         </div>

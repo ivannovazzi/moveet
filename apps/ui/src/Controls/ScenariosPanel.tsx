@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Button } from "react-aria-components";
-import classNames from "classnames";
+import { cn } from "@/lib/utils";
 import client from "@/utils/client";
 import type { ScenarioFile, ScenarioStatus, ScenarioEventPayload } from "@/types";
 import {
@@ -10,8 +9,8 @@ import {
   PanelHeader,
   PanelSectionLabel,
 } from "./PanelPrimitives";
+import { Button } from "@/components/Inputs";
 import { Play, Pause, Stop } from "@/components/Icons";
-import styles from "./ScenariosPanel.module.css";
 
 interface LogEntry {
   time: number;
@@ -40,6 +39,8 @@ function formatSeconds(seconds: number): string {
   const s = Math.floor(seconds % 60);
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
+
+const controlIconClass = "size-3.5";
 
 export default function ScenariosPanel() {
   const [scenarios, setScenarios] = useState<ScenarioFile[]>([]);
@@ -168,65 +169,54 @@ export default function ScenariosPanel() {
         badge={<PanelBadge>{scenarios.length}</PanelBadge>}
       />
 
-      <PanelBody className={styles.body}>
+      <PanelBody className="gap-4">
         {/* ── Loaded scenario info + controls ── */}
         {hasScenario && (
           <>
-            <div className={styles.loadedInfo}>
-              <div className={styles.loadedName}>{status.scenario!.name}</div>
-              <div className={styles.loadedMeta}>
+            <div className="flex flex-col gap-2 rounded-md border border-accent/15 bg-accent/5 p-3">
+              <div className="text-sm font-semibold text-foreground">{status.scenario!.name}</div>
+              <div className="flex gap-4 text-xs text-muted-foreground">
                 <span>{status.scenario!.eventCount} events</span>
                 <span>{formatSeconds(status.scenario!.duration)}</span>
                 <span
-                  className={classNames(styles.stateLabel, {
-                    [styles.stateRunning]: isRunning,
-                    [styles.statePaused]: isPaused,
-                    [styles.stateIdle]: status.state === "idle",
-                  })}
+                  className={cn(
+                    "font-medium",
+                    isRunning && "text-status-ok",
+                    isPaused && "text-status-warn",
+                    status.state === "idle" && "text-muted-foreground"
+                  )}
                 >
                   {status.state}
                 </span>
               </div>
             </div>
 
-            <div className={styles.controls}>
+            <div className="flex gap-2 py-1">
               {status.state === "idle" && (
-                <Button
-                  className={classNames(styles.controlButton, styles.controlButtonPrimary)}
-                  onPress={startScenario}
-                  aria-label="Start scenario"
-                >
-                  <Play className={styles.controlIcon} />
+                <Button onClick={startScenario} aria-label="Start scenario">
+                  <Play className={controlIconClass} />
                   Start
                 </Button>
               )}
               {isRunning && (
-                <Button
-                  className={styles.controlButton}
-                  onPress={pauseScenario}
-                  aria-label="Pause scenario"
-                >
-                  <Pause className={styles.controlIcon} />
+                <Button onClick={pauseScenario} aria-label="Pause scenario">
+                  <Pause className={controlIconClass} />
                   Pause
                 </Button>
               )}
               {isPaused && (
-                <Button
-                  className={classNames(styles.controlButton, styles.controlButtonPrimary)}
-                  onPress={startScenario}
-                  aria-label="Resume scenario"
-                >
-                  <Play className={styles.controlIcon} />
+                <Button onClick={startScenario} aria-label="Resume scenario">
+                  <Play className={controlIconClass} />
                   Resume
                 </Button>
               )}
               {isActive && (
                 <Button
-                  className={classNames(styles.controlButton, styles.controlButtonDanger)}
-                  onPress={stopScenario}
+                  className="text-status-error hover:text-status-error"
+                  onClick={stopScenario}
                   aria-label="Stop scenario"
                 >
-                  <Stop className={styles.controlIcon} />
+                  <Stop className={controlIconClass} />
                   Stop
                 </Button>
               )}
@@ -234,8 +224,8 @@ export default function ScenariosPanel() {
 
             {/* ── Progress bar ── */}
             {isActive && (
-              <div className={styles.progressSection}>
-                <div className={styles.progressLabel}>
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between text-xs tabular-nums text-muted-foreground">
                   <span>
                     {formatSeconds(status.elapsed)} / {formatSeconds(duration)}
                   </span>
@@ -243,8 +233,15 @@ export default function ScenariosPanel() {
                     {status.eventsExecuted} / {status.scenario!.eventCount} events
                   </span>
                 </div>
-                <div className={styles.progressBar} role="progressbar" aria-valuenow={progress}>
-                  <div className={styles.progressFill} style={{ width: `${progress}%` }} />
+                <div
+                  className="h-[5px] overflow-hidden rounded-full bg-muted"
+                  role="progressbar"
+                  aria-valuenow={progress}
+                >
+                  <div
+                    className="h-full rounded-full bg-accent transition-[width]"
+                    style={{ width: `${progress}%` }}
+                  />
                 </div>
               </div>
             )}
@@ -253,11 +250,16 @@ export default function ScenariosPanel() {
             {isActive && status.upcomingEvents.length > 0 && (
               <>
                 <PanelSectionLabel>Upcoming</PanelSectionLabel>
-                <div className={styles.upcomingList}>
+                <div className="flex flex-col gap-1">
                   {status.upcomingEvents.slice(0, 5).map((ev, i) => (
-                    <div key={i} className={styles.upcomingItem}>
-                      <span className={styles.upcomingTime}>{formatSeconds(ev.at)}</span>
-                      <span className={styles.upcomingType}>{ev.type}</span>
+                    <div
+                      key={i}
+                      className="flex items-center gap-3 rounded-sm px-2 py-1 text-xs text-muted-foreground"
+                    >
+                      <span className="min-w-10 tabular-nums text-muted-foreground">
+                        {formatSeconds(ev.at)}
+                      </span>
+                      <span className="text-foreground">{ev.type}</span>
                     </div>
                   ))}
                 </div>
@@ -268,11 +270,19 @@ export default function ScenariosPanel() {
             {eventLog.length > 0 && (
               <>
                 <PanelSectionLabel>Event Log</PanelSectionLabel>
-                <div className={styles.eventLog} data-testid="event-log">
+                <div
+                  className="flex max-h-[200px] flex-col gap-1 overflow-y-auto"
+                  data-testid="event-log"
+                >
                   {eventLog.map((entry, i) => (
-                    <div key={i} className={styles.eventLogItem}>
-                      <span className={styles.eventLogTime}>{formatSeconds(entry.time)}</span>
-                      <span className={styles.eventLogType}>
+                    <div
+                      key={i}
+                      className="flex items-baseline gap-3 rounded-sm bg-muted/30 px-2 py-1 text-xs"
+                    >
+                      <span className="min-w-10 tabular-nums text-muted-foreground">
+                        {formatSeconds(entry.time)}
+                      </span>
+                      <span className="text-muted-foreground">
                         {entry.type}
                         {entry.detail ? ` — ${entry.detail}` : ""}
                       </span>
@@ -289,29 +299,31 @@ export default function ScenariosPanel() {
         {scenarios.length === 0 ? (
           <PanelEmptyState>No scenarios found</PanelEmptyState>
         ) : (
-          <div className={styles.scenarioList}>
+          <div className="flex flex-col gap-2">
             {scenarios.map((file) => {
               const isLoading = loading === file.fileName;
               return (
-                <Button
+                <button
                   key={file.fileName}
-                  className={classNames(styles.scenarioItem, {
-                    [styles.scenarioItemActive]: isLoading,
-                  })}
-                  onPress={() => loadScenario(file.fileName)}
-                  isDisabled={isLoading || isActive}
+                  type="button"
+                  className={cn(
+                    "flex w-full flex-wrap items-center gap-3 rounded-md border border-border bg-card p-3 text-left transition-colors hover:border-border/80 hover:bg-accent/50 disabled:cursor-default disabled:opacity-60",
+                    isLoading && "border-accent/25 bg-accent/10"
+                  )}
+                  onClick={() => loadScenario(file.fileName)}
+                  disabled={isLoading || isActive}
                   aria-label={`Load scenario ${file.fileName}`}
                 >
-                  <div className={styles.scenarioInfo}>
-                    <div className={styles.scenarioName} title={file.fileName}>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm text-foreground" title={file.fileName}>
                       {file.fileName.replace(/\.json$/, "")}
                     </div>
-                    <div className={styles.scenarioMeta}>
+                    <div className="mt-1 flex gap-3 text-xs text-muted-foreground">
                       <span>{formatFileSize(file.fileSize)}</span>
                       <span>{formatDate(file.modifiedAt)}</span>
                     </div>
                   </div>
-                </Button>
+                </button>
               );
             })}
           </div>
