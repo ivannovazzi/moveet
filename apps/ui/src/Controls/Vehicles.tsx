@@ -187,7 +187,7 @@ export default function VehicleList({
               <button
                 key={vehicle.id}
                 className={cn(
-                  "grid w-full flex-shrink-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 overflow-hidden rounded-md border border-border bg-card px-2.5 pb-1.5 pt-2 text-left transition-colors hover:border-border/80 hover:bg-accent/10 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                  "grid w-full flex-shrink-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 overflow-hidden rounded-md border border-white/5 bg-white/[0.03] px-2.5 pb-1.5 pt-2 text-left transition-colors hover:border-white/10 hover:bg-white/[0.06] focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
                   isSelected &&
                     "border-accent/25 bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)]",
                   isDispatchSelected &&

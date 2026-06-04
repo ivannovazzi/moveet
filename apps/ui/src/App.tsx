@@ -438,7 +438,7 @@ export default function App() {
         <ErrorBoundary fallback={<SectionErrorFallback section="Controls" />}>
           <aside
             className={cn(
-              "absolute bottom-0 top-0 left-14 z-30 w-[clamp(248px,22vw,304px)] overflow-hidden backdrop-blur-md",
+              "absolute bottom-0 top-0 left-14 z-30 w-[clamp(248px,22vw,304px)] overflow-hidden",
               "transition-[transform,opacity,visibility] duration-300 ease-out",
               activePanel !== null
                 ? "visible translate-x-0 opacity-100 pointer-events-auto"
@@ -446,7 +446,7 @@ export default function App() {
             )}
             aria-hidden={activePanel === null}
           >
-            <div className="flex h-full w-full min-w-0 flex-col overflow-hidden border-r border-border bg-card shadow-lg">
+            <div className="flex h-full w-full min-w-0 flex-col overflow-hidden border-r border-border bg-card/70 shadow-xl backdrop-blur-2xl">
               {activePanel === "vehicles" && (
                 <>
                   <button

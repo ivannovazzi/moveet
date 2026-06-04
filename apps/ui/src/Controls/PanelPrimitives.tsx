@@ -41,10 +41,7 @@ export function PanelHeader({
   const TitleTag = titleAs;
 
   return (
-    <div
-      {...props}
-      className={cn("flex-shrink-0 border-b border-border bg-card px-3 py-2.5", className)}
-    >
+    <div {...props} className={cn("flex-shrink-0 border-b border-border px-3 py-2.5", className)}>
       {eyebrow ? (
         <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           {eyebrow}
