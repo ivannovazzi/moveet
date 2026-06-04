@@ -135,7 +135,7 @@ export default function VehicleList({
 
       <PanelBody
         padded={false}
-        className={cn("gap-3 p-4", isDispatch && "pointer-events-none opacity-60")}
+        className={cn("gap-1.5 p-3", isDispatch && "pointer-events-none opacity-60")}
       >
         <div className="relative flex items-center">
           <Search
@@ -187,7 +187,7 @@ export default function VehicleList({
               <button
                 key={vehicle.id}
                 className={cn(
-                  "grid w-full flex-shrink-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1 overflow-hidden rounded-md border border-border bg-card px-3 pb-2 pt-3 text-left transition-colors hover:border-border/80 hover:bg-accent/50 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                  "grid w-full flex-shrink-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 overflow-hidden rounded-md border border-border bg-card px-2.5 pb-1.5 pt-2 text-left transition-colors hover:border-border/80 hover:bg-accent/10 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
                   isSelected &&
                     "border-accent/25 bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)]",
                   isDispatchSelected &&
@@ -221,7 +221,7 @@ export default function VehicleList({
                       style={{ backgroundColor: vehicleFleet?.color ?? "transparent" }}
                     />
                   )}
-                  <span className="min-w-0 self-center truncate text-sm font-medium text-foreground">
+                  <span className="min-w-0 self-center truncate text-[13px] font-medium text-foreground">
                     {vehicle.name}
                   </span>
                   {vehicle.type && vehicle.type !== "car" && (
@@ -231,7 +231,7 @@ export default function VehicleList({
                   )}
                 </span>
                 <span
-                  className="flex flex-shrink-0 items-baseline gap-1 justify-self-end tabular-nums text-foreground"
+                  className="flex flex-shrink-0 items-baseline gap-1 justify-self-end text-[13px] font-medium tabular-nums text-foreground"
                   style={{ gridArea: "speed" }}
                 >
                   {Math.round(vehicle.speed)}
@@ -252,7 +252,7 @@ export default function VehicleList({
                   )}
                 </span>
                 <span className="flex items-center gap-3" style={{ gridArea: "route" }}>
-                  <span className="text-sm text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     {formatRouteDistance(routeDistance)}
                   </span>
                 </span>
@@ -264,7 +264,7 @@ export default function VehicleList({
         {hasMore && (
           <button
             type="button"
-            className="w-full rounded-md border border-dashed border-accent/20 p-3 text-sm text-accent transition-colors hover:border-accent/35 hover:bg-accent/5"
+            className="w-full rounded-md border border-dashed border-accent/20 p-2 text-xs text-accent transition-colors hover:border-accent/35 hover:bg-accent/5"
             onClick={() => setVisibleCount((c) => c + LOAD_MORE_COUNT)}
           >
             Show more ({visibleVehicles.length - visibleCount} remaining)

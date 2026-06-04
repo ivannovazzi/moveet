@@ -8,10 +8,17 @@ type ExtendedButtonProps = Omit<React.ComponentProps<typeof UIButton>, "disabled
   isDisabled?: boolean;
 };
 
-export function Button({ className, disabled, isDisabled, ...props }: ExtendedButtonProps) {
+export function Button({
+  className,
+  disabled,
+  isDisabled,
+  size = "sm",
+  ...props
+}: ExtendedButtonProps) {
   return (
     <UIButton
       variant="outline"
+      size={size}
       className={cn(className)}
       disabled={isDisabled ?? disabled}
       {...props}
