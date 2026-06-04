@@ -145,7 +145,7 @@ export default function GeofencePanel({
           ) : (
             <button
               type="button"
-              className="w-full rounded-md border border-border bg-card px-3 py-2 text-left text-sm font-medium text-muted-foreground transition-colors hover:border-accent/35 hover:bg-accent/10 hover:text-foreground"
+              className="w-full rounded-md border border-white/5 bg-white/[0.03] px-3 py-2 text-left text-sm font-medium text-muted-foreground transition-colors hover:border-accent/35 hover:bg-accent/10 hover:text-foreground"
               onClick={onStartDrawing}
               title="Draw a geofence zone on the map"
             >
@@ -162,7 +162,7 @@ export default function GeofencePanel({
               {fences.map((fence) => (
                 <div
                   key={fence.id}
-                  className="flex items-center gap-2 rounded-md border border-border bg-card p-3 transition-colors hover:bg-accent/10"
+                  className="flex items-center gap-2 rounded-md border border-white/5 bg-white/[0.03] px-2.5 py-2 transition-colors hover:border-white/10 hover:bg-white/[0.06]"
                 >
                   <span
                     className="h-2 w-2 flex-shrink-0 rounded-full"
@@ -176,7 +176,7 @@ export default function GeofencePanel({
                   >
                     {fence.type}
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                  <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">
                     {fence.name}
                   </span>
                   <div className="flex flex-shrink-0 items-center gap-2">
@@ -214,7 +214,7 @@ export default function GeofencePanel({
               {alerts.map((alert, i) => (
                 <div
                   key={`${alert.fenceId}-${alert.vehicleId}-${alert.timestamp}-${i}`}
-                  className="flex items-center gap-3 rounded-md border border-border bg-card p-3"
+                  className="flex items-center gap-3 rounded-md border border-white/5 bg-white/[0.03] px-2.5 py-2"
                 >
                   <span
                     data-event={alert.event}
@@ -228,7 +228,9 @@ export default function GeofencePanel({
                     {alert.event}
                   </span>
                   <div className="flex min-w-0 flex-1 flex-col gap-px">
-                    <span className="truncate text-sm text-foreground">{alert.vehicleName}</span>
+                    <span className="truncate text-[13px] text-foreground">
+                      {alert.vehicleName}
+                    </span>
                     <span className="truncate text-xs text-muted-foreground">
                       {alert.fenceName}
                     </span>

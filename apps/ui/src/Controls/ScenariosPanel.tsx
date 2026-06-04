@@ -307,7 +307,7 @@ export default function ScenariosPanel() {
                   key={file.fileName}
                   type="button"
                   className={cn(
-                    "flex w-full flex-wrap items-center gap-3 rounded-md border border-border bg-card p-3 text-left transition-colors hover:border-border/80 hover:bg-accent/50 disabled:cursor-default disabled:opacity-60",
+                    "flex w-full flex-wrap items-center gap-3 rounded-md border border-white/5 bg-white/[0.03] px-2.5 py-2 text-left transition-colors hover:border-white/10 hover:bg-white/[0.06] disabled:cursor-default disabled:opacity-60",
                     isLoading && "border-accent/25 bg-accent/10"
                   )}
                   onClick={() => loadScenario(file.fileName)}
@@ -315,7 +315,7 @@ export default function ScenariosPanel() {
                   aria-label={`Load scenario ${file.fileName}`}
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm text-foreground" title={file.fileName}>
+                    <div className="truncate text-[13px] text-foreground" title={file.fileName}>
                       {file.fileName.replace(/\.json$/, "")}
                     </div>
                     <div className="mt-1 flex gap-3 text-xs text-muted-foreground">

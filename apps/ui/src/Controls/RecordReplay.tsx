@@ -199,7 +199,7 @@ export default function RecordReplay({
       <PanelBody className="gap-4">
         {/* ── Generate historical ── */}
         <PanelSectionLabel>Generate historical</PanelSectionLabel>
-        <div className="flex flex-col gap-3 rounded-md border border-border bg-card p-3">
+        <div className="flex flex-col gap-3 rounded-md border border-white/5 bg-white/[0.03] p-3">
           <label className={fieldClass}>
             <span className={fieldLabelClass}>Start</span>
             <Input
@@ -313,7 +313,7 @@ export default function RecordReplay({
                 <div
                   key={file.fileName}
                   className={cn(
-                    "flex flex-col gap-2 rounded-md border border-border bg-card p-3 transition-colors hover:border-border/80",
+                    "flex flex-col gap-2 rounded-md border border-white/5 bg-white/[0.03] px-2.5 py-2 transition-colors hover:bg-white/[0.06] hover:border-white/10",
                     isActive && "border-accent/25 bg-accent/10 hover:border-accent/25"
                   )}
                 >
@@ -325,7 +325,7 @@ export default function RecordReplay({
                     aria-label={`Play recording ${formatLabel(file)}`}
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm text-foreground" title={file.fileName}>
+                      <div className="truncate text-[13px] text-foreground" title={file.fileName}>
                         {formatLabel(file)}
                       </div>
                       <div className="mt-1 flex gap-3 text-xs text-muted-foreground">

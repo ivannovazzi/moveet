@@ -100,13 +100,13 @@ export default function Fleets({
             return (
               <div
                 key={fleet.id}
-                className="flex flex-col overflow-hidden rounded-md border border-border bg-card transition-colors hover:border-border/80"
+                className="flex flex-col overflow-hidden rounded-md border border-white/5 bg-white/[0.03] transition-colors hover:border-white/10"
               >
                 <button
                   type="button"
                   className={cn(
-                    "flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-accent/50",
-                    isExpanded && "bg-accent/50"
+                    "flex w-full items-center gap-3 px-2.5 py-2 text-left transition-colors hover:bg-white/[0.06]",
+                    isExpanded && "bg-white/[0.06]"
                   )}
                   onClick={() => toggleExpanded(fleet.id)}
                   aria-expanded={isExpanded}
@@ -116,7 +116,7 @@ export default function Fleets({
                     className="size-2.5 flex-shrink-0 rounded-full"
                     style={{ backgroundColor: fleet.color }}
                   />
-                  <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                  <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">
                     {fleet.name}
                   </span>
                   <span className="text-xs tabular-nums text-muted-foreground">
@@ -152,9 +152,9 @@ export default function Fleets({
                         {memberVehicles.map((v) => (
                           <div
                             key={v.id}
-                            className="flex items-center justify-between rounded-sm px-2 py-1 transition-colors hover:bg-accent/40"
+                            className="flex items-center justify-between rounded-sm px-2 py-1 transition-colors hover:bg-white/[0.06]"
                           >
-                            <span className="min-w-0 truncate text-sm text-foreground">
+                            <span className="min-w-0 truncate text-[13px] text-foreground">
                               {v.name}
                             </span>
                             <button
@@ -194,9 +194,9 @@ export default function Fleets({
                           {unassignedVehicles.map((v) => (
                             <div
                               key={v.id}
-                              className="flex items-center justify-between rounded-sm px-2 py-1 transition-colors hover:bg-accent/40"
+                              className="flex items-center justify-between rounded-sm px-2 py-1 transition-colors hover:bg-white/[0.06]"
                             >
-                              <span className="min-w-0 truncate text-sm text-foreground">
+                              <span className="min-w-0 truncate text-[13px] text-foreground">
                                 {v.name}
                               </span>
                               <button

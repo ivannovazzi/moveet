@@ -95,14 +95,14 @@ export default function Incidents({ incidents, createRandom, remove }: Incidents
           {incidents.map((incident) => (
             <div
               key={incident.id}
-              className="flex items-center gap-3 rounded-md border border-border bg-card p-3 transition-colors hover:bg-accent/10"
+              className="flex items-center gap-3 rounded-md border border-white/5 bg-white/[0.03] px-2.5 py-2 transition-colors hover:bg-white/[0.06]"
             >
               <span
                 className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
                 style={{ backgroundColor: INCIDENT_COLORS[incident.type] }}
               />
               <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="text-sm capitalize text-foreground">{incident.type}</span>
+                <span className="text-[13px] capitalize text-foreground">{incident.type}</span>
                 <div className="flex items-center gap-3">
                   <div className="h-1 w-12 flex-shrink-0 overflow-hidden rounded-sm bg-muted">
                     <div
