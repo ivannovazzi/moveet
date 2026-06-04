@@ -160,12 +160,19 @@ export class VehicleManager extends EventEmitter {
     }
   }
 
-  public async initFromAdapter(): Promise<void> {
+  /**
+   * Loads vehicle definitions from the adapter source. When `limit` is a
+   * positive number, only the first `limit` source vehicles are taken (used by
+   * the headless generator so the requested vehicle count caps the fleet
+   * subset); otherwise the whole fleet is loaded.
+   */
+  public async initFromAdapter(limit?: number): Promise<void> {
     await this.adapterSync.initFromAdapter(
       (id, name, position, type, metadata) => {
         this.addVehicle(id, name, position, type ?? pickRandomType(), metadata);
       },
-      () => this.loadFromData()
+      () => this.loadFromData(),
+      limit
     );
   }
 
@@ -325,6 +332,22 @@ export class VehicleManager extends EventEmitter {
 
   public getVehicles(): VehicleDTO[] {
     return this.registry.getAllSerialized();
+  }
+
+  /**
+   * Per-vehicle source metadata (e.g. `{ devices: [{ id, deviceType }] }`) keyed
+   * by vehicle id, for vehicles that carried it from the source. Used by the
+   * headless generator to record the real GPS device mapping once in the header
+   * so replay/emit can fan out to the real device ids.
+   */
+  public getVehicleMetadata(): Record<string, Record<string, unknown>> {
+    const out: Record<string, Record<string, unknown>> = {};
+    for (const [id, vehicle] of this.registry.getAll()) {
+      if (vehicle.sourceMetadata !== undefined) {
+        out[id] = vehicle.sourceMetadata;
+      }
+    }
+    return out;
   }
 
   public getDirections(): Direction[] {

@@ -209,6 +209,13 @@ export interface RecordingHeader {
   stepMs?: number;
   /** Sim RNG seed used for reproducibility (best-effort; see HeadlessRunner). */
   seed?: number;
+  /**
+   * Per-vehicle source metadata (e.g. `{ devices: [{ id, deviceType }] }`) keyed
+   * by vehicle id, captured once at generation time. Lets replay/emit fan out to
+   * the real GPS device ids without bloating every snapshot. Present only for
+   * generated recordings whose vehicles came from a source carrying metadata.
+   */
+  vehicleMeta?: Record<string, Record<string, unknown>>;
 }
 
 export interface RecordingEvent {
