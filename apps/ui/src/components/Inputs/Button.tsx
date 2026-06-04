@@ -1,34 +1,20 @@
-import { useRef, useEffect } from "react";
-import { Button as AriaButton, type ButtonProps } from "react-aria-components";
-import classNames from "classnames";
-import styles from "./Inputs.module.css";
+import { Button as UIButton } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
-// Omit React Aria's onClick/isDisabled to replace with standard React/HTML attrs
-type ExtendedButtonProps = Omit<ButtonProps, "onClick" | "isDisabled"> & {
-  /** ARIA role — applied via ref since React Aria filters out role from DOM props */
-  role?: React.AriaRole;
-  onClick?: React.MouseEventHandler<Element>;
-  /** Standard HTML disabled attribute — mapped to React Aria's isDisabled */
+type ExtendedButtonProps = Omit<React.ComponentProps<typeof UIButton>, "disabled"> & {
+  /** Standard HTML disabled attribute */
   disabled?: boolean;
+  /** Legacy react-aria alias — mapped to native disabled (isDisabled ?? disabled) */
   isDisabled?: boolean;
 };
 
-export function Button({ className, disabled, isDisabled, role, ...props }: ExtendedButtonProps) {
-  const ref = useRef<HTMLButtonElement>(null);
-
-  // React Aria's filterDOMProps strips 'role', so apply it manually via ref
-  useEffect(() => {
-    if (ref.current && role) {
-      ref.current.setAttribute("role", role);
-    }
-  }, [role]);
-
+export function Button({ className, disabled, isDisabled, ...props }: ExtendedButtonProps) {
   return (
-    <AriaButton
-      ref={ref}
-      className={classNames(styles.button, className)}
-      isDisabled={isDisabled ?? disabled}
-      {...(props as ButtonProps)}
+    <UIButton
+      variant="outline"
+      className={cn(className)}
+      disabled={isDisabled ?? disabled}
+      {...props}
     />
   );
 }

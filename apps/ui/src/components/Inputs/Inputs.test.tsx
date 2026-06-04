@@ -107,14 +107,14 @@ describe("Range", () => {
 
   it("has correct aria-valuenow", () => {
     render(<Range label="Speed:" value={7} min={0} max={10} onChange={() => {}} />);
-    expect(screen.getByRole("slider")).toHaveAttribute("value", "7");
+    expect(screen.getByRole("slider")).toHaveAttribute("aria-valuenow", "7");
   });
 
   it("has correct aria-valuemin and aria-valuemax", () => {
     render(<Range label="Speed:" value={5} min={1} max={10} onChange={() => {}} />);
     const slider = screen.getByRole("slider");
-    expect(slider).toHaveAttribute("min", "1");
-    expect(slider).toHaveAttribute("max", "10");
+    expect(slider).toHaveAttribute("aria-valuemin", "1");
+    expect(slider).toHaveAttribute("aria-valuemax", "10");
   });
 
   it("shows the current value as text", () => {

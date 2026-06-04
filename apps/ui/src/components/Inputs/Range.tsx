@@ -1,5 +1,5 @@
-import { Slider, SliderTrack, SliderThumb, Label } from "react-aria-components";
-import styles from "./Inputs.module.css";
+import { Slider } from "@/components/ui/slider";
+import { Label } from "@/components/ui/label";
 
 interface RangeProps {
   label?: string;
@@ -12,29 +12,20 @@ interface RangeProps {
 
 export function Range({ label, value, min = 0, max = 100, step = 1, onChange }: RangeProps) {
   return (
-    <Slider
-      value={value}
-      minValue={min}
-      maxValue={max}
-      step={step}
-      onChange={onChange}
-      className={styles.rangeRoot}
-    >
-      <div className={styles.rangeHeader}>
-        <Label className={styles.label}>{label}</Label>
-        <span className={styles.rangeValue}>{value}</span>
+    <div className="flex w-full flex-col">
+      <div className="mb-1 flex items-baseline justify-between">
+        {label && <Label className="text-sm text-muted-foreground">{label}</Label>}
+        <span className="min-w-[2.5ch] text-right text-sm font-medium tabular-nums text-foreground">
+          {value}
+        </span>
       </div>
-      <SliderTrack className={styles.rangeTrack}>
-        {({ state }) => (
-          <>
-            <div
-              className={styles.rangeFill}
-              style={{ width: `${state.getThumbPercent(0) * 100}%` }}
-            />
-            <SliderThumb className={styles.rangeThumb} />
-          </>
-        )}
-      </SliderTrack>
-    </Slider>
+      <Slider
+        value={[value]}
+        min={min}
+        max={max}
+        step={step}
+        onValueChange={([v]) => onChange(v)}
+      />
+    </div>
   );
 }

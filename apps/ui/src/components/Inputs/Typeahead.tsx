@@ -1,10 +1,17 @@
-import { useCallback, useMemo, type ReactNode } from "react";
-import { ComboBox, Input, Label, ListBox, ListBoxItem, Popover } from "react-aria-components";
-import styles from "./Inputs.module.css";
-import classNames from "classnames";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  Command,
+  CommandEmpty,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
 interface TypeaheadItem<T> {
   key: string;
+  label: string;
   option: T;
 }
 
@@ -28,55 +35,82 @@ export function Typeahead<T>({
   options,
   renderLabel,
   renderOption,
-  value,
   onChange,
   onOptionHover,
   onOptionLeave,
   className,
   placeholder,
 }: TypeaheadProps<T>) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const rootRef = useRef<HTMLDivElement>(null);
+
   const getLabel = useCallback(
     (option: T) => (renderLabel ? renderLabel(option) : String(option)),
     [renderLabel]
   );
 
   const items = useMemo<TypeaheadItem<T>[]>(
-    () => options.map((option, i) => ({ key: `${getLabel(option)}-${i}`, option })),
+    () =>
+      options.map((option, i) => ({
+        key: `${getLabel(option)}-${i}`,
+        label: getLabel(option),
+        option,
+      })),
     [options, getLabel]
   );
 
-  const selectedIdx = value != null ? options.indexOf(value) : -1;
-  const selectedKey = selectedIdx !== -1 ? `${getLabel(value!)}-${selectedIdx}` : null;
+  const handleBlur = useCallback((e: React.FocusEvent<HTMLDivElement>) => {
+    // Close only when focus leaves the whole combobox (input + list).
+    if (!rootRef.current?.contains(e.relatedTarget as Node | null)) {
+      setOpen(false);
+    }
+  }, []);
 
   return (
-    <ComboBox<TypeaheadItem<T>>
-      className={styles.comboBoxRoot}
-      aria-label={ariaLabel ?? (!label ? "Search" : undefined)}
-      defaultItems={items}
-      value={selectedKey}
-      onChange={(key) => {
-        const found = items.find((item) => item.key === key);
-        if (found) onChange(found.option);
-      }}
-      menuTrigger="focus"
+    <div
+      ref={rootRef}
+      className={cn("flex w-full flex-col", className)}
+      onBlur={handleBlur}
+      onMouseLeave={() => onOptionLeave?.()}
     >
-      {label && <Label className={styles.comboLabel}>{label}</Label>}
-      <Input className={classNames(styles.input, className)} placeholder={placeholder} />
-      <Popover className={styles.dropdown}>
-        <ListBox<TypeaheadItem<T>> className={styles.listBox}>
-          {(item) => (
-            <ListBoxItem
-              id={item.key}
-              textValue={getLabel(item.option)}
-              className={styles.option}
-              onHoverStart={() => onOptionHover?.(item.option)}
-              onHoverEnd={() => onOptionLeave?.()}
-            >
-              {renderOption ? renderOption(item.option) : getLabel(item.option)}
-            </ListBoxItem>
-          )}
-        </ListBox>
-      </Popover>
-    </ComboBox>
+      {label && <Label className="mb-1 text-muted-foreground">{label}</Label>}
+      <Command
+        className="overflow-visible bg-transparent"
+        aria-label={ariaLabel ?? (!label ? "Search" : undefined)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") setOpen(false);
+        }}
+      >
+        <CommandInput
+          placeholder={placeholder}
+          value={search}
+          onValueChange={setSearch}
+          onFocus={() => setOpen(true)}
+          className="h-9"
+        />
+        {open && (
+          <div className="relative">
+            <CommandList className="absolute top-1 z-50 max-h-[400px] w-full overflow-y-auto rounded-md border border-border bg-popover p-1 shadow-lg">
+              <CommandEmpty>No results.</CommandEmpty>
+              {items.map((item) => (
+                <CommandItem
+                  key={item.key}
+                  value={item.label}
+                  onSelect={() => {
+                    onChange(item.option);
+                    setOpen(false);
+                  }}
+                  onMouseEnter={() => onOptionHover?.(item.option)}
+                  onMouseLeave={() => onOptionLeave?.()}
+                >
+                  {renderOption ? renderOption(item.option) : item.label}
+                </CommandItem>
+              ))}
+            </CommandList>
+          </div>
+        )}
+      </Command>
+    </div>
   );
 }

@@ -1,10 +1,19 @@
-import { Switch as AriaSwitch, type SwitchProps } from "react-aria-components";
-import styles from "./Inputs.module.css";
+import { Switch as UISwitch } from "@/components/ui/switch";
 
-export function Switch(props: Omit<SwitchProps, "children">) {
+type SwitchProps = Omit<
+  React.ComponentProps<typeof UISwitch>,
+  "checked" | "onCheckedChange" | "disabled" | "children" | "onChange"
+> & {
+  /** react-aria-style selected state */
+  isSelected?: boolean;
+  /** react-aria-style change handler (receives a boolean) */
+  onChange?: (isSelected: boolean) => void;
+  /** react-aria-style disabled flag */
+  isDisabled?: boolean;
+};
+
+export function Switch({ isSelected, onChange, isDisabled, ...props }: SwitchProps) {
   return (
-    <AriaSwitch {...props} className={styles.switch}>
-      <div className={styles.switchIndicator} />
-    </AriaSwitch>
+    <UISwitch checked={isSelected} onCheckedChange={onChange} disabled={isDisabled} {...props} />
   );
 }
