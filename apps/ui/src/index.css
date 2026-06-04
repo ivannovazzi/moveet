@@ -10,34 +10,36 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --radius: 0.5rem;
+  --radius: 0.375rem;
 
-  /* shadcn semantic tokens — dark slate base, keeping the brand teal/accent */
-  --color-background: oklch(0.16 0.02 264);
-  --color-foreground: oklch(0.95 0.01 248);
-  --color-card: oklch(0.21 0.03 266);
-  --color-card-foreground: oklch(0.95 0.01 248);
-  --color-popover: oklch(0.21 0.03 266);
-  --color-popover-foreground: oklch(0.95 0.01 248);
-  --color-primary: oklch(0.52 0.08 178); /* brand teal #0b6055 family */
-  --color-primary-foreground: oklch(0.98 0.003 248);
-  --color-secondary: oklch(0.28 0.04 260);
-  --color-secondary-foreground: oklch(0.98 0.003 248);
-  --color-muted: oklch(0.28 0.04 260);
-  --color-muted-foreground: oklch(0.7 0.04 257);
-  --color-accent: oklch(0.65 0.16 250); /* brand accent #39f family */
-  --color-accent-foreground: oklch(0.98 0.003 248);
-  --color-destructive: oklch(0.64 0.21 25);
-  --color-destructive-foreground: oklch(0.98 0.003 248);
-  --color-border: oklch(1 0 0 / 12%);
-  --color-input: oklch(1 0 0 / 15%);
-  --color-ring: oklch(0.65 0.16 250);
+  /* Professional dark palette: deep near-neutral base, clearly elevated
+     surfaces, visible borders, crisp text, one refined-blue accent
+     (primary = accent = ring for a single coherent highlight). */
+  --color-background: oklch(0.155 0.008 255);
+  --color-foreground: oklch(0.965 0.004 255);
+  --color-card: oklch(0.205 0.009 255);
+  --color-card-foreground: oklch(0.965 0.004 255);
+  --color-popover: oklch(0.215 0.01 255);
+  --color-popover-foreground: oklch(0.965 0.004 255);
+  --color-primary: oklch(0.62 0.15 250);
+  --color-primary-foreground: oklch(0.99 0 0);
+  --color-secondary: oklch(0.255 0.011 255);
+  --color-secondary-foreground: oklch(0.965 0.004 255);
+  --color-muted: oklch(0.235 0.009 255);
+  --color-muted-foreground: oklch(0.7 0.012 255);
+  --color-accent: oklch(0.62 0.15 250);
+  --color-accent-foreground: oklch(0.99 0 0);
+  --color-destructive: oklch(0.62 0.2 22);
+  --color-destructive-foreground: oklch(0.99 0 0);
+  --color-border: oklch(1 0 0 / 13%);
+  --color-input: oklch(1 0 0 / 16%);
+  --color-ring: oklch(0.62 0.15 250);
 
   /* Domain semantic status tokens (decoupled from deck.gl color ramps) */
-  --color-status-ok: oklch(0.72 0.18 150);
-  --color-status-warn: oklch(0.8 0.16 85);
-  --color-status-error: oklch(0.64 0.21 25);
-  --color-status-idle: oklch(0.7 0.03 260);
+  --color-status-ok: oklch(0.74 0.15 152);
+  --color-status-warn: oklch(0.8 0.14 80);
+  --color-status-error: oklch(0.65 0.2 22);
+  --color-status-idle: oklch(0.7 0.02 255);
 
   --font-sans: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
 }

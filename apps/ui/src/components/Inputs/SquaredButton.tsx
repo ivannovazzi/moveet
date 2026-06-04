@@ -66,7 +66,7 @@ export function SquaredButton({
       disabled={isDisabled ?? disabled}
       className={cn(
         "aspect-square text-muted-foreground",
-        size === "lg" && "size-10 [&_svg:not([class*='size-'])]:size-5",
+        size === "lg" && "size-9 [&_svg:not([class*='size-'])]:size-4",
         toneHoverClasses[tone],
         active && toneActiveClasses[tone],
         className
