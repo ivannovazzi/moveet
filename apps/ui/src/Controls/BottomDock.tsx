@@ -1,12 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import classNames from "classnames";
-import { Button } from "react-aria-components";
+import { cn } from "@/lib/utils";
 import client from "@/utils/client";
 import type { ReplayStatus, SimulationStatus } from "@/types";
 import { Flame, Pause, Play, Record, Reset, Stop } from "@/components/Icons";
 import { useOptions } from "@/hooks/useOptions";
-import { SquaredButton } from "@/components/Inputs";
-import styles from "./BottomDock.module.css";
+import { Button, SquaredButton } from "@/components/Inputs";
+
+/* ── Dock container styling (glass overlay floating over the map) ── */
+
+const DOCK_CLASS = cn(
+  "absolute bottom-5 left-1/2 z-40 flex h-14 -translate-x-1/2 translate-y-3.5 items-center gap-5 px-6",
+  "rounded-lg border border-border bg-card/80 shadow-lg backdrop-blur-md",
+  "pointer-events-none opacity-0 transition-[opacity,transform] duration-700",
+  "[[data-ready]_&]:pointer-events-auto [[data-ready]_&]:translate-y-0 [[data-ready]_&]:opacity-100"
+);
 
 /* ── Replay helpers (ported from ReplayBar.tsx) ── */
 
@@ -97,25 +104,24 @@ function ReplayDock({
   const fileName = replayStatus.file?.split("/").pop();
 
   return (
-    <div className={styles.dock}>
-      <span className={styles.fileName} title={fileName}>
+    <div className={DOCK_CLASS}>
+      <span
+        className="max-w-[140px] shrink-0 truncate text-sm text-muted-foreground"
+        title={fileName}
+      >
         {fileName}
       </span>
 
-      <div className={styles.transportGroup}>
+      <div className="flex shrink-0 items-center gap-px">
         <SquaredButton
-          className={styles.dockBtn}
           icon={replayStatus.paused ? <Play /> : <Pause />}
-          iconClassName={styles.btnIcon}
           size="lg"
           variant="surface"
           onClick={handlePlayPause}
           aria-label={replayStatus.paused ? "Resume" : "Pause"}
         />
         <SquaredButton
-          className={styles.dockBtn}
           icon={<Stop />}
-          iconClassName={styles.btnIcon}
           size="lg"
           variant="surface"
           tone="danger"
@@ -124,24 +130,31 @@ function ReplayDock({
         />
       </div>
 
-      <div ref={progressRef} className={styles.progressWrap} onClick={handleProgressClick}>
-        <div className={styles.progressTrack}>
-          <div className={styles.progressFill} style={{ width: `${progress * 100}%` }} />
+      <div
+        ref={progressRef}
+        className="group relative flex h-10 min-w-[100px] flex-[0_1_320px] cursor-pointer items-center"
+        onClick={handleProgressClick}
+      >
+        <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted transition-[height] group-hover:h-2">
+          <div
+            className="h-full rounded-full bg-accent transition-[width] duration-1000 ease-linear"
+            style={{ width: `${progress * 100}%` }}
+          />
         </div>
       </div>
 
-      <span className={styles.time}>
+      <span className="shrink-0 whitespace-nowrap text-sm tabular-nums text-muted-foreground">
         {formatTime(displayTime / 1000)} / {formatTime(duration / 1000)}
       </span>
 
-      <div className={styles.speedGroup}>
+      <div className="flex shrink-0 gap-px">
         {SPEEDS.map((s) => (
           <Button
             key={s}
-            className={classNames(styles.speedBtn, {
-              [styles.speedBtnActive]: (replayStatus.speed ?? 1) === s,
-            })}
-            onPress={() => handleSpeedChange(s)}
+            variant={(replayStatus.speed ?? 1) === s ? "default" : "ghost"}
+            size="sm"
+            className="font-medium"
+            onClick={() => handleSpeedChange(s)}
           >
             {s}x
           </Button>
@@ -218,13 +231,11 @@ export default function BottomDock({
   ] as const;
 
   return (
-    <div className={styles.dock}>
-      <div className={styles.group}>
+    <div className={DOCK_CLASS}>
+      <div className="flex items-center gap-1">
         <SquaredButton
           onClick={status.running ? client.stop : handleStart}
-          className={styles.dockBtn}
           icon={status.running ? <Pause /> : <Play />}
-          iconClassName={styles.btnIcon}
           size="lg"
           variant="surface"
           tone="success"
@@ -233,18 +244,14 @@ export default function BottomDock({
         />
         <SquaredButton
           onClick={handleReset}
-          className={styles.dockBtn}
           icon={<Reset />}
-          iconClassName={styles.btnIcon}
           size="lg"
           variant="surface"
           aria-label="Reset"
         />
         <SquaredButton
           onClick={client.makeHeatzones}
-          className={styles.dockBtn}
           icon={<Flame />}
-          iconClassName={styles.btnIcon}
           size="lg"
           variant="surface"
           aria-label="Make zones"
@@ -252,19 +259,45 @@ export default function BottomDock({
       </div>
 
       <Button
-        className={classNames(styles.recordBtn, { [styles.recordBtnActive]: isRecording })}
-        onPress={isRecording ? onStopRecording : onStartRecording}
+        variant="ghost"
+        size="sm"
+        onClick={isRecording ? onStopRecording : onStartRecording}
         aria-label={isRecording ? "Stop recording" : "Start recording"}
+        className={cn("gap-2", isRecording && "bg-status-error/15 hover:bg-status-error/25")}
       >
-        <Record className={styles.recordIcon} />
-        {isRecording && <span className={styles.recordTime}>{formatTime(elapsed)}</span>}
+        <Record
+          className={cn(
+            "size-4",
+            isRecording ? "fill-status-error animate-pulse" : "fill-muted-foreground"
+          )}
+        />
+        {isRecording && (
+          <span className="whitespace-nowrap text-xs tabular-nums text-status-error">
+            {formatTime(elapsed)}
+          </span>
+        )}
       </Button>
 
-      <div className={styles.chips}>
+      <div className="flex items-center gap-1">
         {statusChips.map(({ key, label, active }) => (
-          <span key={key} className={classNames(styles.chip, { [styles.chipActive]: active })}>
-            <span className={classNames(styles.led, { [styles.ledOn]: active })} />
-            <span className={styles.chipLabel}>{label}</span>
+          <span
+            key={key}
+            className={cn(
+              "inline-flex items-center gap-2 px-2 text-xs",
+              active ? "text-foreground" : "text-muted-foreground"
+            )}
+          >
+            <span
+              className={cn(
+                "size-1.5 shrink-0 rounded-full",
+                active
+                  ? "bg-status-ok shadow-[0_0_4px_var(--color-status-ok)]"
+                  : "bg-muted-foreground"
+              )}
+            />
+            <span className={cn("uppercase tracking-wide", active ? "opacity-85" : "opacity-55")}>
+              {label}
+            </span>
           </span>
         ))}
       </div>

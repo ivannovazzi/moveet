@@ -1,8 +1,12 @@
-import { TextField, Label, Input as AriaInput, type TextFieldProps } from "react-aria-components";
-import styles from "./Inputs.module.css";
+import { Input as UIInput } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
-interface InputProps extends Omit<TextFieldProps, "onChange"> {
+interface InputProps extends Omit<
+  React.ComponentProps<typeof UIInput>,
+  "onChange" | "value" | "type"
+> {
   label?: string;
+  value?: string | number;
   onChange?: (value: string) => void;
   /** Input type — defaults to "number". Pass "text" to render as textbox. */
   type?: React.HTMLInputTypeAttribute;
@@ -10,9 +14,14 @@ interface InputProps extends Omit<TextFieldProps, "onChange"> {
 
 export function Input({ label, value, onChange, type = "number", ...props }: InputProps) {
   return (
-    <TextField className={styles.label} value={String(value ?? "")} onChange={onChange} {...props}>
+    <div className="flex flex-col gap-1 text-sm text-muted-foreground">
       {label && <Label>{label}</Label>}
-      <AriaInput type={type} className={styles.input} />
-    </TextField>
+      <UIInput
+        type={type}
+        value={String(value ?? "")}
+        onChange={(e) => onChange?.(e.target.value)}
+        {...props}
+      />
+    </div>
   );
 }

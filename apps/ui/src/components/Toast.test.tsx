@@ -81,7 +81,7 @@ describe("ToastContainer", () => {
     expect(removeToast).toHaveBeenCalledWith(7);
   });
 
-  it("applies correct CSS class for error/success/info types", () => {
+  it("distinguishes error/success/info toast types", () => {
     const toasts: ToastMessage[] = [
       createToast({ id: 1, type: "error" }),
       createToast({ id: 2, type: "success" }),
@@ -91,10 +91,9 @@ describe("ToastContainer", () => {
     render(<ToastContainer toasts={toasts} removeToast={vi.fn()} />);
 
     const alerts = screen.getAllByRole("alert");
-    // CSS modules mangle class names, but the class should contain the type
-    expect(alerts[0].className).toMatch(/error/);
-    expect(alerts[1].className).toMatch(/success/);
-    expect(alerts[2].className).toMatch(/info/);
+    expect(alerts[0]).toHaveAttribute("data-type", "error");
+    expect(alerts[1]).toHaveAttribute("data-type", "success");
+    expect(alerts[2]).toHaveAttribute("data-type", "info");
   });
 
   it('has role="alert" for accessibility', () => {

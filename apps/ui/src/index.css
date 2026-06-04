@@ -1,21 +1,63 @@
+@import "tailwindcss";
+
+/* Transitional: existing design tokens still referenced by not-yet-migrated
+   CSS Modules. Removed in the cleanup phase once all modules are converted. */
 @import "./styles/tokens.css";
 @import "./styles/theme.css";
 
+/* Dark-only: the dark token set applies everywhere. `dark` is also hard-set
+   on <html> in index.html. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --radius: 0.375rem;
+
+  /* Professional dark palette: deep near-neutral base, clearly elevated
+     surfaces, visible borders, crisp text, one refined-blue accent
+     (primary = accent = ring for a single coherent highlight). */
+  --color-background: oklch(0.155 0.008 255);
+  --color-foreground: oklch(0.965 0.004 255);
+  --color-card: oklch(0.205 0.009 255);
+  --color-card-foreground: oklch(0.965 0.004 255);
+  --color-popover: oklch(0.215 0.01 255);
+  --color-popover-foreground: oklch(0.965 0.004 255);
+  --color-primary: oklch(0.62 0.15 250);
+  --color-primary-foreground: oklch(0.99 0 0);
+  --color-secondary: oklch(0.255 0.011 255);
+  --color-secondary-foreground: oklch(0.965 0.004 255);
+  --color-muted: oklch(0.235 0.009 255);
+  --color-muted-foreground: oklch(0.7 0.012 255);
+  --color-accent: oklch(0.62 0.15 250);
+  --color-accent-foreground: oklch(0.99 0 0);
+  --color-destructive: oklch(0.62 0.2 22);
+  --color-destructive-foreground: oklch(0.99 0 0);
+  --color-border: oklch(1 0 0 / 13%);
+  --color-input: oklch(1 0 0 / 16%);
+  --color-ring: oklch(0.62 0.15 250);
+
+  /* Domain semantic status tokens (decoupled from deck.gl color ramps) */
+  --color-status-ok: oklch(0.74 0.15 152);
+  --color-status-warn: oklch(0.8 0.14 80);
+  --color-status-error: oklch(0.65 0.2 22);
+  --color-status-idle: oklch(0.7 0.02 255);
+
+  --font-sans: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+}
+
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: var(--font-sans);
   line-height: 1.5;
   font-weight: 400;
 
-  color-scheme: light dark;
-  color: var(--color-text);
-  background-color: var(--color-bg-app);
+  color: var(--color-foreground);
+  background-color: var(--color-background);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  /* Backward compat aliases for code that uses old names */
+  /* Backward compat aliases for not-yet-migrated CSS Modules */
   --bg-1: var(--color-overlay-1);
   --bg-2: var(--color-overlay-2);
   --bg-primary: var(--color-primary);
@@ -25,6 +67,11 @@
 html,
 body {
   overscroll-behavior: none;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,4 +1,5 @@
 import { SquaredButton } from "@/components/Inputs";
+import { cn } from "@/lib/utils";
 import {
   CarIcon,
   LayersIcon,
@@ -12,7 +13,6 @@ import {
   GeofenceIcon,
   ScenarioIcon,
 } from "@/components/Icons";
-import styles from "./IconRail.module.css";
 
 export type PanelId =
   | "vehicles"
@@ -52,9 +52,9 @@ export default function IconRail({ activePanel, onPanelChange, incidentCount }: 
   const renderButton = ({ id, Icon, label }: (typeof topItems)[number]) => (
     <SquaredButton
       key={id}
-      className={styles.railButton}
+      className="relative aria-pressed:before:absolute aria-pressed:before:-left-[7px] aria-pressed:before:top-2 aria-pressed:before:bottom-2 aria-pressed:before:w-0.5 aria-pressed:before:rounded-full aria-pressed:before:bg-accent aria-pressed:before:content-['']"
       icon={<Icon />}
-      iconClassName={styles.railIcon}
+      iconClassName="size-5"
       size="lg"
       variant="ghost"
       tone="active"
@@ -65,15 +65,24 @@ export default function IconRail({ activePanel, onPanelChange, incidentCount }: 
       title={label}
     >
       {id === "incidents" && incidentCount != null && incidentCount > 0 && (
-        <span className={styles.badge}>{incidentCount > 9 ? "9+" : incidentCount}</span>
+        <span className="absolute right-0.5 top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-status-error px-[3px] text-[9px] font-semibold leading-none text-white">
+          {incidentCount > 9 ? "9+" : incidentCount}
+        </span>
       )}
     </SquaredButton>
   );
 
   return (
-    <nav className={styles.rail} aria-label="Sidebar navigation">
+    <nav
+      className={cn(
+        "z-[31] flex w-14 flex-shrink-0 flex-col items-center gap-2 border-r border-border bg-card py-3",
+        "pointer-events-none -translate-x-4 opacity-0 transition-[opacity,transform] duration-700 ease-out",
+        "[[data-ready]_&]:pointer-events-auto [[data-ready]_&]:translate-x-0 [[data-ready]_&]:opacity-100"
+      )}
+      aria-label="Sidebar navigation"
+    >
       {topItems.map(renderButton)}
-      <div className={styles.spacer} />
+      <div className="flex-1" />
       {bottomItems.map(renderButton)}
     </nav>
   );

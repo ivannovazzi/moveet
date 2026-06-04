@@ -3,7 +3,6 @@ import client from "@/utils/client";
 import { Button } from "@/components/Inputs";
 import { PanelBody, PanelEmptyState, PanelHeader } from "./PanelPrimitives";
 import type { AnalyticsSummary, FleetAnalytics } from "@/hooks/analyticsStore";
-import styles from "./AnalyticsPanel.module.css";
 
 // ─── Formatting helpers ──────────────────────────────────────────────
 
@@ -60,7 +59,7 @@ function Sparkline({ data, width = 120, height = 40, color = "#4f9" }: Sparkline
 
   return (
     <svg
-      className={styles.sparkline}
+      className="block min-w-0 flex-1 overflow-visible"
       width="100%"
       height={height}
       viewBox={`0 0 ${width} ${height}`}
@@ -68,7 +67,7 @@ function Sparkline({ data, width = 120, height = 40, color = "#4f9" }: Sparkline
       aria-hidden="true"
     >
       <path
-        className={styles.sparklinePath}
+        className="fill-none [stroke-linecap:round] [stroke-linejoin:round] [stroke-width:1.5]"
         d={pathD}
         stroke={color}
         vectorEffect="non-scaling-stroke"
@@ -88,12 +87,16 @@ interface KpiCardProps {
 
 function KpiCard({ label, value, total, unit }: KpiCardProps) {
   return (
-    <div className={styles.kpiCard}>
-      <span className={styles.kpiLabel}>{label}</span>
-      <span className={styles.kpiValue}>
+    <div className="flex flex-col gap-1 rounded-md border border-border bg-card p-4 transition-colors hover:bg-accent/10">
+      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </span>
+      <span className="text-xl font-semibold tabular-nums text-foreground">
         {value}
-        {total != null && <span className={styles.kpiTotal}> / {total}</span>}
-        {unit && <span className={styles.kpiUnit}>{unit}</span>}
+        {total != null && (
+          <span className="text-sm font-normal text-muted-foreground"> / {total}</span>
+        )}
+        {unit && <span className="ml-0.5 text-sm font-normal text-muted-foreground">{unit}</span>}
       </span>
     </div>
   );
@@ -113,28 +116,32 @@ function FleetCard({ fleetId, history }: FleetCardProps) {
   if (!latest) return null;
 
   return (
-    <div className={styles.fleetCard}>
-      <div className={styles.fleetCardHeader}>
-        <span className={styles.fleetDot} style={{ backgroundColor: "#4f9" }} />
-        <span className={styles.fleetName}>{fleetId}</span>
+    <div className="flex flex-col gap-3 rounded-md border border-border bg-card p-4 transition-colors hover:bg-accent/10">
+      <div className="flex items-center gap-3">
+        <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: "#4f9" }} />
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+          {fleetId}
+        </span>
       </div>
-      <div className={styles.fleetStats}>
-        <span className={styles.fleetStat}>
-          <span className={styles.fleetStatValue}>{latest.vehicleCount}</span>
-          <span className={styles.fleetStatUnit}> vehicles</span>
+      <div className="flex gap-4 text-sm tabular-nums text-muted-foreground">
+        <span className="flex items-baseline gap-0.5">
+          <span className="font-medium text-foreground">{latest.vehicleCount}</span>
+          <span className="text-xs text-muted-foreground"> vehicles</span>
         </span>
-        <span className={styles.fleetStat}>
-          <span className={styles.fleetStatValue}>{formatSpeed(latest.avgSpeed)}</span>
-          <span className={styles.fleetStatUnit}> km/h</span>
+        <span className="flex items-baseline gap-0.5">
+          <span className="font-medium text-foreground">{formatSpeed(latest.avgSpeed)}</span>
+          <span className="text-xs text-muted-foreground"> km/h</span>
         </span>
-        <span className={styles.fleetStat}>
-          <span className={styles.fleetStatValue}>{formatDistance(latest.totalDistance)}</span>
-          <span className={styles.fleetStatUnit}> km</span>
+        <span className="flex items-baseline gap-0.5">
+          <span className="font-medium text-foreground">
+            {formatDistance(latest.totalDistance)}
+          </span>
+          <span className="text-xs text-muted-foreground"> km</span>
         </span>
       </div>
       {speedHistory.length >= 2 && (
-        <div className={styles.sparklineRow}>
-          <span className={styles.sparklineLabel}>Speed</span>
+        <div className="flex items-center gap-3">
+          <span className="whitespace-nowrap text-xs text-muted-foreground">Speed</span>
           <Sparkline data={speedHistory} color="#4f9" />
         </div>
       )}
@@ -180,13 +187,13 @@ export default function AnalyticsPanel({
         title="Analytics"
         subtitle={`${summary.activeVehicles} of ${summary.totalVehicles} vehicles active`}
       />
-      <PanelBody className={styles.body}>
-        <div className={styles.controlRow}>
-          <Button className={styles.resetButton} onClick={handleReset} type="button">
+      <PanelBody className="gap-4">
+        <div className="flex justify-end">
+          <Button className="h-8 px-4 text-sm" onClick={handleReset} type="button">
             Reset
           </Button>
         </div>
-        <div className={styles.summary}>
+        <div className="grid grid-cols-2 gap-3">
           <KpiCard label="Vehicles" value={summary.activeVehicles} total={summary.totalVehicles} />
           <KpiCard label="Avg Speed" value={formatSpeed(summary.avgSpeed)} unit="km/h" />
           <KpiCard
@@ -198,16 +205,18 @@ export default function AnalyticsPanel({
         </div>
 
         {speedHistory.length >= 2 && (
-          <div className={styles.sparklineRow}>
-            <span className={styles.sparklineLabel}>Speed trend</span>
+          <div className="flex items-center gap-3">
+            <span className="whitespace-nowrap text-xs text-muted-foreground">Speed trend</span>
             <Sparkline data={speedHistory} width={160} height={40} color="#39f" />
           </div>
         )}
 
         {fleetIds.length > 0 && (
-          <div className={styles.fleetSection}>
-            <span className={styles.fleetSectionLabel}>Fleets</span>
-            <div className={styles.fleetList}>
+          <div className="mt-3">
+            <span className="mb-3 block text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Fleets
+            </span>
+            <div className="flex flex-col gap-3">
               {fleetIds.map((id) => (
                 <FleetCard key={id} fleetId={id} history={fleetHistory.get(id) ?? []} />
               ))}

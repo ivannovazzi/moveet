@@ -1,4 +1,4 @@
-import classNames from "classnames";
+import { cn } from "@/lib/utils";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import client from "@/utils/client";
 import Vehicles from "./Controls/Vehicles";
@@ -37,7 +37,6 @@ import type {
   GeoFenceEvent,
   CreateGeoFenceRequest,
 } from "@moveet/shared-types";
-import styles from "./App.module.css";
 import { useVehicles } from "./hooks/useVehicles";
 import { useFleets } from "./hooks/useFleets";
 import { useVehicleTypeFilter } from "./hooks/useVehicleTypeFilter";
@@ -426,9 +425,9 @@ export default function App() {
   }, [dispatchMode, dispatchState, assignmentCount, handleDone, handleDispatch]);
 
   return (
-    <div className={styles.app}>
+    <div className="flex h-screen max-h-screen flex-col overflow-hidden bg-background">
       <div
-        className={styles.content}
+        className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden"
         data-ready={!networkLoading && !roadsLoading ? "" : undefined}
       >
         <IconRail
@@ -438,19 +437,26 @@ export default function App() {
         />
         <ErrorBoundary fallback={<SectionErrorFallback section="Controls" />}>
           <aside
-            className={classNames(styles.panelRail, styles.leftPanel, {
-              [styles.leftPanelOpen]: activePanel !== null,
-            })}
+            className={cn(
+              "absolute bottom-0 top-0 left-14 z-30 w-[clamp(248px,22vw,304px)] overflow-hidden",
+              "transition-[transform,opacity,visibility] duration-300 ease-out",
+              activePanel !== null
+                ? "visible translate-x-0 opacity-100 pointer-events-auto"
+                : "invisible -translate-x-[calc(100%+20px)] opacity-0 pointer-events-none"
+            )}
             aria-hidden={activePanel === null}
           >
-            <div className={styles.panelInner}>
+            <div className="flex h-full w-full min-w-0 flex-col overflow-hidden border-r border-border bg-card/70 shadow-xl backdrop-blur-2xl">
               {activePanel === "vehicles" && (
                 <>
                   <button
                     type="button"
-                    className={classNames(styles.dispatchToggle, {
-                      [styles.dispatchToggleActive]: dispatch.dispatchMode,
-                    })}
+                    className={cn(
+                      "flex w-full items-center justify-center border-b border-border px-4 py-3 text-sm font-medium tracking-wide transition-colors",
+                      dispatch.dispatchMode
+                        ? "bg-accent/15 text-accent"
+                        : "bg-foreground/5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+                    )}
                     onClick={dispatch.toggleDispatchMode}
                   >
                     {dispatch.dispatchMode ? "Exit Dispatch" : "Dispatch"}
@@ -553,7 +559,7 @@ export default function App() {
           </aside>
         </ErrorBoundary>
         <ErrorBoundary fallback={<SectionErrorFallback section="Map" />}>
-          <div className={styles.map}>
+          <div className="relative flex min-h-0 min-w-0 flex-1">
             <ConnectionStatus connectionInfo={connectionInfo} />
             <LoadingOverlay visible={networkLoading || roadsLoading} />
             <MapView
@@ -619,7 +625,10 @@ export default function App() {
       </div>
       {xy && (
         <ContextMenu position={xy} onClose={closeContextMenu}>
-          <div ref={ref} className={styles.contextMenu}>
+          <div
+            ref={ref}
+            className="flex flex-col items-stretch gap-2 rounded-lg bg-card/80 p-2 backdrop-blur-md"
+          >
             <MapContextMenu
               state={dispatch.dispatchState}
               onFindDirections={onPointDestinationClick}

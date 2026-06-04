@@ -1,17 +1,16 @@
 import { useState } from "react";
-import {
-  TextField,
-  Input as AriaInput,
-  Select,
-  SelectValue,
-  Button,
-  Popover,
-  ListBox,
-  ListBoxItem,
-} from "react-aria-components";
 import { Switch } from "@/components/Inputs";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import type { ConfigField } from "./adapterClient";
-import styles from "./AdapterDrawer.module.css";
 
 interface ConfigFormProps {
   fields: ConfigField[];
@@ -68,108 +67,93 @@ export default function ConfigForm({
   };
 
   return (
-    <form className={styles.configForm} onSubmit={handleSubmit}>
+    <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
       {fields.map((field) => (
-        <label key={field.name} className={styles.field}>
-          <span className={styles.fieldLabel}>
+        <label key={field.name} className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-foreground">
             {field.label}
-            {field.required && <span className={styles.required}>*</span>}
+            {field.required && <span className="ml-0.5 text-status-error">*</span>}
           </span>
-          {field.placeholder && <span className={styles.fieldHint}>{field.placeholder}</span>}
+          {field.placeholder && (
+            <span className="text-xs text-muted-foreground">{field.placeholder}</span>
+          )}
           {renderInput(field, values[field.name], set)}
         </label>
       ))}
-      {jsonError && <div className={styles.inlineError}>{jsonError}</div>}
-      <button type="submit" className={styles.submitBtn} disabled={loading}>
+      {jsonError && <div className="text-sm text-status-error">{jsonError}</div>}
+      <Button type="submit" disabled={loading}>
         {loading ? `${submitLabel}…` : submitLabel}
-      </button>
+      </Button>
     </form>
   );
 }
+
+const inputCls = "h-9";
 
 function renderInput(
   field: ConfigField,
   value: unknown,
   set: (name: string, value: unknown) => void
 ) {
-  const cls = styles.input;
   switch (field.type) {
     case "boolean":
       return (
-        <span className={styles.switchField}>
-          <span className={styles.switchLabel}>{value === true ? "Enabled" : "Disabled"}</span>
+        <span className="flex items-center justify-between gap-2">
+          <span className="text-sm text-muted-foreground">
+            {value === true ? "Enabled" : "Disabled"}
+          </span>
           <Switch isSelected={Boolean(value)} onChange={(selected) => set(field.name, selected)} />
         </span>
       );
     case "number":
       return (
-        <TextField
+        <Input
+          type="number"
+          className={inputCls}
           value={String(value as number)}
-          onChange={(val) => set(field.name, Number(val))}
+          placeholder={field.placeholder}
+          required={field.required}
           aria-label={field.label}
-        >
-          <AriaInput
-            type="number"
-            className={cls}
-            placeholder={field.placeholder}
-            required={field.required}
-          />
-        </TextField>
+          onChange={(e) => set(field.name, Number(e.target.value))}
+        />
       );
     case "password":
       return (
-        <TextField
+        <Input
+          type="password"
+          className={inputCls}
           value={value as string}
-          onChange={(val) => set(field.name, val)}
+          placeholder={field.placeholder}
+          required={field.required}
           aria-label={field.label}
-        >
-          <AriaInput
-            type="password"
-            className={cls}
-            placeholder={field.placeholder}
-            required={field.required}
-          />
-        </TextField>
+          onChange={(e) => set(field.name, e.target.value)}
+        />
       );
     case "select":
       return (
         <Select
-          selectedKey={value as string}
-          onSelectionChange={(key) => set(field.name, String(key))}
-          className={styles.selectRoot}
-          aria-label={field.label}
+          value={(value as string) || ""}
+          onValueChange={(key) => set(field.name, String(key))}
         >
-          <Button className={styles.selectTrigger}>
-            <SelectValue className={styles.selectValue}>
-              {({ selectedText }) => selectedText || "--"}
-            </SelectValue>
-            <span aria-hidden className={styles.selectChevron}>
-              ▾
-            </span>
-          </Button>
-          <Popover className={styles.selectPopover}>
-            <ListBox className={styles.selectListBox}>
-              <ListBoxItem id="" textValue="--" className={styles.selectItem}>
-                --
-              </ListBoxItem>
-              {field.options?.map((o) => (
-                <ListBoxItem
-                  key={o.value}
-                  id={o.value}
-                  textValue={o.label}
-                  className={styles.selectItem}
-                >
-                  {o.label}
-                </ListBoxItem>
-              ))}
-            </ListBox>
-          </Popover>
+          <SelectTrigger className="w-full" aria-label={field.label}>
+            <SelectValue placeholder="--" />
+          </SelectTrigger>
+          <SelectContent>
+            {field.options?.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
         </Select>
       );
     case "json":
       return (
         <textarea
-          className={`${cls} ${styles.textarea}`}
+          className={cn(
+            "min-h-[72px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30",
+            "font-mono"
+          )}
           value={
             typeof value === "string" ? value : value != null ? JSON.stringify(value, null, 2) : ""
           }
@@ -180,18 +164,15 @@ function renderInput(
       );
     default:
       return (
-        <TextField
+        <Input
+          type="text"
+          className={inputCls}
           value={value as string}
-          onChange={(val) => set(field.name, val)}
+          placeholder={field.placeholder}
+          required={field.required}
           aria-label={field.label}
-        >
-          <AriaInput
-            type="text"
-            className={cls}
-            placeholder={field.placeholder}
-            required={field.required}
-          />
-        </TextField>
+          onChange={(e) => set(field.name, e.target.value)}
+        />
       );
   }
 }

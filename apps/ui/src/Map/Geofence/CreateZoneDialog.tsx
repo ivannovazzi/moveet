@@ -1,6 +1,15 @@
 import { useState } from "react";
 import type { CreateGeoFenceRequest, GeoFenceType } from "@moveet/shared-types";
-import styles from "./CreateZoneDialog.module.css";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/Inputs";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { isSelfIntersecting } from "./polygonValidation";
 
 interface CreateZoneDialogProps {
@@ -49,89 +58,86 @@ export default function CreateZoneDialog({ polygon, onSubmit, onClose }: CreateZ
   };
 
   return (
-    <div
-      className={styles.overlay}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Create geofence zone"
-    >
-      <div className={styles.dialog}>
-        <div className={styles.header}>
-          <h2 className={styles.title}>Create Zone</h2>
-          <button type="button" className={styles.closeButton} onClick={onClose} aria-label="Close">
-            ×
-          </button>
-        </div>
-        <form onSubmit={handleSubmit} className={styles.form}>
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="zone-name">
-              Name <span className={styles.required}>*</span>
-            </label>
-            <input
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        aria-label="Create geofence zone"
+        aria-describedby={undefined}
+        className="w-[clamp(280px,90vw,360px)] gap-0 p-0"
+      >
+        <DialogHeader className="border-b border-border px-4 py-3">
+          <DialogTitle>Create Zone</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-4 py-3">
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="zone-name">
+              Name <span className="text-status-error">*</span>
+            </Label>
+            <Input
               id="zone-name"
               type="text"
-              className={styles.input}
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={setName}
               placeholder="Zone name"
               required
               autoFocus
             />
           </div>
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="zone-type">
-              Type
-            </label>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="zone-type">Type</Label>
             <select
               id="zone-type"
-              className={styles.select}
+              className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30"
               value={type}
               onChange={(e) => setType(e.target.value as GeoFenceType)}
             >
               {FENCE_TYPES.map((t) => (
-                <option key={t} value={t}>
+                <option key={t} value={t} className="bg-popover text-popover-foreground">
                   {t.charAt(0).toUpperCase() + t.slice(1)}
                 </option>
               ))}
             </select>
           </div>
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="zone-color">
-              Color <span className={styles.optional}>(optional)</span>
-            </label>
-            <div className={styles.colorRow}>
+          <div className="flex flex-col gap-1">
+            <Label htmlFor="zone-color">
+              Color <span className="text-xs text-muted-foreground">(optional)</span>
+            </Label>
+            <div className="flex items-center gap-3">
               <input
                 id="zone-color"
                 type="color"
-                className={styles.colorPicker}
+                className="h-8 w-9 cursor-pointer rounded-md border border-input bg-transparent p-0.5 dark:bg-input/30"
                 value={color || "#3b82f6"}
                 onChange={(e) => setColor(e.target.value)}
               />
               {color && (
-                <button type="button" className={styles.clearColor} onClick={() => setColor("")}>
+                <button
+                  type="button"
+                  className="cursor-pointer text-xs text-muted-foreground underline hover:text-foreground"
+                  onClick={() => setColor("")}
+                >
                   Use default
                 </button>
               )}
             </div>
           </div>
-          <div className={styles.meta}>
-            <span className={styles.vertexCount}>{polygon.length} vertices</span>
+          <div className="text-xs text-muted-foreground">
+            Polygon: <span>{polygon.length} vertices</span>
           </div>
           {validationError && (
-            <p className={styles.validationError} role="alert">
+            <p className="m-0 text-xs leading-relaxed text-status-error" role="alert">
               {validationError}
             </p>
           )}
-          <div className={styles.actions}>
-            <button type="button" className={styles.cancelButton} onClick={onClose}>
+          <DialogFooter className="border-t border-border pt-2">
+            <Button type="button" variant="outline" onClick={onClose}>
               Cancel
-            </button>
-            <button type="submit" className={styles.submitButton} disabled={!name.trim()}>
+            </Button>
+            <Button type="submit" disabled={!name.trim()}>
               Create Zone
-            </button>
-          </div>
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

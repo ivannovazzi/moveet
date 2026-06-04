@@ -1,12 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, act } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, fireEvent } from "@testing-library/react";
 import ContextMenu from "./ContextMenu";
-
-// Mock @react-aria/focus to avoid jsdom focus-management issues
-vi.mock("@react-aria/focus", () => ({
-  FocusScope: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
 
 describe("ContextMenu", () => {
   const defaultPosition = { x: 100, y: 100 };

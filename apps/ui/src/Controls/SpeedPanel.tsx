@@ -3,7 +3,6 @@ import type { StartOptions } from "@/types";
 import { Range } from "@/components/Inputs";
 import { useOptions } from "@/hooks/useOptions";
 import { PanelBody, PanelHeader } from "./PanelPrimitives";
-import styles from "./SpeedPanel.module.css";
 
 const sliders: {
   key: keyof StartOptions;
@@ -40,7 +39,7 @@ export default memo(function SpeedPanel({ maxSpeedRef }: SpeedPanelProps) {
         title="Speed"
         subtitle="Adjust runtime speed, acceleration, and update cadence."
       />
-      <PanelBody className={styles.body}>
+      <PanelBody className="gap-4">
         {sliders.map(({ key, label, min, max, step }) => (
           <Range
             key={key}

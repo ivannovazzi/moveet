@@ -1,8 +1,15 @@
 import { useState } from "react";
-import { Button, Select, SelectValue, Popover, ListBox, ListBoxItem } from "react-aria-components";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import type { HealthResponse, ConfigResponse } from "./adapterClient";
 import ConfigForm from "./ConfigForm";
-import styles from "./AdapterDrawer.module.css";
 
 interface SinksTabProps {
   health: HealthResponse;
@@ -30,14 +37,16 @@ export default function SinksTab({ health, config, loading, onAdd, onRemove }: S
   const addPlugin = health.availableSinks.find((s) => s.type === addingType);
 
   return (
-    <div className={styles.tabContent}>
+    <div className="flex flex-col gap-3">
       {activeSinks.length > 0 && (
-        <section className={styles.sectionCard}>
-          <div className={styles.sectionHeading}>
-            <span className={styles.sectionLabel}>Active sinks</span>
-            <span className={styles.statusText}>{activeSinks.length} connected</span>
+        <section className="flex flex-col gap-2 rounded-md border border-border bg-card p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+              Active sinks
+            </span>
+            <span className="text-sm text-muted-foreground">{activeSinks.length} connected</span>
           </div>
-          <div className={styles.sinkList}>
+          <div className="flex flex-col gap-2">
             {activeSinks.map((sink) => {
               const schema =
                 health.availableSinks.find((s) => s.type === sink.type)?.configSchema ?? [];
@@ -45,35 +54,40 @@ export default function SinksTab({ health, config, loading, onAdd, onRemove }: S
               const entries = current ? Object.entries(current) : [];
               const isEditing = editingType === sink.type;
               return (
-                <div key={sink.type} className={styles.sinkEntry}>
-                  <div className={styles.sinkItem}>
-                    <div className={styles.sinkMeta}>
+                <div
+                  key={sink.type}
+                  className="flex flex-col gap-2 rounded-md border border-border bg-background/40 p-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
                       <span
-                        className={styles.statusDot}
-                        style={{
-                          background: sink.healthy
-                            ? "var(--color-status-onshift)"
-                            : "var(--color-status-offline)",
-                        }}
+                        className={cn(
+                          "inline-block size-2.5 shrink-0 rounded-full",
+                          sink.healthy ? "bg-status-ok" : "bg-status-error"
+                        )}
                       />
-                      <span className={styles.sinkName}>{sink.type}</span>
+                      <span className="truncate text-sm font-medium text-foreground">
+                        {sink.type}
+                      </span>
                     </div>
-                    <span className={styles.statusText}>
+                    <span className="ml-auto text-sm text-muted-foreground">
                       {sink.healthy ? "Healthy" : "Unhealthy"}
                     </span>
-                    <div className={styles.sinkActions}>
+                    <div className="flex items-center gap-1">
                       {schema.length > 0 && (
                         <Button
-                          className={styles.editBtn}
-                          onPress={() => setEditingType(isEditing ? null : sink.type)}
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setEditingType(isEditing ? null : sink.type)}
                           aria-label={`${isEditing ? "Cancel editing" : "Edit"} ${sink.type}`}
                         >
                           {isEditing ? "Cancel" : "Edit"}
                         </Button>
                       )}
                       <Button
-                        className={styles.removeBtn}
-                        onPress={() => onRemove(sink.type)}
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => onRemove(sink.type)}
                         aria-label={`Remove ${sink.type}`}
                       >
                         &times;
@@ -82,11 +96,11 @@ export default function SinksTab({ health, config, loading, onAdd, onRemove }: S
                   </div>
 
                   {!isEditing && entries.length > 0 && (
-                    <dl className={styles.sinkConfigSummary}>
+                    <dl className="flex flex-col gap-1 text-sm">
                       {entries.map(([key, value]) => (
-                        <div key={key} className={styles.sinkConfigRow}>
-                          <dt className={styles.sinkConfigKey}>{key}</dt>
-                          <dd className={styles.sinkConfigVal}>{formatConfigValue(value)}</dd>
+                        <div key={key} className="flex items-center justify-between gap-2">
+                          <dt className="text-muted-foreground">{key}</dt>
+                          <dd className="truncate text-foreground">{formatConfigValue(value)}</dd>
                         </div>
                       ))}
                     </dl>
@@ -111,52 +125,42 @@ export default function SinksTab({ health, config, loading, onAdd, onRemove }: S
           </div>
         </section>
       )}
-      {activeSinks.length === 0 && <section className={styles.emptyState}>No active sinks</section>}
+      {activeSinks.length === 0 && (
+        <section className="rounded-md border border-dashed border-border bg-muted/40 p-4 text-center text-sm text-muted-foreground">
+          No active sinks
+        </section>
+      )}
 
       {availableToAdd.length > 0 && (
-        <section className={styles.sectionCard}>
-          <div className={styles.sectionHeading}>
-            <span className={styles.sectionLabel}>Add sink</span>
-            <span className={styles.fieldHint}>Attach another downstream target.</span>
+        <section className="flex flex-col gap-2 rounded-md border border-border bg-card p-3">
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+              Add sink
+            </span>
+            <span className="text-xs text-muted-foreground">Attach another downstream target.</span>
           </div>
-          <Select
-            selectedKey={addingType}
-            onSelectionChange={(key) => setAddingType(String(key))}
-            className={styles.selectRoot}
-            aria-label="Sink Type"
-          >
-            <Button className={styles.selectTrigger}>
-              <SelectValue className={styles.selectValue}>
-                {({ selectedText }) => selectedText || "-- select type --"}
-              </SelectValue>
-              <span aria-hidden className={styles.selectChevron}>
-                ▾
-              </span>
-            </Button>
-            <Popover className={styles.selectPopover}>
-              <ListBox className={styles.selectListBox}>
-                <ListBoxItem id="" textValue="-- select type --" className={styles.selectItem}>
-                  -- select type --
-                </ListBoxItem>
-                {availableToAdd.map((s) => (
-                  <ListBoxItem
-                    key={s.type}
-                    id={s.type}
-                    textValue={s.type}
-                    className={styles.selectItem}
-                  >
-                    {s.type}
-                  </ListBoxItem>
-                ))}
-              </ListBox>
-            </Popover>
+          <Select value={addingType} onValueChange={(key) => setAddingType(String(key))}>
+            <SelectTrigger className="w-full" aria-label="Sink Type">
+              <SelectValue placeholder="-- select type --" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableToAdd.map((s) => (
+                <SelectItem key={s.type} value={s.type}>
+                  {s.type}
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
 
           {addPlugin && addPlugin.configSchema.length > 0 && (
             <>
-              <div className={styles.sectionHeading}>
-                <span className={styles.sectionLabel}>Configuration</span>
-                <span className={styles.fieldHint}>Enter the sink connection details.</span>
+              <div className="flex flex-col gap-1">
+                <span className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+                  Configuration
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Enter the sink connection details.
+                </span>
               </div>
               <ConfigForm
                 key={addingType}
@@ -174,9 +178,8 @@ export default function SinksTab({ health, config, loading, onAdd, onRemove }: S
 
           {addPlugin && addPlugin.configSchema.length === 0 && (
             <Button
-              className={styles.submitBtn}
-              isDisabled={loading}
-              onPress={() => {
+              disabled={loading}
+              onClick={() => {
                 onAdd(addingType);
                 setAddingType("");
               }}

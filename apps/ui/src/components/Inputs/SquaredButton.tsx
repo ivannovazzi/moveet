@@ -1,14 +1,15 @@
-import React, { useRef, useEffect } from "react";
-import { Button as AriaButton, type ButtonProps } from "react-aria-components";
-import styles from "./Inputs.module.css";
-import classNames from "classnames";
+import React from "react";
+import { Button as UIButton } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type SquaredButtonTone = "neutral" | "active" | "success" | "danger";
 type SquaredButtonVariant = "surface" | "ghost";
 type SquaredButtonSize = "md" | "lg";
 
-// Omit React Aria's onClick/isDisabled to replace with standard React/HTML attrs
-type SquaredButtonProps = Omit<ButtonProps, "className" | "children" | "onClick" | "isDisabled"> & {
+type SquaredButtonProps = Omit<
+  React.ComponentProps<typeof UIButton>,
+  "className" | "children" | "variant" | "size" | "disabled"
+> & {
   icon: React.ReactNode;
   tone?: SquaredButtonTone;
   variant?: SquaredButtonVariant;
@@ -17,12 +18,25 @@ type SquaredButtonProps = Omit<ButtonProps, "className" | "children" | "onClick"
   className?: string;
   iconClassName?: string;
   children?: React.ReactNode;
-  /** title attribute — applied via ref since React Aria filters it from DOM props */
   title?: string;
-  onClick?: React.MouseEventHandler<Element>;
-  /** Standard HTML disabled attribute — mapped to React Aria's isDisabled */
+  /** Standard HTML disabled attribute */
   disabled?: boolean;
+  /** Legacy react-aria alias — mapped to native disabled (isDisabled ?? disabled) */
   isDisabled?: boolean;
+};
+
+const toneActiveClasses: Record<SquaredButtonTone, string> = {
+  neutral: "bg-accent/15 border-accent/30 text-foreground",
+  active: "bg-accent/15 border-accent/40 text-accent",
+  success: "bg-status-ok/15 border-status-ok/30 text-status-ok",
+  danger: "bg-status-error/15 border-status-error/30 text-status-error",
+};
+
+const toneHoverClasses: Record<SquaredButtonTone, string> = {
+  neutral: "hover:text-foreground",
+  active: "hover:text-accent",
+  success: "hover:text-status-ok",
+  danger: "hover:text-status-error",
 };
 
 export function SquaredButton({
@@ -34,55 +48,33 @@ export function SquaredButton({
   className,
   iconClassName,
   children,
-  title,
   disabled,
   isDisabled,
   ...props
 }: SquaredButtonProps) {
-  const ref = useRef<HTMLButtonElement>(null);
-
-  // React Aria's filterDOMProps strips 'title', so apply it manually via ref
-  useEffect(() => {
-    if (ref.current && title) {
-      ref.current.setAttribute("title", title);
-    }
-  }, [title]);
-
   const iconNode = React.isValidElement<{ className?: string }>(icon)
     ? React.cloneElement(icon, {
-        className: classNames(styles.squaredButtonIcon, icon.props.className, iconClassName),
+        className: cn(icon.props.className, iconClassName),
       })
     : icon;
 
   return (
-    <AriaButton
-      ref={ref}
+    <UIButton
       type="button"
-      isDisabled={isDisabled ?? disabled}
-      {...(props as ButtonProps)}
-      className={classNames(
-        styles.squaredButton,
-        styles[`squaredButton${size === "lg" ? "Lg" : "Md"}`],
-        styles[`squaredButton${variant === "ghost" ? "Ghost" : "Surface"}`],
-        styles[
-          `squaredButtonTone${
-            tone === "active"
-              ? "Active"
-              : tone === "success"
-                ? "Success"
-                : tone === "danger"
-                  ? "Danger"
-                  : "Neutral"
-          }`
-        ],
-        {
-          [styles.squaredButtonActive]: active,
-        },
+      variant={variant === "ghost" ? "ghost" : "outline"}
+      size="icon"
+      disabled={isDisabled ?? disabled}
+      className={cn(
+        "aspect-square text-muted-foreground",
+        size === "lg" && "size-9 [&_svg:not([class*='size-'])]:size-4",
+        toneHoverClasses[tone],
+        active && toneActiveClasses[tone],
         className
       )}
+      {...props}
     >
       {iconNode}
       {children}
-    </AriaButton>
+    </UIButton>
   );
 }

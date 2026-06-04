@@ -1,16 +1,17 @@
 import { Craft, Leisure, Office, Shop, Bus, Unknown } from "@/components/Icons";
-import styles from "./POI.module.css";
 import type { POI, Position } from "@/types";
 import React, { memo } from "react";
 import HTMLMarker from "@/components/Map/components/HTMLMarker";
-import classNames from "classnames";
+import { cn } from "@/lib/utils";
 import { getFillByType, isBusStop } from "./helpers";
 
-const IconByType = memo(function IconByType({ type }: { type: string }) {
-  const svgProps = {
-    className: styles.icon,
-  };
-
+const IconByType = memo(function IconByType({
+  type,
+  className,
+}: {
+  type: string;
+  className: string;
+}) {
   let icon = <Unknown />;
   if (type === "shop") {
     icon = <Shop />;
@@ -24,7 +25,7 @@ const IconByType = memo(function IconByType({ type }: { type: string }) {
     icon = <Bus />;
   }
 
-  return React.cloneElement(icon, svgProps);
+  return React.cloneElement(icon, { className });
 });
 
 interface POIMarkerProps {
@@ -35,14 +36,27 @@ interface POIMarkerProps {
 
 const POIMarker = memo(function POIMarker({ poi, showLabel, onClick }: POIMarkerProps) {
   const position = [poi.coordinates[1], poi.coordinates[0]] as Position;
+  const bus = isBusStop(poi);
   return (
     <HTMLMarker key={poi.id} position={position} onClick={onClick}>
-      {showLabel && <div className={styles.label}>{poi.name}</div>}
+      {showLabel && (
+        <div className="absolute -left-[60px] bottom-8 -ml-[50%] min-w-[120px] rounded-md border border-border bg-card/90 p-1.5 text-center text-base backdrop-blur-md">
+          {poi.name}
+        </div>
+      )}
       <div
-        className={classNames({ [styles.poi]: !isBusStop(poi), [styles.bus]: isBusStop(poi) })}
+        className={cn(
+          "flex animate-in fade-in cursor-pointer items-center justify-center transition-transform duration-200 ease-out",
+          bus
+            ? "-ml-[7px] -mt-[7px] h-3.5 w-3.5 rounded-[5px] border border-[#333d] hover:scale-150"
+            : "-ml-[11px] -mt-[11px] h-[22px] w-[22px] rounded-full border border-[#ffffff66] hover:scale-[2]"
+        )}
         style={{ background: getFillByType(poi.type) }}
       >
-        <IconByType type={poi.type} />
+        <IconByType
+          type={poi.type}
+          className={cn(bus ? "h-5 w-5 fill-[#333d]" : "h-4 w-4 fill-[#fffd]")}
+        />
       </div>
     </HTMLMarker>
   );
