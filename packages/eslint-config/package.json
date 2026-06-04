@@ -14,7 +14,7 @@
   "dependencies": {
     "@eslint/js": "^10.0.1",
     "eslint-config-prettier": "^10.1.8",
-    "globals": "^17.4.0",
+    "globals": "^17.6.0",
     "typescript-eslint": "^8.57.2"
   },
   "peerDependencies": {
