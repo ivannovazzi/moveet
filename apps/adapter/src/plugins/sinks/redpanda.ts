@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto";
-import type { Admin, Producer } from "kafkajs";
+import type { Admin, Message, Producer } from "kafkajs";
 import { Kafka } from "kafkajs";
+import { SchemaRegistry, SchemaType } from "@kafkajs/confluent-schema-registry";
+import {
+  TELEMETRY_LOCATION_AVRO_SCHEMA,
+  TELEMETRY_LOCATION_AVRO_SUBJECT,
+  TELEMETRY_LOCATION_EVENT_TYPE,
+} from "@moveet/shared-types";
 import type {
   ConfigField,
   DataSink,
@@ -148,7 +154,30 @@ export class RedpandaSink implements DataSink {
       options: [
         { label: "Dispatch (vehicle.position event)", value: "dispatch" },
         { label: "Trajectory-engine telemetry", value: "trajectory" },
+        { label: "Canonical telemetry (Confluent-AVRO)", value: "canonical-avro" },
       ],
+    },
+    {
+      name: "schemaRegistryUrl",
+      label: "Schema Registry URL",
+      type: "string",
+      default: "http://localhost:18081",
+      placeholder: "http://localhost:18081",
+      description: "Confluent Schema Registry endpoint, used by the canonical-avro format.",
+    },
+    {
+      name: "sourceService",
+      label: "Source Service",
+      type: "string",
+      default: "moveet-simulator",
+      description: "Populates source.service in the canonical envelope.",
+    },
+    {
+      name: "sourceEnvironment",
+      label: "Source Environment",
+      type: "string",
+      default: "dev",
+      description: "Populates source.environment in the canonical envelope.",
     },
     {
       name: "keyField",
@@ -192,8 +221,14 @@ export class RedpandaSink implements DataSink {
   private topic = "dispatch.vehicle.positions";
   private batchSize = 500;
   private acks: number = 1;
-  private format: "dispatch" | "trajectory" = "dispatch";
+  private format: "dispatch" | "trajectory" | "canonical-avro" = "dispatch";
   private keyField = "id";
+  // Canonical-AVRO format state (populated in connect() only for that format).
+  private schemaRegistryUrl = "http://localhost:18081";
+  private sourceService = "moveet-simulator";
+  private sourceEnvironment = "dev";
+  private registry: SchemaRegistry | null = null;
+  private schemaId: number | null = null;
   private payloadTemplate: PayloadTemplate | null = null;
   // Optional dot-path to an array in the context. When set, each update fans
   // out to one message per array element. null = disabled.
@@ -217,12 +252,22 @@ export class RedpandaSink implements DataSink {
     this.acks = acks;
 
     const format = (config.format as string) || "dispatch";
-    if (format !== "dispatch" && format !== "trajectory") {
+    if (format !== "dispatch" && format !== "trajectory" && format !== "canonical-avro") {
       throw new Error(
-        `RedpandaSink: invalid format "${format}" (must be "dispatch" or "trajectory")`
+        `RedpandaSink: invalid format "${format}" (must be "dispatch", "trajectory", or "canonical-avro")`
       );
     }
     this.format = format;
+
+    if (format === "canonical-avro") {
+      const url = (config.schemaRegistryUrl as string) || "http://localhost:18081";
+      if (typeof url !== "string" || url.trim() === "") {
+        throw new Error("RedpandaSink: schemaRegistryUrl must be a non-empty string");
+      }
+      this.schemaRegistryUrl = url;
+      this.sourceService = (config.sourceService as string) || "moveet-simulator";
+      this.sourceEnvironment = (config.sourceEnvironment as string) || "dev";
+    }
 
     const keyField = (config.keyField as string) || "id";
     if (typeof keyField !== "string" || keyField.trim() === "") {
@@ -253,6 +298,20 @@ export class RedpandaSink implements DataSink {
     this.producer = this.kafka.producer({ allowAutoTopicCreation: false });
     try {
       await this.producer.connect();
+      // For the canonical-AVRO format, register (idempotent) the canonical
+      // schema with Schema Registry and cache the returned schema id, which
+      // every encode() prefixes onto the wire payload (Confluent framing).
+      if (this.format === "canonical-avro") {
+        this.registry = new SchemaRegistry({ host: this.schemaRegistryUrl });
+        const registered = await this.registry.register(
+          {
+            type: SchemaType.AVRO,
+            schema: JSON.stringify(TELEMETRY_LOCATION_AVRO_SCHEMA),
+          },
+          { subject: TELEMETRY_LOCATION_AVRO_SUBJECT }
+        );
+        this.schemaId = registered.id;
+      }
     } catch (err) {
       // Tear down the half-connected producer so its internal connection/retry
       // machinery doesn't leak — connect() failing means the plugin is never
@@ -260,6 +319,8 @@ export class RedpandaSink implements DataSink {
       await this.producer.disconnect().catch(() => {});
       this.producer = null;
       this.kafka = null;
+      this.registry = null;
+      this.schemaId = null;
       throw err;
     }
   }
@@ -270,6 +331,8 @@ export class RedpandaSink implements DataSink {
       this.producer = null;
     }
     this.kafka = null;
+    this.registry = null;
+    this.schemaId = null;
   }
 
   /**
@@ -404,13 +467,94 @@ export class RedpandaSink implements DataSink {
   }
 
   /**
+   * Map a per-message {@link MessageContext} onto the canonical telemetry
+   * envelope. Fields the simulator can't supply (satellites, battery, network,
+   * position_origin) are left null per the schema's union defaults.
+   * `data.source` is GPS unless the device/update metadata marks it `mobile`.
+   */
+  private buildCanonicalEnvelope(context: MessageContext): Record<string, unknown> {
+    const deviceType =
+      (context.metadata?.deviceType as string | undefined) ??
+      (context.device != null && typeof context.device === "object"
+        ? ((context.device as Record<string, unknown>).deviceType as string | undefined)
+        : undefined);
+    const telemetrySource = deviceType === "mobile" ? "MOBILE" : "GPS";
+
+    return {
+      event_id: randomUUID(),
+      event_type: TELEMETRY_LOCATION_EVENT_TYPE,
+      event_version: 1,
+      occurred_at: new Date().toISOString(),
+      source: { service: this.sourceService, environment: this.sourceEnvironment },
+      metadata: { correlation_id: null, causation_id: null, trace_id: null },
+      data: {
+        device_id: String(context.id),
+        source: telemetrySource,
+        recorded_at: new Date(context.ts).toISOString(),
+        latitude: context.lat,
+        longitude: context.lon,
+        accuracy_meters: context.accuracy,
+        speed_mps: context.speed,
+        heading_degrees: context.heading,
+        altitude_meters: context.altitude,
+        satellites: null,
+        ignition_on: context.ignition,
+        moving: context.speed > 0.5,
+        battery_level: null,
+        battery_charging: null,
+        network: null,
+        position_origin: null,
+        sensor_readings: {},
+      },
+    };
+  }
+
+  /**
+   * Confluent-AVRO-encode one context into a Kafka message. The Kafka key is
+   * resolved via the same `keyField` dot-path as the JSON formats; the value is
+   * the registry-encoded Buffer (5-byte Confluent header + Avro body).
+   */
+  private async buildCanonicalAvroMessage(context: MessageContext): Promise<Message> {
+    if (!this.registry || this.schemaId == null) {
+      throw new Error("RedpandaSink: schema registry not initialized for canonical-avro format");
+    }
+    const keyValue = resolvePath(context, this.keyField);
+    const value = await this.registry.encode(this.schemaId, this.buildCanonicalEnvelope(context));
+    return {
+      key: keyValue === undefined || keyValue === null ? undefined : String(keyValue),
+      value,
+    };
+  }
+
+  /**
+   * Build canonical-AVRO messages for a batch, honouring `fanOut` and
+   * `keyField` exactly like the JSON template path. Each emitted message's
+   * value is a registry-encoded Buffer.
+   */
+  private async buildCanonicalAvroMessages(updates: VehicleUpdate[]): Promise<Message[]> {
+    const ts = Date.now();
+    const contexts: MessageContext[] = updates.flatMap((update) => {
+      const context = this.buildContext(update, ts);
+      if (!this.fanOut) return [context];
+
+      const array = resolvePath(context, this.fanOut);
+      if (!Array.isArray(array) || array.length === 0) return [];
+      return array.map((device) => ({ ...context, device }));
+    });
+    return Promise.all(contexts.map((context) => this.buildCanonicalAvroMessage(context)));
+  }
+
+  /**
    * Build the Kafka messages for a batch of updates. An explicit
    * `payloadTemplate` (or the `trajectory` preset, expressed as a template)
    * drives {@link buildTemplateMessages} (which honours `fanOut`); otherwise
    * the `dispatch` preset's dedicated code path is used (one message per
    * update, no fan-out).
    */
-  private buildMessages(updates: VehicleUpdate[]) {
+  private async buildMessages(updates: VehicleUpdate[]): Promise<Message[]> {
+    if (this.format === "canonical-avro") {
+      return this.buildCanonicalAvroMessages(updates);
+    }
     const template = this.resolveActiveTemplate();
     return template
       ? this.buildTemplateMessages(updates, template)
@@ -420,7 +564,7 @@ export class RedpandaSink implements DataSink {
   async publishUpdates(updates: VehicleUpdate[]): Promise<SinkPublishResult | void> {
     if (!this.producer) return;
 
-    const messages = this.buildMessages(updates);
+    const messages = await this.buildMessages(updates);
 
     if (messages.length <= this.batchSize) {
       await this.producer.send({ topic: this.topic, messages, acks: this.acks });
