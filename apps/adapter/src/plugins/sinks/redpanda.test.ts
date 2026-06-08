@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { TELEMETRY_LOCATION_AVRO_SUBJECT } from "@moveet/shared-types";
 import { RedpandaSink } from "./redpanda";
 
 // Mock kafkajs so we can intercept producer.send() and admin calls
@@ -32,6 +33,29 @@ vi.mock("kafkajs", () => {
     }
   }
   return { Kafka: MockKafka };
+});
+
+// Mock the Confluent Schema Registry. register() yields a fixed schema id and
+// encode() captures the envelope, returning a sentinel Buffer so the sink's
+// Buffer-valued message path can be asserted without a live registry.
+const mockRegister = vi.fn().mockResolvedValue({ id: 7 });
+const mockEncode = vi.fn(async (_id: number, payload: unknown) =>
+  Buffer.from(JSON.stringify(payload))
+);
+let lastRegistryHost: string | undefined;
+
+vi.mock("@kafkajs/confluent-schema-registry", () => {
+  class MockSchemaRegistry {
+    constructor(args: { host: string }) {
+      lastRegistryHost = args.host;
+    }
+    register = mockRegister;
+    encode = mockEncode;
+  }
+  return {
+    SchemaRegistry: MockSchemaRegistry,
+    SchemaType: { AVRO: "AVRO", JSON: "JSON", PROTOBUF: "PROTOBUF", UNKNOWN: "UNKNOWN" },
+  };
 });
 
 describe("RedpandaSink", () => {
@@ -594,6 +618,160 @@ describe("RedpandaSink", () => {
       expect(payload.ts).toBeLessThanOrEqual(after);
       // Absent connected → ignition derived from speed (36 km/h → 10 m/s > 0.5).
       expect(payload.ignition).toBe(true);
+    });
+  });
+
+  describe("canonical-avro format", () => {
+    it("registers the canonical schema under the platform subject on connect", async () => {
+      await sink.connect({
+        brokers: "localhost:9092",
+        format: "canonical-avro",
+        schemaRegistryUrl: "http://registry:8081",
+      });
+
+      expect(lastRegistryHost).toBe("http://registry:8081");
+      expect(mockRegister).toHaveBeenCalledTimes(1);
+      const [schema, opts] = mockRegister.mock.calls[0];
+      expect(schema.type).toBe("AVRO");
+      // schema is the canonical AVRO JSON string with the expected top-level name.
+      expect(typeof schema.schema).toBe("string");
+      const parsed = JSON.parse(schema.schema);
+      expect(parsed.name).toBe("TelemetryLocationEvent");
+      expect(parsed.namespace).toBe("telemetry.ingest");
+      expect(opts).toEqual({ subject: TELEMETRY_LOCATION_AVRO_SUBJECT });
+    });
+
+    it("defaults schemaRegistryUrl to localhost:18081", async () => {
+      await sink.connect({ brokers: "localhost:9092", format: "canonical-avro" });
+      expect(lastRegistryHost).toBe("http://localhost:18081");
+    });
+
+    it("encodes the canonical envelope and emits a Buffer-valued message", async () => {
+      await sink.connect({
+        brokers: "localhost:9092",
+        format: "canonical-avro",
+        keyField: "device.id",
+        fanOut: "metadata.devices",
+        sourceService: "moveet-simulator",
+        sourceEnvironment: "dev",
+      });
+      const fixTs = 1_700_000_000_000;
+      await sink.publishUpdates([
+        {
+          id: "v1",
+          latitude: -1.2863,
+          longitude: 36.8172,
+          speed: 36, // km/h → 10 m/s
+          heading: 90,
+          accuracy: 12.5,
+          timestamp: fixTs,
+          metadata: { devices: [{ id: "d1", deviceType: "gps" }] },
+        },
+      ]);
+
+      // encode() called with the cached schema id (7 from the mock).
+      expect(mockEncode).toHaveBeenCalledTimes(1);
+      expect(mockEncode.mock.calls[0][0]).toBe(7);
+      const envelope = mockEncode.mock.calls[0][1] as Record<string, any>;
+
+      // Envelope (top-level) shape.
+      expect(envelope.event_type).toBe("telemetry.location.reported");
+      expect(envelope.event_version).toBe(1);
+      expect(typeof envelope.event_id).toBe("string");
+      expect(typeof envelope.occurred_at).toBe("string");
+      expect(envelope.source).toEqual({ service: "moveet-simulator", environment: "dev" });
+      expect(envelope.metadata).toEqual({
+        correlation_id: null,
+        causation_id: null,
+        trace_id: null,
+      });
+
+      // data payload (telemetry mapping).
+      expect(envelope.data).toMatchObject({
+        // device_id is context.id (the vehicle id); the Kafka key is device.id.
+        device_id: "v1",
+        source: "GPS",
+        latitude: -1.2863,
+        longitude: 36.8172,
+        accuracy_meters: 12.5,
+        speed_mps: 10,
+        heading_degrees: 90,
+        ignition_on: true,
+        moving: true,
+        satellites: null,
+        battery_level: null,
+        battery_charging: null,
+        network: null,
+        position_origin: null,
+        sensor_readings: {},
+      });
+      expect(envelope.data.recorded_at).toBe(new Date(fixTs).toISOString());
+
+      // Message: key resolved via keyField (device.id), value is the Buffer.
+      const message = mockSend.mock.calls[0][0].messages[0];
+      expect(message.key).toBe("d1");
+      expect(Buffer.isBuffer(message.value)).toBe(true);
+    });
+
+    it("maps mobile devices to source=MOBILE", async () => {
+      await sink.connect({
+        brokers: "localhost:9092",
+        format: "canonical-avro",
+        keyField: "device.id",
+        fanOut: "metadata.devices",
+      });
+      await sink.publishUpdates([
+        {
+          id: "v1",
+          latitude: 0,
+          longitude: 0,
+          metadata: { devices: [{ id: "d2", deviceType: "mobile" }] },
+        },
+      ]);
+
+      const envelope = mockEncode.mock.calls[0][1] as Record<string, any>;
+      expect(envelope.data.source).toBe("MOBILE");
+    });
+
+    it("fans out one encoded message per device, keyed by device.id", async () => {
+      await sink.connect({
+        brokers: "localhost:9092",
+        format: "canonical-avro",
+        keyField: "device.id",
+        fanOut: "metadata.devices",
+      });
+      await sink.publishUpdates([
+        {
+          id: "v1",
+          latitude: -1.28,
+          longitude: 36.8,
+          metadata: {
+            devices: [
+              { id: "d1", deviceType: "gps" },
+              { id: "d2", deviceType: "mobile" },
+            ],
+          },
+        },
+      ]);
+
+      const messages = mockSend.mock.calls[0][0].messages;
+      expect(messages).toHaveLength(2);
+      expect(messages.map((m: { key: string }) => m.key)).toEqual(["d1", "d2"]);
+      expect(messages.every((m: { value: unknown }) => Buffer.isBuffer(m.value))).toBe(true);
+      expect(mockEncode).toHaveBeenCalledTimes(2);
+    });
+
+    it("emits nothing for an update with no devices when fanOut is set", async () => {
+      await sink.connect({
+        brokers: "localhost:9092",
+        format: "canonical-avro",
+        keyField: "device.id",
+        fanOut: "metadata.devices",
+      });
+      await sink.publishUpdates([{ id: "v1", latitude: 0, longitude: 0 }]);
+
+      expect(mockSend.mock.calls[0][0].messages).toHaveLength(0);
+      expect(mockEncode).not.toHaveBeenCalled();
     });
   });
 
