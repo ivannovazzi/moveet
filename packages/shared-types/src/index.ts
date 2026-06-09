@@ -7,7 +7,7 @@ export {
   TELEMETRY_LOCATION_AVRO_SCHEMA,
   TELEMETRY_LOCATION_AVRO_SUBJECT,
   TELEMETRY_LOCATION_EVENT_TYPE,
-} from "./telemetry-avro.ts";
+} from "./telemetry-avro";
 
 // ─── Primitives ─────────────────────────────────────────────────────
 
