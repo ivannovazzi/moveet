@@ -1,12 +1,12 @@
 // ─── Canonical Telemetry AVRO Schema ────────────────────────────────
 //
 // The platform's canonical telemetry-ingest envelope, published Confluent-AVRO
-// encoded to `trajectory.telemetry.raw`. Field order and types MUST match the
+// encoded to `telemetry.device.raw`. Field order and types MUST match the
 // platform's registered schema exactly — do not reorder or retype fields.
 
 /**
  * Confluent-AVRO schema for the canonical `telemetry.location.reported` event.
- * Registered under subject `trajectory.telemetry.raw-telemetry.location.reported`.
+ * Registered under subject `telemetry.device.raw-telemetry.location.reported`.
  */
 export const TELEMETRY_LOCATION_AVRO_SCHEMA = {
   type: "record",
@@ -75,7 +75,7 @@ export const TELEMETRY_LOCATION_AVRO_SCHEMA = {
 
 /** Subject under which the canonical schema is registered in Schema Registry. */
 export const TELEMETRY_LOCATION_AVRO_SUBJECT =
-  "trajectory.telemetry.raw-telemetry.location.reported";
+  "telemetry.device.raw-telemetry.location.reported";
 
 /** Canonical `event_type` for telemetry location reports. */
 export const TELEMETRY_LOCATION_EVENT_TYPE = "telemetry.location.reported";

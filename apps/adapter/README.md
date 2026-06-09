@@ -146,7 +146,7 @@ The Redpanda sink supports two output shapes via its `format` config field:
   "type": "redpanda",
   "config": {
     "brokers": "suite_redpanda:9092",
-    "topic": "trajectory.telemetry.raw",
+    "topic": "telemetry.device.raw",
     "format": "trajectory",
     "defaultAltitude": 0,
     "defaultAccuracy": 5
@@ -177,7 +177,7 @@ SOURCE_TYPE=rest
 SOURCE_CONFIG={"url":"http://suite_connector:3002/api/fleet/roster","vehiclePath":"assignments","fieldMap":{"id":"deviceId"},"metadataMap":{"deviceType":"deviceType","vehicleId":"vehicleId"}}
 
 SINK_TYPES=redpanda
-SINK_REDPANDA_CONFIG={"brokers":"suite_redpanda:9092","topic":"trajectory.telemetry.raw","format":"trajectory","keyField":"id"}
+SINK_REDPANDA_CONFIG={"brokers":"suite_redpanda:9092","topic":"telemetry.device.raw","format":"trajectory","keyField":"id"}
 ```
 
 How it maps:
@@ -208,7 +208,7 @@ position as optional (the simulator seeds positions when absent). Supply
 template when you need to add or rename fields:
 
 ```bash
-SINK_REDPANDA_CONFIG={"brokers":"suite_redpanda:9092","topic":"trajectory.telemetry.raw","keyField":"id","payloadTemplate":{"ts":"ts","deviceId":"id","deviceType":"metadata.deviceType","lat":"lat","lon":"lon","speed":"speed","heading":"heading","altitude":"altitude","accuracy":"accuracy","ignition":"ignition"}}
+SINK_REDPANDA_CONFIG={"brokers":"suite_redpanda:9092","topic":"telemetry.device.raw","keyField":"id","payloadTemplate":{"ts":"ts","deviceId":"id","deviceType":"metadata.deviceType","lat":"lat","lon":"lon","speed":"speed","heading":"heading","altitude":"altitude","accuracy":"accuracy","ignition":"ignition"}}
 ```
 
 ### Recipe: co-locate a vehicle's devices (no jumping)
@@ -235,7 +235,7 @@ SOURCE_TYPE=rest
 SOURCE_CONFIG={"url":"http://suite_connector:3002/api/fleet/roster","vehiclePath":"assignments","groupBy":"vehicleId","fieldMap":{"id":"deviceId"},"metadataMap":{"deviceType":"deviceType"},"limit":30}
 
 SINK_TYPES=redpanda
-SINK_REDPANDA_CONFIG={"brokers":"suite_redpanda:9092","topic":"trajectory.telemetry.raw","keyField":"device.id","defaultAltitude":1650,"defaultAccuracy":5,"fanOut":"metadata.devices","payloadTemplate":{"ts":"ts","deviceId":"device.id","deviceType":"device.deviceType","lat":"lat","lon":"lon","speed":"speed","heading":"heading","altitude":"altitude","accuracy":"accuracy","ignition":"ignition"}}
+SINK_REDPANDA_CONFIG={"brokers":"suite_redpanda:9092","topic":"telemetry.device.raw","keyField":"device.id","defaultAltitude":1650,"defaultAccuracy":5,"fanOut":"metadata.devices","payloadTemplate":{"ts":"ts","deviceId":"device.id","deviceType":"device.deviceType","lat":"lat","lon":"lon","speed":"speed","heading":"heading","altitude":"altitude","accuracy":"accuracy","ignition":"ignition"}}
 ```
 
 Each vehicle is one moving entity; its devices ride along and are emitted at the

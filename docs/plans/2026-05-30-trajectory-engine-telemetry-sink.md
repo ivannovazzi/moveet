@@ -13,7 +13,7 @@ engine-shaped JSON to the engine's input topic.
 ## The contract (trajectory-engine input)
 
 The engine's ingestor consumes JSON from Kafka/Redpanda topic
-`trajectory.telemetry.raw`, keyed by `String(vehicleId)`, validated against a
+`telemetry.device.raw`, keyed by `String(vehicleId)`, validated against a
 frozen Zod schema. Every field is **required**:
 
 | Field       | Type    | Units / range        |
@@ -82,7 +82,7 @@ Adapter `.env`:
 
 ```
 SINK_TYPES=redpanda
-SINK_REDPANDA_CONFIG={"brokers":"suite_redpanda:9092","topic":"trajectory.telemetry.raw","format":"trajectory"}
+SINK_REDPANDA_CONFIG={"brokers":"suite_redpanda:9092","topic":"telemetry.device.raw","format":"trajectory"}
 ```
 
 ## Out of scope (YAGNI)
@@ -97,5 +97,5 @@ SINK_REDPANDA_CONFIG={"brokers":"suite_redpanda:9092","topic":"trajectory.teleme
    TimescaleDB + web on `suite_network`).
 2. Run the moveet adapter + simulator pointed at `suite_redpanda:9092` with
    `format: "trajectory"`.
-3. Verify: messages on `trajectory.telemetry.raw` match the schema, rows land in
+3. Verify: messages on `telemetry.device.raw` match the schema, rows land in
    TimescaleDB, and vehicles render on the engine web UI (`:5180`).
