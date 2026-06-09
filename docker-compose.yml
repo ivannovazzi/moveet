@@ -2,7 +2,7 @@
 #
 # Builds the monorepo (workspace-aware, see ./Dockerfile) and joins the shared
 # `suite_redpanda` broker so the simulator's telemetry feeds the trajectory
-# engine on topic `trajectory.telemetry.raw`.
+# engine on topic `telemetry.device.raw`.
 #
 #   docker compose up -d --build     # build images + start the whole stack
 #   docker compose logs -f           # follow logs
@@ -38,10 +38,13 @@ services:
       SOURCE_CONFIG: '{"url":"http://suite_connector:3002/api/fleet/roster","vehiclePath":"assignments","groupBy":"vehicleId","fieldMap":{"id":"deviceId"},"metadataMap":{"deviceType":"deviceType"},"limit":100}'
       SINK_TYPES: redpanda,console
       SINK_CONSOLE_CONFIG: '{"verbose":false}'
-      # Publishes the engine's pure-GPS schema to its input topic on the shared
-      # broker. fanOut emits one message per device in metadata.devices[], all at
-      # the vehicle's shared position, keyed by the real deviceId (device.id).
-      SINK_REDPANDA_CONFIG: '{"brokers":"suite_redpanda:9092","topic":"trajectory.telemetry.raw","keyField":"device.id","defaultAltitude":1650,"defaultAccuracy":5,"fanOut":"metadata.devices","payloadTemplate":{"ts":"ts","deviceId":"device.id","deviceType":"device.deviceType","lat":"lat","lon":"lon","speed":"speed","heading":"heading","altitude":"altitude","accuracy":"accuracy","ignition":"ignition"}}'
+      # Publishes the platform's canonical telemetry envelope (Confluent-AVRO,
+      # registered in the suite Schema Registry) to its input topic on the
+      # shared broker. fanOut emits one message per device in metadata.devices[],
+      # all at the vehicle's shared position, keyed by the real deviceId
+      # (device.id). The suite registry is reachable at http://suite_redpanda:8081
+      # inside suite_network.
+      SINK_REDPANDA_CONFIG: '{"brokers":"suite_redpanda:9092","topic":"telemetry.device.raw","format":"canonical-avro","schemaRegistryUrl":"http://suite_redpanda:8081","keyField":"device.id","fanOut":"metadata.devices","sourceService":"moveet-simulator","sourceEnvironment":"dev"}'
       # Telemetry realism (off by default): correlated GPS noise + connectivity
       # dropouts (store-and-forward) + jittered cadence, applied to all sinks.
       # REALISM_CONFIG: '{"enabled":true,"reportingPeriodMs":5000,"jitterMs":800}'

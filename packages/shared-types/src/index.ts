@@ -2,6 +2,13 @@
 // Types used by 2 or more apps in the monorepo.
 // App-specific types remain in their own type files.
 
+// Canonical telemetry-ingest AVRO schema + subject (Confluent Schema Registry).
+export {
+  TELEMETRY_LOCATION_AVRO_SCHEMA,
+  TELEMETRY_LOCATION_AVRO_SUBJECT,
+  TELEMETRY_LOCATION_EVENT_TYPE,
+} from "./telemetry-avro";
+
 // ─── Primitives ─────────────────────────────────────────────────────
 
 /**
