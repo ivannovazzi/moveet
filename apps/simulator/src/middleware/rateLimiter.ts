@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
+import cluster from "node:cluster";
 import logger from "../utils/logger";
 
 interface RateLimitEntry {
@@ -6,9 +7,19 @@ interface RateLimitEntry {
   resetTime: number;
 }
 
+/** One-time flag so the multi-process warning is only logged once per process. */
+let warnedAboutClustering = false;
+
 /**
  * Simple in-memory rate limiter middleware
  * Limits requests per IP address within a time window
+ *
+ * LIMITATION: counters are kept in process memory, so limits are enforced
+ * per process. When running multiple instances (cluster mode, pm2, multiple
+ * containers behind one load balancer), each process tracks its own counts
+ * and the effective limit is N × maxRequests. A shared store (e.g. Redis)
+ * would be required for cluster-wide enforcement — intentionally not added
+ * here to keep the simulator dependency-free.
  */
 export class RateLimiter {
   private requests: Map<string, RateLimitEntry> = new Map();
@@ -19,6 +30,15 @@ export class RateLimiter {
   constructor(windowMs: number = 60000, maxRequests: number = 100) {
     this.windowMs = windowMs;
     this.maxRequests = maxRequests;
+
+    // One-time startup warning when running in a multi-process setup where
+    // per-process counters silently weaken the configured limits.
+    if (!warnedAboutClustering && (cluster.isWorker || process.env.NODE_APP_INSTANCE)) {
+      warnedAboutClustering = true;
+      logger.warn(
+        "In-memory rate limiter detected a clustered/multi-process environment: limits are enforced per process, not globally"
+      );
+    }
 
     // Clean up expired entries every minute
     this.cleanupInterval = setInterval(() => {

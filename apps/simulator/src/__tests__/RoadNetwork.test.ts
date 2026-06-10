@@ -1820,6 +1820,25 @@ describe("RoadNetwork", () => {
       expect(network.routeCacheStats().hits).toBeGreaterThanOrEqual(1);
     });
 
+    it("should use a new cache key when only the speed factor changes on the same edge set", () => {
+      const start = network.findNearestNode([45.5017, -73.5673]);
+      const end = network.findNearestNode([45.5029, -73.5661]);
+
+      // Same edge ID, factor 0.5
+      network.setIncidentEdges(new Map([["e1", 0.5]]));
+      network.findRoute(start, end);
+      expect(network.routeCacheStats().size).toBe(1);
+
+      // Same edge ID, different factor — must NOT serve the cached 0.5 route
+      network.setIncidentEdges(new Map([["e1", 0.1]]));
+      network.findRoute(start, end);
+
+      const stats = network.routeCacheStats();
+      expect(stats.size).toBe(2); // distinct key per factor
+      expect(stats.hits).toBe(0);
+      expect(stats.misses).toBe(2);
+    });
+
     it("should skip blocked edges (speedFactor=0) during routing", () => {
       const start = network.findNearestNode([45.5017, -73.5673]);
       const end = network.findNearestNode([45.5029, -73.5661]);

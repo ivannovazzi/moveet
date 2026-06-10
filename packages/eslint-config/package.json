@@ -1,7 +1,8 @@
 {
   "name": "@moveet/eslint-config",
   "version": "0.0.1",
-  "description": "Shared ESLint flat config for Moveet monorepo",
+  "private": true,
+  "description": "Shared ESLint flat config for Moveet monorepo (internal, not published)",
   "type": "module",
   "main": "index.mjs",
   "files": [

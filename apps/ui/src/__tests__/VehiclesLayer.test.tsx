@@ -24,6 +24,7 @@ vi.mock("@/components/Map/hooks/useDeckLayers", () => ({
 
 // Import AFTER mocks
 import VehiclesLayer from "@/Map/Vehicle/VehiclesLayer";
+import { DeckMapContext } from "@/components/Map/providers/contexts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -432,6 +433,85 @@ describe("VehiclesLayer teleport detection", () => {
     const data = getVehiclesLayerData();
     expect(data[0].position[1]).toBeCloseTo(36.9, 2);
     expect(data[0].position[0]).toBeCloseTo(-1.4, 2);
+  });
+});
+
+describe("VehiclesLayer viewport culling", () => {
+  /** Render inside a map context whose viewport covers central Nairobi. */
+  function renderWithViewport(props: Partial<typeof defaultProps> & { selectedId?: string } = {}) {
+    const merged = { ...defaultProps, ...props };
+    const result = render(
+      <DeckMapContext.Provider
+        value={{
+          viewport: null,
+          viewState: null,
+          getZoom: () => 12,
+          project: () => null,
+          // [[west, south], [east, north]]
+          getBoundingBox: () => [
+            [36.7, -1.4],
+            [36.9, -1.2],
+          ],
+        }}
+      >
+        <VehiclesLayer {...merged} />
+      </DeckMapContext.Provider>
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+    act(() => {
+      vi.advanceTimersByTime(50);
+    });
+
+    return result;
+  }
+
+  it("culls vehicles far outside the viewport", () => {
+    vehicleStore.replace([
+      { id: "inside", name: "In", position: [-1.29, 36.82], speed: 30, heading: 0 },
+      { id: "outside", name: "Out", position: [10, 50], speed: 30, heading: 0 },
+    ]);
+
+    renderWithViewport();
+
+    const data = getVehiclesLayerData();
+    expect(data.map((d) => d.id)).toEqual(["inside"]);
+  });
+
+  it("keeps vehicles just outside the viewport (margin)", () => {
+    vehicleStore.replace([
+      // ~0.03° east of the east edge — inside the 25% (0.05°) margin
+      { id: "near-edge", name: "Edge", position: [-1.3, 36.93], speed: 30, heading: 0 },
+    ]);
+
+    renderWithViewport();
+
+    const data = getVehiclesLayerData();
+    expect(data.map((d) => d.id)).toEqual(["near-edge"]);
+  });
+
+  it("never culls the selected vehicle", () => {
+    vehicleStore.replace([
+      { id: "outside", name: "Out", position: [10, 50], speed: 30, heading: 0 },
+    ]);
+
+    renderWithViewport({ selectedId: "outside" });
+
+    const data = getVehiclesLayerData();
+    expect(data.map((d) => d.id)).toEqual(["outside"]);
+  });
+
+  it("does not cull when no viewport bounds are available (default context)", () => {
+    vehicleStore.replace([
+      { id: "anywhere", name: "Far", position: [10, 50], speed: 30, heading: 0 },
+    ]);
+
+    renderAndTick();
+
+    const data = getVehiclesLayerData();
+    expect(data.map((d) => d.id)).toEqual(["anywhere"]);
   });
 });
 

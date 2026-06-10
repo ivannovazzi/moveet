@@ -6,6 +6,7 @@ import {
   HeatZoneContext,
   NetworkContext,
   OptionsContext,
+  DataReadyContext,
 } from "./context";
 
 /** Use the specific context hooks below instead of useData for better performance. */
@@ -55,4 +56,9 @@ export function useHeatZoneContext() {
 
 export function useNetworkContext() {
   return useContext(NetworkContext);
+}
+
+/** True once the core map data (road network + roads) has loaded. */
+export function useDataReady() {
+  return useContext(DataReadyContext);
 }

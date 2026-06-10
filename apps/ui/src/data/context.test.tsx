@@ -19,6 +19,8 @@ import type {
   DirectionMap,
 } from "./context";
 import { DEFAULT_START_OPTIONS } from "./constants";
+import DataProvider from "./index";
+import { useDataReady } from "./useData";
 import { createRoad, createPOI, createHeatzone, createRoadNetwork } from "@/test/mocks/types";
 import type { Road, POI, Heatzone, RoadNetwork, StartOptions } from "@/types";
 
@@ -309,5 +311,52 @@ describe("DataProvider composes all contexts", () => {
     expect(result.current.roads.roads[0].name).toBe("Test Road");
     expect(result.current.pois.pois).toHaveLength(1);
     expect(result.current.pois.pois[0].id).toBe("poi-test");
+  });
+});
+
+// ─── DataReadyContext ──────────────────────────────────────────────
+
+describe("DataReadyContext (via DataProvider)", () => {
+  it("is false until both network and roads have loaded, then true", () => {
+    function Wrapper({ children }: { children: React.ReactNode }) {
+      return <DataProvider>{children}</DataProvider>;
+    }
+
+    const { result } = renderHook(
+      () => ({
+        ready: useDataReady(),
+        setNetwork: React.useContext(NetworkContext).setNetwork,
+        setRoads: React.useContext(RoadsContext).setRoads,
+      }),
+      { wrapper: Wrapper }
+    );
+
+    expect(result.current.ready).toBe(false);
+
+    act(() => {
+      result.current.setNetwork(
+        createRoadNetwork({
+          features: [
+            {
+              type: "Feature",
+              properties: { type: "road" },
+              geometry: { type: "LineString", coordinates: [[36.82, -1.29]] },
+            },
+          ],
+        })
+      );
+    });
+    // Network alone is not enough
+    expect(result.current.ready).toBe(false);
+
+    act(() => {
+      result.current.setRoads([createRoad()]);
+    });
+    expect(result.current.ready).toBe(true);
+  });
+
+  it("defaults to false outside a provider", () => {
+    const { result } = renderHook(() => useDataReady());
+    expect(result.current).toBe(false);
   });
 });

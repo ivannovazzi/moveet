@@ -56,7 +56,6 @@ A real-time vehicle fleet simulator that runs vehicles on actual road networks w
 ### Prerequisites
 
 - **Node.js** ≥ 24, npm ≥ 9 (workspace root)
-- **Yarn** (UI package)
 - **Docker** (optional)
 
 ### Run locally
@@ -135,7 +134,7 @@ flowchart LR
 
 ## Network CLI
 
-`apps/network` is a standalone CLI that turns raw OpenStreetMap data into a simulator-ready GeoJSON road network. It requires [Docker](https://www.docker.com/) (for osmium) and runs entirely offline after the initial Geofabrik download.
+`apps/network` is a standalone CLI that turns raw OpenStreetMap data into a simulator-ready GeoJSON road network. It requires a locally installed [osmium-tool](https://osmcode.org/osmium-tool/) (≥ 1.14) and runs entirely offline after the initial Geofabrik download.
 
 ### One-command setup
 
@@ -152,7 +151,7 @@ The `prepare` command runs the full pipeline: **download → extract → filter 
 | Command                    | Description                                                                 |
 | -------------------------- | --------------------------------------------------------------------------- |
 | `network download`         | Download country PBF from Geofabrik (cached after first run)                |
-| `network extract`          | Clip a bounding box from the country PBF using osmium (Docker)              |
+| `network extract`          | Clip a bounding box from the country PBF using osmium                       |
 | `network filter`           | Keep only drivable road classes from the extracted PBF                      |
 | `network export`           | Convert filtered PBF to GeoJSON via osmium                                  |
 | `network validate`         | Run topology checks: orphan nodes, duplicate edges, disconnected components |
@@ -403,6 +402,8 @@ curl -O https://raw.githubusercontent.com/ivannovazzi/moveet/main/docker-compose
 docker compose -f docker-compose.ghcr.yml up
 ```
 
+The simulator image does not bundle a road network: place a simulator-ready GeoJSON at `./apps/simulator/data/network.geojson` (see [Network CLI](#network-cli)) or edit the volume in the compose file.
+
 Open [http://localhost:5012](http://localhost:5012).
 
 Images (published on every release via GitHub Container Registry):
@@ -425,7 +426,7 @@ cd apps/simulator && docker compose up
 
 | Package       | Path                                 | Tech                                                  | Port |
 | ------------- | ------------------------------------ | ----------------------------------------------------- | ---- |
-| **network**   | [`apps/network/`](apps/network/)     | Node.js 24 · Commander · osmium (Docker)              | CLI  |
+| **network**   | [`apps/network/`](apps/network/)     | Node.js 24 · Commander · osmium-tool (local install)  | CLI  |
 | **simulator** | [`apps/simulator/`](apps/simulator/) | Node.js 24 · Express 4 · ws 8 · Turf.js 7             | 5010 |
 | **adapter**   | [`apps/adapter/`](apps/adapter/)     | Node.js 24 · Express 4                                | 5011 |
 | **ui**        | [`apps/ui/`](apps/ui/)               | React 19 · D3 7 · Vite · TypeScript 5.8 · CSS Modules | 5012 |

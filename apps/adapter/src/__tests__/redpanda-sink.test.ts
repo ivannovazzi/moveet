@@ -5,6 +5,9 @@ const mockProducerConnect = vi.fn().mockResolvedValue(undefined);
 const mockProducerDisconnect = vi.fn().mockResolvedValue(undefined);
 const mockAdminConnect = vi.fn().mockResolvedValue(undefined);
 const mockAdminDisconnect = vi.fn().mockResolvedValue(undefined);
+const mockListTopics = vi
+  .fn()
+  .mockResolvedValue(["test-topic", "dispatch.vehicle.positions", "vehicles"]);
 const mockDescribeCluster = vi.fn().mockResolvedValue({
   brokers: [{ nodeId: 0, host: "localhost", port: 9092 }],
   controller: 0,
@@ -25,6 +28,7 @@ vi.mock("kafkajs", () => ({
       return {
         connect: mockAdminConnect,
         disconnect: mockAdminDisconnect,
+        listTopics: mockListTopics,
         describeCluster: mockDescribeCluster,
       };
     }
@@ -92,6 +96,28 @@ describe("RedpandaSink", () => {
     });
   });
 
+  describe("topic existence check on connect", () => {
+    it("fails fast with a clear error naming the topic when it does not exist", async () => {
+      mockListTopics.mockResolvedValueOnce(["some-other-topic"]);
+
+      const sink = new RedpandaSink();
+      await expect(sink.connect({ topic: "missing-topic" })).rejects.toThrow(
+        /topic "missing-topic" does not exist/
+      );
+
+      // The half-connected producer and the admin client are both torn down.
+      expect(mockProducerDisconnect).toHaveBeenCalled();
+      expect(mockAdminDisconnect).toHaveBeenCalled();
+    });
+
+    it("connects successfully when the topic exists", async () => {
+      const sink = new RedpandaSink();
+      await expect(sink.connect({ topic: "test-topic" })).resolves.toBeUndefined();
+      expect(mockListTopics).toHaveBeenCalled();
+      expect(mockAdminDisconnect).toHaveBeenCalled();
+    });
+  });
+
   describe("connect failure cleanup", () => {
     it("disconnects and clears the producer when producer.connect() fails", async () => {
       mockProducerConnect.mockRejectedValueOnce(new Error("broker unreachable"));
@@ -106,6 +132,33 @@ describe("RedpandaSink", () => {
       await expect(
         sink.publishUpdates([{ id: "v1", latitude: -1.3, longitude: 36.8 }])
       ).resolves.toBeUndefined();
+    });
+  });
+
+  describe("health check timeout", () => {
+    it("returns unhealthy when admin.connect() hangs past the timeout", async () => {
+      const sink = new RedpandaSink();
+      await sink.connect({ topic: "test-topic", healthCheckTimeoutMs: 50 });
+
+      // Subsequent admin.connect (the health check's) never settles.
+      mockAdminConnect.mockImplementationOnce(() => new Promise(() => {}));
+
+      const health = await sink.healthCheck();
+      expect(health.healthy).toBe(false);
+      expect(health.message).toContain("timed out");
+      // The hung admin client is still cleaned up.
+      expect(mockAdminDisconnect).toHaveBeenCalled();
+    });
+
+    it("returns unhealthy when describeCluster() hangs past the timeout", async () => {
+      const sink = new RedpandaSink();
+      await sink.connect({ topic: "test-topic", healthCheckTimeoutMs: 50 });
+
+      mockDescribeCluster.mockImplementationOnce(() => new Promise(() => {}));
+
+      const health = await sink.healthCheck();
+      expect(health.healthy).toBe(false);
+      expect(health.message).toContain("timed out");
     });
   });
 
@@ -186,12 +239,11 @@ describe("RedpandaSink", () => {
       });
     });
 
-    it("returns partial success with details when some chunks fail", async () => {
-      // Chunk 0 succeeds, chunk 1 fails, chunk 2 succeeds
+    it("stops sending after the first failed chunk so retries can't reorder messages", async () => {
+      // Chunk 0 succeeds, chunk 1 fails → chunk 2 must NOT be attempted.
       mockSend
         .mockResolvedValueOnce(undefined)
-        .mockRejectedValueOnce(new Error("broker unavailable"))
-        .mockResolvedValueOnce(undefined);
+        .mockRejectedValueOnce(new Error("broker unavailable"));
 
       const sink = new RedpandaSink();
       await sink.connect({ brokers: "localhost:9092", topic: "test-topic", batchSize: 500 });
@@ -204,18 +256,20 @@ describe("RedpandaSink", () => {
 
       const result = await sink.publishUpdates(updates);
 
+      // Only chunks 0 and 1 were sent; the batch aborted before chunk 2.
+      expect(mockSend).toHaveBeenCalledTimes(2);
       expect(result).toEqual({
         attempted: 1200,
-        succeeded: 700,
-        failures: [{ itemId: "chunk-1", error: "broker unavailable" }],
+        succeeded: 500,
+        failures: [
+          { itemId: "chunk-1", error: "broker unavailable" },
+          { itemId: "chunk-2", error: "not attempted (batch aborted after chunk 1 failed)" },
+        ],
       });
     });
 
-    it("throws when all chunks fail", async () => {
-      mockSend
-        .mockRejectedValueOnce(new Error("broker down"))
-        .mockRejectedValueOnce(new Error("broker down"))
-        .mockRejectedValueOnce(new Error("broker down"));
+    it("throws when no chunk is delivered (first chunk fails, remainder aborted)", async () => {
+      mockSend.mockRejectedValueOnce(new Error("broker down"));
 
       const sink = new RedpandaSink();
       await sink.connect({ brokers: "localhost:9092", topic: "test-topic", batchSize: 500 });
@@ -226,7 +280,11 @@ describe("RedpandaSink", () => {
         longitude: 36.8 + i * 0.0001,
       }));
 
-      await expect(sink.publishUpdates(updates)).rejects.toThrow("All 3 chunks failed to publish");
+      await expect(sink.publishUpdates(updates)).rejects.toThrow(
+        "First chunk failed to publish; 2 remaining chunk(s) aborted to preserve ordering"
+      );
+      // Sends are sequential and abort on first failure: only one attempt.
+      expect(mockSend).toHaveBeenCalledTimes(1);
     });
 
     it("does not use chunked path for messages under batchSize (no partial failure)", async () => {

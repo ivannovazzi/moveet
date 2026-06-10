@@ -98,6 +98,32 @@ describe("Route caching in RoadNetwork", () => {
         vi.useRealTimers();
       }
     });
+
+    it("should refresh TTL on cache hit (sliding expiry)", () => {
+      vi.useFakeTimers();
+      try {
+        const shortTtlNetwork = new RoadNetwork(testGeojsonPath, { ttlMs: 500 });
+
+        const start = shortTtlNetwork.findNearestNode([45.5017, -73.5673]);
+        const end = shortTtlNetwork.findNearestNode([45.5029, -73.5661]);
+
+        shortTtlNetwork.findRoute(start, end); // miss — cached at t=0
+
+        // Hit at t=400 refreshes the TTL
+        vi.advanceTimersByTime(400);
+        shortTtlNetwork.findRoute(start, end);
+
+        // t=800: 800ms since set but only 400ms since the last hit — still cached
+        vi.advanceTimersByTime(400);
+        shortTtlNetwork.findRoute(start, end);
+
+        const stats = shortTtlNetwork.routeCacheStats();
+        expect(stats.misses).toBe(1);
+        expect(stats.hits).toBe(2);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   describe("LRU eviction", () => {

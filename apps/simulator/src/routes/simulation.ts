@@ -41,10 +41,14 @@ export function createSimulationRoutes(ctx: RouteContext): Router {
     })
   );
 
+  // Idempotent: stopping an already-stopped simulation is a successful no-op.
+  // stop() is still invoked to guarantee timer/listener cleanup and emit a
+  // status update; the body reports whether the simulation was running.
   router.post("/stop", (_req, res) => {
     try {
+      const wasRunning = simulationController.getStatus().running;
       simulationController.stop();
-      res.json({ status: "stopped" });
+      res.json({ status: "stopped", wasRunning });
     } catch {
       res.status(500).json({ error: "Failed to stop simulation" });
     }

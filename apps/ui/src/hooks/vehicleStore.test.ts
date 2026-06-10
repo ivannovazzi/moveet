@@ -115,6 +115,32 @@ describe("vehicleStore — trail buffer", () => {
     expect(vehicleStore.getAll().get("v1")!.id).toBe("v1");
   });
 
+  it("enqueued updates are applied atomically before a read", () => {
+    vehicleStore.enqueue(createVehicleDTO({ id: "v1", position: [1, 1] }));
+    vehicleStore.enqueue(createVehicleDTO({ id: "v2", position: [2, 2] }));
+
+    // Any read flushes the whole queue in one synchronous pass.
+    const all = vehicleStore.getAll();
+    expect(all.has("v1")).toBe(true);
+    expect(all.has("v2")).toBe(true);
+    expect(vehicleStore.getTrail("v1")).toEqual([[1, 1]]);
+  });
+
+  it("enqueue bumps the version once flushed", () => {
+    const before = vehicleStore.getVersion();
+    vehicleStore.enqueue(createVehicleDTO({ id: "v1", position: [1, 1] }));
+    expect(vehicleStore.getVersion()).toBeGreaterThan(before);
+  });
+
+  it("replace() drops queued updates so stale data cannot resurface", () => {
+    vehicleStore.enqueue(createVehicleDTO({ id: "stale", position: [1, 1] }));
+    vehicleStore.replace([createVehicleDTO({ id: "fresh", position: [2, 2] })]);
+
+    const all = vehicleStore.getAll();
+    expect(all.has("stale")).toBe(false);
+    expect(all.has("fresh")).toBe(true);
+  });
+
   it("default trail capacity is 60", () => {
     // Fill more than 60 positions for a vehicle
     for (let i = 0; i < 70; i++) {

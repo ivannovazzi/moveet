@@ -15,6 +15,24 @@ class VehicleStore {
   private version = 0;
   private trails = new Map<string, Position[]>();
   private trailCapacity = 60;
+  private pending: VehicleDTO[] = [];
+
+  /**
+   * Queue an incoming WS update. Queued updates are applied together in a
+   * single synchronous pass right before the next store read (RAF frame or
+   * React throttle tick), so readers never observe a partially-applied batch.
+   */
+  enqueue(vehicle: VehicleDTO): void {
+    this.pending.push(vehicle);
+  }
+
+  /** Apply all queued WS updates atomically. */
+  private flushPending(): void {
+    if (this.pending.length === 0) return;
+    const batch = this.pending;
+    this.pending = [];
+    for (const v of batch) this.set(v);
+  }
 
   /** Called from WS handler — fast, no React involvement. */
   set(vehicle: VehicleDTO): void {
@@ -36,6 +54,9 @@ class VehicleStore {
 
   /** Bulk replace (e.g. on reset / initial load). */
   replace(vehicles: VehicleDTO[]): void {
+    // Drop queued updates — they predate the replacement and would
+    // otherwise be re-applied on the next read, overwriting fresh state.
+    this.pending = [];
     this.vehicles.clear();
     this.trails.clear();
     for (const v of vehicles) this.vehicles.set(v.id, v);
@@ -45,25 +66,30 @@ class VehicleStore {
 
   /** Direct access for D3 rendering (no copy). */
   getAll(): Map<string, VehicleDTO> {
+    this.flushPending();
     return this.vehicles;
   }
 
   /** Snapshot as array for React state. */
   snapshot(): VehicleDTO[] {
+    this.flushPending();
     return Array.from(this.vehicles.values());
   }
 
   getVersion(): number {
+    this.flushPending();
     return this.version;
   }
 
   /** Get trail positions for a specific vehicle. */
   getTrail(vehicleId: string): Position[] {
+    this.flushPending();
     return this.trails.get(vehicleId) ?? [];
   }
 
   /** Get all trails (direct access for rendering). */
   getAllTrails(): Map<string, Position[]> {
+    this.flushPending();
     return this.trails;
   }
 

@@ -9,7 +9,8 @@ vi.mock("../utils/logger", () => ({
   default: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
 }));
 
-import { verifyConfig, parseEnv } from "../utils/config";
+import { verifyConfig, parseEnv, logConfig } from "../utils/config";
+import logger from "../utils/logger";
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
@@ -159,6 +160,34 @@ describe("verifyConfig", () => {
       vi.spyOn(fs, "existsSync").mockReturnValue(true);
       expect(() => verifyConfig()).not.toThrow();
     });
+  });
+});
+
+// ─── logConfig (structured logging) ─────────────────────────────────
+
+describe("logConfig", () => {
+  it("logs through the structured logger, not console.log", () => {
+    const consoleSpy = vi.spyOn(console, "log");
+    vi.mocked(logger.info).mockClear();
+
+    logConfig();
+
+    expect(consoleSpy).not.toHaveBeenCalled();
+    expect(logger.info).toHaveBeenCalledTimes(1);
+    const [context, message] = vi.mocked(logger.info).mock.calls[0];
+    expect(message).toBe("Simulator config");
+    expect(context).toHaveProperty("config");
+
+    consoleSpy.mockRestore();
+  });
+
+  it("redacts the adapter URL", () => {
+    vi.mocked(logger.info).mockClear();
+
+    logConfig();
+
+    const [context] = vi.mocked(logger.info).mock.calls[0] as [{ config: { adapterURL: string } }];
+    expect(["••••••", "(disabled)"]).toContain(context.config.adapterURL);
   });
 });
 

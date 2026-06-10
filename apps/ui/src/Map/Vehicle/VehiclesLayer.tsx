@@ -207,7 +207,7 @@ export default function VehiclesLayer({
   hoveredId,
   onClick,
 }: VehiclesLayerProps) {
-  const { getZoom } = useMapContext();
+  const { getZoom, getBoundingBox } = useMapContext();
   const [vehiclePolygons, setVehiclePolygons] = useState<VehiclePolygonDatum[]>([]);
   const interpRef = useRef(new Map<string, VehicleInterp>());
 
@@ -226,6 +226,8 @@ export default function VehiclesLayer({
   onClickRef.current = onClick;
   const getZoomRef = useRef(getZoom);
   getZoomRef.current = getZoom;
+  const getBoundingBoxRef = useRef(getBoundingBox);
+  getBoundingBoxRef.current = getBoundingBox;
 
   // RAF interpolation loop: reads from vehicleStore, updates React state
   // Throttled to ~30fps to avoid overwhelming React with state updates
@@ -235,6 +237,18 @@ export default function VehiclesLayer({
     let lastZoom = -1;
     let animating = false;
     let lastSetStateTime = 0;
+    // Last-published visual inputs — used to skip redundant React state
+    // updates when a WS tick arrives but nothing visible actually changed
+    // (e.g. a stationary fleet still streaming position updates).
+    let lastSelected: string | undefined;
+    let lastHovered: string | undefined;
+    let lastFleetMap: Map<string, Fleet> | null = null;
+    let lastHiddenFleets: Set<string> | null = null;
+    let lastHiddenTypes: Set<VehicleType> | null = null;
+    let lastBoundsKey = "";
+    // Sticky add/remove flag — survives throttled frames so a removal isn't
+    // dropped when the 33ms gate skips the frame it was detected on.
+    let structureChanged = false;
     const STATE_UPDATE_INTERVAL = 33; // ~30fps for React state updates
 
     const render = () => {
@@ -320,12 +334,16 @@ export default function VehiclesLayer({
               lerpMs: DEFAULT_LERP_MS,
               isNew: true,
             });
+            structureChanged = true;
           }
         }
 
         // Remove stale vehicles
         for (const id of interps.keys()) {
-          if (!store.has(id)) interps.delete(id);
+          if (!store.has(id)) {
+            interps.delete(id);
+            structureChanged = true;
+          }
         }
       }
 
@@ -339,13 +357,38 @@ export default function VehiclesLayer({
         }
       }
 
-      // Skip update only if nothing changed AND no animation in progress
-      if (!positionsChanged && !animating && !zoomChanged) return;
-      if (zoomChanged) lastZoom = currentZoom;
+      // Viewport bounds — used both as a rebuild trigger (panning must reveal
+      // culled vehicles) and for the culling test below.
+      const [[west, south], [east, north]] = getBoundingBoxRef.current();
+      const boundsKey = `${west},${south},${east},${north}`;
+      const boundsChanged = boundsKey !== lastBoundsKey;
+
+      const visualsChanged =
+        currentSelectedId !== lastSelected ||
+        currentHoveredId !== lastHovered ||
+        fleetMapRef.current !== lastFleetMap ||
+        hiddenFleetsRef.current !== lastHiddenFleets ||
+        hiddenTypesRef.current !== lastHiddenTypes;
+
+      // Skip the React state update when nothing visible changed: no vehicle
+      // moved (mid-lerp), none was added/removed, and zoom/viewport/selection/
+      // filters are all unchanged. WS ticks that re-send identical positions
+      // no longer cause re-renders.
+      if (!structureChanged && !animating && !zoomChanged && !visualsChanged && !boundsChanged) {
+        return;
+      }
 
       // Throttle React state updates to avoid 60fps re-renders
       if (now - lastSetStateTime < STATE_UPDATE_INTERVAL) return;
       lastSetStateTime = now;
+      lastZoom = currentZoom;
+      lastSelected = currentSelectedId;
+      lastHovered = currentHoveredId;
+      lastFleetMap = fleetMapRef.current;
+      lastHiddenFleets = hiddenFleetsRef.current;
+      lastHiddenTypes = hiddenTypesRef.current;
+      lastBoundsKey = boundsKey;
+      structureChanged = false;
 
       const store = vehicleStore.getAll();
       const fleetMap = fleetMapRef.current;
@@ -355,10 +398,30 @@ export default function VehiclesLayer({
       // Exponent < 1 makes vehicles shrink slower than map when zooming out.
       const zoomScale = Math.pow(2, (REFERENCE_ZOOM - currentZoom) * ZOOM_EXPONENT);
 
+      // Viewport culling: skip interpolation/projection work for vehicles
+      // well outside the current viewport. A 25% margin keeps vehicles near
+      // the edges (and their enter animations) intact while panning. Skipped
+      // when bounds are degenerate (no viewport yet, e.g. in tests).
+      const cullEnabled = east - west > 1e-9 && north - south > 1e-9;
+      const marginLng = (east - west) * 0.25;
+      const marginLat = (north - south) * 0.25;
+
       const vehicles: VehiclePolygonDatum[] = [];
 
       for (const [, v] of store) {
         if (v.position[0] === 0 && v.position[1] === 0) continue;
+        if (cullEnabled && v.id !== currentSelectedId && v.id !== currentHoveredId) {
+          const vLat = v.position[0];
+          const vLng = v.position[1];
+          if (
+            vLng < west - marginLng ||
+            vLng > east + marginLng ||
+            vLat < south - marginLat ||
+            vLat > north + marginLat
+          ) {
+            continue;
+          }
+        }
         const fleet = fleetMap.get(v.id);
         if (fleet && hiddenFleets.has(fleet.id)) continue;
         if (hiddenTypes.size > 0 && hiddenTypes.has((v.type as VehicleType) || "car")) continue;

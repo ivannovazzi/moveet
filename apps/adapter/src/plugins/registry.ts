@@ -34,6 +34,16 @@ export class PluginRegistry {
     return this.sinkFactories.get(type);
   }
 
+  /** Registered sink type names (no instantiation). */
+  getSinkTypes(): string[] {
+    return Array.from(this.sinkFactories.keys());
+  }
+
+  /** Registered source type names (no instantiation). */
+  getSourceTypes(): string[] {
+    return Array.from(this.sourceFactories.keys());
+  }
+
   /**
    * Captures and caches metadata from a plugin instance.
    * Called by the manager after creating an instance for connection,

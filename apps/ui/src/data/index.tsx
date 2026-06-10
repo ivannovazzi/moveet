@@ -8,6 +8,7 @@ import {
   HeatZoneContext,
   NetworkContext,
   OptionsContext,
+  DataReadyContext,
 } from "./context";
 import { DEFAULT_START_OPTIONS } from "./constants";
 
@@ -29,13 +30,19 @@ export default function DataProvider({ children }: { children: React.ReactNode }
   const heatzonesValue = useMemo(() => ({ heatzones, setHeatzones }), [heatzones]);
   const networkValue = useMemo(() => ({ network, setNetwork }), [network]);
 
+  // Core map data readiness — true once the road network and roads have
+  // loaded, so consumers can render fallbacks until then.
+  const dataReady = network.features.length > 0 && roads.length > 0;
+
   return (
     <OptionsContext.Provider value={optionsValue}>
       <RoadsContext.Provider value={roadsValue}>
         <POIContext.Provider value={poisValue}>
           <DirectionContext.Provider value={directionsValue}>
             <HeatZoneContext.Provider value={heatzonesValue}>
-              <NetworkContext.Provider value={networkValue}>{children}</NetworkContext.Provider>
+              <NetworkContext.Provider value={networkValue}>
+                <DataReadyContext.Provider value={dataReady}>{children}</DataReadyContext.Provider>
+              </NetworkContext.Provider>
             </HeatZoneContext.Provider>
           </DirectionContext.Provider>
         </POIContext.Provider>

@@ -22,9 +22,10 @@ import { FleetManager } from "./FleetManager";
 import { VEHICLE_PROFILES, pickRandomType } from "../utils/vehicleProfiles";
 import { VehicleRegistry } from "./VehicleRegistry";
 import { RouteManager } from "./RouteManager";
-import { GameLoop } from "./GameLoop";
+import { GameLoop, FAILURE_LOG_SAMPLE_RATE } from "./GameLoop";
 import { AdapterSyncManager } from "./AdapterSyncManager";
 import { AnalyticsAccumulator } from "./AnalyticsAccumulator";
+import logger from "../utils/logger";
 
 /**
  * Thin facade/coordinator that delegates to focused sub-managers:
@@ -48,6 +49,13 @@ export class VehicleManager extends EventEmitter {
   public readonly fleets = new FleetManager();
 
   private pendingVehicleTypes?: Partial<Record<VehicleType, number>>;
+
+  /**
+   * Consecutive advance-failure count per vehicle, cleared on success.
+   * Used to log the first failure and then sample (see {@link advance}),
+   * mirroring GameLoop's per-vehicle failure throttling.
+   */
+  private advanceFailureCounts: Map<string, number> = new Map();
 
   private options: StartOptions = {
     updateInterval: config.updateInterval,
@@ -232,6 +240,7 @@ export class VehicleManager extends EventEmitter {
 
     this.gameLoop.reset();
     this.adapterSync.stopLocationUpdates();
+    this.advanceFailureCounts.clear();
   }
 
   // ─── Game loop delegation ─────────────────────────────────────────
@@ -264,8 +273,21 @@ export class VehicleManager extends EventEmitter {
     this.clock.tick(deltaMs);
 
     for (const vehicle of this.registry.getAll().values()) {
-      this.updateVehicle(vehicle, deltaMs);
-      this.analytics.updateVehicleStats(vehicle, deltaMs);
+      // Per-vehicle error isolation: one throwing vehicle must not abort
+      // the update of the remaining vehicles in this step.
+      try {
+        this.updateVehicle(vehicle, deltaMs);
+        this.analytics.updateVehicleStats(vehicle, deltaMs);
+        this.advanceFailureCounts.delete(vehicle.id);
+      } catch (error) {
+        // Log the first failure per vehicle, then sample so a deterministically
+        // failing vehicle doesn't log on every step.
+        const count = (this.advanceFailureCounts.get(vehicle.id) ?? 0) + 1;
+        this.advanceFailureCounts.set(vehicle.id, count);
+        if (count === 1 || count % FAILURE_LOG_SAMPLE_RATE === 0) {
+          logger.error(`Failed to advance vehicle ${vehicle.id} (failure #${count}): ${error}`);
+        }
+      }
     }
   }
 

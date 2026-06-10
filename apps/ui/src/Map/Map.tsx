@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useMemo } from "react";
 import type {
   DispatchAssignment,
   Fleet,
@@ -28,6 +28,10 @@ import POIMarker from "./POI/POI";
 import GeofenceLayer from "./Geofence/GeofenceLayer";
 import GeofenceDrawTool from "./Geofence/GeofenceDrawTool";
 import { ViewportBboxReporter } from "./ViewportBboxReporter";
+
+// Stable fallback for optional callbacks — inline `() => {}` literals would
+// hand child layers a new prop identity on every render.
+const NOOP = () => {};
 
 const Heatmap = lazy(() => import("./Heatmap"));
 const POIs = lazy(() => import("./POIs"));
@@ -96,6 +100,18 @@ export default function Map({
   // Derive cursor: prefer dispatchState if provided, fall back to dispatchMode boolean
   const cursor = dispatchState ? cursorForDispatchState(dispatchState) : "grab";
 
+  // Only rebuild the HTML marker subtree when its actual inputs change, so
+  // DeckGLMap doesn't receive a new htmlMarkers element on unrelated renders.
+  const htmlMarkers = useMemo(
+    () => (
+      <>
+        {selectedItem && isPOI(selectedItem) && <POIMarker poi={selectedItem} showLabel />}
+        {incidents && incidents.length > 0 && <IncidentMarkers incidents={incidents} />}
+      </>
+    ),
+    [selectedItem, incidents]
+  );
+
   return (
     <>
       <DeckGLMap
@@ -106,12 +122,7 @@ export default function Map({
         onClick={onMapClick}
         onContextClick={onMapContextClick}
         cursor={cursor}
-        htmlMarkers={
-          <>
-            {selectedItem && isPOI(selectedItem) && <POIMarker poi={selectedItem} showLabel />}
-            {incidents && incidents.length > 0 && <IncidentMarkers incidents={incidents} />}
-          </>
-        }
+        htmlMarkers={htmlMarkers}
       >
         {/* POIs & speed-limit signs — GPU-rendered via IconLayer */}
         {modifiers.showPOIs && (
@@ -170,8 +181,8 @@ export default function Map({
             assignments={assignments}
             vehicles={vehicles}
             editable={dispatchState === DispatchState.ROUTE}
-            onMoveWaypointGroup={onMoveWaypointGroup ?? (() => {})}
-            onRemoveWaypointGroup={onRemoveWaypointGroup ?? (() => {})}
+            onMoveWaypointGroup={onMoveWaypointGroup ?? NOOP}
+            onRemoveWaypointGroup={onRemoveWaypointGroup ?? NOOP}
           />
         )}
         {dispatchState && dispatchState !== DispatchState.BROWSE && (
@@ -183,8 +194,8 @@ export default function Map({
         )}
         <GeofenceDrawTool
           active={drawingActive}
-          onComplete={onDrawComplete ?? (() => {})}
-          onCancel={onDrawCancel ?? (() => {})}
+          onComplete={onDrawComplete ?? NOOP}
+          onCancel={onDrawCancel ?? NOOP}
           onVertexCountChange={onDrawVertexCountChange}
           confirmRequestId={drawConfirmId}
         />

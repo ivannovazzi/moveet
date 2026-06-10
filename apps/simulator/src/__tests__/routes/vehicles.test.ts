@@ -164,6 +164,34 @@ describe("Vehicle routes", () => {
       expect(res.body.details[0]).toContain("outside");
     });
 
+    it("should scale the longitude margin by cos(latitude)", async () => {
+      // High-latitude bbox: mid latitude 60° → cos = 0.5 → lng margin 0.1/0.5 = 0.2
+      (ctx.network.getBoundingBox as ReturnType<typeof vi.fn>).mockReturnValue({
+        minLat: 59,
+        maxLat: 61,
+        minLon: 10,
+        maxLon: 12,
+      });
+
+      // 0.15° beyond maxLon: outside the flat 0.1 margin but inside the scaled 0.2 margin
+      const okRes = await request(app)
+        .post("/direction")
+        .send([{ id: "v1", lat: 60, lng: 12.15 }]);
+      expect(okRes.status).toBe(200);
+
+      // Beyond the scaled margin is still rejected
+      const farRes = await request(app)
+        .post("/direction")
+        .send([{ id: "v1", lat: 60, lng: 12.25 }]);
+      expect(farRes.status).toBe(400);
+
+      // The latitude margin is NOT widened: 0.15° beyond maxLat is rejected
+      const latRes = await request(app)
+        .post("/direction")
+        .send([{ id: "v1", lat: 61.15, lng: 11 }]);
+      expect(latRes.status).toBe(400);
+    });
+
     it("should validate waypoints when provided", async () => {
       const res = await request(app)
         .post("/direction")

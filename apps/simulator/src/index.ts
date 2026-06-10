@@ -1,4 +1,3 @@
-import type { Request, Response, NextFunction } from "express";
 import express from "express";
 import compression from "compression";
 import cors from "cors";
@@ -18,6 +17,7 @@ import { PersistenceManager } from "./modules/PersistenceManager";
 import { config, verifyConfig, logConfig } from "./utils/config";
 import { generalRateLimiter } from "./middleware/rateLimiter";
 import { correlationIdMiddleware } from "./middleware/correlationId";
+import { errorHandler } from "./middleware/errorHandler";
 import logger from "./utils/logger";
 import {
   createVehicleRoutes,
@@ -136,10 +136,7 @@ app.get("/api-docs.yaml", (_req, res) => {
 app.use("/api-docs", apiReference({ url: "/api-docs.yaml" }));
 
 // Global error handler
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  logger.error(`Unhandled error: ${err.message}`);
-  res.status(500).json({ error: "Internal server error" });
-});
+app.use(errorHandler);
 
 // ─── Server startup ──────────────────────────────────────────────────
 
@@ -178,6 +175,7 @@ async function main() {
     wss,
     broadcaster,
     simulationController,
+    vehicleManager,
     network,
     trafficBroadcastInterval,
     analyticsBroadcastInterval,

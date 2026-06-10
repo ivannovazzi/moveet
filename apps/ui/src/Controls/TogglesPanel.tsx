@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { Modifiers } from "@/types";
 import { Switch, Range } from "@/components/Inputs";
 import { vehicleStore } from "@/hooks/vehicleStore";
@@ -40,14 +40,35 @@ export default memo(function TogglesPanel({ modifiers, onChangeModifiers }: Togg
     return initial;
   });
 
-  const handleTrailLengthChange = (value: number) => {
-    setTrailLength(value);
+  // Debounce the store mutation + localStorage write: setTrailCapacity trims
+  // every trail synchronously, so applying it on each slider step while
+  // dragging can block the frame. The slider UI still updates immediately.
+  const trailTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const pendingTrailRef = useRef<number | null>(null);
+
+  const commitTrailLength = useCallback((value: number) => {
+    pendingTrailRef.current = null;
     vehicleStore.setTrailCapacity(value);
     try {
       localStorage.setItem("trailLength", String(value));
     } catch {
       // ignore localStorage errors
     }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      // Flush a pending change on unmount instead of dropping it.
+      clearTimeout(trailTimerRef.current);
+      if (pendingTrailRef.current !== null) commitTrailLength(pendingTrailRef.current);
+    };
+  }, [commitTrailLength]);
+
+  const handleTrailLengthChange = (value: number) => {
+    setTrailLength(value);
+    pendingTrailRef.current = value;
+    clearTimeout(trailTimerRef.current);
+    trailTimerRef.current = setTimeout(() => commitTrailLength(value), 200);
   };
 
   return (

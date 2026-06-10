@@ -90,6 +90,7 @@ jobs:
             apps/simulator/coverage/
             apps/adapter/coverage/
             apps/ui/coverage/
+            apps/network/coverage/
           retention-days: 14
 
   build:

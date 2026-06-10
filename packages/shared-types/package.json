@@ -1,7 +1,8 @@
 {
   "name": "@moveet/shared-types",
   "version": "0.0.4",
-  "description": "Shared TypeScript type definitions for the Moveet monorepo",
+  "private": true,
+  "description": "Shared TypeScript type definitions for the Moveet monorepo (internal, not published)",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "author": "Ivan Novazzi",

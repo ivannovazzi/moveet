@@ -66,6 +66,7 @@ class SimulationService {
     this.getHeatzones = this.getHeatzones.bind(this);
     this.makeHeatzones = this.makeHeatzones.bind(this);
     this.connectWebSocket = this.connectWebSocket.bind(this);
+    this.retryConnection = this.retryConnection.bind(this);
     this.disconnect = this.disconnect.bind(this);
     // events
     this.onConnect = this.onConnect.bind(this);
@@ -166,6 +167,11 @@ class SimulationService {
 
   connectWebSocket(): void {
     this.ws.connect();
+  }
+
+  /** Reset the reconnect attempt counter and try connecting again. */
+  retryConnection(): void {
+    this.ws.retry();
   }
 
   disconnect(): void {

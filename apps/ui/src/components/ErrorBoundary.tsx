@@ -1,6 +1,7 @@
 import type { ErrorInfo, ReactNode } from "react";
 import { Component } from "react";
 import { Button } from "@/components/ui/button";
+import { persistErrorSnapshot } from "@/utils/errorLog";
 
 interface Props {
   children: ReactNode;
@@ -30,6 +31,8 @@ class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     // Log error details to console in development
     console.error("Error caught by ErrorBoundary:", error, errorInfo);
+    // Persist a snapshot so the crash is inspectable post-mortem
+    persistErrorSnapshot(error, errorInfo);
   }
 
   render() {

@@ -49,13 +49,20 @@ export function parseEnv(env: Record<string, string | undefined> = process.env):
   return result.data;
 }
 
-function parseJSON(value: string | undefined): Record<string, unknown> {
+/**
+ * Parse a JSON config env var. An unset/empty var is fine (→ `{}`), but a set
+ * var that isn't valid JSON is a configuration error and must fail loudly
+ * rather than silently fall back to defaults.
+ */
+function parseJSON(value: string | undefined, envVar: string): Record<string, unknown> {
   if (!value) return {};
   try {
     return JSON.parse(value);
-  } catch {
-    logger.warn({ value }, "Failed to parse JSON config");
-    return {};
+  } catch (err) {
+    throw new Error(
+      `Invalid JSON in environment variable ${envVar}: ${err instanceof Error ? err.message : String(err)}`,
+      { cause: err }
+    );
   }
 }
 
@@ -78,7 +85,10 @@ function parseSinks(
     .filter(Boolean)
     .map((type) => ({
       type,
-      config: parseJSON(env[`SINK_${type.toUpperCase()}_CONFIG`]),
+      config: parseJSON(
+        env[`SINK_${type.toUpperCase()}_CONFIG`],
+        `SINK_${type.toUpperCase()}_CONFIG`
+      ),
     }));
 }
 
@@ -94,7 +104,7 @@ export interface StartupConfig {
 export function loadConfig(env: Record<string, string | undefined> = process.env): StartupConfig {
   const parsed = parseEnv(env);
 
-  const sourceConfig = parseJSON(parsed.SOURCE_CONFIG);
+  const sourceConfig = parseJSON(parsed.SOURCE_CONFIG, "SOURCE_CONFIG");
   if (parsed.SOURCE_TYPE === "static" && !sourceConfig.count) {
     sourceConfig.count = 20;
   }
@@ -105,7 +115,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     sinks.push({ type: "console", config: {} });
   }
 
-  const realism = parseJSON(parsed.REALISM_CONFIG);
+  const realism = parseJSON(parsed.REALISM_CONFIG, "REALISM_CONFIG");
 
   return {
     port: parsed.PORT,

@@ -7,6 +7,7 @@ import { REALISM_SCHEMA } from "./realism/config";
 import { loadConfig, logConfig } from "./utils/config";
 import { createLogger } from "./utils/logger";
 import { correlationIdMiddleware } from "./middleware/correlationId";
+import { errorHandlerMiddleware } from "./middleware/errorHandler";
 import { EmitJobRunner } from "./replay/emitJob";
 
 const logger = createLogger("index");
@@ -311,22 +312,85 @@ async function startup(): Promise<void> {
     res.json({ ...status, realism: pluginManager.getRealismStatus() });
   });
 
-  process.on("SIGTERM", async () => {
-    logger.info("SIGTERM signal received: shutting down");
-    try {
-      await pluginManager.shutdown();
-      process.exit(0);
-    } catch (err) {
-      logger.error({ err }, "Error during shutdown");
-      process.exit(1);
-    }
-  });
+  // Final error handler: catches sync throws and (in Express 5) rejected
+  // async handlers, returning structured JSON instead of the HTML error page.
+  app.use(errorHandlerMiddleware);
 
   isReady = true;
   logger.info("All plugins initialized, server is ready");
 
-  app.listen(config.port, () => {
+  const server = app.listen(config.port, () => {
     logger.info({ port: config.port }, `Adapter listening on http://localhost:${config.port}`);
+  });
+
+  /** Overall shutdown budget (HTTP drain + plugin shutdown combined) before we force-exit. */
+  const SHUTDOWN_TIMEOUT_MS = 10_000;
+  /** Minimum slice a shutdown phase always gets, even if earlier phases ate the budget. */
+  const SHUTDOWN_PHASE_FLOOR_MS = 100;
+
+  let shuttingDown = false;
+  const shutdown = async (reason: string, exitCode = 0): Promise<void> => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    logger.info({ reason }, "Shutting down");
+
+    // Single overall deadline shared by both phases so total shutdown time
+    // stays within SHUTDOWN_TIMEOUT_MS (Docker's default stop grace period).
+    // Each phase gets only the remaining budget, floored so the plugin phase
+    // always gets a chance even if the drain consumed the full budget.
+    const deadline = Date.now() + SHUTDOWN_TIMEOUT_MS;
+    const remainingMs = (): number => Math.max(SHUTDOWN_PHASE_FLOOR_MS, deadline - Date.now());
+
+    // Stop accepting new connections and drain in-flight requests first.
+    // Bounded: a stuck in-flight request must not hang shutdown forever.
+    await new Promise<void>((resolve) => {
+      const t = setTimeout(() => {
+        logger.warn("Server drain timed out — closing remaining connections");
+        server.closeAllConnections();
+        resolve();
+      }, remainingMs());
+      t.unref();
+      server.close(() => {
+        clearTimeout(t);
+        resolve();
+      });
+      server.closeIdleConnections();
+    });
+
+    try {
+      const pluginBudgetMs = remainingMs();
+      await Promise.race([
+        pluginManager.shutdown(),
+        new Promise<never>((_, reject) => {
+          const t = setTimeout(
+            () => reject(new Error(`Plugin shutdown timed out after ${pluginBudgetMs}ms`)),
+            pluginBudgetMs
+          );
+          t.unref();
+        }),
+      ]);
+      process.exit(exitCode);
+    } catch (err) {
+      logger.warn({ err }, "Error during shutdown — forcing exit");
+      process.exit(1);
+    }
+  };
+
+  process.on("SIGTERM", () => void shutdown("SIGTERM"));
+  process.on("SIGINT", () => void shutdown("SIGINT"));
+
+  process.on("unhandledRejection", (reason) => {
+    logger.error({ err: reason }, "Unhandled promise rejection");
+  });
+  process.on("uncaughtException", (err) => {
+    if (shuttingDown) {
+      // shutdown() is re-entry guarded, so a second uncaught exception would
+      // otherwise be swallowed, leaving a corrupt process running. Bail out.
+      logger.error({ err }, "Uncaught exception during shutdown — exiting immediately");
+      process.exit(1);
+    }
+    logger.error({ err }, "Uncaught exception — attempting clean shutdown");
+    void shutdown("uncaughtException", 1);
   });
 }
 

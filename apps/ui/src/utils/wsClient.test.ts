@@ -140,6 +140,62 @@ describe("WebSocketClient", () => {
     vi.advanceTimersByTime(1_000); // delay should be 1000ms (attempt 0), not escalated
     expect(mockInstances).toHaveLength(5);
   });
+
+  it("retry() resets the attempt counter and reconnects after giving up", () => {
+    const states: ConnectionStateInfo[] = [];
+    const client = new WebSocketClient("ws://localhost:5010", {
+      autoReconnect: true,
+      logReconnects: false,
+      maxReconnectAttempts: 1,
+      logger: { log: () => {}, error: () => {} },
+    });
+    client.onConnectionStateChange((info) => states.push(info));
+
+    client.connect();
+    const ws1 = mockInstances[0];
+    ws1.onopen?.();
+
+    // Exhaust the single allowed reconnect attempt
+    ws1.onclose?.();
+    vi.advanceTimersByTime(1_000); // attempt 1 scheduled & fired
+    const ws2 = mockInstances[1];
+    ws2.onclose?.(); // attempt 1 fails → max reached
+    vi.advanceTimersByTime(60_000);
+
+    expect(client.connectionState).toBe("disconnected");
+    expect(mockInstances).toHaveLength(2);
+
+    // Manual retry: counter reset, new connection opened, state shows progress
+    client.retry();
+    expect(mockInstances).toHaveLength(3);
+    expect(client.connectionState).toBe("reconnecting");
+
+    const ws3 = mockInstances[2];
+    ws3.onopen?.();
+    expect(client.connectionState).toBe("connected");
+
+    // Auto-reconnect works again after a later unexpected close
+    ws3.onclose?.();
+    vi.advanceTimersByTime(1_000);
+    expect(mockInstances).toHaveLength(4);
+  });
+
+  it("retry() is a no-op while a socket already exists", () => {
+    const client = createClient();
+    const states: ConnectionStateInfo[] = [];
+
+    client.connect();
+    mockInstances[0].onopen?.();
+    expect(client.connectionState).toBe("connected");
+
+    client.onConnectionStateChange((info) => states.push({ ...info }));
+    client.retry();
+
+    // No new socket, no state broadcast, still connected
+    expect(mockInstances).toHaveLength(1);
+    expect(states).toHaveLength(0);
+    expect(client.connectionState).toBe("connected");
+  });
 });
 
 describe("WebSocketClient connection state", () => {

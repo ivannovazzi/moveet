@@ -144,7 +144,13 @@ export class RealismEngine {
 
   start(): void {
     if (this.timer) return;
-    this.timer = setInterval(() => void this.tick(), this.tickMs);
+    // Catch tick rejections: a bare `void this.tick()` would turn any uncaught
+    // tick error into an unhandled promise rejection.
+    this.timer = setInterval(() => {
+      this.tick().catch((err) => {
+        logger.error({ err }, "Realism tick failed");
+      });
+    }, this.tickMs);
     if (typeof this.timer === "object" && "unref" in this.timer) {
       (this.timer as { unref: () => void }).unref();
     }

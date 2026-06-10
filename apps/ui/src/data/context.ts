@@ -60,6 +60,13 @@ export const NetworkContext = React.createContext<NetworkContextValue>({
   setNetwork: () => {},
 });
 
+// ─── Data Ready Context ─────────────────────────────────────────────
+/**
+ * True once the core map data (road network + roads) has loaded.
+ * Consumers can use this to render fallbacks until the data arrives.
+ */
+export const DataReadyContext = React.createContext<boolean>(false);
+
 // ─── Options Context ────────────────────────────────────────────────
 export interface OptionsContextValue {
   options: StartOptions;

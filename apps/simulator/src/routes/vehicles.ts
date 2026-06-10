@@ -38,8 +38,12 @@ export function createVehicleRoutes(ctx: RouteContext): Router {
       // Business-logic validation: vehicle existence + bounding box checks
       const errors: string[] = [];
       const bbox = network.getBoundingBox();
-      // Add a margin (~10km) around the network bounding box for coordinate validation
+      // Add a margin (~10km) around the network bounding box for coordinate validation.
+      // One degree of longitude shrinks by cos(latitude), so the longitude margin is
+      // widened accordingly to keep the same ~10km ground distance.
       const MARGIN = 0.1;
+      const midLatRad = (((bbox.minLat + bbox.maxLat) / 2) * Math.PI) / 180;
+      const LNG_MARGIN = MARGIN / Math.max(Math.cos(midLatRad), 0.01);
 
       for (let i = 0; i < body.length; i++) {
         const item = body[i];
@@ -57,8 +61,8 @@ export function createVehicleRoutes(ctx: RouteContext): Router {
             if (
               wp.lat < bbox.minLat - MARGIN ||
               wp.lat > bbox.maxLat + MARGIN ||
-              wp.lng < bbox.minLon - MARGIN ||
-              wp.lng > bbox.maxLon + MARGIN
+              wp.lng < bbox.minLon - LNG_MARGIN ||
+              wp.lng > bbox.maxLon + LNG_MARGIN
             ) {
               errors.push(
                 `[${i}].waypoints[${j}]: coordinates (${wp.lat}, ${wp.lng}) are outside the road network bounds`
@@ -70,8 +74,8 @@ export function createVehicleRoutes(ctx: RouteContext): Router {
           if (
             item.lat < bbox.minLat - MARGIN ||
             item.lat > bbox.maxLat + MARGIN ||
-            item.lng < bbox.minLon - MARGIN ||
-            item.lng > bbox.maxLon + MARGIN
+            item.lng < bbox.minLon - LNG_MARGIN ||
+            item.lng > bbox.maxLon + LNG_MARGIN
           ) {
             errors.push(
               `[${i}]: coordinates (${item.lat}, ${item.lng}) are outside the road network bounds`

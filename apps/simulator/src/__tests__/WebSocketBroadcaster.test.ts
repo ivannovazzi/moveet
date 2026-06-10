@@ -10,6 +10,15 @@ import {
 } from "../modules/WebSocketBroadcaster";
 import type { VehicleDTO } from "../types";
 
+// Mock logger to suppress output
+vi.mock("../utils/logger", () => ({
+  default: {
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+  },
+}));
+
 // --- Mock WebSocket & WebSocketServer ---
 
 function createMockClient(readyState = 1, bufferedAmount = 0): MockWebSocket {
@@ -1533,6 +1542,83 @@ describe("WebSocketBroadcaster", () => {
       }
 
       broadcaster.stop();
+    });
+  });
+
+  describe("send error isolation", () => {
+    it("should keep flushing to other clients when one client's send throws", () => {
+      const badClient = createMockClient();
+      badClient.send.mockImplementation(() => {
+        throw new Error("EPIPE");
+      });
+      const goodClient = createMockClient();
+      const wss = createMockWSS([badClient, goodClient]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
+        flushIntervalMs: 100,
+      });
+      broadcaster.start();
+
+      broadcaster.queueVehicleUpdate(makeVehicle("v1"));
+      expect(() => vi.advanceTimersByTime(100)).not.toThrow();
+
+      // The healthy client still received the flush
+      expect(goodClient.send).toHaveBeenCalledTimes(1);
+      const parsed = JSON.parse(goodClient.send.mock.calls[0][0] as string);
+      expect(parsed.data[0].id).toBe("v1");
+
+      broadcaster.stop();
+    });
+
+    it("should re-send the vehicle to a client whose send failed once it recovers", () => {
+      const client = createMockClient();
+      client.send.mockImplementationOnce(() => {
+        throw new Error("EPIPE");
+      });
+      const wss = createMockWSS([client]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer, {
+        flushIntervalMs: 100,
+      });
+      broadcaster.start();
+
+      broadcaster.queueVehicleUpdate(makeVehicle("v1"));
+      vi.advanceTimersByTime(100); // first flush fails
+
+      // Queue the same position again — since lastSent was NOT updated on the
+      // failed send, the vehicle must be delivered on the next flush.
+      broadcaster.queueVehicleUpdate(makeVehicle("v1"));
+      vi.advanceTimersByTime(100);
+
+      expect(client.send).toHaveBeenCalledTimes(2);
+      const parsed = JSON.parse(client.send.mock.calls[1][0] as string);
+      expect(parsed.data[0].id).toBe("v1");
+
+      broadcaster.stop();
+    });
+
+    it("should keep broadcasting non-vehicle messages when one client's send throws", () => {
+      const badClient = createMockClient();
+      badClient.send.mockImplementation(() => {
+        throw new Error("EPIPE");
+      });
+      const goodClient = createMockClient();
+      const wss = createMockWSS([badClient, goodClient]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer);
+
+      expect(() => broadcaster.broadcast("status", { running: true })).not.toThrow();
+      expect(goodClient.send).toHaveBeenCalledTimes(1);
+    });
+
+    it("should not throw when sendTo target client send throws", () => {
+      const badClient = createMockClient();
+      badClient.send.mockImplementation(() => {
+        throw new Error("EPIPE");
+      });
+      const wss = createMockWSS([badClient]);
+      const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer);
+
+      expect(() =>
+        broadcaster.sendTo(badClient as unknown as WebSocket, "status", { running: true })
+      ).not.toThrow();
     });
   });
 

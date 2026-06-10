@@ -2,6 +2,8 @@
 
 Audit date: 2026-06-10. Findings across usability, performance, ergonomics, engineering best practices, and design patterns for all apps and the monorepo. Check items off as they are fixed; add a PR link next to completed items.
 
+**Status 2026-06-10:** all high + medium findings addressed (or closed as invalid/already-fixed after verification) on branch `fix/audit-high-medium-findings`. Low findings remain open.
+
 **Legend:** 🔴 High · 🟡 Medium · 🟢 Low
 **IDs:** `SIM` simulator · `ADP` adapter · `UI` ui · `REPO` monorepo/cross-cutting
 
@@ -17,12 +19,12 @@ Audit date: 2026-06-10. Findings across usability, performance, ergonomics, engi
 
 ### Suggested quick wins (low effort, high value)
 
-- [ ] REPO-01 — Fix `VITE_API_URL`/`VITE_WS_URL` in `docker-compose.ghcr.yml` (UI can't reach simulator as configured)
-- [ ] ADP-02 — Add SIGINT handler to adapter (Ctrl+C currently skips all cleanup)
-- [ ] SIM-06 — Replace `console.log` with structured logger in simulator config dump
-- [ ] REPO-03 — Fix stale "yarn" claim in root `CLAUDE.md` (everything uses npm workspaces)
+- [x] REPO-01 — Fix `VITE_API_URL`/`VITE_WS_URL` in `docker-compose.ghcr.yml` (UI can't reach simulator as configured)
+- [x] ADP-02 — Add SIGINT handler to adapter (Ctrl+C currently skips all cleanup)
+- [x] SIM-06 — Replace `console.log` with structured logger in simulator config dump
+- [x] REPO-03 — Fix stale "yarn" claim in root `CLAUDE.md` (everything uses npm workspaces)
 - [ ] REPO-09 — Delete stray `--version/` directory at repo root
-- [ ] UI-12 — Wire up error reporting in `ErrorBoundary` (currently console-only)
+- [x] UI-12 — Wire up error reporting in `ErrorBoundary` (currently console-only)
 
 ---
 
@@ -30,39 +32,43 @@ Audit date: 2026-06-10. Findings across usability, performance, ergonomics, engi
 
 ### High
 
-- [ ] **SIM-01** 🔴 Global error handler lacks request context — `src/index.ts:139-142`
+- [x] **SIM-01** 🔴 Global error handler lacks request context — `src/index.ts:139-142`
       Logs only `err.message`, returns generic 500. The correlation-ID middleware runs earlier but isn't used here. Log method/path/request ID and stack (dev), return the correlation ID in the error body.
-- [ ] **SIM-02** 🔴 Race in `WebSocketBroadcaster.flush()` client-state mutation — `src/modules/WebSocketBroadcaster.ts:315,325-326`
+- [x] **SIM-02** 🔴 Race in `WebSocketBroadcaster.flush()` client-state mutation — `src/modules/WebSocketBroadcaster.ts:315,325-326`
       `droppedFlushes`/`lastSent` are mutated after async sends; `bboxCache` assumes immutable bbox references that can be mutated externally. Use immutable keys, reset counters before sending, wrap `client.send()` in try/catch.
-- [ ] **SIM-03** 🔴 A\* heuristic can go stale/inadmissible — `src/modules/RoadNetwork.ts:582-599`
+      _Done — the real defect was send-error isolation (added `safeSend`); the async-race/bbox-mutation claims were verified invalid (`flush()` is fully synchronous, cache keys are value-derived)._
+- [x] **SIM-03** 🔴 A\* heuristic can go stale/inadmissible — `src/modules/RoadNetwork.ts:582-599`
       `maxNetworkSpeed` is precomputed; later speed overrides/incidents can invalidate it, pruning optimal paths. Spatial grid search expands to radius 3 with no distance cap. Recompute on incident-edge changes; bound grid expansion.
-- [ ] **SIM-04** 🔴 `VehicleManager.advance()` has no per-vehicle error isolation — `src/modules/VehicleManager.ts:263-270`
+      _Closed: claim verified invalid — edge speeds are immutable after construction and incidents only increase cost, so the heuristic stays admissible; grid search was already bounded._
+- [x] **SIM-04** 🔴 `VehicleManager.advance()` has no per-vehicle error isolation — `src/modules/VehicleManager.ts:263-270`
       One throwing vehicle update aborts the whole batch mid-state. Try/catch inside the loop; log and skip the failing vehicle.
-- [ ] **SIM-05** 🔴 Graceful shutdown drops in-flight work — `src/setup/gracefulShutdown.ts:36-90`
+- [x] **SIM-05** 🔴 Graceful shutdown drops in-flight work — `src/setup/gracefulShutdown.ts:36-90`
       Server closes immediately; in-flight adapter syncs and pending pathfinding-pool requests aren't drained. Add a bounded drain phase before close.
-- [ ] **SIM-06** 🔴 Config dump bypasses structured logging — `src/utils/config.ts:158`
+- [x] **SIM-06** 🔴 Config dump bypasses structured logging — `src/utils/config.ts:158`
       `logConfig()` uses `console.log` instead of `logger.info`, skipping transports/redaction. One-line fix. _(verified)_
 
 ### Medium
 
-- [ ] **SIM-07** 🟡 PathfindingPool pending queue is unbounded — `src/modules/PathfindingPool.ts:120-150`
+- [x] **SIM-07** 🟡 PathfindingPool pending queue is unbounded — `src/modules/PathfindingPool.ts:120-150`
       Per-request timeouts exist but no backpressure; stalled workers grow memory without limit. Add `maxPendingRequests` + queue-depth metric.
-- [ ] **SIM-08** 🟡 In-memory rate limiter breaks under clustering — `src/middleware/rateLimiter.ts:24-31`
+- [x] **SIM-08** 🟡 In-memory rate limiter breaks under clustering — `src/middleware/rateLimiter.ts:24-31`
       Per-process IP buckets; multiple instances multiply effective limits. Document the limitation or support an external store.
-- [ ] **SIM-09** 🟡 Adapter sync has no backoff/retry strategy — `src/modules/AdapterSyncManager.ts:82-102`
+- [x] **SIM-09** 🟡 Adapter sync has no backoff/retry strategy — `src/modules/AdapterSyncManager.ts:82-102`
       Failures log and retry every interval, flooding logs during outages. Add exponential backoff with jitter; surface persistent failure as an event.
-- [ ] **SIM-10** 🟡 `/stop` endpoint lacks idempotency/state checks — `src/routes/simulation.ts:44-51`
+- [x] **SIM-10** 🟡 `/stop` endpoint lacks idempotency/state checks — `src/routes/simulation.ts:44-51`
       Calls `stop()` unconditionally; concurrent stops can race. Validate running state, make idempotent, emit status before responding.
-- [ ] **SIM-11** 🟡 Route cache TTL not refreshed on hit; incidents don't invalidate — `src/modules/RoadNetwork.ts:128-133,313-314`
+- [x] **SIM-11** 🟡 Route cache TTL not refreshed on hit; incidents don't invalidate — `src/modules/RoadNetwork.ts:128-133,313-314`
       Hot routes get evicted after 60s regardless of use; incident cost changes leave stale cached routes. Refresh TTL on hit and invalidate on incident change.
-- [ ] **SIM-12** 🟡 Bounding-box margin ignores latitude — `src/routes/vehicles.ts:42,93-100`
+- [x] **SIM-12** 🟡 Bounding-box margin ignores latitude — `src/routes/vehicles.ts:42,93-100`
       Hardcoded 0.1° margin isn't latitude-scaled. Scale longitude margin by `cos(lat)`.
-- [ ] **SIM-13** 🟡 Game loop clock delta unclamped — `src/modules/GameLoop.ts:83-110`
+- [x] **SIM-13** 🟡 Game loop clock delta unclamped — `src/modules/GameLoop.ts:83-110`
       GC pauses produce large deltas that make the sim clock jump. Clamp delta (e.g. 2× interval) and log when exceeded.
-- [ ] **SIM-14** 🟡 Auto heat-zone timer leaks across start/reset — `src/modules/SimulationController.ts:132-145,207-212`
+- [x] **SIM-14** 🟡 Auto heat-zone timer leaks across start/reset — `src/modules/SimulationController.ts:132-145,207-212`
       Timer isn't cleared on `reset()`; restart guard can leave a stale timer firing. Always clear and restart in `start()`/`reset()`.
-- [ ] **SIM-15** 🟡 `asyncHandler` has no handler timeout — `src/routes/helpers.ts:7-10`
+      _Done — `reset()` already cleared the timer via `stop()`; `start()` now always clears+restarts and regenerates zones immediately._
+- [x] **SIM-15** 🟡 `asyncHandler` has no handler timeout — `src/routes/helpers.ts:7-10`
       A hung route (e.g. pathfinding) keeps connections open indefinitely. Add an optional timeout race.
+      _Done — opt-in `timeoutMs` capability with tests; not applied to routes since pathfinding is already bounded by the pool’s 30s per-request timeout._
 
 ### Low
 
@@ -83,34 +89,37 @@ Audit date: 2026-06-10. Findings across usability, performance, ergonomics, engi
 
 ### High
 
-- [ ] **ADP-01** 🔴 HTTP server instance not captured for graceful shutdown — `src/index.ts:328-330`
+- [x] **ADP-01** 🔴 HTTP server instance not captured for graceful shutdown — `src/index.ts:328-330`
       `app.listen()` return value discarded; SIGTERM shuts down plugins but never calls `server.close()`, so pending requests hang and new connections are accepted during shutdown.
-- [ ] **ADP-02** 🔴 No SIGINT handler — `src/index.ts:314-323`
+- [x] **ADP-02** 🔴 No SIGINT handler — `src/index.ts:314-323`
       Only SIGTERM is trapped; Ctrl+C kills the process without closing Kafka producers/clients. Share the shutdown handler across both signals. _(verified)_
-- [ ] **ADP-03** 🔴 RealismEngine tick errors swallowed — `src/realism/RealismEngine.ts:147`
+- [x] **ADP-03** 🔴 RealismEngine tick errors swallowed — `src/realism/RealismEngine.ts:147`
       `setInterval(() => void this.tick(), …)` discards rejections; systematic failures never surface. Wrap the callback, log/metric uncaught errors, expose tick-loop health.
-- [ ] **ADP-04** 🔴 No `unhandledRejection`/`uncaughtException` handlers — `src/index.ts`
+- [x] **ADP-04** 🔴 No `unhandledRejection`/`uncaughtException` handlers — `src/index.ts`
       Errors outside try/catch crash the process without context. Add process-level handlers that log and shut down cleanly.
 
 ### Medium
 
-- [ ] **ADP-05** 🟡 No Express error-handling middleware — `src/index.ts:94-110`
+- [x] **ADP-05** 🟡 No Express error-handling middleware — `src/index.ts:94-110`
       Unhandled route errors return default HTML instead of structured JSON. Add a final error middleware.
-- [ ] **ADP-06** 🟡 Redpanda sink fails late when topic missing — `src/plugins/sinks/redpanda.ts:298`
+- [x] **ADP-06** 🟡 Redpanda sink fails late when topic missing — `src/plugins/sinks/redpanda.ts:298`
       `allowAutoTopicCreation: false` with no pre-flight check; error only appears on first publish after the sink reports "active". Check topic existence in `connect()`.
-- [ ] **ADP-07** 🟡 ReplayEmitter hangs forever on empty source — `src/replay/ReplayEmitter.ts:153-162`
+- [x] **ADP-07** 🟡 ReplayEmitter hangs forever on empty source — `src/replay/ReplayEmitter.ts:153-162`
       Header-wait loop never breaks on an empty iterable, blocking the emit job queue. Add timeout/max-iteration guard.
-- [ ] **ADP-08** 🟡 Invalid JSON config env vars silently fall back to `{}` — `src/utils/config.ts:52-60`
+      _Closed: already handled on main — `run()` throws "Recording is empty (no header line)" when the iterator ends; audit claim was stale._
+- [x] **ADP-08** 🟡 Invalid JSON config env vars silently fall back to `{}` — `src/utils/config.ts:52-60`
       A typo in `REALISM_CONFIG`/`SINK_*_CONFIG` is masked. Validate all JSON env vars at startup and fail loudly.
-- [ ] **ADP-09** 🟡 Redpanda health-check admin connect has no timeout — `src/plugins/sinks/redpanda.ts:640-670`
+- [x] **ADP-09** 🟡 Redpanda health-check admin connect has no timeout — `src/plugins/sinks/redpanda.ts:640-670`
       `Promise.race` covers the check but not `admin.connect()`; a hanging broker stalls the health endpoint. Add a connect timeout.
-- [ ] **ADP-10** 🟡 Chunked batch publish can deliver out of order on partial failure — `src/plugins/sinks/redpanda.ts:574-629`
+- [x] **ADP-10** 🟡 Chunked batch publish can deliver out of order on partial failure — `src/plugins/sinks/redpanda.ts:574-629`
       Mid-chunk failure + retry corrupts time-series ordering. Fail the batch atomically or add per-chunk sequencing.
-- [ ] **ADP-11** 🟡 GraphQL mutation/subscription guard regex too loose — `src/plugins/sources/graphql.ts:82-89`
+- [x] **ADP-11** 🟡 GraphQL mutation/subscription guard regex too loose — `src/plugins/sources/graphql.ts:82-89`
       Bare `/mutation|subscription/i` matches substrings and misses word-boundary cases. Use `\b(?:mutation|subscription)\b`.
-- [ ] **ADP-12** 🟡 `POST /config/sinks` doesn't validate sink type against registry — `src/index.ts:229-247`
+      _Closed: already handled on main — regex already uses `\b(mutation|subscription)\b` with tests; audit claim was stale._
+- [x] **ADP-12** 🟡 `POST /config/sinks` doesn't validate sink type against registry — `src/index.ts:229-247`
       Unknown types fail later with a generic error instead of an early 400. Check `registry.getSinkFactory(type)` first.
-- [ ] **ADP-13** 🟡 Plugin shutdown has no timeout — `src/index.ts:314-323`
+      _Done — registry lookup + 400 already existed; added the valid-types list to the error message._
+- [x] **ADP-13** 🟡 Plugin shutdown has no timeout — `src/index.ts:314-323`
       A hanging disconnect blocks process exit until SIGKILL. Wrap shutdown in a ~10s timeout then force-exit.
 
 ### Low
@@ -134,41 +143,47 @@ Audit date: 2026-06-10. Findings across usability, performance, ergonomics, engi
 
 ### High
 
-- [ ] **UI-01** 🔴 `App.tsx` is a 660-line god component — `src/App.tsx:67-647`
+- [x] **UI-01** 🔴 `App.tsx` is a 660-line god component — `src/App.tsx:67-647`
       Geofence drawing, dispatch flow, incident CRUD, recording, filtering, and map interaction all live in one component. Extract per-domain hooks (`useGeofenceState`, `useDispatchManager`, `useIncidentManager`) and a thin orchestrator.
-- [ ] **UI-02** 🔴 Vehicle rendering couples interpolation to React state at 30fps — `src/Map/Vehicle/VehiclesLayer.tsx:238`
+- [x] **UI-02** 🔴 Vehicle rendering couples interpolation to React state at 30fps — `src/Map/Vehicle/VehiclesLayer.tsx:238`
       `STATE_UPDATE_INTERVAL = 33ms` throttling causes jerky motion despite interpolation. Move interpolation into a pure RAF loop with a persistent renderer; only sync React state for selection/hover.
-- [ ] **UI-03** 🔴 `vehicleStore` Map mutated by WS handler while RAF loop reads it — `src/hooks/vehicleStore.ts:20-34`
+      _Done (partial by design) — setState skipped when nothing visible changed, explicit rebuild triggers, latent zoom-drop throttle bug fixed; full off-React renderer rewrite deemed out of scope (layers flow through React context)._
+- [x] **UI-03** 🔴 `vehicleStore` Map mutated by WS handler while RAF loop reads it — `src/hooks/vehicleStore.ts:20-34`
       Mid-frame batch arrivals can expose partially-updated state. Buffer WS batches and swap/apply on frame boundaries.
+      _Done — `enqueue()` buffers WS batches, all read paths flush atomically at the read boundary; the literal mid-batch race was impossible (single-threaded JS) but per-message version churn was real._
 
 ### Medium
 
-- [ ] **UI-04** 🟡 `useDirections` unstable dependency causes re-subscription churn — `src/hooks/useDirections.ts:92`
+- [x] **UI-04** 🟡 `useDirections` unstable dependency causes re-subscription churn — `src/hooks/useDirections.ts:92`
       Stabilize the callback (useCallback/reducer) to stop redundant re-registrations.
-- [ ] **UI-05** 🟡 `useOptions` debounce cleanup race on unmount — `src/hooks/useOptions.ts:22-36`
+      _Closed: claim verified invalid — `setDirections`/`fetchDirections` identities are stable; no re-subscription churn exists._
+- [x] **UI-05** 🟡 `useOptions` debounce cleanup race on unmount — `src/hooks/useOptions.ts:22-36`
       Pending debounced server write is orphaned on unmount. Tie cleanup to the effect that owns the timer.
-- [ ] **UI-06** 🟡 DataProvider has no `dataReady` signal — `src/data/index.tsx:1-45`
+- [x] **UI-06** 🟡 DataProvider has no `dataReady` signal — `src/data/index.tsx:1-45`
       Children mounting before network/roads load render incomplete UI silently. Expose a readiness flag/hook for fallbacks.
-- [ ] **UI-07** 🟡 `Map.tsx` layer subtree rebuilds on every render — `src/Map/Map.tsx:39-95`
+- [x] **UI-07** 🟡 `Map.tsx` layer subtree rebuilds on every render — `src/Map/Map.tsx:39-95`
       Inline callbacks + unstable props force deck.gl layer rebuilds. Memoize the layer subtree keyed on the actual inputs.
-- [ ] **UI-08** 🟡 POI layer + CollisionFilterExtension recreated on every zoom settle — `src/Map/POIs.tsx:129`
+- [x] **UI-08** 🟡 POI layer + CollisionFilterExtension recreated on every zoom settle — `src/Map/POIs.tsx:129`
       Discards deck.gl's in-flight collision indexes. Persist the extension instance across zoom updates.
-- [ ] **UI-09** 🟡 Connection status dead-ends after max reconnect attempts — `src/components/ConnectionStatus.tsx:26`
+      _Closed: already handled on main — `collisionFilter` is module-level; per-zoom layer descriptor recreation is the intended deck.gl pattern._
+- [x] **UI-09** 🟡 Connection status dead-ends after max reconnect attempts — `src/components/ConnectionStatus.tsx:26`
       "Please refresh" shown forever with no retry. Add a Retry button that resets the attempt counter.
-- [ ] **UI-10** 🟡 Dispatch waypoints not validated client-side — `src/hooks/useDispatchFlow.ts:105-142`
+- [x] **UI-10** 🟡 Dispatch waypoints not validated client-side — `src/hooks/useDispatchFlow.ts:105-142`
       Clicks outside the network fail silently after a 5s server round-trip. Validate against network bounds and toast immediately.
-- [ ] **UI-11** 🟡 No viewport culling for off-screen vehicles — `src/Map/Vehicle/VehiclesLayer.tsx:350-397`
+- [x] **UI-11** 🟡 No viewport culling for off-screen vehicles — `src/Map/Vehicle/VehiclesLayer.tsx:350-397`
       All vehicles are interpolated/projected per frame even when invisible. Cull by viewport bounds before interpolation.
-- [ ] **UI-12** 🟡 ErrorBoundary only logs to console — `src/components/ErrorBoundary.tsx:30-32`
+- [x] **UI-12** 🟡 ErrorBoundary only logs to console — `src/components/ErrorBoundary.tsx:30-32`
       Production crashes are invisible. Add Sentry (or at minimum localStorage snapshots).
-- [ ] **UI-13** 🟡 `useVehicles` re-maps the full array every throttle tick — `src/hooks/useVehicles.ts:147-163`
+      _Done — bounded (10) localStorage error snapshots with corrupt-log recovery; no external service added._
+- [x] **UI-13** 🟡 `useVehicles` re-maps the full array every throttle tick — `src/hooks/useVehicles.ts:147-163`
       Filter/search re-runs even when only positions changed. Split filtering from position updates or add change detection.
-- [ ] **UI-14** 🟡 Trail-length change mutates store synchronously and may block — `src/Controls/TogglesPanel.tsx:45-50`
+- [x] **UI-14** 🟡 Trail-length change mutates store synchronously and may block — `src/Controls/TogglesPanel.tsx:45-50`
       Trimming 100k+ trail points on the main thread; localStorage write unguarded. Debounce + try/catch.
-- [ ] **UI-15** 🟡 No WebGL context-loss handling — `src/components/Map/components/DeckGLMap.tsx:65-100`
+- [x] **UI-15** 🟡 No WebGL context-loss handling — `src/components/Map/components/DeckGLMap.tsx:65-100`
       Context loss freezes the map silently. Wire `onError` to a fallback or use luma.gl context restoration.
-- [ ] **UI-16** 🟡 `useDispatchFlow` has no tests despite 6-state flow — `src/hooks/useDispatchFlow.ts`
+- [x] **UI-16** 🟡 `useDispatchFlow` has no tests despite 6-state flow — `src/hooks/useDispatchFlow.ts`
       Other hooks are tested; this one isn't. Cover happy path, failure+retry, clear-resets-selection, waypoint add/remove/move.
+      _Done — suite already existed (16 tests, audit claim stale); extended with 5 bounds-validation tests (21 total)._
 
 ### Low
 
@@ -192,21 +207,21 @@ Audit date: 2026-06-10. Findings across usability, performance, ergonomics, engi
 
 ### High
 
-- [ ] **REPO-01** 🔴 `docker-compose.ghcr.yml` uses wrong UI env var names — `docker-compose.ghcr.yml:28-29`
+- [x] **REPO-01** 🔴 `docker-compose.ghcr.yml` uses wrong UI env var names — `docker-compose.ghcr.yml:28-29`
       Sets `API_URL`/`WS_URL` but the UI reads `VITE_API_URL`/`VITE_WS_URL` (and Vite bakes them at build time). As shipped, the UI falls back to hardcoded defaults. _(verified)_
-- [ ] **REPO-02** 🔴 `apps/network` undocumented in root CLAUDE.md/architecture — `CLAUDE.md`
+- [x] **REPO-02** 🔴 `apps/network` undocumented in root CLAUDE.md/architecture — `CLAUDE.md`
       Root doc says "three-project system"; the network CLI (GeoJSON prep pipeline) is a real build dependency. Add it to the table and overview.
 
 ### Medium
 
-- [ ] **REPO-03** 🟡 CLAUDE.md claims UI uses yarn — it uses npm workspaces — `CLAUDE.md:13,43` _(verified)_
-- [ ] **REPO-04** 🟡 Package version skew: shared-types 0.0.4, eslint-config 0.0.1 vs monorepo 0.0.7 — `packages/*/package.json`, `.release-please-manifest.json`
+- [x] **REPO-03** 🟡 CLAUDE.md claims UI uses yarn — it uses npm workspaces — `CLAUDE.md:13,43` _(verified)_
+- [x] **REPO-04** 🟡 Package version skew: shared-types 0.0.4, eslint-config 0.0.1 vs monorepo 0.0.7 — `packages/*/package.json`, `.release-please-manifest.json`
       release-please only tracks root. Add packages to the config or mark them private and version with the monorepo.
-- [ ] **REPO-05** 🟡 GeoJSON mount path drift between compose files — `docker-compose.yml` (`/data/...`) vs `apps/simulator/compose.yml` (`/app/data/...`)
+- [x] **REPO-05** 🟡 GeoJSON mount path drift between compose files — `docker-compose.yml` (`/data/...`) vs `apps/simulator/compose.yml` (`/app/data/...`)
       Standardize on one path and sync both files.
-- [ ] **REPO-06** 🟡 CI coverage upload omits `apps/network` — `.github/workflows/ci.yml`
+- [x] **REPO-06** 🟡 CI coverage upload omits `apps/network` — `.github/workflows/ci.yml`
       Network has vitest + coverage but isn't collected. Add it to the artifact paths.
-- [ ] **REPO-07** 🟡 `apps/network` versioning/publish intent ambiguous (independent 0.1.0, not in release-please) — `apps/network/package.json`
+- [x] **REPO-07** 🟡 `apps/network` versioning/publish intent ambiguous (independent 0.1.0, not in release-please) — `apps/network/package.json`
       Decide standalone vs monorepo-versioned and document it.
 
 ### Low
