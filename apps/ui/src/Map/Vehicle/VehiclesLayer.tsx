@@ -1,22 +1,11 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
-import { PolygonLayer, ScatterplotLayer } from "@deck.gl/layers";
+import { IconLayer, ScatterplotLayer } from "@deck.gl/layers";
 import type { Fleet, VehicleType } from "@/types";
 import { vehicleStore } from "../../hooks/vehicleStore";
 import { VEHICLE_INTERPOLATION } from "../../data/constants";
 import { useRegisterLayers } from "../../components/Map/hooks/useDeckLayers";
 import { useMapContext } from "../../components/Map/hooks";
-
-// Vehicle type → shape definitions as polygon vertices (pixel-space units)
-const VEHICLE_SHAPES: Record<string, { x: number[]; y: number[] }> = {
-  car: { x: [0, 2.5, 0, -2.5], y: [-4, 3, 1.5, 3] },
-  truck: { x: [0, 3, 3, -3, -3], y: [-5, -1, 4, 4, -1] },
-  motorcycle: { x: [0, 1.5, 0, -1.5], y: [-5, 2, 0, 2] },
-  ambulance: {
-    x: [0, 2, 2, 0.8, 0.8, 2, 2, 0, -2, -2, -0.8, -0.8, -2, -2],
-    y: [-4, -4, -0.8, -0.8, 0.8, 0.8, 4, 4, 4, 0.8, 0.8, -0.8, -0.8, -4],
-  },
-  bus: { x: [0, 3.5, 3.5, -3.5, -3.5], y: [-5, -2, 5, 5, -2] },
-};
+import { VehicleIconAtlasManager, type VehicleAtlas } from "./vehicleIconAtlas";
 
 // Type-specific default colors (used when no fleet color)
 const VEHICLE_TYPE_COLORS: Record<string, string> = {
@@ -31,39 +20,7 @@ const DEFAULT_FILL = "#dcdcdc";
 const SELECTED_STROKE: [number, number, number, number] = [0, 102, 204, 255];
 const SELECTED_BG: [number, number, number, number] = [33, 255, 205, 77];
 const HOVER_STROKE: [number, number, number, number] = [251, 201, 1, 255];
-const DEFAULT_STROKE: [number, number, number, number] = [0, 0, 0, 128];
-
-/** Each shape unit maps to this many meters in world space. */
-const METERS_PER_SHAPE_UNIT = 5;
-/** Degrees of latitude per meter (constant everywhere on earth). */
-const DEG_PER_METER_LAT = 1 / 110540;
-
-/**
- * Convert a shape definition into a polygon of [lng, lat] vertices,
- * rotated by the vehicle heading and offset to the vehicle position.
- */
-function shapeToPolygon(
-  lng: number,
-  lat: number,
-  heading: number,
-  shape: { x: number[]; y: number[] },
-  scale: number
-): [number, number][] {
-  const cosH = Math.cos(heading);
-  const sinH = Math.sin(heading);
-  const degPerMeterLng = 1 / (111320 * Math.cos(lat * (Math.PI / 180)));
-  const s = METERS_PER_SHAPE_UNIT * scale;
-
-  return shape.x.map((sx, i) => {
-    const sy = shape.y[i];
-    // Rotate vertex by compass bearing (0 = north, clockwise positive)
-    // Shape front is at -Y, geographic north is +Y, so negate ry.
-    const rx = sx * cosH - sy * sinH;
-    const ry = -(sx * sinH + sy * cosH);
-    // Convert to degree offsets and add to vehicle position
-    return [lng + rx * s * degPerMeterLng, lat + ry * s * DEG_PER_METER_LAT] as [number, number];
-  });
-}
+const HOVER_BG: [number, number, number, number] = [251, 201, 1, 40];
 
 interface VehiclesLayerProps {
   scale: number;
@@ -75,12 +32,14 @@ interface VehiclesLayerProps {
   onClick: (id: string) => void;
 }
 
-/** Interpolated vehicle data with precomputed polygon for deck.gl PolygonLayer. */
-interface VehiclePolygonDatum {
+/** Interpolated vehicle data for the deck.gl IconLayer. */
+interface VehicleIconDatum {
   id: string;
   position: [number, number]; // [lng, lat]
-  polygon: [number, number][]; // rotated shape vertices in [lng, lat]
-  color: [number, number, number, number]; // RGBA fill
+  /** Icon rotation in degrees, CCW (deck.gl convention). */
+  angle: number;
+  /** Atlas key for this vehicle's (type, color) sprite. */
+  icon: string;
   isSelected: boolean;
   isHovered: boolean;
 }
@@ -145,59 +104,39 @@ function resolveCSSColor(color: string): string {
   return resolved;
 }
 
-/** Convert hex color string to RGBA tuple for deck.gl. */
-function hexToRgba(hex: string, alpha = 255): [number, number, number, number] {
-  const h = hex.replace("#", "");
-  const bigint =
-    h.length === 3 ? parseInt(h[0] + h[0] + h[1] + h[1] + h[2] + h[2], 16) : parseInt(h, 16);
-  const r = (bigint >> 16) & 255;
-  const g = (bigint >> 8) & 255;
-  const b = bigint & 255;
-  return [r, g, b, alpha];
-}
-
-/** Convert a color string (hex or CSS variable) to RGBA tuple. */
-function colorToRgba(color: string, alpha = 255): [number, number, number, number] {
-  const resolved = resolveCSSColor(color);
-  if (resolved.startsWith("#")) return hexToRgba(resolved, alpha);
-  // Fallback for rgb/rgba strings — extract numbers
-  const nums = resolved.match(/\d+/g);
-  if (nums && nums.length >= 3) {
-    return [
-      parseInt(nums[0]),
-      parseInt(nums[1]),
-      parseInt(nums[2]),
-      nums.length >= 4 ? Math.round(parseFloat(nums[3]) * 255) : alpha,
-    ];
-  }
-  return hexToRgba(DEFAULT_FILL, alpha);
-}
-
-const DEFAULT_SHAPE = VEHICLE_SHAPES.car;
-
 /**
- * deck.gl-based vehicle renderer with polygon shapes.
- *
- * Preserves the RAF interpolation loop from the Canvas version:
- * reads directly from vehicleStore on each animation frame,
- * applies per-vehicle EMA-based lerp, and feeds interpolated
- * positions + rotated polygon vertices to PolygonLayer via React state.
- *
- * Each vehicle type (car, truck, bus, etc.) renders as its original
- * polygon shape, rotated by the vehicle heading.
- */
-/**
- * Zoom-dependent vehicle scaling. Vehicles grow when zooming in and shrink
+ * Zoom-dependent vehicle sizing. Vehicles grow when zooming in and shrink
  * when zooming out, but at a reduced rate (exponent < 1) so they remain
  * visible at overview zoom levels instead of becoming sub-pixel.
  *
- * At REFERENCE_ZOOM the scale is 1 (true geographic size ~25m).
- * The exponent controls how aggressively they scale: 1.0 = pure geographic,
- * 0.0 = constant pixel size. 0.6 is a good middle ground.
+ * BASE_SIZE_PX is the icon size at REFERENCE_ZOOM, chosen to match the
+ * on-screen footprint of the previous geographic polygon shapes (which grew
+ * on screen at rate 2^((zoom - 16) * 0.4) — geographic scaling 2^(zoom - 16)
+ * damped by the old 0.6 shrink exponent).
  */
 const REFERENCE_ZOOM = 16;
-const ZOOM_EXPONENT = 0.6;
+const SIZE_ZOOM_EXPONENT = 0.4;
+const BASE_SIZE_PX = 24;
+const MIN_SIZE_PX = 10;
+const MAX_SIZE_PX = 72;
 
+function iconSizeForZoom(zoom: number): number {
+  const size = BASE_SIZE_PX * Math.pow(2, (zoom - REFERENCE_ZOOM) * SIZE_ZOOM_EXPONENT);
+  return Math.min(Math.max(size, MIN_SIZE_PX), MAX_SIZE_PX);
+}
+
+/**
+ * deck.gl-based vehicle renderer with sprite icons.
+ *
+ * Preserves the RAF interpolation loop from the polygon version: reads
+ * directly from vehicleStore on each animation frame, applies per-vehicle
+ * EMA-based lerp, and feeds interpolated positions + headings to an
+ * IconLayer via React state.
+ *
+ * Each vehicle renders as a detailed top-down sprite (car, truck, bus,
+ * motorcycle, ambulance) tinted with its fleet color and rotated by heading.
+ * Sprites live in a lazily-built canvas atlas (see vehicleIconAtlas.ts).
+ */
 export default function VehiclesLayer({
   scale: _scale,
   vehicleFleetMap,
@@ -208,7 +147,17 @@ export default function VehiclesLayer({
   onClick,
 }: VehiclesLayerProps) {
   const { getZoom, getBoundingBox } = useMapContext();
-  const [vehiclePolygons, setVehiclePolygons] = useState<VehiclePolygonDatum[]>([]);
+  const [vehicleData, setVehicleData] = useState<VehicleIconDatum[]>([]);
+  const [iconSize, setIconSize] = useState(BASE_SIZE_PX);
+  const [atlasManager] = useState(() => new VehicleIconAtlasManager());
+  // Warm the atlas with the default per-type sprites so the icon layer exists
+  // (and renders instantly) before the first fleet-colored vehicle arrives.
+  const [atlas, setAtlas] = useState<VehicleAtlas>(() => {
+    for (const [type, color] of Object.entries(VEHICLE_TYPE_COLORS)) {
+      atlasManager.register(type, color);
+    }
+    return atlasManager.build();
+  });
   const interpRef = useRef(new Map<string, VehicleInterp>());
 
   // Refs for values that change but shouldn't restart the RAF loop
@@ -394,9 +343,6 @@ export default function VehiclesLayer({
       const fleetMap = fleetMapRef.current;
       const hiddenFleets = hiddenFleetsRef.current;
       const hiddenTypes = hiddenTypesRef.current;
-      // Scale = 2^((REF_ZOOM - zoom) * exponent). At REF_ZOOM scale=1 (true size).
-      // Exponent < 1 makes vehicles shrink slower than map when zooming out.
-      const zoomScale = Math.pow(2, (REFERENCE_ZOOM - currentZoom) * ZOOM_EXPONENT);
 
       // Viewport culling: skip interpolation/projection work for vehicles
       // well outside the current viewport. A 25% margin keeps vehicles near
@@ -406,7 +352,7 @@ export default function VehiclesLayer({
       const marginLng = (east - west) * 0.25;
       const marginLat = (north - south) * 0.25;
 
-      const vehicles: VehiclePolygonDatum[] = [];
+      const vehicles: VehicleIconDatum[] = [];
 
       for (const [, v] of store) {
         if (v.position[0] === 0 && v.position[1] === 0) continue;
@@ -444,79 +390,80 @@ export default function VehiclesLayer({
 
         const vehicleType = v.type || "car";
         const defaultColor = VEHICLE_TYPE_COLORS[vehicleType] || DEFAULT_FILL;
-        const fillColor = colorToRgba(fleet?.color ?? defaultColor);
-        const shape = VEHICLE_SHAPES[vehicleType] || DEFAULT_SHAPE;
+        const color = resolveCSSColor(fleet?.color ?? defaultColor);
 
         vehicles.push({
           id: v.id,
           position: [lng, lat], // deck.gl expects [lng, lat]
-          polygon: shapeToPolygon(lng, lat, heading, shape, zoomScale),
-          color: fillColor,
+          // Heading is compass radians (0 = north, CW); deck.gl rotates CCW.
+          angle: (-heading * 180) / Math.PI,
+          icon: atlasManager.register(vehicleType, color),
           isSelected: v.id === currentSelectedId,
           isHovered: v.id === currentHoveredId,
         });
       }
 
-      setVehiclePolygons(vehicles);
+      // Rebuild the sprite atlas only when a new (type, color) combo appeared
+      if (atlasManager.isDirty) {
+        setAtlas(atlasManager.build());
+      }
+      setIconSize(iconSizeForZoom(currentZoom));
+      setVehicleData(vehicles);
     };
 
     rafId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(rafId);
-  }, []);
+    // atlasManager is created once via useState and never changes identity
+  }, [atlasManager]);
 
   // Stable click handler
-  const handleClick = useCallback((info: { object?: VehiclePolygonDatum }) => {
+  const handleClick = useCallback((info: { object?: VehicleIconDatum }) => {
     if (info.object) {
       onClickRef.current(info.object.id);
       return true; // mark handled so DeckGL.onClick (clearMap) doesn't fire
     }
   }, []);
 
-  // Build the selected vehicle data for the selection ring layer
-  const selectedVehicle = useMemo(() => {
-    if (!selectedId) return [];
-    const found = vehiclePolygons.find((v) => v.id === selectedId);
-    return found ? [found] : [];
-  }, [vehiclePolygons, selectedId]);
+  // Highlight rings under the selected and hovered vehicles
+  const ringData = useMemo(
+    () => vehicleData.filter((v) => v.isSelected || v.isHovered),
+    [vehicleData]
+  );
 
   // Build deck.gl layers
   const layers = useMemo(() => {
-    const vehiclesLayer = new PolygonLayer<VehiclePolygonDatum>({
-      id: "vehicles",
-      data: vehiclePolygons,
-      getPolygon: (d) => d.polygon,
-      getFillColor: (d) => d.color,
-      getLineColor: (d) =>
-        d.isSelected ? SELECTED_STROKE : d.isHovered ? HOVER_STROKE : DEFAULT_STROKE,
-      getLineWidth: 1,
-      lineWidthUnits: "pixels",
-      filled: true,
-      stroked: true,
-      pickable: true,
-      onClick: handleClick,
-      autoHighlight: true,
-      highlightColor: [251, 201, 1, 80],
-      updateTriggers: {
-        getFillColor: [selectedId, hoveredId],
-        getLineColor: [selectedId, hoveredId],
-      },
-    });
-
-    const selectionRingLayer = new ScatterplotLayer<VehiclePolygonDatum>({
-      id: "vehicle-selection-ring",
-      data: selectedVehicle,
+    const ringLayer = new ScatterplotLayer<VehicleIconDatum>({
+      id: "vehicle-highlight-ring",
+      data: ringData,
       getPosition: (d) => d.position,
-      getFillColor: SELECTED_BG,
-      getLineColor: SELECTED_STROKE,
-      getRadius: 12,
+      getFillColor: (d) => (d.isSelected ? SELECTED_BG : HOVER_BG),
+      getLineColor: (d) => (d.isSelected ? SELECTED_STROKE : HOVER_STROKE),
+      getRadius: iconSize * 0.75,
       radiusUnits: "pixels",
       stroked: true,
       lineWidthMinPixels: 2,
       pickable: false,
     });
 
-    return [selectionRingLayer, vehiclesLayer];
-  }, [vehiclePolygons, selectedId, hoveredId, selectedVehicle, handleClick]);
+    const vehiclesLayer = new IconLayer<VehicleIconDatum>({
+      id: "vehicles",
+      data: vehicleData,
+      iconAtlas: atlas.iconAtlas,
+      iconMapping: atlas.iconMapping,
+      getPosition: (d) => d.position,
+      getIcon: (d) => d.icon,
+      getAngle: (d) => d.angle,
+      getSize: iconSize,
+      sizeUnits: "pixels",
+      billboard: false,
+      pickable: true,
+      onClick: handleClick,
+      autoHighlight: true,
+      highlightColor: [251, 201, 1, 80],
+    });
+
+    return [ringLayer, vehiclesLayer];
+  }, [vehicleData, ringData, atlas, iconSize, handleClick]);
 
   // Register layers with the DeckGLMap parent
   useRegisterLayers("vehicles", layers);
