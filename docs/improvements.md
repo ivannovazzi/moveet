@@ -2,7 +2,7 @@
 
 Audit date: 2026-06-10. Findings across usability, performance, ergonomics, engineering best practices, and design patterns for all apps and the monorepo. Check items off as they are fixed; add a PR link next to completed items.
 
-**Status 2026-06-10:** all high + medium findings addressed (or closed as invalid/already-fixed after verification) on branch `fix/audit-high-medium-findings`. Low findings remain open.
+**Status 2026-06-10:** all high + medium findings addressed (or closed as invalid/already-fixed after verification) in [PR #164](https://github.com/ivannovazzi/moveet/pull/164). Low findings remain open.
 
 **Legend:** 🔴 High · 🟡 Medium · 🟢 Low
 **IDs:** `SIM` simulator · `ADP` adapter · `UI` ui · `REPO` monorepo/cross-cutting
