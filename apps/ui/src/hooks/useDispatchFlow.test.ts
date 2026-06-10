@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import React from "react";
 import { renderHook, act } from "@testing-library/react";
-import { useDispatchFlow } from "./useDispatchFlow";
+import { useDispatchFlow, computeNetworkBounds } from "./useDispatchFlow";
 import { DispatchState } from "./useDispatchState";
-import type { Vehicle } from "@/types";
-import { createVehicle } from "@/test/mocks/types";
+import { NetworkContext } from "@/data/context";
+import type { RoadNetwork, Vehicle } from "@/types";
+import { createVehicle, createRoadNetwork } from "@/test/mocks/types";
 
 vi.mock("@/utils/client", () => ({
   default: {
@@ -412,5 +414,142 @@ describe("useDispatchFlow", () => {
         ],
       },
     ]);
+  });
+});
+
+// ─── Waypoint bounds validation ─────────────────────────────────────
+
+/** Network covering roughly central Nairobi: lat [-1.35, -1.25], lng [36.75, 36.9]. */
+function makeNetwork(): RoadNetwork {
+  return createRoadNetwork({
+    features: [
+      {
+        type: "Feature",
+        properties: { type: "road" },
+        geometry: {
+          type: "LineString",
+          coordinates: [
+            [36.75, -1.35],
+            [36.9, -1.25],
+          ],
+        },
+      },
+    ],
+  });
+}
+
+function createNetworkWrapper(network: RoadNetwork) {
+  return function Wrapper({ children }: { children: React.ReactNode }) {
+    return React.createElement(NetworkContext.Provider, {
+      value: { network, setNetwork: () => {} },
+      children,
+    });
+  };
+}
+
+describe("useDispatchFlow waypoint validation", () => {
+  it("computeNetworkBounds derives the bounding box from features", () => {
+    expect(computeNetworkBounds(makeNetwork())).toEqual({
+      minLat: -1.35,
+      maxLat: -1.25,
+      minLng: 36.75,
+      maxLng: 36.9,
+    });
+    expect(computeNetworkBounds(createRoadNetwork())).toBeNull();
+  });
+
+  it("rejects dispatch with a waypoint outside the network bounds without calling the server", async () => {
+    const { result } = renderHook(() => useDispatchFlow(), {
+      wrapper: createNetworkWrapper(makeNetwork()),
+    });
+
+    act(() => {
+      result.current.toggleDispatchMode();
+    });
+    act(() => {
+      result.current.onToggleVehicleForDispatch("v1");
+    });
+    act(() => {
+      result.current.setAssignments([
+        // ~0.5° north of the network — well beyond the margin
+        { vehicleId: "v1", vehicleName: "Truck", waypoints: [{ position: [-0.75, 36.82] }] },
+      ]);
+    });
+
+    await act(async () => {
+      await result.current.handleDispatch();
+    });
+
+    expect(client.batchDirection).not.toHaveBeenCalled();
+    expect(result.current.error).toMatch(/outside the road network/i);
+    expect(result.current.error).toContain("Truck");
+    // Still in ROUTE so the user can fix the stop
+    expect(result.current.dispatchState).toBe(DispatchState.ROUTE);
+  });
+
+  it("allows dispatch when all waypoints are within bounds", async () => {
+    vi.mocked(client.batchDirection).mockResolvedValue({
+      data: { status: "ok", results: [{ vehicleId: "v1", status: "ok" as const }] },
+    });
+
+    const { result } = renderHook(() => useDispatchFlow(), {
+      wrapper: createNetworkWrapper(makeNetwork()),
+    });
+
+    act(() => {
+      result.current.setAssignments([
+        { vehicleId: "v1", vehicleName: "Truck", waypoints: [{ position: [-1.29, 36.82] }] },
+      ]);
+    });
+
+    await act(async () => {
+      await result.current.handleDispatch();
+    });
+
+    expect(client.batchDirection).toHaveBeenCalledOnce();
+    expect(result.current.error).toBeNull();
+  });
+
+  it("skips validation when the network has not loaded", async () => {
+    vi.mocked(client.batchDirection).mockResolvedValue({
+      data: { status: "ok", results: [] },
+    });
+
+    // No wrapper — default context has an empty network
+    const { result } = renderHook(() => useDispatchFlow());
+
+    act(() => {
+      result.current.setAssignments([
+        { vehicleId: "v1", vehicleName: "Truck", waypoints: [{ position: [50, 100] }] },
+      ]);
+    });
+
+    await act(async () => {
+      await result.current.handleDispatch();
+    });
+
+    expect(client.batchDirection).toHaveBeenCalledOnce();
+  });
+
+  it("clears a validation error on handleDone", async () => {
+    const { result } = renderHook(() => useDispatchFlow(), {
+      wrapper: createNetworkWrapper(makeNetwork()),
+    });
+
+    act(() => {
+      result.current.setAssignments([
+        { vehicleId: "v1", vehicleName: "Truck", waypoints: [{ position: [-0.75, 36.82] }] },
+      ]);
+    });
+
+    await act(async () => {
+      await result.current.handleDispatch();
+    });
+    expect(result.current.error).not.toBeNull();
+
+    act(() => {
+      result.current.handleDone();
+    });
+    expect(result.current.error).toBeNull();
   });
 });

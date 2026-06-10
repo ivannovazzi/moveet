@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import React from "react";
 import { useOptions } from "./useOptions";
@@ -35,6 +35,12 @@ beforeEach(() => {
   vi.mocked(client.getOptions).mockResolvedValue({ data: undefined });
   vi.mocked(client.onOptions).mockImplementation(() => {});
   vi.mocked(client.updateOptions).mockResolvedValue({ data: undefined });
+});
+
+afterEach(() => {
+  // Restore real timers here (not inside test bodies) so a failing assertion
+  // cannot leak fake timers into subsequent tests.
+  vi.useRealTimers();
 });
 
 describe("useOptions", () => {
@@ -137,7 +143,72 @@ describe("useOptions", () => {
 
     // Now the server write should have happened once (debounced)
     expect(client.updateOptions).toHaveBeenCalledOnce();
+  });
 
-    vi.useRealTimers();
+  it("flushes a pending debounced write on unmount", () => {
+    vi.useFakeTimers();
+    const setOptions = vi.fn();
+
+    const { result, unmount } = renderHook(() => useOptions(300), {
+      wrapper: createWrapper(DEFAULT_START_OPTIONS, setOptions),
+    });
+
+    act(() => {
+      result.current.updateOption("minSpeed", 25);
+    });
+
+    // Unmount before the debounce elapses — the pending write must still go out.
+    expect(client.updateOptions).not.toHaveBeenCalled();
+    unmount();
+    expect(client.updateOptions).toHaveBeenCalledOnce();
+
+    // No duplicate write from the (cancelled) timer.
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(client.updateOptions).toHaveBeenCalledOnce();
+  });
+
+  it("flushes the LATEST value when an edit and unmount land in the same commit", () => {
+    vi.useFakeTimers();
+    const setOptions = vi.fn();
+
+    const { result, unmount } = renderHook(() => useOptions(300), {
+      wrapper: createWrapper(DEFAULT_START_OPTIONS, setOptions),
+    });
+
+    // Edit, then unmount without any re-render in between — the effect-based
+    // ref sync never runs, so the flush must rely on the synchronous sync.
+    act(() => {
+      result.current.updateOption("minSpeed", 42);
+      unmount();
+    });
+
+    expect(client.updateOptions).toHaveBeenCalledOnce();
+    expect(client.updateOptions).toHaveBeenCalledWith({
+      ...DEFAULT_START_OPTIONS,
+      minSpeed: 42,
+    });
+  });
+
+  it("does not write on unmount when no update is pending", () => {
+    vi.useFakeTimers();
+    const setOptions = vi.fn();
+
+    const { result, unmount } = renderHook(() => useOptions(300), {
+      wrapper: createWrapper(DEFAULT_START_OPTIONS, setOptions),
+    });
+
+    act(() => {
+      result.current.updateOption("minSpeed", 25);
+    });
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(client.updateOptions).toHaveBeenCalledOnce();
+
+    // Timer already fired — unmount must not send a second write.
+    unmount();
+    expect(client.updateOptions).toHaveBeenCalledOnce();
   });
 });

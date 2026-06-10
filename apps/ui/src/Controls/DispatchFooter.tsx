@@ -58,10 +58,13 @@ export default function DispatchFooter({
 
     return (
       <div className={footerClass}>
-        <span className={textClass}>
-          {vehicleCount} vehicle{vehicleCount !== 1 ? "s" : ""}, {stopCount} stop
-          {stopCount !== 1 ? "s" : ""}
-        </span>
+        <div>
+          <span className={textClass}>
+            {vehicleCount} vehicle{vehicleCount !== 1 ? "s" : ""}, {stopCount} stop
+            {stopCount !== 1 ? "s" : ""}
+          </span>
+          {error && <p className={errorClass}>{error}</p>}
+        </div>
         <div className={buttonsClass}>
           <Button variant="outline" size="sm" onClick={onClear}>
             Clear

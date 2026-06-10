@@ -203,14 +203,18 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
       this.incidentManager.on("incident:cleared", this._onIncidentCleared);
     }
 
-    // Automatically regenerate heat zones every 5 minutes
-    if (!this.autoHeatZoneInterval) {
-      this.vehicleManager.getNetwork().generateHeatedZones();
-      this.autoHeatZoneInterval = setInterval(() => {
-        // Generate new heat zones
-        this.vehicleManager.getNetwork().generateHeatedZones();
-      }, TIME_INTERVALS.HEAT_ZONE_REGEN_INTERVAL);
+    // Automatically regenerate heat zones every 5 minutes.
+    // Always clear any timer left over from a previous start() so repeated
+    // starts never accumulate intervals.
+    if (this.autoHeatZoneInterval) {
+      clearInterval(this.autoHeatZoneInterval);
+      this.autoHeatZoneInterval = undefined;
     }
+    this.vehicleManager.getNetwork().generateHeatedZones();
+    this.autoHeatZoneInterval = setInterval(() => {
+      // Generate new heat zones
+      this.vehicleManager.getNetwork().generateHeatedZones();
+    }, TIME_INTERVALS.HEAT_ZONE_REGEN_INTERVAL);
 
     // Wire clock hour:changed to broadcast clock events
     this._onClockHourChanged = (_hour: number, _timeOfDay: string) => {

@@ -128,6 +128,8 @@ export class RoadNetwork extends EventEmitter {
     this.routeCache = new LRUCache<Route>({
       maxSize: cacheOptions?.maxSize ?? 500,
       ttlMs: cacheOptions?.ttlMs ?? 60_000,
+      // Sliding expiry: frequently used routes stay cached
+      updateAgeOnGet: true,
     });
     this.geojsonPath = geojsonPath;
     this.data = JSON.parse(fs.readFileSync(geojsonPath, "utf8")) as FeatureCollection;
@@ -792,13 +794,20 @@ export class RoadNetwork extends EventEmitter {
     this.routeCache.clear();
   }
 
-  /** Compute a lightweight fingerprint of the current incident edge set for cache keying. */
+  /**
+   * Compute a lightweight fingerprint of the current incident edges for cache keying.
+   * Includes the speed factor per edge so a factor change on the same edge set
+   * (e.g. one of two overlapping incidents clearing) invalidates cached routes.
+   */
   private incidentFingerprint(): string {
     if (this._cachedIncidentFingerprint !== null) return this._cachedIncidentFingerprint;
     if (this.incidentEdges.size === 0) {
       this._cachedIncidentFingerprint = "";
     } else {
-      this._cachedIncidentFingerprint = Array.from(this.incidentEdges.keys()).sort().join(",");
+      this._cachedIncidentFingerprint = Array.from(this.incidentEdges.entries())
+        .map(([id, factor]) => `${id}:${factor}`)
+        .sort()
+        .join(",");
     }
     return this._cachedIncidentFingerprint;
   }
@@ -881,6 +890,15 @@ export class RoadNetwork extends EventEmitter {
     const route = { edges, distance: result.distance };
     this.routeCache.set(cacheKey, route);
     return { edges: [...route.edges], distance: route.distance };
+  }
+
+  /**
+   * Waits (bounded) for in-flight pathfinding-pool requests to settle.
+   * Returns true if the pool drained (or was never started) within the timeout.
+   */
+  public async drainPathfinding(timeoutMs: number): Promise<boolean> {
+    if (!this.pathfindingPool) return true;
+    return this.pathfindingPool.drain(timeoutMs);
   }
 
   /**

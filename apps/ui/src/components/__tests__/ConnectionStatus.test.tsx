@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import ConnectionStatus from "../ConnectionStatus";
 import type { ConnectionStateInfo } from "@/utils/wsClient";
 
@@ -46,5 +47,25 @@ describe("ConnectionStatus", () => {
     expect(screen.getByTestId("connection-status")).toHaveTextContent(
       "Reconnecting... (attempt 5/5)"
     );
+  });
+
+  it("offers a Retry action when disconnected", async () => {
+    const user = userEvent.setup();
+    const onRetry = vi.fn();
+    const info: ConnectionStateInfo = { state: "disconnected", attempt: 10, maxAttempts: 10 };
+    render(<ConnectionStatus connectionInfo={info} onRetry={onRetry} />);
+
+    const button = screen.getByTestId("connection-retry");
+    expect(button).toHaveTextContent("Retry");
+
+    await user.click(button);
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  it("does not show Retry while still reconnecting", () => {
+    const info: ConnectionStateInfo = { state: "reconnecting", attempt: 2, maxAttempts: 10 };
+    render(<ConnectionStatus connectionInfo={info} />);
+
+    expect(screen.queryByTestId("connection-retry")).not.toBeInTheDocument();
   });
 });

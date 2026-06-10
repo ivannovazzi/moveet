@@ -24,17 +24,21 @@ export interface LRUCacheOptions {
   maxSize: number;
   /** Time-to-live in milliseconds. Entries older than this are considered stale. 0 = no expiry. */
   ttlMs: number;
+  /** When true, a cache hit refreshes the entry's TTL (sliding expiry). Default: false. */
+  updateAgeOnGet: boolean;
 }
 
 const DEFAULT_OPTIONS: LRUCacheOptions = {
   maxSize: 500,
   ttlMs: 60_000,
+  updateAgeOnGet: false,
 };
 
 export class LRUCache<T> {
   private readonly entries: Map<string, CacheEntry<T>> = new Map();
   private readonly maxSize: number;
   private readonly ttlMs: number;
+  private readonly updateAgeOnGet: boolean;
 
   private hitCount = 0;
   private missCount = 0;
@@ -43,6 +47,7 @@ export class LRUCache<T> {
     const resolved = { ...DEFAULT_OPTIONS, ...options };
     this.maxSize = resolved.maxSize;
     this.ttlMs = resolved.ttlMs;
+    this.updateAgeOnGet = resolved.updateAgeOnGet;
   }
 
   /**
@@ -69,6 +74,11 @@ export class LRUCache<T> {
     this.entries.delete(key);
     this.entries.set(key, entry);
     this.hitCount++;
+
+    // Sliding expiry: refresh the TTL on hit when configured
+    if (this.updateAgeOnGet) {
+      entry.createdAt = Date.now();
+    }
 
     return entry.value;
   }

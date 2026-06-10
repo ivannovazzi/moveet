@@ -2,8 +2,11 @@ services:
   simulator:
     build: .
     volumes:
-      - ./data/network.geojson:/app/data/network.geojson:ro
+      # /data is the standard mount point across all compose files (the
+      # Dockerfile default GEOJSON_PATH is overridden below to match).
+      - ./data/network.geojson:/data/network.geojson:ro
     environment:
+      - GEOJSON_PATH=/data/network.geojson
       - UPDATE_INTERVAL=300
       - USE_ADAPTER=true
       - ADAPTER_URL=http://adapter:5011

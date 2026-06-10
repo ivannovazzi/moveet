@@ -123,6 +123,7 @@ interface PoolInternals {
   nextWorker: number;
   shutdownFlag: boolean;
   requestTimeoutMs: number;
+  maxPendingRequests: number;
   rejectPendingForWorker: (workerIndex: number, reason: string) => void;
 }
 
@@ -145,7 +146,8 @@ describe("PathfindingPool - worker crash handling", () => {
    */
   function createPoolWithMockWorkers(
     workerCount: number,
-    requestTimeoutMs?: number
+    requestTimeoutMs?: number,
+    maxPendingRequests?: number
   ): PathfindingPool {
     mockWorkers = [];
     for (let i = 0; i < workerCount; i++) {
@@ -162,6 +164,7 @@ describe("PathfindingPool - worker crash handling", () => {
     p.nextWorker = 0;
     p.shutdownFlag = false;
     p.requestTimeoutMs = requestTimeoutMs ?? 30_000;
+    p.maxPendingRequests = maxPendingRequests ?? 1_000;
 
     // Wire up event handlers on each mock worker, mirroring the constructor
     for (let i = 0; i < workerCount; i++) {
@@ -366,5 +369,68 @@ describe("PathfindingPool - worker crash handling", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  // ─── Pending queue cap & observability ─────────────────────────────
+
+  it("should reject new requests when the pending queue is full", async () => {
+    const pool = createPoolWithMockWorkers(1, 30_000, 2);
+
+    const p1 = pool.findRoute("a", "b");
+    const p2 = pool.findRoute("c", "d");
+
+    // Third request exceeds maxPendingRequests=2 and is rejected immediately
+    await expect(pool.findRoute("e", "f")).rejects.toThrow("pending queue full");
+
+    // The first two requests are unaffected
+    mockWorkers[0].emit("message", { type: "result", id: 0, route: null });
+    mockWorkers[0].emit("message", { type: "result", id: 1, route: null });
+    await expect(p1).resolves.toBeNull();
+    await expect(p2).resolves.toBeNull();
+
+    // With capacity freed, new requests are accepted again
+    const p4 = pool.findRoute("g", "h");
+    mockWorkers[0].emit("message", { type: "result", id: 2, route: null });
+    await expect(p4).resolves.toBeNull();
+
+    await pool.shutdown();
+  });
+
+  it("should expose the pending queue depth via pendingCount", async () => {
+    const pool = createPoolWithMockWorkers(1);
+
+    expect(pool.pendingCount).toBe(0);
+
+    const p1 = pool.findRoute("a", "b");
+    const p2 = pool.findRoute("c", "d");
+    expect(pool.pendingCount).toBe(2);
+
+    mockWorkers[0].emit("message", { type: "result", id: 0, route: null });
+    expect(pool.pendingCount).toBe(1);
+
+    mockWorkers[0].emit("message", { type: "result", id: 1, route: null });
+    expect(pool.pendingCount).toBe(0);
+
+    await Promise.all([p1, p2]);
+    await pool.shutdown();
+  });
+
+  it("drain should resolve true once pending requests settle and false on timeout", async () => {
+    const pool = createPoolWithMockWorkers(1);
+
+    // Nothing pending — drains immediately
+    await expect(pool.drain(100)).resolves.toBe(true);
+
+    const p1 = pool.findRoute("a", "b");
+
+    // Still pending — bounded wait returns false
+    await expect(pool.drain(120)).resolves.toBe(false);
+
+    // Settle the request — drain now succeeds
+    mockWorkers[0].emit("message", { type: "result", id: 0, route: null });
+    await expect(pool.drain(500)).resolves.toBe(true);
+
+    await p1;
+    await pool.shutdown();
   });
 });

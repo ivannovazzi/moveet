@@ -1,7 +1,8 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import type { Modifiers } from "@/types";
 import { createModifiers } from "@/test/mocks/types";
+import { createMemoryLocalStorage } from "@/test/mocks/localStorage";
 
 // ---------------------------------------------------------------------------
 // Mock vehicleStore for trail capacity calls
@@ -15,6 +16,18 @@ vi.mock("@/hooks/vehicleStore", () => ({
 }));
 
 import TogglesPanel from "../TogglesPanel";
+import { vehicleStore } from "@/hooks/vehicleStore";
+
+beforeEach(() => {
+  // The Node test runtime's localStorage global throws on access — give the
+  // panel (and assertions) a working in-memory implementation.
+  vi.stubGlobal("localStorage", createMemoryLocalStorage());
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -64,5 +77,44 @@ describe("TogglesPanel", () => {
 
     // When trails are disabled, no trail length slider should be present
     expect(screen.queryByRole("slider", { name: /trail length/i })).not.toBeInTheDocument();
+  });
+
+  it("debounces trail-length commits to the vehicle store", () => {
+    vi.useFakeTimers();
+    renderPanel(defaultModifiers({ showBreadcrumbs: true } as Partial<Modifiers>));
+
+    // The mount initializer applies the stored capacity once — ignore it.
+    vi.mocked(vehicleStore.setTrailCapacity).mockClear();
+
+    const slider = screen.getByRole("slider", { name: /trail length/i });
+    fireEvent.keyDown(slider, { key: "ArrowRight" }); // 60 → 70
+
+    // Store mutation must not happen synchronously while dragging
+    expect(vehicleStore.setTrailCapacity).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+
+    expect(vehicleStore.setTrailCapacity).toHaveBeenCalledTimes(1);
+    expect(vehicleStore.setTrailCapacity).toHaveBeenCalledWith(70);
+    expect(localStorage.getItem("trailLength")).toBe("70");
+  });
+
+  it("flushes a pending trail-length change on unmount", () => {
+    vi.useFakeTimers();
+    const { unmount } = renderPanel(
+      defaultModifiers({ showBreadcrumbs: true } as Partial<Modifiers>)
+    );
+
+    vi.mocked(vehicleStore.setTrailCapacity).mockClear();
+
+    const slider = screen.getByRole("slider", { name: /trail length/i });
+    fireEvent.keyDown(slider, { key: "ArrowRight" }); // 60 → 70
+
+    unmount();
+
+    expect(vehicleStore.setTrailCapacity).toHaveBeenCalledTimes(1);
+    expect(vehicleStore.setTrailCapacity).toHaveBeenCalledWith(70);
   });
 });

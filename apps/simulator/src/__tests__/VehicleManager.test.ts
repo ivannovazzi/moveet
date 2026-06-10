@@ -705,5 +705,28 @@ describe("VehicleManager", () => {
       expect(manager.isRunning()).toBe(false);
       expect(manager.gameLoop.getGameLoopIntervalRef()).toBeNull();
     });
+
+    it("isolates per-vehicle errors so one failing vehicle does not abort the batch", () => {
+      const vehicleCount = internalVehicles().size;
+      expect(vehicleCount).toBeGreaterThan(1);
+
+      const updatedIds: string[] = [];
+      const updateSpy = vi
+        .spyOn(manager as any, "updateVehicle")
+        .mockImplementation((...args: unknown[]) => {
+          const vehicle = args[0] as Vehicle;
+          updatedIds.push(vehicle.id);
+          if (updatedIds.length === 1) {
+            throw new Error("boom");
+          }
+        });
+
+      expect(() => manager.advance(500)).not.toThrow();
+
+      // Every vehicle was still attempted despite the first one throwing
+      expect(updatedIds).toHaveLength(vehicleCount);
+
+      updateSpy.mockRestore();
+    });
   });
 });

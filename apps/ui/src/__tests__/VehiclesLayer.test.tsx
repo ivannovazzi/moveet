@@ -24,6 +24,7 @@ vi.mock("@/components/Map/hooks/useDeckLayers", () => ({
 
 // Import AFTER mocks
 import VehiclesLayer from "@/Map/Vehicle/VehiclesLayer";
+import { DeckMapContext } from "@/components/Map/providers/contexts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -68,30 +69,29 @@ function renderAndTick(props: Partial<typeof defaultProps> = {}) {
   return result;
 }
 
-/** Extract the vehicles ScatterplotLayer data from registered layers. */
+/** Extract the vehicles IconLayer data from registered layers. */
 function getVehiclesLayerData(): Array<{
   id: string;
   position: [number, number];
-  heading: number;
-  color: [number, number, number, number];
-  type: string;
+  angle: number;
+  icon: string;
   isSelected: boolean;
   isHovered: boolean;
 }> {
   const layers = registeredLayers.get("vehicles") ?? [];
   // The vehicles layer has id="vehicles" — it's always the second in the array
-  // [selectionRingLayer, vehiclesLayer]
+  // [ringLayer, vehiclesLayer]
   const vehiclesLayer = layers.find(
     (l) => (l as { props: { id: string } }).props.id === "vehicles"
   ) as { props: { data: ReturnType<typeof getVehiclesLayerData> } } | undefined;
   return vehiclesLayer?.props.data ?? [];
 }
 
-/** Extract the selection ring layer data. */
+/** Extract the selection/hover highlight ring layer data. */
 function getSelectionRingData(): unknown[] {
   const layers = registeredLayers.get("vehicles") ?? [];
   const selectionLayer = layers.find(
-    (l) => (l as { props: { id: string } }).props.id === "vehicle-selection-ring"
+    (l) => (l as { props: { id: string } }).props.id === "vehicle-highlight-ring"
   ) as { props: { data: unknown[] } } | undefined;
   return selectionLayer?.props.data ?? [];
 }
@@ -133,7 +133,7 @@ describe("VehiclesLayer (deck.gl)", () => {
     expect(registeredLayers.has("vehicles")).toBe(true);
   });
 
-  it("registers two layers: selection ring and vehicles", () => {
+  it("registers two layers: highlight ring and vehicles", () => {
     vehicleStore.replace([
       { id: "v1", name: "V1", position: [36.82, -1.29], speed: 30, heading: 90 },
     ]);
@@ -145,7 +145,7 @@ describe("VehiclesLayer (deck.gl)", () => {
 
     const ids = layers.map((l) => (l as { props: { id: string } }).props.id);
     expect(ids).toContain("vehicles");
-    expect(ids).toContain("vehicle-selection-ring");
+    expect(ids).toContain("vehicle-highlight-ring");
   });
 
   it("produces interpolated data for each vehicle", () => {
@@ -161,7 +161,7 @@ describe("VehiclesLayer (deck.gl)", () => {
     expect(data.map((d) => d.id).sort()).toEqual(["v1", "v2"]);
   });
 
-  it("applies fleet colors for vehicle fill", () => {
+  it("applies fleet colors via the sprite atlas key", () => {
     const fleetMap = makeFleetMap(["v1", { color: "#ff0000" }], ["v2", { color: "#00ff00" }]);
 
     vehicleStore.replace([
@@ -175,13 +175,12 @@ describe("VehiclesLayer (deck.gl)", () => {
     const v1 = data.find((d) => d.id === "v1")!;
     const v2 = data.find((d) => d.id === "v2")!;
 
-    // #ff0000 → [255, 0, 0, 255]
-    expect(v1.color).toEqual([255, 0, 0, 255]);
-    // #00ff00 → [0, 255, 0, 255]
-    expect(v2.color).toEqual([0, 255, 0, 255]);
+    // Atlas keys encode the (type, color) sprite cell
+    expect(v1.icon).toBe("car|#ff0000");
+    expect(v2.icon).toBe("car|#00ff00");
   });
 
-  it("uses default fill color when vehicle has no fleet", () => {
+  it("uses the default type color when vehicle has no fleet", () => {
     vehicleStore.replace([
       { id: "v1", name: "V1", position: [36.82, -1.29], speed: 30, heading: 0 },
     ]);
@@ -189,8 +188,8 @@ describe("VehiclesLayer (deck.gl)", () => {
     renderAndTick();
 
     const data = getVehiclesLayerData();
-    // DEFAULT_FILL "#dcdcdc" → [220, 220, 220, 255]
-    expect(data[0].color).toEqual([220, 220, 220, 255]);
+    // DEFAULT_FILL "#dcdcdc" for type "car"
+    expect(data[0].icon).toBe("car|#dcdcdc");
   });
 
   it("skips vehicles at origin (0, 0)", () => {
@@ -300,6 +299,17 @@ describe("VehiclesLayer (deck.gl)", () => {
     // Original: [36.82 (lat), -1.29 (lng)] → deck.gl: [-1.29 (lng), 36.82 (lat)]
     expect(data[0].position[0]).toBeCloseTo(-1.29, 1);
     expect(data[0].position[1]).toBeCloseTo(36.82, 1);
+  });
+
+  it("converts compass heading (CW) to deck.gl angle (CCW degrees)", () => {
+    vehicleStore.replace([
+      { id: "v1", name: "V1", position: [36.82, -1.29], speed: 30, heading: 90 },
+    ]);
+
+    renderAndTick();
+
+    const data = getVehiclesLayerData();
+    expect(data[0].angle).toBeCloseTo(-90, 5);
   });
 });
 
@@ -432,6 +442,85 @@ describe("VehiclesLayer teleport detection", () => {
     const data = getVehiclesLayerData();
     expect(data[0].position[1]).toBeCloseTo(36.9, 2);
     expect(data[0].position[0]).toBeCloseTo(-1.4, 2);
+  });
+});
+
+describe("VehiclesLayer viewport culling", () => {
+  /** Render inside a map context whose viewport covers central Nairobi. */
+  function renderWithViewport(props: Partial<typeof defaultProps> & { selectedId?: string } = {}) {
+    const merged = { ...defaultProps, ...props };
+    const result = render(
+      <DeckMapContext.Provider
+        value={{
+          viewport: null,
+          viewState: null,
+          getZoom: () => 12,
+          project: () => null,
+          // [[west, south], [east, north]]
+          getBoundingBox: () => [
+            [36.7, -1.4],
+            [36.9, -1.2],
+          ],
+        }}
+      >
+        <VehiclesLayer {...merged} />
+      </DeckMapContext.Provider>
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+    act(() => {
+      vi.advanceTimersByTime(50);
+    });
+
+    return result;
+  }
+
+  it("culls vehicles far outside the viewport", () => {
+    vehicleStore.replace([
+      { id: "inside", name: "In", position: [-1.29, 36.82], speed: 30, heading: 0 },
+      { id: "outside", name: "Out", position: [10, 50], speed: 30, heading: 0 },
+    ]);
+
+    renderWithViewport();
+
+    const data = getVehiclesLayerData();
+    expect(data.map((d) => d.id)).toEqual(["inside"]);
+  });
+
+  it("keeps vehicles just outside the viewport (margin)", () => {
+    vehicleStore.replace([
+      // ~0.03° east of the east edge — inside the 25% (0.05°) margin
+      { id: "near-edge", name: "Edge", position: [-1.3, 36.93], speed: 30, heading: 0 },
+    ]);
+
+    renderWithViewport();
+
+    const data = getVehiclesLayerData();
+    expect(data.map((d) => d.id)).toEqual(["near-edge"]);
+  });
+
+  it("never culls the selected vehicle", () => {
+    vehicleStore.replace([
+      { id: "outside", name: "Out", position: [10, 50], speed: 30, heading: 0 },
+    ]);
+
+    renderWithViewport({ selectedId: "outside" });
+
+    const data = getVehiclesLayerData();
+    expect(data.map((d) => d.id)).toEqual(["outside"]);
+  });
+
+  it("does not cull when no viewport bounds are available (default context)", () => {
+    vehicleStore.replace([
+      { id: "anywhere", name: "Far", position: [10, 50], speed: 30, heading: 0 },
+    ]);
+
+    renderAndTick();
+
+    const data = getVehiclesLayerData();
+    expect(data.map((d) => d.id)).toEqual(["anywhere"]);
   });
 });
 

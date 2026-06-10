@@ -1,7 +1,8 @@
 {
   "name": "@moveet/network",
   "version": "0.1.0",
-  "description": "CLI tool for downloading and preparing OSM road network data",
+  "private": true,
+  "description": "Internal CLI tool for downloading and preparing OSM road network data (not published, versioned independently of the monorepo release)",
   "type": "module",
   "bin": {
     "network": "./dist/cli.js"
@@ -11,6 +12,7 @@
     "build": "tsc",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
+    "test:ci": "vitest run --coverage",
     "test:watch": "vitest watch",
     "lint": "tsc --noEmit && eslint .",
     "lint:fix": "eslint . --fix",

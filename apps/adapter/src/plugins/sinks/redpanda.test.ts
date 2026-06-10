@@ -9,6 +9,7 @@ const mockDisconnect = vi.fn().mockResolvedValue(undefined);
 
 const mockAdminConnect = vi.fn().mockResolvedValue(undefined);
 const mockAdminDisconnect = vi.fn().mockResolvedValue(undefined);
+const mockListTopics = vi.fn().mockResolvedValue(["dispatch.vehicle.positions"]);
 const mockDescribeCluster = vi.fn().mockResolvedValue({
   brokers: [{ nodeId: 0, host: "localhost", port: 9092 }],
   controller: 0,
@@ -28,6 +29,7 @@ vi.mock("kafkajs", () => {
       return {
         connect: mockAdminConnect,
         disconnect: mockAdminDisconnect,
+        listTopics: mockListTopics,
         describeCluster: mockDescribeCluster,
       };
     }
@@ -822,11 +824,13 @@ describe("RedpandaSink", () => {
     });
 
     it("reports unhealthy when admin connect fails", async () => {
+      // Connect first (the topic-existence check uses admin.connect too), then
+      // make the health check's admin.connect fail.
+      await sink.connect({ brokers: "localhost:9092" });
       mockAdminConnect.mockRejectedValueOnce(
         new Error("KafkaJSConnectionError: broker unavailable")
       );
 
-      await sink.connect({ brokers: "localhost:9092" });
       const result = await sink.healthCheck();
 
       expect(result.healthy).toBe(false);

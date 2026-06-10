@@ -101,6 +101,44 @@ describe("LRUCache", () => {
         vi.useRealTimers();
       }
     });
+
+    it("should refresh TTL on hit when updateAgeOnGet is enabled", () => {
+      vi.useFakeTimers();
+      try {
+        const sliding = new LRUCache<string>({ maxSize: 3, ttlMs: 1000, updateAgeOnGet: true });
+        sliding.set("a", "alpha");
+
+        // Touch the entry just before expiry — TTL should restart
+        vi.advanceTimersByTime(900);
+        expect(sliding.get("a")).toBe("alpha");
+
+        // 900 + 900 = 1800ms since set, but only 900ms since last hit
+        vi.advanceTimersByTime(900);
+        expect(sliding.get("a")).toBe("alpha");
+
+        // No hits for a full TTL — entry expires
+        vi.advanceTimersByTime(1001);
+        expect(sliding.get("a")).toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("should not refresh TTL on hit by default", () => {
+      vi.useFakeTimers();
+      try {
+        cache.set("a", "alpha");
+
+        vi.advanceTimersByTime(900);
+        expect(cache.get("a")).toBe("alpha");
+
+        // 1800ms since set — expired despite the hit at 900ms
+        vi.advanceTimersByTime(900);
+        expect(cache.get("a")).toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   describe("has", () => {

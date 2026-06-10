@@ -92,6 +92,15 @@ describe("PluginManager", () => {
       await expect(manager.addSink("unknown", {})).rejects.toThrow("Unknown sink type: unknown");
     });
 
+    it("lists the valid sink types in the unknown-sink error", async () => {
+      manager.registerSink("mock", () => createMockSink());
+      manager.registerSink("other", () => createMockSink());
+
+      await expect(manager.addSink("unknown", {})).rejects.toThrow(
+        "Unknown sink type: unknown (valid types: mock, other)"
+      );
+    });
+
     it("replaces existing sink of same type", async () => {
       const sink1 = createMockSink();
       const sink2 = createMockSink();

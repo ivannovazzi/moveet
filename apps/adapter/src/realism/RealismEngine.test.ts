@@ -361,3 +361,33 @@ describe("RealismEngine reconfigure (deep merge)", () => {
     expect(g.degradedTauS).toBe(40);
   });
 });
+
+describe("RealismEngine scheduler error handling", () => {
+  it("catches tick rejections from the interval callback (no unhandled rejection)", async () => {
+    const intervalSpy = vi
+      .spyOn(globalThis, "setInterval")
+      .mockReturnValue(123 as unknown as ReturnType<typeof setInterval>);
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on("unhandledRejection", onUnhandled);
+
+    try {
+      const { engine } = makeEngine({ enabled: true }); // autoStart → start()
+      expect(intervalSpy).toHaveBeenCalledTimes(1);
+      const callback = intervalSpy.mock.calls[0][0] as () => void;
+
+      // Force the next tick to reject.
+      engine.tick = vi.fn().mockRejectedValue(new Error("tick boom"));
+
+      expect(() => callback()).not.toThrow();
+      expect(engine.tick).toHaveBeenCalledTimes(1);
+
+      // Let the rejection (if uncaught) surface before asserting.
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+      intervalSpy.mockRestore();
+    }
+  });
+});

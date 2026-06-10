@@ -18,6 +18,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** Default per-request timeout in milliseconds (30 seconds). */
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 
+/** Default maximum number of in-flight (pending) requests before new ones are rejected. */
+const DEFAULT_MAX_PENDING_REQUESTS = 1_000;
+
+/** Polling interval used by drain() while waiting for pending requests to settle. */
+const DRAIN_POLL_INTERVAL_MS = 50;
+
 export interface PathfindingResult {
   edgeIds: string[];
   distance: number;
@@ -33,6 +39,8 @@ interface PendingRequest {
 export interface PathfindingPoolOptions {
   poolSize?: number;
   requestTimeoutMs?: number;
+  /** Maximum number of pending requests before new ones are rejected. */
+  maxPendingRequests?: number;
 }
 
 export class PathfindingPool {
@@ -42,6 +50,7 @@ export class PathfindingPool {
   private nextWorker = 0;
   private shutdownFlag = false;
   private requestTimeoutMs: number;
+  private maxPendingRequests: number;
 
   constructor(geojsonPath: string, options?: PathfindingPoolOptions | number) {
     // Support legacy signature: constructor(geojsonPath, poolSize?)
@@ -49,9 +58,11 @@ export class PathfindingPool {
     if (typeof options === "number") {
       poolSize = options;
       this.requestTimeoutMs = DEFAULT_REQUEST_TIMEOUT_MS;
+      this.maxPendingRequests = DEFAULT_MAX_PENDING_REQUESTS;
     } else {
       poolSize = options?.poolSize;
       this.requestTimeoutMs = options?.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+      this.maxPendingRequests = options?.maxPendingRequests ?? DEFAULT_MAX_PENDING_REQUESTS;
     }
 
     const size = poolSize ?? Math.min(os.cpus().length, 4);
@@ -129,6 +140,15 @@ export class PathfindingPool {
       return Promise.resolve(null);
     }
 
+    // Bound the pending queue so a burst of requests cannot grow it without limit
+    if (this.pending.size >= this.maxPendingRequests) {
+      return Promise.reject(
+        new Error(
+          `PathfindingPool pending queue full (${this.pending.size}/${this.maxPendingRequests} requests); rejecting new request`
+        )
+      );
+    }
+
     return new Promise<PathfindingResult | null>((resolve, reject) => {
       const id = this.nextId++;
       const workerIndex = this.nextWorker % this.workers.length;
@@ -162,6 +182,26 @@ export class PathfindingPool {
       }
       worker.postMessage(msg);
     });
+  }
+
+  /**
+   * Number of requests currently awaiting a worker result.
+   * Exposed for observability and shutdown draining.
+   */
+  public get pendingCount(): number {
+    return this.pending.size;
+  }
+
+  /**
+   * Waits (bounded) for all pending requests to settle.
+   * Returns true if the queue drained within the timeout, false otherwise.
+   */
+  public async drain(timeoutMs: number): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    while (this.pending.size > 0 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, DRAIN_POLL_INTERVAL_MS));
+    }
+    return this.pending.size === 0;
   }
 
   /**

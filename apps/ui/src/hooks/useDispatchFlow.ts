@@ -1,9 +1,58 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import client from "@/utils/client";
-import type { DirectionResult, DispatchAssignment, Position, Vehicle, Waypoint } from "@/types";
+import { useNetworkContext } from "@/data/useData";
+import type {
+  DirectionResult,
+  DispatchAssignment,
+  Position,
+  RoadNetwork,
+  Vehicle,
+  Waypoint,
+} from "@/types";
 import type { DispatchState } from "./useDispatchState";
 import { useDispatchState } from "./useDispatchState";
 import { toLatLng } from "@/utils/coordinates";
+
+/** Geographic bounds of the road network in [lat, lng] space. */
+interface NetworkBounds {
+  minLat: number;
+  maxLat: number;
+  minLng: number;
+  maxLng: number;
+}
+
+/** Margin (in degrees, ~2 km) so clicks just outside the outermost road still pass. */
+const BOUNDS_MARGIN_DEG = 0.02;
+
+/** Compute the bounding box of the road network, or null when not loaded. */
+export function computeNetworkBounds(network: RoadNetwork): NetworkBounds | null {
+  if (network.features.length === 0) return null;
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+  let minLng = Infinity;
+  let maxLng = -Infinity;
+  for (const feature of network.features) {
+    for (const [lng, lat] of feature.geometry.coordinates) {
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+      if (lng < minLng) minLng = lng;
+      if (lng > maxLng) maxLng = lng;
+    }
+  }
+  if (!Number.isFinite(minLat) || !Number.isFinite(minLng)) return null;
+  return { minLat, maxLat, minLng, maxLng };
+}
+
+/** True when a [lat, lng] waypoint lies within bounds (plus margin). */
+function isWithinBounds(position: [number, number], bounds: NetworkBounds): boolean {
+  const [lat, lng] = position;
+  return (
+    lat >= bounds.minLat - BOUNDS_MARGIN_DEG &&
+    lat <= bounds.maxLat + BOUNDS_MARGIN_DEG &&
+    lng >= bounds.minLng - BOUNDS_MARGIN_DEG &&
+    lng <= bounds.maxLng + BOUNDS_MARGIN_DEG
+  );
+}
 
 /** Identifies a specific waypoint within an assignment list. */
 export interface WaypointRef {
@@ -42,6 +91,9 @@ export function useDispatchFlow(): DispatchFlow {
   const [selectedForDispatch, setSelectedForDispatch] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  const { network } = useNetworkContext();
+  const bounds = useMemo(() => computeNetworkBounds(network), [network]);
+
   const dispatchState = useDispatchState({
     dispatchMode,
     selectedForDispatch,
@@ -51,16 +103,17 @@ export function useDispatchFlow(): DispatchFlow {
   });
 
   const toggleDispatchMode = useCallback(() => {
-    setDispatchMode((prev) => {
-      if (prev) {
-        setSelectedForDispatch([]);
-        setAssignments([]);
-        setResults([]);
-        setDispatching(false);
-      }
-      return !prev;
-    });
-  }, []);
+    // Reset sibling state outside the updater — updaters must stay pure
+    // (StrictMode double-invokes them), so branch on the current value here.
+    if (dispatchMode) {
+      setSelectedForDispatch([]);
+      setAssignments([]);
+      setResults([]);
+      setDispatching(false);
+      setError(null);
+    }
+    setDispatchMode(!dispatchMode);
+  }, [dispatchMode]);
 
   const onAddWaypoint = useCallback((vehicleId: string, position: Position) => {
     const newWaypoint: Waypoint = { position: toLatLng(position) };
@@ -104,6 +157,22 @@ export function useDispatchFlow(): DispatchFlow {
 
   const handleDispatch = useCallback(async () => {
     if (assignments.length === 0) return;
+
+    // Validate waypoints against the road network bounds before sending —
+    // an immediate, clear error beats a slow server round-trip failure.
+    if (bounds) {
+      const offNetwork = assignments.filter((a) =>
+        a.waypoints.some((wp) => !isWithinBounds(wp.position, bounds))
+      );
+      if (offNetwork.length > 0) {
+        const names = offNetwork.map((a) => a.vehicleName).join(", ");
+        setError(
+          `Some stops are outside the road network (${names}). Move or remove them, then dispatch again.`
+        );
+        return;
+      }
+    }
+
     setDispatching(true);
     setResults([]);
     setError(null);
@@ -139,7 +208,7 @@ export function useDispatchFlow(): DispatchFlow {
     } finally {
       setDispatching(false);
     }
-  }, [assignments]);
+  }, [assignments, bounds]);
 
   const handleDone = useCallback(() => {
     setDispatchMode(false);
@@ -147,6 +216,7 @@ export function useDispatchFlow(): DispatchFlow {
     setAssignments([]);
     setResults([]);
     setDispatching(false);
+    setError(null);
   }, []);
 
   const handleRetryFailed = useCallback(() => {

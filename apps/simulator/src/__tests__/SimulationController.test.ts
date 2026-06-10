@@ -148,6 +148,32 @@ describe("SimulationController lifecycle", () => {
       expect(afterFirst).toBe(before + 1);
       expect(afterSecond).toBe(before + 1);
     });
+
+    it("replaces the auto heat-zone timer when called twice without stop", async () => {
+      await controller.start({});
+      const firstTimer = (controller as unknown as { autoHeatZoneInterval?: NodeJS.Timeout })
+        .autoHeatZoneInterval;
+      expect(firstTimer).toBeDefined();
+
+      await controller.start({});
+      const secondTimer = (controller as unknown as { autoHeatZoneInterval?: NodeJS.Timeout })
+        .autoHeatZoneInterval;
+      expect(secondTimer).toBeDefined();
+      // A fresh timer replaces the old one — no accumulation
+      expect(secondTimer).not.toBe(firstTimer);
+    });
+
+    it("clears the auto heat-zone timer on reset", async () => {
+      await controller.start({});
+      expect(
+        (controller as unknown as { autoHeatZoneInterval?: NodeJS.Timeout }).autoHeatZoneInterval
+      ).toBeDefined();
+
+      await controller.reset();
+      expect(
+        (controller as unknown as { autoHeatZoneInterval?: NodeJS.Timeout }).autoHeatZoneInterval
+      ).toBeUndefined();
+    });
   });
 
   describe("stop", () => {

@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
 import { z } from "zod";
+import logger from "./logger";
 
 dotenv.config();
 
@@ -155,5 +156,5 @@ export function verifyConfig(): void {
 /** Log the resolved config at startup, redacting sensitive values. */
 export function logConfig(): void {
   const redacted = { ...config, adapterURL: config.adapterURL ? "••••••" : "(disabled)" };
-  console.log("Simulator config:", JSON.stringify(redacted, null, 2));
+  logger.info({ config: redacted }, "Simulator config");
 }

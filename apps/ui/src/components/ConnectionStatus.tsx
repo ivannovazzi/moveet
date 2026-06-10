@@ -3,9 +3,11 @@ import type { ConnectionStateInfo } from "@/utils/wsClient";
 
 interface ConnectionStatusProps {
   connectionInfo: ConnectionStateInfo;
+  /** Invoked when the user clicks Retry after reconnection gave up. */
+  onRetry?: () => void;
 }
 
-export default function ConnectionStatus({ connectionInfo }: ConnectionStatusProps) {
+export default function ConnectionStatus({ connectionInfo, onRetry }: ConnectionStatusProps) {
   const { state, attempt, maxAttempts } = connectionInfo;
 
   if (state === "connected" || state === "connecting") return null;
@@ -21,9 +23,21 @@ export default function ConnectionStatus({ connectionInfo }: ConnectionStatusPro
       role="alert"
       data-testid="connection-status"
     >
-      {isReconnecting
-        ? `Reconnecting... (attempt ${attempt + 1}/${maxAttempts})`
-        : "Disconnected — please refresh the page"}
+      {isReconnecting ? (
+        `Reconnecting... (attempt ${attempt + 1}/${maxAttempts})`
+      ) : (
+        <span className="inline-flex items-center gap-3">
+          Disconnected — please refresh the page
+          <button
+            type="button"
+            onClick={onRetry}
+            className="rounded border border-background/40 px-2 py-0.5 text-xs font-semibold uppercase tracking-wider transition-colors hover:bg-background/15"
+            data-testid="connection-retry"
+          >
+            Retry
+          </button>
+        </span>
+      )}
     </div>
   );
 }

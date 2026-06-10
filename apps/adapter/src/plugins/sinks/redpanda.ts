@@ -287,8 +287,14 @@ export class RedpandaSink implements DataSink {
     const accuracy = config.defaultAccuracy != null ? Number(config.defaultAccuracy) : 5;
     this.defaultAccuracy = Number.isFinite(accuracy) && accuracy >= 0 ? accuracy : 5;
 
+    const healthCheckTimeout =
+      config.healthCheckTimeoutMs != null
+        ? Number(config.healthCheckTimeoutMs)
+        : DEFAULT_HEALTH_CHECK_TIMEOUT_MS;
     this.healthCheckTimeoutMs =
-      (config.healthCheckTimeoutMs as number) || DEFAULT_HEALTH_CHECK_TIMEOUT_MS;
+      Number.isFinite(healthCheckTimeout) && healthCheckTimeout > 0
+        ? healthCheckTimeout
+        : DEFAULT_HEALTH_CHECK_TIMEOUT_MS;
 
     this.kafka = new Kafka({
       clientId: "moveet-adapter",
@@ -298,6 +304,22 @@ export class RedpandaSink implements DataSink {
     this.producer = this.kafka.producer({ allowAutoTopicCreation: false });
     try {
       await this.producer.connect();
+      // The producer is created with auto-topic-creation disabled, so a missing
+      // topic would otherwise only surface on the first publish. Fail fast here
+      // with a clear error naming the topic instead.
+      const admin = this.kafka.admin();
+      try {
+        await admin.connect();
+        const topics = await admin.listTopics();
+        if (!topics.includes(this.topic)) {
+          throw new Error(
+            `RedpandaSink: topic "${this.topic}" does not exist on the configured brokers ` +
+              `(auto-topic-creation is disabled — create the topic first)`
+          );
+        }
+      } finally {
+        await admin.disconnect().catch(() => {});
+      }
       // For the canonical-AVRO format, register (idempotent) the canonical
       // schema with Schema Registry and cache the returned schema id, which
       // every encode() prefixes onto the wire payload (Confluent framing).
@@ -571,45 +593,45 @@ export class RedpandaSink implements DataSink {
       return;
     }
 
-    // Chunked publishing with partial failure handling
+    // Chunked publishing: chunks are sent sequentially and the batch is
+    // aborted on the first failure, so a retried/late chunk can never be
+    // delivered out of order relative to the rest of the batch.
     const chunks: (typeof messages)[] = [];
     for (let i = 0; i < messages.length; i += this.batchSize) {
       chunks.push(messages.slice(i, i + this.batchSize));
     }
 
-    const results = await Promise.allSettled(
-      chunks.map((chunk) =>
-        this.producer!.send({ topic: this.topic, messages: chunk, acks: this.acks })
-      )
-    );
+    const producer = this.producer;
+    let succeeded = 0;
+    const failures: Array<{ itemId: string; error: string }> = [];
 
-    const failures = results
-      .map((result, i) => ({ result, chunkIndex: i }))
-      .filter(
-        (entry): entry is { result: PromiseRejectedResult; chunkIndex: number } =>
-          entry.result.status === "rejected"
-      )
-      .map(({ result, chunkIndex }) => {
-        const error =
-          result.reason instanceof Error ? result.reason.message : String(result.reason);
+    for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+      try {
+        await producer.send({ topic: this.topic, messages: chunks[chunkIndex], acks: this.acks });
+        succeeded += chunks[chunkIndex].length;
+      } catch (err) {
+        const error = err instanceof Error ? err.message : String(err);
         const startIdx = chunkIndex * this.batchSize;
         const chunkSize = chunks[chunkIndex].length;
         logger.error(
           { chunkIndex, start: startIdx, end: startIdx + chunkSize - 1, error },
           `Chunk ${chunkIndex} failed (messages ${startIdx}–${startIdx + chunkSize - 1})`
         );
-        return { itemId: `chunk-${chunkIndex}`, error };
-      });
-
-    const failedMessageCount = failures.reduce((sum, f) => {
-      const chunkIndex = Number.parseInt(f.itemId.replace("chunk-", ""), 10);
-      return sum + chunks[chunkIndex].length;
-    }, 0);
-    const succeeded = messages.length - failedMessageCount;
+        failures.push({ itemId: `chunk-${chunkIndex}`, error });
+        // Abort the remainder of the batch to preserve ordering.
+        for (let j = chunkIndex + 1; j < chunks.length; j++) {
+          failures.push({
+            itemId: `chunk-${j}`,
+            error: `not attempted (batch aborted after chunk ${chunkIndex} failed)`,
+          });
+        }
+        break;
+      }
+    }
 
     if (failures.length > 0 && succeeded === 0) {
       throw new Error(
-        `All ${chunks.length} chunks failed to publish. First error: ${failures[0].error}`
+        `First chunk failed to publish; ${chunks.length - 1} remaining chunk(s) aborted to preserve ordering. Error: ${failures[0].error}`
       );
     }
 
@@ -620,8 +642,9 @@ export class RedpandaSink implements DataSink {
           chunksTotal: chunks.length,
           messagesSucceeded: succeeded,
           messagesTotal: messages.length,
+          messagesNotDelivered: messages.length - succeeded,
         },
-        `Partial failure: ${chunks.length - failures.length}/${chunks.length} chunks succeeded (${succeeded}/${messages.length} messages)`
+        `Partial failure: ${chunks.length - failures.length}/${chunks.length} chunks sent (${succeeded}/${messages.length} messages); remainder aborted to preserve ordering`
       );
     }
 
@@ -637,12 +660,23 @@ export class RedpandaSink implements DataSink {
     const start = Date.now();
 
     try {
-      admin = this.kafka.admin();
-      await admin.connect();
+      const adminClient = this.kafka.admin();
+      admin = adminClient;
 
       let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+      // connect() itself can hang on an unreachable broker, so it must live
+      // inside the timeout race alongside describeCluster().
+      const probe = (async () => {
+        await adminClient.connect();
+        return adminClient.describeCluster();
+      })();
+      // If the timeout wins the race, the probe may still reject later with
+      // nothing awaiting it; swallow that so it doesn't surface as a spurious
+      // process-level unhandledRejection. The race below still observes the
+      // probe's rejection when the probe loses first.
+      probe.catch(() => {});
       const result = await Promise.race([
-        admin.describeCluster(),
+        probe,
         new Promise<never>((_, reject) => {
           timeoutHandle = setTimeout(
             () => reject(new Error("health check timed out")),

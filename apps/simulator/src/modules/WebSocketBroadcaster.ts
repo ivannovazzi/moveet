@@ -2,6 +2,7 @@ import type { WebSocketServer, WebSocket } from "ws";
 import type { VehicleDTO, SubscribeFilter } from "../types";
 import { WS_BROADCASTER } from "../constants";
 import { SpatialVehicleIndex } from "./SpatialVehicleIndex";
+import logger from "../utils/logger";
 
 /** @deprecated Import from constants.ts instead. Re-exported for backwards compatibility. */
 export const BACKPRESSURE_THRESHOLD = WS_BROADCASTER.BACKPRESSURE_THRESHOLD;
@@ -161,7 +162,7 @@ export class WebSocketBroadcaster {
     const message = JSON.stringify({ type, data });
     for (const client of this.wss.clients) {
       if (client.readyState === WebSocketReadyState.OPEN) {
-        client.send(message);
+        this.safeSend(client, message);
       }
     }
   }
@@ -171,7 +172,22 @@ export class WebSocketBroadcaster {
    */
   sendTo<T>(client: WebSocket, type: string, data: T): void {
     if (client.readyState === WebSocketReadyState.OPEN) {
-      client.send(JSON.stringify({ type, data }));
+      this.safeSend(client, JSON.stringify({ type, data }));
+    }
+  }
+
+  /**
+   * Sends a message to a client, swallowing send errors so one failing
+   * socket cannot abort iteration over the remaining clients.
+   * Returns true if the send did not throw.
+   */
+  private safeSend(client: WebSocket, message: string): boolean {
+    try {
+      client.send(message);
+      return true;
+    } catch (error) {
+      logger.warn(`WebSocket send failed: ${error}`);
+      return false;
     }
   }
 
@@ -327,7 +343,10 @@ export class WebSocketBroadcaster {
       if (toSend.length === 0) continue;
 
       const message = JSON.stringify({ type: "vehicles", data: toSend });
-      client.send(message);
+      // Guard the send so one failing socket cannot abort the flush for the
+      // remaining clients. On failure, skip the state update so the vehicles
+      // are re-sent on the next flush once the socket recovers (or is closed).
+      if (!this.safeSend(client, message)) continue;
 
       // Update last-sent positions and reset dropped counter
       for (const v of toSend) {

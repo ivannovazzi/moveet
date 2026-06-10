@@ -84,10 +84,12 @@ function useVehicleChanges(): [VehicleDTO[], (vehicles: VehicleDTO[]) => void] {
   const [vehicles, setVehicles] = useState<VehicleDTO[]>([]);
   const lastVersionRef = useRef(-1);
 
-  // Wire up WS → vehicleStore (fast path, no React)
+  // Wire up WS → vehicleStore (fast path, no React). Updates are queued and
+  // applied atomically at the next store read so RAF/interval readers never
+  // see a partially-applied batch.
   useEffect(() => {
     const onVehicle = (vehicle: VehicleDTO) => {
-      vehicleStore.set(vehicle);
+      vehicleStore.enqueue(vehicle);
     };
     client.onVehicle(onVehicle);
     return () => {
@@ -144,7 +146,9 @@ export function useVehicles(): UseVehicle {
 
   const lowerCaseFilter = useMemo(() => filters.filter.toLowerCase(), [filters.filter]);
 
-  const mappedVehicles = useMemo(() => {
+  // Stage 1 — position swap + text/visibility filtering. Independent of
+  // selection/hover so hovering a list row doesn't redo the string matching.
+  const filteredVehicles = useMemo(() => {
     const visibleSet = filters.visible.length > 0 ? new Set(filters.visible) : null;
 
     return vehicles.map((vehicle) => {
@@ -156,11 +160,20 @@ export function useVehicles(): UseVehicle {
         ...vehicle,
         position: [vehicle.position[1], vehicle.position[0]] as Position,
         visible: (visibleSet === null || visibleSet.has(vehicle.id)) && matchesFilter,
-        selected: filters.selected === vehicle.id,
-        hovered: filters.hovered === vehicle.id,
       };
     });
-  }, [vehicles, filters.visible, filters.selected, filters.hovered, lowerCaseFilter]);
+  }, [vehicles, filters.visible, lowerCaseFilter]);
+
+  // Stage 2 — cheap selection/hover decoration only.
+  const mappedVehicles = useMemo(
+    () =>
+      filteredVehicles.map((vehicle) => ({
+        ...vehicle,
+        selected: filters.selected === vehicle.id,
+        hovered: filters.hovered === vehicle.id,
+      })),
+    [filteredVehicles, filters.selected, filters.hovered]
+  );
 
   return {
     vehicles: mappedVehicles,

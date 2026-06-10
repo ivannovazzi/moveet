@@ -1,7 +1,8 @@
-import React, { useCallback, useMemo, useRef } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import DeckGL from "@deck.gl/react";
 import { MapView, WebMercatorViewport } from "@deck.gl/core";
-import type { MapViewState } from "@deck.gl/core";
+import type { Layer, MapViewState } from "@deck.gl/core";
+import { SectionErrorFallback } from "@/components/ErrorBoundary";
 import { webgl2Adapter } from "@luma.gl/webgl";
 import { PathLayer } from "@deck.gl/layers";
 import type { Position, RoadNetwork } from "@/types";
@@ -75,6 +76,15 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
 }) => {
   const [containerRef, size] = useResizeObserver();
   const deckContainerRef = useRef<HTMLDivElement>(null);
+  const [mapError, setMapError] = useState<Error | null>(null);
+
+  // Surface deck/WebGL failures instead of freezing silently. Layer-scoped
+  // errors only affect that layer and are logged; deck-level errors (WebGL
+  // context creation/loss) take down the whole canvas, so show the fallback.
+  const handleDeckError = useCallback((error: Error, layer?: Layer) => {
+    console.error("deck.gl error:", error, layer ?? "(deck-level)");
+    if (!layer) setMapError(error);
+  }, []);
   const { viewState, onViewStateChange, controls } = useDeckViewState({
     data,
     width: size.width,
@@ -157,6 +167,10 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
     [onContextClick, viewport]
   );
 
+  // Stable cursor accessor — an inline closure would be a new prop for DeckGL
+  // on every render.
+  const getCursor = useCallback(() => cursor, [cursor]);
+
   const MAP_VIEW = useMemo(
     () =>
       new MapView({
@@ -165,6 +179,14 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
       }),
     []
   );
+
+  if (mapError) {
+    return (
+      <div style={{ width: "100%", height: "100%", position: "relative" }}>
+        <SectionErrorFallback section="Map" />
+      </div>
+    );
+  }
 
   return (
     <DeckMapContextProvider
@@ -192,9 +214,10 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
                     }
                     layers={allLayers}
                     onClick={handleClick}
+                    onError={handleDeckError}
                     controller={true}
                     style={{ position: "relative" }}
-                    getCursor={() => cursor}
+                    getCursor={getCursor}
                     deviceProps={{ adapters: [webgl2Adapter] }}
                   >
                     {/* HTML overlay — children rendered as absolute-positioned elements */}

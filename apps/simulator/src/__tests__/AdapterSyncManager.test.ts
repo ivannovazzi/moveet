@@ -179,21 +179,21 @@ describe("AdapterSyncManager", () => {
       }).not.toThrow();
     });
 
-    it("should clear interval on stop", () => {
+    it("should clear the sync timer on stop", () => {
       syncManager.startLocationUpdates(5000, function* () {} as any);
-      const interval = (syncManager as any).locationInterval;
-      expect(interval).not.toBeNull();
+      const timer = (syncManager as any).syncTimer;
+      expect(timer).not.toBeNull();
 
       syncManager.stopLocationUpdates();
-      expect((syncManager as any).locationInterval).toBeNull();
+      expect((syncManager as any).syncTimer).toBeNull();
     });
 
-    it("should replace existing interval on second start", () => {
+    it("should replace the existing sync timer on second start", () => {
       syncManager.startLocationUpdates(5000, function* () {} as any);
-      const first = (syncManager as any).locationInterval;
+      const first = (syncManager as any).syncTimer;
 
       syncManager.startLocationUpdates(3000, function* () {} as any);
-      const second = (syncManager as any).locationInterval;
+      const second = (syncManager as any).syncTimer;
 
       expect(second).not.toBe(first);
       syncManager.stopLocationUpdates();
@@ -264,6 +264,188 @@ describe("AdapterSyncManager", () => {
 
       const payload = syncSpy.mock.calls[0][0] as { vehicles: any[] };
       expect(payload.vehicles[0]).not.toHaveProperty("metadata");
+    });
+  });
+
+  // ─── Backoff on sync failures ─────────────────────────────────────
+
+  describe("sync failure backoff", () => {
+    let randomSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      // Eliminate jitter for deterministic timing
+      randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      syncManager.stopLocationUpdates();
+      vi.useRealTimers();
+      randomSpy.mockRestore();
+    });
+
+    it("should back off exponentially on consecutive failures", async () => {
+      const adapter = (syncManager as any).adapter;
+      const syncSpy = vi.spyOn(adapter, "sync").mockRejectedValue(new Error("adapter down"));
+
+      syncManager.startLocationUpdates(1000, function* () {} as any);
+
+      // First attempt at +1000ms — fails
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(syncSpy).toHaveBeenCalledTimes(1);
+
+      // After 1 failure the next attempt is delayed 2× (2000ms), not 1000ms
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(syncSpy).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(syncSpy).toHaveBeenCalledTimes(2);
+
+      // After 2 failures the next attempt is delayed 4× (4000ms)
+      await vi.advanceTimersByTimeAsync(3999);
+      expect(syncSpy).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(syncSpy).toHaveBeenCalledTimes(3);
+    });
+
+    it("should cap the backoff delay", async () => {
+      const adapter = (syncManager as any).adapter;
+      const syncSpy = vi.spyOn(adapter, "sync").mockRejectedValue(new Error("adapter down"));
+
+      syncManager.startLocationUpdates(10_000, function* () {} as any);
+
+      // Fail many times; the delay must never exceed 60s (cap) even though
+      // 10s × 2^n grows past it quickly.
+      await vi.advanceTimersByTimeAsync(10_000); // attempt 1
+      expect(syncSpy).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(20_000); // attempt 2 (2×)
+      expect(syncSpy).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(40_000); // attempt 3 (4×)
+      expect(syncSpy).toHaveBeenCalledTimes(3);
+      await vi.advanceTimersByTimeAsync(60_000); // attempt 4 (capped at 60s, not 80s)
+      expect(syncSpy).toHaveBeenCalledTimes(4);
+      await vi.advanceTimersByTimeAsync(60_000); // attempt 5 (still capped)
+      expect(syncSpy).toHaveBeenCalledTimes(5);
+    });
+
+    it("should reset the delay to the configured interval after a successful sync", async () => {
+      const adapter = (syncManager as any).adapter;
+      const syncSpy = vi
+        .spyOn(adapter, "sync")
+        .mockRejectedValueOnce(new Error("adapter down"))
+        .mockResolvedValue(undefined);
+
+      syncManager.startLocationUpdates(1000, function* () {} as any);
+
+      // First attempt fails
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(syncSpy).toHaveBeenCalledTimes(1);
+
+      // Second attempt at +2000ms succeeds
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(syncSpy).toHaveBeenCalledTimes(2);
+
+      // Back to the normal 1000ms cadence
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(syncSpy).toHaveBeenCalledTimes(3);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(syncSpy).toHaveBeenCalledTimes(4);
+    });
+
+    it("should stop scheduling attempts after stopLocationUpdates", async () => {
+      const adapter = (syncManager as any).adapter;
+      const syncSpy = vi.spyOn(adapter, "sync").mockResolvedValue(undefined);
+
+      syncManager.startLocationUpdates(1000, function* () {} as any);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(syncSpy).toHaveBeenCalledTimes(1);
+
+      syncManager.stopLocationUpdates();
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(syncSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ─── Drain ────────────────────────────────────────────────────────
+
+  describe("drain", () => {
+    it("should resolve immediately when no sync is in flight", async () => {
+      await expect(syncManager.drain(1000)).resolves.toBeUndefined();
+    });
+
+    it("should wait for an in-flight sync to settle", async () => {
+      vi.useFakeTimers();
+      try {
+        const adapter = (syncManager as any).adapter;
+        let resolveSync: () => void = () => {};
+        vi.spyOn(adapter, "sync").mockImplementation(
+          () => new Promise<void>((resolve) => (resolveSync = resolve))
+        );
+
+        syncManager.startLocationUpdates(1000, function* () {} as any);
+        await vi.advanceTimersByTimeAsync(1000); // sync now in flight
+
+        let drained = false;
+        const drainPromise = syncManager.drain(5000).then(() => {
+          drained = true;
+        });
+
+        // Still in flight — drain has not resolved
+        await vi.advanceTimersByTimeAsync(100);
+        expect(drained).toBe(false);
+
+        // Settle the sync — drain resolves
+        resolveSync();
+        await drainPromise;
+        expect(drained).toBe(true);
+      } finally {
+        syncManager.stopLocationUpdates();
+        vi.useRealTimers();
+      }
+    });
+
+    it("should keep tracking the new session's sync when a stale sync settles after a restart", async () => {
+      vi.useFakeTimers();
+      try {
+        const adapter = (syncManager as any).adapter;
+        const resolvers: Array<() => void> = [];
+        vi.spyOn(adapter, "sync").mockImplementation(
+          () => new Promise<void>((resolve) => resolvers.push(resolve))
+        );
+
+        // First session: sync goes in flight and stays pending
+        syncManager.startLocationUpdates(1000, function* () {} as any);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(resolvers).toHaveLength(1);
+
+        // Restart while the first sync is still awaiting; second session's
+        // sync also goes in flight
+        syncManager.startLocationUpdates(1000, function* () {} as any);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(resolvers).toHaveLength(2);
+
+        // The stale (first) sync settles — it must NOT null out the new
+        // session's tracked promise
+        resolvers[0]();
+        await vi.advanceTimersByTimeAsync(0);
+        expect((syncManager as any).inFlightSync).not.toBeNull();
+
+        // drain() still waits for the new session's in-flight sync
+        let drained = false;
+        const drainPromise = syncManager.drain(5000).then(() => {
+          drained = true;
+        });
+        await vi.advanceTimersByTimeAsync(100);
+        expect(drained).toBe(false);
+
+        resolvers[1]();
+        await drainPromise;
+        expect(drained).toBe(true);
+        await vi.advanceTimersByTimeAsync(0);
+        expect((syncManager as any).inFlightSync).toBeNull();
+      } finally {
+        syncManager.stopLocationUpdates();
+        vi.useRealTimers();
+      }
     });
   });
 });

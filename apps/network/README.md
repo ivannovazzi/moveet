@@ -2,6 +2,8 @@
 
 CLI pipeline that downloads OSM road data from Geofabrik, extracts a city bounding box, filters to driveable road classes, and exports a GeoJSON file ready for the simulator.
 
+> **Note:** this is an internal monorepo tool — it is not published to any registry (`"private": true`) and its version is bumped independently of the monorepo release (it is not managed by release-please).
+
 ## Prerequisites
 
 ### osmium-tool

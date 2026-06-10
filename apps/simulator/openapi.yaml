@@ -105,7 +105,7 @@ paths:
       tags: [Simulation]
       responses:
         "200":
-          description: Simulation stopped
+          description: Simulation stopped (idempotent — succeeds even if not running)
           content:
             application/json:
               schema:
@@ -115,6 +115,9 @@ paths:
                   status:
                     type: string
                     enum: [stopped]
+                  wasRunning:
+                    type: boolean
+                    description: Whether the simulation was running before this call
         "500":
           description: Internal server error
           content:

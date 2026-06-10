@@ -51,11 +51,29 @@ describe("loadConfig", () => {
     ]);
   });
 
-  it("handles invalid JSON gracefully", () => {
+  it("throws a clear error naming the env var when SOURCE_CONFIG is invalid JSON", () => {
     process.env.SOURCE_CONFIG = "not-json";
 
+    expect(() => loadConfig()).toThrow(/Invalid JSON in environment variable SOURCE_CONFIG/);
+  });
+
+  it("throws a clear error naming the env var when a sink config is invalid JSON", () => {
+    process.env.SINK_TYPES = "redpanda";
+    process.env.SINK_REDPANDA_CONFIG = "{broken";
+
+    expect(() => loadConfig()).toThrow(/Invalid JSON in environment variable SINK_REDPANDA_CONFIG/);
+  });
+
+  it("throws a clear error naming the env var when REALISM_CONFIG is invalid JSON", () => {
+    process.env.REALISM_CONFIG = "nope";
+
+    expect(() => loadConfig()).toThrow(/Invalid JSON in environment variable REALISM_CONFIG/);
+  });
+
+  it("treats unset JSON config env vars as empty objects", () => {
+    delete process.env.REALISM_CONFIG;
     const cfg = loadConfig();
-    expect(cfg.source.config).toEqual({ count: 20 });
+    expect(cfg.realism).toEqual({});
   });
 
   it("reads custom PORT", () => {

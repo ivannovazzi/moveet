@@ -58,7 +58,11 @@ export class PluginManager {
 
   async setSource(type: string, pluginConfig: PluginConfig = {}): Promise<void> {
     const factory = this.registry.getSourceFactory(type);
-    if (!factory) throw new Error(`Unknown source type: ${type}`);
+    if (!factory) {
+      throw new Error(
+        `Unknown source type: ${type} (valid types: ${this.registry.getSourceTypes().join(", ")})`
+      );
+    }
 
     const source = factory();
     this.registry.cacheSourceMeta(type, source);
@@ -79,7 +83,11 @@ export class PluginManager {
 
   async addSink(type: string, pluginConfig: PluginConfig = {}): Promise<void> {
     const factory = this.registry.getSinkFactory(type);
-    if (!factory) throw new Error(`Unknown sink type: ${type}`);
+    if (!factory) {
+      throw new Error(
+        `Unknown sink type: ${type} (valid types: ${this.registry.getSinkTypes().join(", ")})`
+      );
+    }
 
     const sink = factory();
     this.registry.cacheSinkMeta(type, sink);

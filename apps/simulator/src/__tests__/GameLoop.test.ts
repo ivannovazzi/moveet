@@ -7,6 +7,16 @@ import { RoadNetwork } from "../modules/RoadNetwork";
 import { config } from "../utils/config";
 import type { Vehicle } from "../types";
 import path from "path";
+import logger from "../utils/logger";
+
+// Mock logger to suppress output and allow assertions
+vi.mock("../utils/logger", () => ({
+  default: {
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+  },
+}));
 
 const FIXTURE_PATH = path.join(__dirname, "fixtures", "test-network.geojson");
 
@@ -170,6 +180,56 @@ describe("GameLoop", () => {
 
       expect(clockTickSpy).toHaveBeenCalledTimes(1);
       clockTickSpy.mockRestore();
+    });
+
+    it("should clamp oversized deltas to 2x the loop interval and warn", () => {
+      vi.mocked(logger.warn).mockClear();
+      const clockTickSpy = vi.spyOn(clock, "tick");
+      gameLoop.startVehicleMovement("0", 500);
+
+      // Simulate a long stall (e.g. host sleep): timestamps far in the past
+      const past = Date.now() - 60_000;
+      (gameLoop as any).lastClockTick = past;
+      gameLoop.getLastUpdateTimes().set("0", past);
+
+      gameLoop.gameLoopTick();
+
+      // Clock delta clamped to 2 × 500ms
+      expect(clockTickSpy).toHaveBeenCalledTimes(1);
+      expect(clockTickSpy.mock.calls[0][0]).toBeLessThanOrEqual(1000);
+
+      // Per-vehicle delta clamped too
+      expect(updateCalls).toHaveLength(1);
+      expect(updateCalls[0].deltaMs).toBeLessThanOrEqual(1000);
+
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("clamping"));
+      clockTickSpy.mockRestore();
+    });
+
+    it("should not clamp or warn for normal deltas", () => {
+      vi.mocked(logger.warn).mockClear();
+      gameLoop.startVehicleMovement("0", 500);
+      gameLoop.getLastUpdateTimes().set("0", Date.now() - 250);
+
+      gameLoop.gameLoopTick();
+
+      expect(updateCalls[0].deltaMs).toBeGreaterThanOrEqual(200);
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should continue updating remaining vehicles when one update throws", () => {
+      vi.mocked(logger.error).mockClear();
+      gameLoop.updateVehicleFn = (vehicle: Vehicle, deltaMs: number) => {
+        if (vehicle.id === "0") throw new Error("boom");
+        updateCalls.push({ id: vehicle.id, deltaMs });
+      };
+      gameLoop.startVehicleMovement("0", 500);
+      gameLoop.startVehicleMovement("1", 500);
+
+      expect(() => gameLoop.gameLoopTick()).not.toThrow();
+
+      expect(updateCalls.map((c) => c.id)).toContain("1");
+      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("vehicle 0"));
     });
   });
 

@@ -1,5 +1,14 @@
 # Run the full Moveet stack from published images (no build required).
 # Usage: docker compose -f docker-compose.ghcr.yml up
+#
+# The simulator image does not bundle a road network (apps/simulator/data is
+# gitignored). Generate one first — `npx tsx apps/network/src/cli.ts prepare
+# nairobi` from the repo root — or point the volume below at any
+# simulator-ready GeoJSON file.
+#
+# WARNING: the network.geojson bind mount below must point at an EXISTING
+# file before `docker compose up` — if it is missing, Docker silently creates
+# it as an empty DIRECTORY on the host and the simulator crashes confusingly.
 services:
   simulator:
     image: ghcr.io/ivannovazzi/moveet-simulator:latest
@@ -10,6 +19,9 @@ services:
       - UPDATE_INTERVAL=300
       - USE_ADAPTER=true
       - ADAPTER_URL=http://adapter:5011
+      - GEOJSON_PATH=/data/network.geojson
+    volumes:
+      - ./apps/simulator/data/network.geojson:/data/network.geojson:ro
 
   adapter:
     image: ghcr.io/ivannovazzi/moveet-adapter:latest
@@ -24,6 +36,9 @@ services:
     image: ghcr.io/ivannovazzi/moveet-ui:latest
     ports:
       - "5012:8080"
-    environment:
-      - API_URL=http://simulator:3000
-      - WS_URL=ws://simulator:3000
+    # No environment block: the UI is a static SPA (built by Vite, served by
+    # Caddy). VITE_API_URL / VITE_WS_URL are baked into the bundle at image
+    # BUILD time (see apps/ui/Dockerfile — no build args, so the defaults
+    # http://localhost:5010 / ws://localhost:5010 apply) and cannot be changed
+    # via runtime env vars. The browser reaches the simulator through its
+    # published host port 5010 above, so the baked defaults are correct here.

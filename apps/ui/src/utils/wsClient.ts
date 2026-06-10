@@ -196,6 +196,25 @@ export class WebSocketClient {
     }
   }
 
+  /**
+   * Manually retry after the automatic reconnection gave up: resets the
+   * attempt counter (so backoff starts fresh) and opens a new connection.
+   */
+  retry() {
+    // No-op while a socket exists — connect() would early-return anyway, and
+    // broadcasting "reconnecting" here would leave listeners in a wrong state.
+    if (this.ws) return;
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+    this.reconnectAttempts = 0;
+    // Immediate UI feedback — connect() itself only emits "connecting" on
+    // the very first connection.
+    this.setConnectionState(this.hasEverConnected ? "reconnecting" : "connecting");
+    this.connect();
+  }
+
   disconnect() {
     this.manualClose = true;
     // Clear reconnect timeout when manually disconnecting

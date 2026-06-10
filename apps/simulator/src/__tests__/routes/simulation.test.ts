@@ -109,11 +109,27 @@ describe("Simulation routes", () => {
   });
 
   describe("POST /stop", () => {
-    it("should stop simulation", async () => {
+    it("should stop a running simulation and report wasRunning=true", async () => {
+      (ctx.simulationController.getStatus as ReturnType<typeof vi.fn>).mockReturnValue({
+        running: true,
+        ready: true,
+        interval: 500,
+      });
       const res = await request(app).post("/stop");
       expect(res.status).toBe(200);
-      expect(res.body).toEqual({ status: "stopped" });
+      expect(res.body).toEqual({ status: "stopped", wasRunning: true });
       expect(ctx.simulationController.stop).toHaveBeenCalled();
+    });
+
+    it("should be idempotent: stopping when not running succeeds with wasRunning=false", async () => {
+      const res = await request(app).post("/stop");
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ status: "stopped", wasRunning: false });
+
+      // Repeated stops keep succeeding
+      const res2 = await request(app).post("/stop");
+      expect(res2.status).toBe(200);
+      expect(res2.body).toEqual({ status: "stopped", wasRunning: false });
     });
 
     it("should return 500 if stop throws", async () => {

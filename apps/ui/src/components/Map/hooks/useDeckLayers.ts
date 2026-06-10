@@ -1,4 +1,12 @@
-import { createContext, useContext, useCallback, useRef, useState, useEffect } from "react";
+import {
+  createContext,
+  useContext,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  useEffect,
+} from "react";
 import type { Layer } from "@deck.gl/core";
 
 // ─── Context for child layer registration ──────────────────────────
@@ -73,10 +81,12 @@ export function useDeckLayerManager() {
     [scheduleRebuild]
   );
 
-  const contextValue: DeckLayersContextValue = {
-    registerLayers,
-    unregisterLayers,
-  };
+  // Stable identity — a fresh object every render would re-render every
+  // context consumer (each registered layer component) on every map render.
+  const contextValue: DeckLayersContextValue = useMemo(
+    () => ({ registerLayers, unregisterLayers }),
+    [registerLayers, unregisterLayers]
+  );
 
   return { registeredLayers, contextValue };
 }
