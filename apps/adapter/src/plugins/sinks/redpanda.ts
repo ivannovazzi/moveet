@@ -1,12 +1,9 @@
 import { randomUUID } from "node:crypto";
-import type { Admin, Message, Producer } from "kafkajs";
+import { readFileSync } from "node:fs";
+import { Agent } from "node:https";
+import type { Admin, Message, Producer, SASLOptions } from "kafkajs";
 import { Kafka } from "kafkajs";
 import { SchemaRegistry, SchemaType } from "@kafkajs/confluent-schema-registry";
-import {
-  TELEMETRY_LOCATION_AVRO_SCHEMA,
-  TELEMETRY_LOCATION_AVRO_SUBJECT,
-  TELEMETRY_LOCATION_EVENT_TYPE,
-} from "@moveet/shared-types";
 import type {
   ConfigField,
   DataSink,
@@ -21,6 +18,99 @@ const logger = createLogger("RedpandaSink");
 
 /** Default timeout for health check broker probe (ms). Overridable via `healthCheckTimeoutMs` config. */
 const DEFAULT_HEALTH_CHECK_TIMEOUT_MS = 5000;
+
+// ─── Canonical Telemetry AVRO Schema ────────────────────────────────
+//
+// The platform's canonical telemetry-ingest envelope, published Confluent-AVRO
+// encoded to `telemetry.device.raw`. Field order and types MUST match the
+// platform's registered schema exactly — do not reorder or retype fields. This
+// is config of the redpanda sink (the only producer of these events), not a
+// shared cross-app type.
+
+/**
+ * Confluent-AVRO schema for the canonical `telemetry.location.reported` event.
+ * Registered under subject `telemetry.device.raw-telemetry.location.reported`.
+ */
+export const TELEMETRY_LOCATION_AVRO_SCHEMA = {
+  type: "record",
+  name: "TelemetryLocationEvent",
+  namespace: "telemetry.ingest",
+  fields: [
+    { name: "event_id", type: "string" },
+    { name: "event_type", type: "string" },
+    { name: "event_version", type: "int" },
+    { name: "occurred_at", type: "string" },
+    {
+      name: "source",
+      type: {
+        type: "record",
+        name: "EventSource",
+        fields: [
+          { name: "service", type: "string" },
+          { name: "environment", type: "string" },
+        ],
+      },
+    },
+    {
+      name: "metadata",
+      type: {
+        type: "record",
+        name: "EventMetadata",
+        fields: [
+          { name: "correlation_id", type: ["null", "string"], default: null },
+          { name: "causation_id", type: ["null", "string"], default: null },
+          { name: "trace_id", type: ["null", "string"], default: null },
+        ],
+      },
+    },
+    {
+      name: "data",
+      type: {
+        type: "record",
+        name: "TelemetryLocationData",
+        fields: [
+          { name: "device_id", type: "string" },
+          {
+            name: "source",
+            type: { type: "enum", name: "TelemetrySource", symbols: ["GPS", "MOBILE"] },
+          },
+          { name: "recorded_at", type: "string" },
+          { name: "latitude", type: "double" },
+          { name: "longitude", type: "double" },
+          { name: "accuracy_meters", type: ["null", "double"], default: null },
+          { name: "speed_mps", type: ["null", "double"], default: null },
+          { name: "heading_degrees", type: ["null", "double"], default: null },
+          { name: "altitude_meters", type: ["null", "double"], default: null },
+          { name: "satellites", type: ["null", "int"], default: null },
+          { name: "ignition_on", type: ["null", "boolean"], default: null },
+          { name: "moving", type: ["null", "boolean"], default: null },
+          { name: "battery_level", type: ["null", "double"], default: null },
+          { name: "battery_charging", type: ["null", "boolean"], default: null },
+          { name: "network", type: ["null", "string"], default: null },
+          {
+            name: "position_origin",
+            type: [
+              "null",
+              {
+                type: "enum",
+                name: "PositionOrigin",
+                symbols: ["GPS", "NETWORK", "PASSIVE", "UNKNOWN"],
+              },
+            ],
+            default: null,
+          },
+          { name: "sensor_readings", type: { type: "map", values: "string" }, default: {} },
+        ],
+      },
+    },
+  ],
+} as const;
+
+/** Subject under which the canonical schema is registered in Schema Registry. */
+export const TELEMETRY_LOCATION_AVRO_SUBJECT = "telemetry.device.raw-telemetry.location.reported";
+
+/** Canonical `event_type` for telemetry location reports. */
+export const TELEMETRY_LOCATION_EVENT_TYPE = "telemetry.location.reported";
 
 /**
  * A single value in a {@link PayloadTemplate}. Resolved per-message against the
@@ -121,6 +211,24 @@ function resolveToken(token: TemplateToken, context: MessageContext): unknown {
   return resolveTemplate(token as PayloadTemplate, context);
 }
 
+/** kafkajs `ssl` option once resolved: either `true` (system CAs) or explicit cert material. */
+type ResolvedSsl =
+  | true
+  | { ca?: string[]; cert?: string; key?: string; rejectUnauthorized: boolean };
+
+/** SASL mechanisms supported by the sink (kafkajs username/password mechanisms). */
+const SASL_MECHANISMS = ["plain", "scram-sha-256", "scram-sha-512"] as const;
+
+/**
+ * Resolve TLS cert material from config: inline PEM (a string containing
+ * `-----BEGIN`) is used verbatim, otherwise the value is treated as a filesystem
+ * path and read. Lets docker wire cert paths while tests pass inline PEM.
+ */
+function readCertMaterial(value: unknown): string {
+  const s = String(value);
+  return s.includes("-----BEGIN") ? s : readFileSync(s, "utf8");
+}
+
 export class RedpandaSink implements DataSink {
   readonly type = "redpanda";
   readonly name = "Redpanda/Kafka Message Broker";
@@ -165,6 +273,48 @@ export class RedpandaSink implements DataSink {
       placeholder: "http://localhost:18081",
       description: "Confluent Schema Registry endpoint, used by the canonical-avro format.",
     },
+    {
+      name: "tlsCa",
+      label: "TLS CA",
+      type: "string",
+      placeholder: "/certs/ca (path) or inline PEM",
+      description:
+        "CA certificate for broker + Schema Registry TLS. Presence of any TLS field enables TLS.",
+    },
+    {
+      name: "tlsCert",
+      label: "TLS Client Cert",
+      type: "string",
+      placeholder: "/certs/crt (path) or inline PEM",
+      description: "Client certificate for mutual TLS.",
+    },
+    {
+      name: "tlsKey",
+      label: "TLS Client Key",
+      type: "string",
+      placeholder: "/certs/key (path) or inline PEM",
+      description: "Client private key for mutual TLS.",
+    },
+    {
+      name: "tlsRejectUnauthorized",
+      label: "TLS Reject Unauthorized",
+      type: "boolean",
+      default: true,
+      description: "Set false to skip cert-chain verification (dev only).",
+    },
+    {
+      name: "saslMechanism",
+      label: "SASL Mechanism",
+      type: "select",
+      options: [
+        { label: "PLAIN", value: "plain" },
+        { label: "SCRAM-SHA-256", value: "scram-sha-256" },
+        { label: "SCRAM-SHA-512", value: "scram-sha-512" },
+      ],
+      description: "Presence of SASL fields enables SASL auth.",
+    },
+    { name: "saslUsername", label: "SASL Username", type: "string" },
+    { name: "saslPassword", label: "SASL Password", type: "password" },
     {
       name: "sourceService",
       label: "Source Service",
@@ -237,6 +387,52 @@ export class RedpandaSink implements DataSink {
   private defaultAccuracy = 5;
   private healthCheckTimeoutMs: number = DEFAULT_HEALTH_CHECK_TIMEOUT_MS;
 
+  /**
+   * Resolve the kafkajs `ssl` option from config. TLS is enabled when any of
+   * `tlsCa` / `tlsCert` / `tlsKey` is set, or `tlsRejectUnauthorized` is
+   * explicitly `false`. With no cert material (but TLS on), returns `true` to
+   * use the system CA store. Returns `undefined` when TLS is not configured
+   * (preserving the prior plaintext behaviour).
+   */
+  private resolveSsl(config: PluginConfig): ResolvedSsl | undefined {
+    const ca = config.tlsCa != null && config.tlsCa !== "" ? config.tlsCa : undefined;
+    const cert = config.tlsCert != null && config.tlsCert !== "" ? config.tlsCert : undefined;
+    const key = config.tlsKey != null && config.tlsKey !== "" ? config.tlsKey : undefined;
+    const explicitReject = config.tlsRejectUnauthorized === false;
+    if (!ca && !cert && !key && !explicitReject) return undefined;
+    return {
+      ...(ca ? { ca: [readCertMaterial(ca)] } : {}),
+      ...(cert ? { cert: readCertMaterial(cert) } : {}),
+      ...(key ? { key: readCertMaterial(key) } : {}),
+      rejectUnauthorized: !explicitReject,
+    };
+  }
+
+  /**
+   * Resolve the kafkajs `sasl` option from config. SASL is enabled when any of
+   * `saslMechanism` / `saslUsername` / `saslPassword` is set; mechanism defaults
+   * to PLAIN. Throws on an unsupported mechanism or missing credentials so a
+   * misconfiguration fails fast in connect() rather than on first publish.
+   */
+  private resolveSasl(config: PluginConfig): SASLOptions | undefined {
+    const hasAny = config.saslMechanism || config.saslUsername || config.saslPassword;
+    if (!hasAny) return undefined;
+    const mechanism = String(config.saslMechanism || "plain").toLowerCase();
+    if (!SASL_MECHANISMS.includes(mechanism as (typeof SASL_MECHANISMS)[number])) {
+      throw new Error(
+        `RedpandaSink: invalid saslMechanism "${config.saslMechanism}" (must be one of ${SASL_MECHANISMS.join(", ")})`
+      );
+    }
+    const username = config.saslUsername != null ? String(config.saslUsername) : "";
+    const password = config.saslPassword != null ? String(config.saslPassword) : "";
+    if (username === "" || password === "") {
+      throw new Error(
+        "RedpandaSink: saslUsername and saslPassword are required when SASL is enabled"
+      );
+    }
+    return { mechanism, username, password } as SASLOptions;
+  }
+
   async connect(config: PluginConfig): Promise<void> {
     const brokers = ((config.brokers as string) || "localhost:19092").split(",");
     this.topic = (config.topic as string) || "dispatch.vehicle.positions";
@@ -296,9 +492,14 @@ export class RedpandaSink implements DataSink {
         ? healthCheckTimeout
         : DEFAULT_HEALTH_CHECK_TIMEOUT_MS;
 
+    const ssl = this.resolveSsl(config);
+    const sasl = this.resolveSasl(config);
+
     this.kafka = new Kafka({
       clientId: "moveet-adapter",
       brokers,
+      ...(ssl ? { ssl } : {}),
+      ...(sasl ? { sasl } : {}),
     });
 
     this.producer = this.kafka.producer({ allowAutoTopicCreation: false });
@@ -324,7 +525,22 @@ export class RedpandaSink implements DataSink {
       // schema with Schema Registry and cache the returned schema id, which
       // every encode() prefixes onto the wire payload (Confluent framing).
       if (this.format === "canonical-avro") {
-        this.registry = new SchemaRegistry({ host: this.schemaRegistryUrl });
+        // When TLS is configured with explicit cert material, the Schema
+        // Registry (HTTPS, possibly mutual-TLS) needs a matching https.Agent —
+        // the registry client has no ssl option of its own, only `agent`.
+        const agent =
+          ssl && ssl !== true
+            ? new Agent({
+                ...(ssl.ca ? { ca: ssl.ca } : {}),
+                ...(ssl.cert ? { cert: ssl.cert } : {}),
+                ...(ssl.key ? { key: ssl.key } : {}),
+                rejectUnauthorized: ssl.rejectUnauthorized,
+              })
+            : undefined;
+        this.registry = new SchemaRegistry({
+          host: this.schemaRegistryUrl,
+          ...(agent ? { agent } : {}),
+        });
         const registered = await this.registry.register(
           {
             type: SchemaType.AVRO,
