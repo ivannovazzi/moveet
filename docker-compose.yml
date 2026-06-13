@@ -1,8 +1,11 @@
-# Local-from-source Moveet stack, wired to the trajectory-engine integration.
+# Local-from-source Moveet stack, wired to the FLARE DEV environment.
 #
-# Builds the monorepo (workspace-aware, see ./Dockerfile) and joins the shared
-# `suite_redpanda` broker so the simulator's telemetry feeds the trajectory
-# engine on topic `telemetry.device.raw`.
+# Builds the monorepo (workspace-aware, see ./Dockerfile) and:
+#   - loads the fleet roster from the connector (dispatch-cc-consumer) running
+#     on the host (http://host.docker.internal:3002)
+#   - publishes canonical telemetry to the dev Redpanda cluster
+#     (rp1.redpanda.flare-dev:9093) over mutual-TLS + SASL/SCRAM-512, on topic
+#     `telemetry.device.clean` (the topic the connector consumes).
 #
 #   docker compose up -d --build     # build images + start the whole stack
 #   docker compose logs -f           # follow logs
@@ -14,7 +17,13 @@
 # UI:        http://localhost:5012
 # Simulator: http://localhost:5010   Adapter: http://localhost:5011
 #
-# Requires the external `suite_network` (the shared suite dev stack) to exist.
+# Prerequisites:
+#   - On the office VPN (the dev broker resolves to a VPN-internal IP, pinned
+#     via extra_hosts below).
+#   - The connector (dispatch-cc-consumer) running on the host on :3002.
+#   - The dev Redpanda certs at "~/Projects/flare/certificates/redpanda dev"
+#     (mounted read-only at /certs) and REDPANDA_PASSWORD set in ./.env.
+#   - The `telemetry.device.clean` topic created on the dev broker.
 name: moveet
 
 services:
@@ -33,25 +42,51 @@ services:
       # and GROUPS assignments by vehicleId → one simulated entity per vehicle,
       # with its device(s) in metadata.devices[] ({id:deviceId, deviceType}). The
       # sink fans those out, co-located at the vehicle's position (no jumping).
+      # The connector (dispatch-cc-consumer) runs on the HOST, reached via
+      # host.docker.internal (mapped to host-gateway below).
       # (Use SOURCE_TYPE: static + SOURCE_CONFIG '{"count":N}' for synthetic.)
       SOURCE_TYPE: rest
-      SOURCE_CONFIG: '{"url":"http://suite_connector:3002/api/fleet/roster","vehiclePath":"assignments","groupBy":"vehicleId","fieldMap":{"id":"deviceId"},"metadataMap":{"deviceType":"deviceType"},"limit":100}'
+      SOURCE_CONFIG: '{"url":"http://host.docker.internal:3002/api/fleet/roster","vehiclePath":"assignments","groupBy":"vehicleId","fieldMap":{"id":"deviceId"},"metadataMap":{"deviceType":"deviceType"},"limit":100}'
       SINK_TYPES: redpanda,console
       SINK_CONSOLE_CONFIG: '{"verbose":false}'
-      # Publishes the platform's canonical telemetry envelope (Confluent-AVRO,
-      # registered in the suite Schema Registry) to its input topic on the
-      # shared broker. fanOut emits one message per device in metadata.devices[],
-      # all at the vehicle's shared position, keyed by the real deviceId
-      # (device.id). The suite registry is reachable at http://suite_redpanda:8081
-      # inside suite_network.
-      SINK_REDPANDA_CONFIG: '{"brokers":"suite_redpanda:9092","topic":"telemetry.device.raw","format":"canonical-avro","schemaRegistryUrl":"http://suite_redpanda:8081","keyField":"device.id","fanOut":"metadata.devices","sourceService":"moveet-simulator","sourceEnvironment":"dev"}'
+      # --- DEV Redpanda sink (DISABLED). Publishes the platform's canonical
+      # telemetry envelope (Confluent-AVRO, registered in the dev Schema Registry)
+      # to topic `telemetry.device.clean` on the dev broker. fanOut emits one
+      # message per device in metadata.devices[], keyed by the real deviceId
+      # (device.id). The dev broker requires mutual-TLS (certs at /certs) +
+      # SASL/SCRAM-512; the registry is HTTPS and shares the same client certs.
+      # The SCRAM password is interpolated from ./.env (REDPANDA_PASSWORD).
+      # Re-enable this line (and comment out the LOCAL one below) to publish to
+      # dev — requires the office VPN.
+      # SINK_REDPANDA_CONFIG: '{"brokers":"rp1.redpanda.flare-dev:9093","topic":"telemetry.device.clean","format":"canonical-avro","schemaRegistryUrl":"https://rp1.redpanda.flare-dev:8083","keyField":"device.id","fanOut":"metadata.devices","sourceService":"moveet-simulator","sourceEnvironment":"dev","tlsCa":"/certs/ca","tlsCert":"/certs/crt","tlsKey":"/certs/key","saslMechanism":"scram-sha-512","saslUsername":"flare-cc","saslPassword":"${REDPANDA_PASSWORD}"}'
+      # --- LOCAL Redpanda sink (ACTIVE). Publishes to the system-plane
+      # `suite_redpanda` broker over the shared `suite_network` (plaintext, no
+      # auth), so the locally-running connector consumes it. Internal addresses
+      # (suite_redpanda:9092 / :8081) are required because the broker advertises
+      # its external listener as `localhost:19092`, unreachable from another
+      # container — hence the adapter joins `suite_network` (see networks: below).
+      SINK_REDPANDA_CONFIG: '{"brokers":"suite_redpanda:9092","topic":"telemetry.device.clean","format":"canonical-avro","schemaRegistryUrl":"http://suite_redpanda:8081","keyField":"device.id","fanOut":"metadata.devices","sourceService":"moveet-simulator","sourceEnvironment":"local"}'
       # Telemetry realism (off by default): correlated GPS noise + connectivity
       # dropouts (store-and-forward) + jittered cadence, applied to all sinks.
       # REALISM_CONFIG: '{"enabled":true,"reportingPeriodMs":5000,"jitterMs":800}'
     ports:
       - "5011:5011"
     networks:
+      # `default` keeps adapter<->simulator/ui reachable by service name.
+      - default
+      # `suite_network` is system-plane's broker network, so the adapter can
+      # resolve suite_redpanda:9092 / :8081 for the LOCAL sink above.
       - suite_network
+    volumes:
+      # Dev Redpanda client certs (ca/crt/key), read-only. The space in the dir
+      # name is fine inside the quoted source path.
+      - "${HOME}/Projects/flare/certificates/redpanda dev:/certs:ro"
+    extra_hosts:
+      # The dev broker + registry resolve to a VPN-internal IP that Docker's DNS
+      # can't see; pin the hostname so the TLS cert (CN/SAN) still validates.
+      - "rp1.redpanda.flare-dev:10.1.3.40"
+      # Reach connector + other services running on the host.
+      - "host.docker.internal:host-gateway"
 
   simulator:
     build:
@@ -76,8 +111,6 @@ services:
       - ./apps/simulator/data/network.geojson:/data/network.geojson:ro
     ports:
       - "5010:3000"
-    networks:
-      - suite_network
 
   ui:
     build:
@@ -85,9 +118,11 @@ services:
       target: ui
     ports:
       - "5012:8080"
-    networks:
-      - suite_network
 
+# The three services talk to each other over compose's default network by
+# service name. The adapter additionally joins `suite_network` (the external
+# system-plane broker network) so it can publish to the LOCAL suite_redpanda.
+# When switching back to the dev sink, this network attachment is harmless.
 networks:
   suite_network:
     external: true

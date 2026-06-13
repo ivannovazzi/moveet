@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { TELEMETRY_LOCATION_AVRO_SUBJECT } from "@moveet/shared-types";
-import { RedpandaSink } from "./redpanda";
+import { RedpandaSink, TELEMETRY_LOCATION_AVRO_SUBJECT } from "./redpanda";
 
 // Mock kafkajs so we can intercept producer.send() and admin calls
 const mockSend = vi.fn().mockResolvedValue(undefined);
@@ -16,8 +15,13 @@ const mockDescribeCluster = vi.fn().mockResolvedValue({
   clusterId: "test-cluster",
 });
 
+let lastKafkaConfig: Record<string, unknown> | undefined;
+
 vi.mock("kafkajs", () => {
   class MockKafka {
+    constructor(config: Record<string, unknown>) {
+      lastKafkaConfig = config;
+    }
     producer() {
       return {
         connect: mockConnect,
@@ -45,11 +49,13 @@ const mockEncode = vi.fn(async (_id: number, payload: unknown) =>
   Buffer.from(JSON.stringify(payload))
 );
 let lastRegistryHost: string | undefined;
+let lastRegistryArgs: { host: string; agent?: unknown } | undefined;
 
 vi.mock("@kafkajs/confluent-schema-registry", () => {
   class MockSchemaRegistry {
-    constructor(args: { host: string }) {
+    constructor(args: { host: string; agent?: unknown }) {
       lastRegistryHost = args.host;
+      lastRegistryArgs = args;
     }
     register = mockRegister;
     encode = mockEncode;
@@ -690,8 +696,9 @@ describe("RedpandaSink", () => {
 
       // data payload (telemetry mapping).
       expect(envelope.data).toMatchObject({
-        // device_id is context.id (the vehicle id); the Kafka key is device.id.
-        device_id: "v1",
+        // Under fanOut, device_id is the fanned-out device's id (not the
+        // vehicle/group id), matching the Kafka key (device.id).
+        device_id: "d1",
         source: "GPS",
         latitude: -1.2863,
         longitude: 36.8172,
@@ -761,6 +768,23 @@ describe("RedpandaSink", () => {
       expect(messages.map((m: { key: string }) => m.key)).toEqual(["d1", "d2"]);
       expect(messages.every((m: { value: unknown }) => Buffer.isBuffer(m.value))).toBe(true);
       expect(mockEncode).toHaveBeenCalledTimes(2);
+      // Each encoded payload's device_id is its own fanned-out device id, never
+      // the shared vehicle/group id ("v1").
+      expect(
+        mockEncode.mock.calls.map((c) => (c[1] as Record<string, any>).data.device_id)
+      ).toEqual(["d1", "d2"]);
+    });
+
+    it("falls back to the entity id for device_id when fanOut is unset", async () => {
+      await sink.connect({
+        brokers: "localhost:9092",
+        format: "canonical-avro",
+        keyField: "id",
+      });
+      await sink.publishUpdates([{ id: "v1", latitude: 0, longitude: 0 }]);
+
+      const envelope = mockEncode.mock.calls[0][1] as Record<string, any>;
+      expect(envelope.data.device_id).toBe("v1");
     });
 
     it("emits nothing for an update with no devices when fanOut is set", async () => {
@@ -774,6 +798,97 @@ describe("RedpandaSink", () => {
 
       expect(mockSend.mock.calls[0][0].messages).toHaveLength(0);
       expect(mockEncode).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("TLS + SASL", () => {
+    const CA = "-----BEGIN CERTIFICATE-----\nCA\n-----END CERTIFICATE-----";
+    const CERT = "-----BEGIN CERTIFICATE-----\nCERT\n-----END CERTIFICATE-----";
+    const KEY = "-----BEGIN PRIVATE KEY-----\nKEY\n-----END PRIVATE KEY-----";
+
+    it("omits ssl and sasl when not configured (plaintext back-compat)", async () => {
+      await sink.connect({ brokers: "localhost:9092" });
+      expect(lastKafkaConfig).toBeDefined();
+      expect(lastKafkaConfig).not.toHaveProperty("ssl");
+      expect(lastKafkaConfig).not.toHaveProperty("sasl");
+    });
+
+    it("passes inline-PEM mutual TLS + SASL to the Kafka client", async () => {
+      await sink.connect({
+        brokers: "rp1:9093",
+        tlsCa: CA,
+        tlsCert: CERT,
+        tlsKey: KEY,
+        saslMechanism: "scram-sha-512",
+        saslUsername: "flare-cc",
+        saslPassword: "secret",
+      });
+
+      expect(lastKafkaConfig!.ssl).toEqual({
+        ca: [CA],
+        cert: CERT,
+        key: KEY,
+        rejectUnauthorized: true,
+      });
+      expect(lastKafkaConfig!.sasl).toEqual({
+        mechanism: "scram-sha-512",
+        username: "flare-cc",
+        password: "secret",
+      });
+    });
+
+    it("honours tlsRejectUnauthorized: false", async () => {
+      await sink.connect({ brokers: "rp1:9093", tlsRejectUnauthorized: false });
+      expect(lastKafkaConfig!.ssl).toEqual({ rejectUnauthorized: false });
+    });
+
+    it("defaults the SASL mechanism to PLAIN", async () => {
+      await sink.connect({ brokers: "rp1:9093", saslUsername: "u", saslPassword: "p" });
+      expect((lastKafkaConfig!.sasl as { mechanism: string }).mechanism).toBe("plain");
+    });
+
+    it("rejects an unsupported SASL mechanism", async () => {
+      await expect(
+        sink.connect({
+          brokers: "rp1:9093",
+          saslMechanism: "kerberos",
+          saslUsername: "u",
+          saslPassword: "p",
+        })
+      ).rejects.toThrow(/invalid saslMechanism/);
+    });
+
+    it("requires username and password when SASL is enabled", async () => {
+      await expect(
+        sink.connect({ brokers: "rp1:9093", saslMechanism: "scram-sha-512" })
+      ).rejects.toThrow(/saslUsername and saslPassword are required/);
+    });
+
+    it("gives the Schema Registry an mTLS agent carrying the cert material", async () => {
+      await sink.connect({
+        brokers: "rp1:9093",
+        format: "canonical-avro",
+        schemaRegistryUrl: "https://rp1:8083",
+        tlsCa: CA,
+        tlsCert: CERT,
+        tlsKey: KEY,
+      });
+
+      expect(lastRegistryArgs!.agent).toBeDefined();
+      const agentOptions = (lastRegistryArgs!.agent as { options: Record<string, unknown> })
+        .options;
+      expect(agentOptions.ca).toEqual([CA]);
+      expect(agentOptions.cert).toBe(CERT);
+      expect(agentOptions.key).toBe(KEY);
+    });
+
+    it("creates no registry agent when TLS is not configured", async () => {
+      await sink.connect({
+        brokers: "localhost:9092",
+        format: "canonical-avro",
+        schemaRegistryUrl: "http://registry:8081",
+      });
+      expect(lastRegistryArgs!.agent).toBeUndefined();
     });
   });
 
