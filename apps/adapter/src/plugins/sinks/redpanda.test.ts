@@ -696,8 +696,9 @@ describe("RedpandaSink", () => {
 
       // data payload (telemetry mapping).
       expect(envelope.data).toMatchObject({
-        // device_id is context.id (the vehicle id); the Kafka key is device.id.
-        device_id: "v1",
+        // Under fanOut, device_id is the fanned-out device's id (not the
+        // vehicle/group id), matching the Kafka key (device.id).
+        device_id: "d1",
         source: "GPS",
         latitude: -1.2863,
         longitude: 36.8172,
@@ -767,6 +768,23 @@ describe("RedpandaSink", () => {
       expect(messages.map((m: { key: string }) => m.key)).toEqual(["d1", "d2"]);
       expect(messages.every((m: { value: unknown }) => Buffer.isBuffer(m.value))).toBe(true);
       expect(mockEncode).toHaveBeenCalledTimes(2);
+      // Each encoded payload's device_id is its own fanned-out device id, never
+      // the shared vehicle/group id ("v1").
+      expect(
+        mockEncode.mock.calls.map((c) => (c[1] as Record<string, any>).data.device_id)
+      ).toEqual(["d1", "d2"]);
+    });
+
+    it("falls back to the entity id for device_id when fanOut is unset", async () => {
+      await sink.connect({
+        brokers: "localhost:9092",
+        format: "canonical-avro",
+        keyField: "id",
+      });
+      await sink.publishUpdates([{ id: "v1", latitude: 0, longitude: 0 }]);
+
+      const envelope = mockEncode.mock.calls[0][1] as Record<string, any>;
+      expect(envelope.data.device_id).toBe("v1");
     });
 
     it("emits nothing for an update with no devices when fanOut is set", async () => {

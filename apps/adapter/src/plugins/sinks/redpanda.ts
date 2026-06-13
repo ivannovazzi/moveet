@@ -711,11 +711,19 @@ export class RedpandaSink implements DataSink {
    * `data.source` is GPS unless the device/update metadata marks it `mobile`.
    */
   private buildCanonicalEnvelope(context: MessageContext): Record<string, unknown> {
+    const device =
+      context.device != null && typeof context.device === "object"
+        ? (context.device as Record<string, unknown>)
+        : undefined;
+    // Under `fanOut`, `context.id` is the GROUP id (e.g. the vehicleId), while
+    // each fanned-out element carries the real per-device id. Prefer that so the
+    // canonical `device_id` matches a device the consumer knows; fall back to
+    // `context.id` when there's no fan-out (one entity per item).
+    const deviceId =
+      device?.id != null && String(device.id) !== "" ? String(device.id) : String(context.id);
     const deviceType =
       (context.metadata?.deviceType as string | undefined) ??
-      (context.device != null && typeof context.device === "object"
-        ? ((context.device as Record<string, unknown>).deviceType as string | undefined)
-        : undefined);
+      (device?.deviceType as string | undefined);
     const telemetrySource = deviceType === "mobile" ? "MOBILE" : "GPS";
 
     return {
@@ -726,7 +734,7 @@ export class RedpandaSink implements DataSink {
       source: { service: this.sourceService, environment: this.sourceEnvironment },
       metadata: { correlation_id: null, causation_id: null, trace_id: null },
       data: {
-        device_id: String(context.id),
+        device_id: deviceId,
         source: telemetrySource,
         recorded_at: new Date(context.ts).toISOString(),
         latitude: context.lat,
