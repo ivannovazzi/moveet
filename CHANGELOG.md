@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.0.8](https://github.com/ivannovazzi/moveet/compare/v0.0.7...v0.0.8) (2026-06-13)
+
+
+### Features
+
+* **adapter:** emit trajectory-engine telemetry from redpanda sink ([#141](https://github.com/ivannovazzi/moveet/issues/141)) ([136288e](https://github.com/ivannovazzi/moveet/commit/136288e5ac5d4f43245e14d5cb1b5e57251b2c08))
+* emit real GPS device IDs from generated/recorded simulations ([#146](https://github.com/ivannovazzi/moveet/issues/146)) ([5d71fb3](https://github.com/ivannovazzi/moveet/commit/5d71fb30f01edc1400bee1b603ffb9bafd4d1479))
+* telemetry realism engine (GPS noise, dropouts, cadence jitter) ([#142](https://github.com/ivannovazzi/moveet/issues/142)) ([cbcbdf1](https://github.com/ivannovazzi/moveet/commit/cbcbdf1f3cf5d55e9ff2ca83a6100c219fd2f7e3))
+* UI-driven historical telemetry generation and replay through sinks ([#143](https://github.com/ivannovazzi/moveet/issues/143)) ([3b8ee4e](https://github.com/ivannovazzi/moveet/commit/3b8ee4eddc17eb7cb871dbbf99cc9e358b1da771))
+* **ui:** inline waypoint editing on dispatch map ([#131](https://github.com/ivannovazzi/moveet/issues/131)) ([7ec844c](https://github.com/ivannovazzi/moveet/commit/7ec844c3154e64069ef8325b09321d6b9e8b9c2d))
+* **ui:** migrate to Tailwind v4 + shadcn/ui with professional dark glass theme ([#156](https://github.com/ivannovazzi/moveet/issues/156)) ([4d1e0b8](https://github.com/ivannovazzi/moveet/commit/4d1e0b864e9be2fe2e553c6a1be2b71e97cfd5c4))
+
+
+### Bug Fixes
+
+* address all high and medium audit findings (51 items across simulator, adapter, ui, monorepo) ([#164](https://github.com/ivannovazzi/moveet/issues/164)) ([2df9862](https://github.com/ivannovazzi/moveet/commit/2df9862758e9f719d7ae66ef7421b87e9d93a236))
+* critical + high audit findings across sim/ui/adapter ([#139](https://github.com/ivannovazzi/moveet/issues/139)) ([38f0ce1](https://github.com/ivannovazzi/moveet/commit/38f0ce1ab7441a6e76892309ce4f3bbc5fccdda0))
+* **shared-types:** make AVRO schema redpanda-sink config, fix ESM load under plain node ([#165](https://github.com/ivannovazzi/moveet/issues/165)) ([b41926c](https://github.com/ivannovazzi/moveet/commit/b41926c486a99a4d985e16bb3a5f77c3361b7794))
+* **ui:** route path rendering + geofence draw UX ([#130](https://github.com/ivannovazzi/moveet/issues/130)) ([d165266](https://github.com/ivannovazzi/moveet/commit/d16526604f5f27022ae5f8e567b25adf24b8107e))
+
 ## [0.0.7](https://github.com/ivannovazzi/moveet/compare/v0.0.6...v0.0.7) (2026-03-24)
 
 
