@@ -36,11 +36,11 @@ jobs:
       matrix:
         include:
           - image: moveet-simulator
-            context: apps/simulator
+            target: simulator
           - image: moveet-adapter
-            context: apps/adapter
+            target: adapter
           - image: moveet-ui
-            context: apps/ui
+            target: ui
 
     steps:
       - uses: actions/checkout@v6
@@ -66,7 +66,12 @@ jobs:
 
       - uses: docker/build-push-action@v7
         with:
-          context: ${{ matrix.context }}
+          # Build from the repo root with the workspace-aware Dockerfile so the
+          # unpublished @moveet/* workspace packages resolve via npm ci. The
+          # per-app Dockerfiles install in isolation and 404 on those packages.
+          context: .
+          file: Dockerfile
+          target: ${{ matrix.target }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
