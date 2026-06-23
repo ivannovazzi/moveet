@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.9](https://github.com/ivannovazzi/moveet/compare/v0.0.8...v0.0.9) (2026-06-23)
+
+
+### Bug Fixes
+
+* **ci:** build release images from workspace-aware root Dockerfile ([#174](https://github.com/ivannovazzi/moveet/issues/174)) ([543ead9](https://github.com/ivannovazzi/moveet/commit/543ead948ab5ed16535e94a83d453343a6b7ac0f))
+
 ## [0.0.8](https://github.com/ivannovazzi/moveet/compare/v0.0.7...v0.0.8) (2026-06-13)
 
 
