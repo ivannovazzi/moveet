@@ -2,11 +2,11 @@ import type { VehicleManager } from "./VehicleManager";
 import type { IncidentManager } from "./IncidentManager";
 import type { SimulationClock } from "./SimulationClock";
 import { ReplayManager } from "./ReplayManager";
+import type { ResetPayload } from "@moveet/shared-types";
 import type {
   ClockState,
   DirectionRequest,
   DirectionResult,
-  Direction,
   Incident,
   RecordingHeader,
   ReplayStatus,
@@ -18,11 +18,6 @@ import type {
 import { TIME_INTERVALS } from "../constants";
 import { config } from "../utils/config";
 import EventEmitter from "events";
-
-interface ResetPayload {
-  vehicles: VehicleDTO[];
-  directions: Direction[];
-}
 
 type EventEmitterMap = {
   updateStatus: [SimulationStatus];
@@ -39,7 +34,7 @@ type EventEmitterMap = {
   "replaySimulation:start": [unknown];
   "replaySimulation:stop": [unknown];
   "replaySimulation:reset": [unknown];
-  clock: [ClockState | undefined];
+  clock: [ClockState];
 };
 
 export class SimulationController extends EventEmitter<EventEmitterMap> {
@@ -216,9 +211,12 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
       this.vehicleManager.getNetwork().generateHeatedZones();
     }, TIME_INTERVALS.HEAT_ZONE_REGEN_INTERVAL);
 
-    // Wire clock hour:changed to broadcast clock events
+    // Wire clock hour:changed to broadcast clock events. Only emit when the
+    // clock state is actually present so consumers never receive an undefined
+    // clock payload over the wire.
     this._onClockHourChanged = (_hour: number, _timeOfDay: string) => {
-      this.emit("clock", this.getStatus().clock);
+      const clock = this.getStatus().clock;
+      if (clock) this.emit("clock", clock);
     };
     this.vehicleManager.clock.on("hour:changed", this._onClockHourChanged);
 

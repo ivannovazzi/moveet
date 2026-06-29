@@ -6,8 +6,10 @@ function createMockRegistry() {
   const vehicles = new Map<string, Vehicle>();
   return {
     get: vi.fn((id: string) => vehicles.get(id)),
+    has: vi.fn((id: string) => vehicles.has(id)),
     getAll: vi.fn(() => vehicles),
     _set: (id: string, v: Vehicle) => vehicles.set(id, v),
+    _delete: (id: string) => vehicles.delete(id),
   };
 }
 
@@ -188,6 +190,36 @@ describe("AnalyticsAccumulator", () => {
       expect(snapshot.summary).toBeDefined();
       expect(snapshot.fleets).toHaveLength(1);
       expect(snapshot.fleets[0].fleetId).toBe("fleet-1");
+    });
+  });
+
+  describe("removeVehicle / pruning retired ids", () => {
+    it("removeVehicle drops all per-id state for one vehicle", () => {
+      const v1 = makeVehicle({ id: "v1", speed: 60 });
+      registry._set("v1", v1);
+      accumulator.updateVehicleStats(v1, 1000);
+      expect(accumulator.getStats("v1")).toBeDefined();
+
+      accumulator.removeVehicle("v1");
+      expect(accumulator.getStats("v1")).toBeUndefined();
+    });
+
+    it("getSnapshot prunes stats for ids no longer in the registry", () => {
+      const v1 = makeVehicle({ id: "v1", speed: 60 });
+      const v2 = makeVehicle({ id: "v2", speed: 30 });
+      registry._set("v1", v1);
+      registry._set("v2", v2);
+      accumulator.updateVehicleStats(v1, 1000);
+      accumulator.updateVehicleStats(v2, 1000);
+      expect(accumulator.getAllStats().size).toBe(2);
+
+      // v2 retires from the registry but its analytics linger until the next snapshot.
+      registry._delete("v2");
+      accumulator.getSnapshot();
+
+      expect(accumulator.getStats("v2")).toBeUndefined();
+      expect(accumulator.getStats("v1")).toBeDefined();
+      expect(accumulator.getAllStats().size).toBe(1);
     });
   });
 

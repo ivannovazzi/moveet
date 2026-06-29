@@ -31,13 +31,7 @@ function assertType<T>(_value: T): void {
 describe("@moveet/shared-types", () => {
   describe("VehicleType", () => {
     it("accepts valid vehicle types", () => {
-      const types: VehicleType[] = [
-        "car",
-        "truck",
-        "motorcycle",
-        "ambulance",
-        "bus",
-      ];
+      const types: VehicleType[] = ["car", "truck", "motorcycle", "ambulance", "bus"];
       expect(types).toHaveLength(5);
     });
   });
@@ -142,12 +136,7 @@ describe("@moveet/shared-types", () => {
 
   describe("TimeOfDay", () => {
     it("accepts all valid values", () => {
-      const periods: TimeOfDay[] = [
-        "morning_rush",
-        "midday",
-        "evening_rush",
-        "night",
-      ];
+      const periods: TimeOfDay[] = ["morning_rush", "midday", "evening_rush", "night"];
       expect(periods).toHaveLength(4);
     });
   });

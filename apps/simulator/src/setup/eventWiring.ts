@@ -10,6 +10,16 @@ import type { ScenarioManager } from "../modules/scenario";
 import type { StateStore } from "../modules/StateStore";
 import type { GenerationManager } from "../modules/GenerationManager";
 import type { VehicleDTO, RecordingMetadata } from "../types";
+import type {
+  GeneratedRecording,
+  VehicleDirection,
+  Heatzone,
+  IncidentDTO,
+  IncidentClearedPayload,
+  WaypointReachedPayload,
+  RouteCompletedPayload,
+  VehicleReroutedPayload,
+} from "@moveet/shared-types";
 import { config } from "../utils/config";
 import logger from "../utils/logger";
 
@@ -141,7 +151,7 @@ export function wireEvents(ctx: EventWiringContext): {
 
       // Persist metadata so the generated recording appears in /recordings, and
       // build the same row shape /recordings returns for the WS payload.
-      let recording: Record<string, unknown> = {
+      let recording: GeneratedRecording = {
         filePath: metadata.filePath,
         duration: metadata.duration,
         eventCount: metadata.eventCount,
@@ -181,27 +191,33 @@ export function wireEvents(ctx: EventWiringContext): {
 
   // ─── Replay events → WS broadcaster ────────────────────────────────
   simulationController.on("replayVehicle", (data) => {
-    const payload = data as { vehicles?: unknown[] };
+    const payload = data as { vehicles?: VehicleDTO[] };
     if (payload.vehicles && Array.isArray(payload.vehicles)) {
       broadcaster.broadcast("vehicles", payload.vehicles);
     }
   });
-  simulationController.on("replayDirection", (data) => broadcaster.broadcast("direction", data));
+  // Replay events carry recording-sourced data typed as `unknown` on the
+  // controller; cast to the contract type for the matching channel.
+  simulationController.on("replayDirection", (data) =>
+    broadcaster.broadcast("direction", data as VehicleDirection)
+  );
   simulationController.on("replayIncident:created", (data) =>
-    broadcaster.broadcast("incident:created", data)
+    broadcaster.broadcast("incident:created", data as IncidentDTO)
   );
   simulationController.on("replayIncident:cleared", (data) =>
-    broadcaster.broadcast("incident:cleared", data)
+    broadcaster.broadcast("incident:cleared", data as IncidentClearedPayload)
   );
-  simulationController.on("replayHeatzones", (data) => broadcaster.broadcast("heatzones", data));
+  simulationController.on("replayHeatzones", (data) =>
+    broadcaster.broadcast("heatzones", data as Heatzone[])
+  );
   simulationController.on("replayWaypoint:reached", (data) =>
-    broadcaster.broadcast("waypoint:reached", data)
+    broadcaster.broadcast("waypoint:reached", data as WaypointReachedPayload)
   );
   simulationController.on("replayRoute:completed", (data) =>
-    broadcaster.broadcast("route:completed", data)
+    broadcaster.broadcast("route:completed", data as RouteCompletedPayload)
   );
   simulationController.on("replayVehicle:rerouted", (data) =>
-    broadcaster.broadcast("vehicle:rerouted", data)
+    broadcaster.broadcast("vehicle:rerouted", data as VehicleReroutedPayload)
   );
   simulationController.on("replay:status", (data) => broadcaster.broadcast("replay:status", data));
 

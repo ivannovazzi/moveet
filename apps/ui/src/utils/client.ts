@@ -40,15 +40,19 @@ import type {
   GenerateCompletePayload,
   GenerateErrorPayload,
 } from "./wsTypes";
-import type {
-  GeoFence,
-  GeoFenceEvent,
-  CreateGeoFenceRequest,
-  UpdateGeoFenceRequest,
-  SubscribeFilter,
+import {
+  isValidVehicleDTO,
+  type GeoFence,
+  type GeoFenceEvent,
+  type CreateGeoFenceRequest,
+  type UpdateGeoFenceRequest,
+  type SubscribeFilter,
 } from "@moveet/shared-types";
 
 class SimulationService {
+  /** Set once we have logged a dropped invalid vehicle, to avoid console spam. */
+  private warnedInvalidVehicle = false;
+
   constructor(
     private http: HttpClient,
     private ws: WebSocketClient
@@ -199,9 +203,20 @@ class SimulationService {
   }
 
   onVehicle(handler: (vehicle: VehicleDTO) => void): void {
-    this.ws.on("vehicle", handler);
+    // Guard the vehicle hot path: drop any vehicle with non-finite
+    // position/speed/heading so NaN/Infinity never reaches the GL layer.
+    // Log at most once per session to avoid console spam under a bad feed.
+    const safeHandle = (v: VehicleDTO) => {
+      if (isValidVehicleDTO(v)) {
+        handler(v);
+      } else if (!this.warnedInvalidVehicle) {
+        this.warnedInvalidVehicle = true;
+        console.warn("Dropping vehicle update with non-finite position/speed/heading:", v);
+      }
+    };
+    this.ws.on<VehicleDTO>("vehicle", safeHandle);
     this.ws.on<VehicleDTO[]>("vehicles", (vehicles) => {
-      for (const v of vehicles) handler(v);
+      for (const v of vehicles) safeHandle(v);
     });
   }
 

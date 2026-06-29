@@ -1,7 +1,7 @@
 import type { Server } from "http";
 import { WebSocketServer } from "ws";
 import { WebSocketBroadcaster } from "../modules/WebSocketBroadcaster";
-import type { SubscribeFilter } from "@moveet/shared-types";
+import { parseSubscribeFilter } from "@moveet/shared-types";
 import logger from "../utils/logger";
 
 export interface WebSocketSetupResult {
@@ -25,8 +25,21 @@ export function setupWebSocket(server: Server): WebSocketSetupResult {
       try {
         const msg = JSON.parse(data.toString()) as { type?: string; filter?: unknown };
         if (msg.type === "subscribe") {
-          broadcaster.setClientFilter(ws, (msg.filter as SubscribeFilter | null) ?? null);
-          logger.debug({ filter: msg.filter }, "Client updated subscribe filter");
+          // Validate the untrusted inbound filter before it reaches the
+          // broadcaster. A null/absent filter clears filtering; a malformed
+          // filter is rejected (logged) rather than applied blindly.
+          if (msg.filter === null || msg.filter === undefined) {
+            broadcaster.setClientFilter(ws, null);
+            logger.debug("Client cleared subscribe filter");
+          } else {
+            const filter = parseSubscribeFilter(msg.filter);
+            if (filter === null) {
+              logger.warn({ filter: msg.filter }, "Ignoring malformed subscribe filter");
+            } else {
+              broadcaster.setClientFilter(ws, filter);
+              logger.debug({ filter }, "Client updated subscribe filter");
+            }
+          }
         }
       } catch {
         // Ignore malformed messages

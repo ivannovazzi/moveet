@@ -37,6 +37,18 @@ export class RouteManager extends EventEmitter {
    */
   private serializedRouteCache: Map<string, Route> = new Map();
 
+  // ─── Incident reroute staggering ──────────────────────────────────
+  // A single incident can overlap every vehicle on an edge. Dispatching a
+  // pathfind for all of them at once floods the bounded worker-pool queue and
+  // starts getting rejected (reroutes then silently do not happen). Instead we
+  // enqueue affected vehicles and drain in small batches spaced apart, which
+  // spreads the load under the queue cap. The map debounces: a vehicle already
+  // queued just has its target incident updated rather than enqueued twice.
+  private rerouteQueue: Map<string, string> = new Map(); // vehicleId -> incidentId
+  private rerouteDrainTimer: NodeJS.Timeout | null = null;
+  private static readonly REROUTE_BATCH_SIZE = 20;
+  private static readonly REROUTE_STAGGER_MS = 100;
+
   constructor(
     private network: RoadNetwork,
     private registry: VehicleRegistry,
@@ -588,51 +600,89 @@ export class RouteManager extends EventEmitter {
   handleIncidentCreated(incident: Incident): void {
     const affectedEdgeIds = new Set(incident.edgeIds);
 
+    // Enqueue every affected vehicle; the drainer dispatches them in staggered
+    // batches so a mass reroute does not flood (and overflow) the worker-pool
+    // queue. Re-queuing an already-pending vehicle just updates its incident id.
     for (const [vehicleId, route] of this.routes) {
       const vehicle = this.registry.get(vehicleId);
       if (!vehicle) continue;
 
       const currentIdx = vehicle.edgeIndex ?? 0;
-
       const hasOverlap = route.edges.some(
         (edge, idx) => idx > currentIdx && affectedEdgeIds.has(edge.id)
       );
-
       if (!hasOverlap) continue;
 
-      const startNode = vehicle.currentEdge.end;
-      const lastEdge = route.edges[route.edges.length - 1];
-      const destinationNode = lastEdge.end;
-      const rerouteProfile = getProfile(vehicle.type);
-
-      this.network
-        .findRouteAsync(startNode, destinationNode, rerouteProfile.restrictedHighways)
-        .then((newRoute) => {
-          if (!this.registry.has(vehicleId)) return;
-          if (!this.routes.has(vehicleId)) return;
-
-          if (newRoute && newRoute.edges.length > 0) {
-            this.setRouteFor(vehicleId, newRoute);
-            vehicle.edgeIndex = -1;
-
-            const serialized = this.getSerializedRoute(vehicleId, newRoute);
-            this.emit("vehicle:rerouted", {
-              vehicleId,
-              incidentId: incident.id,
-              newRoute: serialized,
-            });
-
-            this.emit("direction", {
-              vehicleId,
-              route: serialized,
-              eta: utils.estimateRouteDuration(newRoute, vehicle.speed),
-            });
-          }
-        })
-        .catch((error) => {
-          logger.warn("Reroute pathfinding failed for vehicle %s: %o", vehicleId, error);
-        });
+      this.rerouteQueue.set(vehicleId, incident.id);
     }
+
+    this.scheduleRerouteDrain();
+  }
+
+  /** Starts the staggered drain loop if it is not already running. */
+  private scheduleRerouteDrain(): void {
+    if (this.rerouteDrainTimer || this.rerouteQueue.size === 0) return;
+    this.rerouteDrainTimer = setTimeout(() => this.drainRerouteQueue(), 0);
+  }
+
+  /** Dispatches up to one batch of pending reroutes, then reschedules if more remain. */
+  private drainRerouteQueue(): void {
+    this.rerouteDrainTimer = null;
+
+    let dispatched = 0;
+    for (const [vehicleId, incidentId] of this.rerouteQueue) {
+      if (dispatched >= RouteManager.REROUTE_BATCH_SIZE) break;
+      this.rerouteQueue.delete(vehicleId);
+      dispatched += 1;
+      this.dispatchReroute(vehicleId, incidentId);
+    }
+
+    if (this.rerouteQueue.size > 0) {
+      this.rerouteDrainTimer = setTimeout(
+        () => this.drainRerouteQueue(),
+        RouteManager.REROUTE_STAGGER_MS
+      );
+    }
+  }
+
+  /** Pathfinds a fresh route for one vehicle and applies it if still valid. */
+  private dispatchReroute(vehicleId: string, incidentId: string): void {
+    const vehicle = this.registry.get(vehicleId);
+    const route = this.routes.get(vehicleId);
+    if (!vehicle || !route) return;
+
+    const startNode = vehicle.currentEdge.end;
+    const lastEdge = route.edges[route.edges.length - 1];
+    const destinationNode = lastEdge.end;
+    const rerouteProfile = getProfile(vehicle.type);
+
+    this.network
+      .findRouteAsync(startNode, destinationNode, rerouteProfile.restrictedHighways)
+      .then((newRoute) => {
+        if (!this.registry.has(vehicleId)) return;
+        if (!this.routes.has(vehicleId)) return;
+
+        if (newRoute && newRoute.edges.length > 0) {
+          this.setRouteFor(vehicleId, newRoute);
+          vehicle.edgeIndex = -1;
+
+          const serialized = this.getSerializedRoute(vehicleId, newRoute);
+          this.emit("vehicle:rerouted", {
+            vehicleId,
+            incidentId,
+            newRoute: serialized,
+          });
+
+          this.emit("direction", {
+            vehicleId,
+            route: serialized,
+            eta: utils.estimateRouteDuration(newRoute, vehicle.speed),
+          });
+        }
+      })
+      .catch((error) => {
+        logger.warn("Reroute pathfinding failed for vehicle %s: %o", vehicleId, error);
+      });
   }
 
   handleIncidentCleared(_incidentId: string): void {
@@ -646,5 +696,10 @@ export class RouteManager extends EventEmitter {
     this.waypointRoutes = new Map();
     this.lastPathfindAttempt = new Map();
     this.serializedRouteCache = new Map();
+    this.rerouteQueue.clear();
+    if (this.rerouteDrainTimer) {
+      clearTimeout(this.rerouteDrainTimer);
+      this.rerouteDrainTimer = null;
+    }
   }
 }

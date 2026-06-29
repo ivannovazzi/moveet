@@ -89,10 +89,37 @@ describe("SimulationService", () => {
   });
 
   describe("onVehicle", () => {
-    it("registers the handler directly for 'vehicle' events", () => {
+    const validVehicle: VehicleDTO = {
+      id: "v1",
+      name: "Vehicle 1",
+      type: "car",
+      position: [1, 2],
+      speed: 10,
+      heading: 90,
+    };
+
+    it("registers a validating 'vehicle' handler on the ws client", () => {
       const handler = vi.fn<(v: VehicleDTO) => void>();
       service.onVehicle(handler);
-      expect(mockWs.on).toHaveBeenCalledWith("vehicle", handler);
+      expect(mockWs.on).toHaveBeenCalledWith("vehicle", expect.any(Function));
+      expect(mockWs.on).toHaveBeenCalledWith("vehicles", expect.any(Function));
+    });
+
+    it("passes through vehicles with finite position/speed/heading", () => {
+      const handler = vi.fn<(v: VehicleDTO) => void>();
+      service.onVehicle(handler);
+      const wrapper = mockWs.on.mock.calls.find((c: string[]) => c[0] === "vehicle")![1];
+      wrapper(validVehicle);
+      expect(handler).toHaveBeenCalledWith(validVehicle);
+    });
+
+    it("drops vehicles with non-finite position/speed/heading", () => {
+      const handler = vi.fn<(v: VehicleDTO) => void>();
+      service.onVehicle(handler);
+      const wrapper = mockWs.on.mock.calls.find((c: string[]) => c[0] === "vehicle")![1];
+      wrapper({ ...validVehicle, position: [NaN, 2] });
+      wrapper({ ...validVehicle, speed: Infinity });
+      expect(handler).not.toHaveBeenCalled();
     });
   });
 
@@ -432,7 +459,9 @@ describe("SimulationService", () => {
 
       const handler = vi.fn();
       onVehicle(handler);
-      expect(mockWs.on).toHaveBeenCalledWith("vehicle", handler);
+      // onVehicle wraps the caller's handler in a finite-number validation
+      // guard, so the registered listener is the wrapper, not `handler` itself.
+      expect(mockWs.on).toHaveBeenCalledWith("vehicle", expect.any(Function));
 
       await stop();
       expect(mockHttp.post).toHaveBeenCalledWith("/stop");

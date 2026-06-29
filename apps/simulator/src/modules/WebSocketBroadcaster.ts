@@ -1,5 +1,6 @@
 import type { WebSocketServer, WebSocket } from "ws";
 import type { VehicleDTO, SubscribeFilter } from "../types";
+import type { WsMessageMap, WsDataMessageType } from "@moveet/shared-types";
 import { WS_BROADCASTER } from "../constants";
 import { SpatialVehicleIndex } from "./SpatialVehicleIndex";
 import logger from "../utils/logger";
@@ -156,8 +157,9 @@ export class WebSocketBroadcaster {
 
   /**
    * Sends a non-vehicle message immediately to all connected clients.
+   * Typed against the shared WS contract: `type` and `data` must agree.
    */
-  broadcast<T>(type: string, data: T): void {
+  broadcast<K extends WsDataMessageType>(type: K, data: WsMessageMap[K]): void {
     if (this.wss.clients.size === 0) return;
     const message = JSON.stringify({ type, data });
     for (const client of this.wss.clients) {
@@ -169,8 +171,9 @@ export class WebSocketBroadcaster {
 
   /**
    * Sends a non-vehicle message immediately to a single client.
+   * Typed against the shared WS contract: `type` and `data` must agree.
    */
-  sendTo<T>(client: WebSocket, type: string, data: T): void {
+  sendTo<K extends WsDataMessageType>(client: WebSocket, type: K, data: WsMessageMap[K]): void {
     if (client.readyState === WebSocketReadyState.OPEN) {
       this.safeSend(client, JSON.stringify({ type, data }));
     }

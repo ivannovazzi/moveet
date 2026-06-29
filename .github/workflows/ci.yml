@@ -79,8 +79,8 @@ jobs:
       - run: npm ci
       # Single workspaces-aware audit from the root covers every app + package.
       #
-      # fast-xml-parser 4.x has no fix for GHSA-jp2q-39xq-3w4g (high severity).
-      # Transitive via @deck.gl/geo-layers → @loaders.gl/wms → @loaders.gl/xml.
-      # Use --audit-level=critical until upstream releases a patched 4.x.
+      # Gate on high: highs are within scope of our threat model (e.g. ws powers
+      # the simulator WebSocket server). Keep the tree clean of high and critical
+      # advisories; resolve new ones via npm audit fix or a safe dependency bump.
       - name: Audit (root + all workspaces)
-        run: npm audit --audit-level=critical
+        run: npm audit --audit-level=high
