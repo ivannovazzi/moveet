@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { Agent } from "node:https";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import type { Admin, Message, Producer, SASLOptions } from "kafkajs";
 import { Kafka } from "kafkajs";
 import { SchemaRegistry, SchemaType } from "@kafkajs/confluent-schema-registry";
@@ -31,89 +34,46 @@ const DEFAULT_HEALTH_CHECK_TIMEOUT_MS = 5000;
 // ─── Canonical Telemetry AVRO Schema ────────────────────────────────
 //
 // The platform's canonical telemetry-ingest envelope, published Confluent-AVRO
-// encoded to `telemetry.device.raw`. Field order and types MUST match the
-// platform's registered schema exactly — do not reorder or retype fields. This
-// is config of the redpanda sink (the only producer of these events), not a
-// shared cross-app type.
+// encoded to `telemetry.device.raw`. The schema is versioned in
+// `schemas/canonical-telemetry.v1.avsc` (loaded at module init below) rather
+// than hardcoded inline, so it can be round-trip tested against the real avro
+// codec and reviewed/diffed as a contract artifact. Field order and types MUST
+// match the platform's registered schema exactly; do not reorder or retype
+// fields. This is config of the redpanda sink (the only producer of these
+// events), not a shared cross-app type.
+
+/** Bare name of the versioned schema artifact. */
+const TELEMETRY_LOCATION_AVRO_SCHEMA_FILE = "canonical-telemetry.v1.avsc";
 
 /**
- * Confluent-AVRO schema for the canonical `telemetry.location.reported` event.
- * Registered under subject `telemetry.device.raw-telemetry.location.reported`.
+ * Resolve the versioned `.avsc` artifact. It lives at
+ * `src/plugins/sinks/schemas/`. Running under tsx/vitest the module dir IS that
+ * `schemas/` parent, so the first candidate hits. Running the esbuild bundle
+ * (`dist/index.js`) the module dir is `dist/`, so we also probe the original
+ * `src` tree (which the image's `source` stage preserves alongside `dist`),
+ * keeping the canonical schema a single source-of-truth artifact for both.
  */
-export const TELEMETRY_LOCATION_AVRO_SCHEMA = {
-  type: "record",
-  name: "TelemetryLocationEvent",
-  namespace: "telemetry.ingest",
-  fields: [
-    { name: "event_id", type: "string" },
-    { name: "event_type", type: "string" },
-    { name: "event_version", type: "int" },
-    { name: "occurred_at", type: "string" },
-    {
-      name: "source",
-      type: {
-        type: "record",
-        name: "EventSource",
-        fields: [
-          { name: "service", type: "string" },
-          { name: "environment", type: "string" },
-        ],
-      },
-    },
-    {
-      name: "metadata",
-      type: {
-        type: "record",
-        name: "EventMetadata",
-        fields: [
-          { name: "correlation_id", type: ["null", "string"], default: null },
-          { name: "causation_id", type: ["null", "string"], default: null },
-          { name: "trace_id", type: ["null", "string"], default: null },
-        ],
-      },
-    },
-    {
-      name: "data",
-      type: {
-        type: "record",
-        name: "TelemetryLocationData",
-        fields: [
-          { name: "device_id", type: "string" },
-          {
-            name: "source",
-            type: { type: "enum", name: "TelemetrySource", symbols: ["GPS", "MOBILE"] },
-          },
-          { name: "recorded_at", type: "string" },
-          { name: "latitude", type: "double" },
-          { name: "longitude", type: "double" },
-          { name: "accuracy_meters", type: ["null", "double"], default: null },
-          { name: "speed_mps", type: ["null", "double"], default: null },
-          { name: "heading_degrees", type: ["null", "double"], default: null },
-          { name: "altitude_meters", type: ["null", "double"], default: null },
-          { name: "satellites", type: ["null", "int"], default: null },
-          { name: "ignition_on", type: ["null", "boolean"], default: null },
-          { name: "moving", type: ["null", "boolean"], default: null },
-          { name: "battery_level", type: ["null", "double"], default: null },
-          { name: "battery_charging", type: ["null", "boolean"], default: null },
-          { name: "network", type: ["null", "string"], default: null },
-          {
-            name: "position_origin",
-            type: [
-              "null",
-              {
-                type: "enum",
-                name: "PositionOrigin",
-                symbols: ["GPS", "NETWORK", "PASSIVE", "UNKNOWN"],
-              },
-            ],
-            default: null,
-          },
-          { name: "sensor_readings", type: { type: "map", values: "string" }, default: {} },
-        ],
-      },
-    },
-  ],
-} as const;
+function resolveSchemaPath(): string {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    join(here, "schemas", TELEMETRY_LOCATION_AVRO_SCHEMA_FILE),
+    // bundle case: dist/ sibling of src/plugins/sinks/schemas
+    join(here, "..", "src", "plugins", "sinks", "schemas", TELEMETRY_LOCATION_AVRO_SCHEMA_FILE),
+  ];
+  return candidates.find((p) => existsSync(p)) ?? candidates[0];
+}
+
+/** Filesystem path to the versioned canonical-telemetry AVRO schema artifact. */
+export const TELEMETRY_LOCATION_AVRO_SCHEMA_PATH = resolveSchemaPath();
+
+/**
+ * Confluent-AVRO schema for the canonical `telemetry.location.reported` event,
+ * loaded from the versioned `.avsc` artifact. Registered under subject
+ * `telemetry.device.raw-telemetry.location.reported`.
+ */
+export const TELEMETRY_LOCATION_AVRO_SCHEMA: Record<string, unknown> = JSON.parse(
+  readFileSync(TELEMETRY_LOCATION_AVRO_SCHEMA_PATH, "utf8")
+);
 
 /** Subject under which the canonical schema is registered in Schema Registry. */
 export const TELEMETRY_LOCATION_AVRO_SUBJECT = "telemetry.device.raw-telemetry.location.reported";

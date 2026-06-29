@@ -43,6 +43,11 @@ jobs:
             ${{ runner.os }}-turbo-
       - name: Lint, type-check, test, build
         run: npx turbo lint type-check test:ci build
+      # Repo-policy checks (ESM config, workspace layout) run as their own root
+      # step, outside the per-app turbo suites, so an infra/CI refactor reddens
+      # this dedicated check rather than an app's unit tests.
+      - name: Repo-policy checks
+        run: npm run test:repo
       - name: Upload coverage reports
         if: always()
         uses: actions/upload-artifact@v7
