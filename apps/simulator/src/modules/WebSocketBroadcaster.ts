@@ -2,9 +2,8 @@ import type { WebSocketServer, WebSocket } from "ws";
 import type { VehicleDTO, SubscribeFilter } from "../types";
 import type { WsMessageMap, WsDataMessageType } from "@moveet/shared-types";
 import { WS_BROADCASTER } from "../constants";
-import { SpatialVehicleIndex } from "./SpatialVehicleIndex";
-import { recordWsDroppedFlush, recordWsBackpressureDisconnect } from "../metrics";
-import logger from "../utils/logger";
+import type { BroadcastTransport } from "./ws/BroadcastTransport";
+import { InProcessTransport } from "./ws/InProcessTransport";
 
 /** @deprecated Import from constants.ts instead. Re-exported for backwards compatibility. */
 export const BACKPRESSURE_THRESHOLD = WS_BROADCASTER.BACKPRESSURE_THRESHOLD;
@@ -28,94 +27,71 @@ export interface BroadcasterOptions {
   pingIntervalMs?: number;
   /** Time to wait for pong before closing the connection (ms). Defaults to 10 000. */
   pongTimeoutMs?: number;
+  /**
+   * Egress transport. Defaults to {@link InProcessTransport} (the historical
+   * behavior: direct in-process WS fan-out). Inject a different transport
+   * (e.g. RedisPubSubTransport) to publish onto a bus instead.
+   */
+  transport?: BroadcastTransport;
 }
 
 /**
- * Per-client tracking state for backpressure, delta updates, and heartbeat.
- */
-interface ClientState {
-  /** Last sent position per vehicle id. */
-  lastSent: Map<string, [number, number]>;
-  /** Number of consecutive flushes this client was skipped due to backpressure. */
-  droppedFlushes: number;
-  /** Timestamp (ms) of the last pong received from this client. */
-  lastPong: number;
-  /** Timestamp (ms) of the last ping sent to this client. 0 means no ping sent yet. */
-  lastPingSent: number;
-  /** Optional subscribe filter. When set, only matching vehicles are sent. */
-  filter?: SubscribeFilter;
-}
-
-/**
- * Batches vehicle position updates and broadcasts them to all connected
- * WebSocket clients on a fixed interval, reducing per-second message count
- * from O(vehicles * updateHz) to O(1/flushInterval) per client.
+ * Batches vehicle position updates and broadcasts them to connected WebSocket
+ * clients on a fixed interval, reducing per-second message count from
+ * O(vehicles * updateHz) to O(1/flushInterval) per client.
  *
- * Features:
- * - Backpressure: skips clients whose bufferedAmount exceeds threshold
- * - Delta updates: only sends vehicles whose position changed above threshold
- * - Drop policy: closes connections that fall behind for too many flushes
+ * The broadcaster owns the inbound de-duplicating buffer and the 10Hz flush
+ * timer; the actual egress (per-client delta/bbox/backpressure fan-out, or a
+ * publish onto a pub/sub bus) is delegated to a {@link BroadcastTransport}.
+ * The default transport preserves the original direct in-process fan-out, so
+ * the public API and behavior are unchanged unless a transport is injected.
  *
  * Non-vehicle messages (heatzones, direction, status, etc.) are still sent
  * immediately — only vehicle position updates are batched.
  */
 export class WebSocketBroadcaster {
-  private readonly wss: WebSocketServer;
   private readonly flushIntervalMs: number;
-  private readonly pingIntervalMs: number;
-  private readonly pongTimeoutMs: number;
+  private readonly transport: BroadcastTransport;
   private readonly vehicleBuffer: Map<string, VehicleDTO> = new Map();
   private flushTimer: NodeJS.Timeout | null = null;
-  private heartbeatTimer: NodeJS.Timeout | null = null;
-  private readonly clientStates: WeakMap<WebSocket, ClientState> = new WeakMap();
-  private readonly spatialIndex = new SpatialVehicleIndex();
 
   constructor(wss: WebSocketServer, options: BroadcasterOptions = {}) {
-    this.wss = wss;
     this.flushIntervalMs = options.flushIntervalMs ?? WS_BROADCASTER.DEFAULT_FLUSH_INTERVAL_MS;
-    this.pingIntervalMs = options.pingIntervalMs ?? DEFAULT_PING_INTERVAL_MS;
-    this.pongTimeoutMs = options.pongTimeoutMs ?? DEFAULT_PONG_TIMEOUT_MS;
+    this.transport =
+      options.transport ??
+      new InProcessTransport(wss, {
+        pingIntervalMs: options.pingIntervalMs ?? DEFAULT_PING_INTERVAL_MS,
+        pongTimeoutMs: options.pongTimeoutMs ?? DEFAULT_PONG_TIMEOUT_MS,
+      });
   }
 
   /**
-   * Starts the periodic flush timer and heartbeat. Must be called after construction.
+   * Starts the periodic flush timer and the transport (heartbeat/connection).
+   * Must be called after construction.
    */
   start(): void {
     if (this.flushTimer) return;
+    this.transport.start();
     this.flushTimer = setInterval(() => this.flush(), this.flushIntervalMs);
-    if (this.pingIntervalMs > 0) {
-      this.heartbeatTimer = setInterval(() => this.heartbeat(), this.pingIntervalMs);
-    }
   }
 
   /**
-   * Stops the flush timer, heartbeat timer, and clears the buffer and spatial index.
+   * Stops the flush timer and the transport, and clears the buffer.
    */
   stop(): void {
     if (this.flushTimer) {
       clearInterval(this.flushTimer);
       this.flushTimer = null;
     }
-    if (this.heartbeatTimer) {
-      clearInterval(this.heartbeatTimer);
-      this.heartbeatTimer = null;
-    }
+    this.transport.stop();
     this.vehicleBuffer.clear();
-    this.spatialIndex.clear();
   }
 
   /**
    * Registers a new client for heartbeat tracking. Call this when a client connects.
    */
   trackClient(client: WebSocket): void {
-    const state = this.getClientState(client);
-    state.lastPong = Date.now();
-    client.on("pong", () => {
-      const s = this.clientStates.get(client);
-      if (s) {
-        s.lastPong = Date.now();
-      }
-    });
+    this.transport.trackClient(client);
   }
 
   /**
@@ -125,7 +101,7 @@ export class WebSocketBroadcaster {
    */
   queueVehicleUpdate(vehicle: VehicleDTO): void {
     this.vehicleBuffer.set(vehicle.id, vehicle);
-    this.spatialIndex.update(vehicle.id, vehicle.position[0], vehicle.position[1]);
+    this.transport.indexVehicle(vehicle.id, vehicle.position[0], vehicle.position[1]);
   }
 
   /**
@@ -133,7 +109,7 @@ export class WebSocketBroadcaster {
    * Call this when a vehicle is despawned to keep the index clean.
    */
   removeVehicle(vehicleId: string): void {
-    this.spatialIndex.remove(vehicleId);
+    this.transport.removeVehicle(vehicleId);
   }
 
   /**
@@ -144,7 +120,7 @@ export class WebSocketBroadcaster {
    */
   clearVehicles(): void {
     this.vehicleBuffer.clear();
-    this.spatialIndex.clear();
+    this.transport.clearIndex();
   }
 
   /**
@@ -152,8 +128,7 @@ export class WebSocketBroadcaster {
    * Passing null removes the filter (client receives all vehicle updates).
    */
   setClientFilter(client: WebSocket, filter: SubscribeFilter | null): void {
-    const state = this.getClientState(client);
-    state.filter = filter ?? undefined;
+    this.transport.setClientFilter(client, filter);
   }
 
   /**
@@ -161,13 +136,7 @@ export class WebSocketBroadcaster {
    * Typed against the shared WS contract: `type` and `data` must agree.
    */
   broadcast<K extends WsDataMessageType>(type: K, data: WsMessageMap[K]): void {
-    if (this.wss.clients.size === 0) return;
-    const message = JSON.stringify({ type, data });
-    for (const client of this.wss.clients) {
-      if (client.readyState === WebSocketReadyState.OPEN) {
-        this.safeSend(client, message);
-      }
-    }
+    this.transport.publishMessage(type, data);
   }
 
   /**
@@ -175,198 +144,26 @@ export class WebSocketBroadcaster {
    * Typed against the shared WS contract: `type` and `data` must agree.
    */
   sendTo<K extends WsDataMessageType>(client: WebSocket, type: K, data: WsMessageMap[K]): void {
-    if (client.readyState === WebSocketReadyState.OPEN) {
-      this.safeSend(client, JSON.stringify({ type, data }));
-    }
+    this.transport.sendTo(client, type, data);
   }
 
   /**
-   * Sends a message to a client, swallowing send errors so one failing
-   * socket cannot abort iteration over the remaining clients.
-   * Returns true if the send did not throw.
-   */
-  private safeSend(client: WebSocket, message: string): boolean {
-    try {
-      client.send(message);
-      return true;
-    } catch (error) {
-      logger.warn(`WebSocket send failed: ${error}`);
-      return false;
-    }
-  }
-
-  /**
-   * Returns or initializes the per-client tracking state.
-   */
-  private getClientState(client: WebSocket): ClientState {
-    let state = this.clientStates.get(client);
-    if (!state) {
-      state = {
-        lastSent: new Map(),
-        droppedFlushes: 0,
-        lastPong: 0,
-        lastPingSent: 0,
-        filter: undefined,
-      };
-      this.clientStates.set(client, state);
-    }
-    return state;
-  }
-
-  /**
-   * Determines whether a vehicle's position has changed enough to warrant
-   * sending an update to this client.
-   */
-  private hasPositionChanged(
-    vehicle: VehicleDTO,
-    lastSent: Map<string, [number, number]>
-  ): boolean {
-    const prev = lastSent.get(vehicle.id);
-    if (!prev) return true; // Never sent — always include
-    const dlat = vehicle.position[0] - prev[0];
-    const dlng = vehicle.position[1] - prev[1];
-    return Math.abs(dlat) >= POSITION_DELTA_THRESHOLD || Math.abs(dlng) >= POSITION_DELTA_THRESHOLD;
-  }
-
-  /**
-   * Sends a ping to every connected client and terminates those that have not
-   * responded with a pong since the last ping within the configured timeout.
-   *
-   * Logic per client:
-   * 1. If we previously sent a ping (`lastPingSent > 0`) and the client has not
-   *    responded with a pong since that ping (`lastPong < lastPingSent`), and the
-   *    elapsed time since the ping exceeds `pongTimeoutMs` — terminate.
-   * 2. Otherwise, send a new ping and record the timestamp.
-   */
-  private heartbeat(): void {
-    const now = Date.now();
-
-    for (const client of this.wss.clients) {
-      if (client.readyState !== WebSocketReadyState.OPEN) continue;
-
-      const state = this.getClientState(client);
-
-      // If we never tracked this client via trackClient(), initialize lastPong now
-      // so the client is not immediately considered unresponsive.
-      if (state.lastPong === 0) {
-        state.lastPong = now;
-      }
-
-      // Check if a previously sent ping went unanswered past the timeout
-      if (
-        state.lastPingSent > 0 &&
-        state.lastPong < state.lastPingSent &&
-        now - state.lastPingSent >= this.pongTimeoutMs
-      ) {
-        client.terminate();
-        continue;
-      }
-
-      // Send a new ping and record when we sent it
-      client.ping();
-      state.lastPingSent = now;
-    }
-  }
-
-  /**
-   * Returns true if the vehicle passes the client's subscribe filter.
-   * A missing filter always passes.
-   */
-  private passesFilter(vehicle: VehicleDTO, filter: SubscribeFilter | undefined): boolean {
-    if (!filter) return true;
-    if (filter.fleetIds?.length) {
-      if (!vehicle.fleetId || !filter.fleetIds.includes(vehicle.fleetId)) return false;
-    }
-    if (filter.vehicleTypes?.length) {
-      if (!filter.vehicleTypes.includes(vehicle.type)) return false;
-    }
-    if (filter.bbox) {
-      const [lat, lng] = vehicle.position;
-      const { minLat, maxLat, minLng, maxLng } = filter.bbox;
-      if (lat < minLat || lat > maxLat || lng < minLng || lng > maxLng) return false;
-    }
-    return true;
-  }
-
-  /**
-   * Flushes all queued vehicle updates to connected clients, applying
-   * backpressure checks, spatial index pre-filtering, and delta filtering per client.
-   *
-   * For clients with a bbox filter, the spatial index is queried once per unique
-   * bbox (results are cached within a single flush cycle) to narrow the vehicle set
-   * before iterating.
+   * Flushes all queued vehicle updates to the transport, which applies the
+   * per-client backpressure / spatial / delta filtering (in-process) or
+   * publishes them onto the bus (Redis).
    */
   private flush(): void {
     if (this.vehicleBuffer.size === 0) return;
-
     const vehicles = Array.from(this.vehicleBuffer.values());
     this.vehicleBuffer.clear();
-
-    // Cache bbox query results within this flush cycle so multiple clients
-    // sharing the same bbox don't re-query the spatial index.
-    const bboxCache = new Map<string, Set<string>>();
-
-    for (const client of this.wss.clients) {
-      if (client.readyState !== WebSocketReadyState.OPEN) continue;
-
-      const state = this.getClientState(client);
-
-      // Backpressure check
-      if (
-        (client as unknown as { bufferedAmount: number }).bufferedAmount > BACKPRESSURE_THRESHOLD
-      ) {
-        state.droppedFlushes++;
-        recordWsDroppedFlush();
-        if (state.droppedFlushes > MAX_DROPPED_FLUSHES) {
-          recordWsBackpressureDisconnect();
-          client.close();
-        }
-        continue;
-      }
-
-      // Determine candidate vehicles using spatial index for bbox filters
-      let candidates: VehicleDTO[];
-      if (state.filter?.bbox) {
-        const bbox = state.filter.bbox;
-        const cacheKey = `${bbox.minLat},${bbox.maxLat},${bbox.minLng},${bbox.maxLng}`;
-        let inBboxIds = bboxCache.get(cacheKey);
-        if (!inBboxIds) {
-          inBboxIds = this.spatialIndex.queryBbox(bbox);
-          bboxCache.set(cacheKey, inBboxIds);
-        }
-        candidates = vehicles.filter((v) => inBboxIds!.has(v.id));
-      } else {
-        candidates = vehicles;
-      }
-
-      // Delta filtering: only send vehicles whose position changed above threshold
-      const changed = candidates.filter((v) => this.hasPositionChanged(v, state.lastSent));
-
-      // Subscribe filter: only send vehicles matching this client's filter criteria
-      // (fleet, vehicleType, and exact bbox point-in-bbox check for precision)
-      const toSend = changed.filter((v) => this.passesFilter(v, state.filter));
-
-      if (toSend.length === 0) continue;
-
-      const message = JSON.stringify({ type: "vehicles", data: toSend });
-      // Guard the send so one failing socket cannot abort the flush for the
-      // remaining clients. On failure, skip the state update so the vehicles
-      // are re-sent on the next flush once the socket recovers (or is closed).
-      if (!this.safeSend(client, message)) continue;
-
-      // Update last-sent positions and reset dropped counter
-      for (const v of toSend) {
-        state.lastSent.set(v.id, [v.position[0], v.position[1]]);
-      }
-      state.droppedFlushes = 0;
-    }
+    this.transport.publishVehicleUpdates(vehicles);
   }
 
   /**
    * Returns the number of currently connected clients.
    */
   get clientCount(): number {
-    return this.wss.clients.size;
+    return this.transport.clientCount;
   }
 
   /**
@@ -381,18 +178,6 @@ export class WebSocketBroadcaster {
    * Useful for observability and for asserting the index does not leak.
    */
   get indexedVehicleCount(): number {
-    return this.spatialIndex.size;
+    return this.transport.indexedVehicleCount;
   }
 }
-
-/**
- * WebSocket readyState constants.
- * We define our own enum to avoid importing the ws module's OPEN constant
- * which varies by environment.
- */
-const WebSocketReadyState = {
-  CONNECTING: 0,
-  OPEN: 1,
-  CLOSING: 2,
-  CLOSED: 3,
-} as const;

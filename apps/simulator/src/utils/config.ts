@@ -99,12 +99,36 @@ const envObjectSchema = z.object({
 
   /** Pino log level */
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
+
+  /**
+   * WebSocket fan-out transport.
+   *  - "inprocess" (default): fan out to WS clients on the simulation thread
+   *    (historical behavior, no external dependency).
+   *  - "redis": publish serialized broadcast payloads to a Redis pub/sub
+   *    channel for a separate, independently-scalable gateway process to fan
+   *    out. Requires REDIS_URL; only loads ioredis when selected.
+   */
+  WS_TRANSPORT: z.enum(["inprocess", "redis"]).default("inprocess"),
+
+  /** Redis connection URL. Required when WS_TRANSPORT=redis (and by the gateway). */
+  REDIS_URL: z.string().default(""),
+
+  /** Redis pub/sub channel the simulator publishes to and the gateway subscribes to. */
+  WS_PUBSUB_CHANNEL: z.string().default("moveet:ws:broadcast"),
+
+  /** Port the standalone WS gateway listens on (used by ws-gateway entrypoint). */
+  WS_GATEWAY_PORT: z.coerce.number().int().min(1).max(65535).default(5020),
 });
 
-export const envSchema = envObjectSchema.refine((data) => data.MAX_SPEED > data.MIN_SPEED, {
-  message: "MAX_SPEED must be greater than MIN_SPEED",
-  path: ["MAX_SPEED"],
-});
+export const envSchema = envObjectSchema
+  .refine((data) => data.MAX_SPEED > data.MIN_SPEED, {
+    message: "MAX_SPEED must be greater than MIN_SPEED",
+    path: ["MAX_SPEED"],
+  })
+  .refine((data) => data.WS_TRANSPORT !== "redis" || data.REDIS_URL.length > 0, {
+    message: "REDIS_URL is required when WS_TRANSPORT=redis",
+    path: ["REDIS_URL"],
+  });
 
 export type EnvConfig = z.infer<typeof envSchema>;
 
@@ -143,6 +167,10 @@ function buildConfig(env: EnvConfig) {
     stateDbPath: env.STATE_DB_PATH,
     analyticsInterval: env.ANALYTICS_INTERVAL,
     logLevel: env.LOG_LEVEL,
+    wsTransport: env.WS_TRANSPORT,
+    redisUrl: env.REDIS_URL,
+    wsPubSubChannel: env.WS_PUBSUB_CHANNEL,
+    wsGatewayPort: env.WS_GATEWAY_PORT,
   } as const;
 }
 

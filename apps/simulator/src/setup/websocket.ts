@@ -1,6 +1,11 @@
 import type { Server } from "http";
 import { WebSocketServer } from "ws";
-import { WebSocketBroadcaster } from "../modules/WebSocketBroadcaster";
+import {
+  WebSocketBroadcaster,
+  DEFAULT_PING_INTERVAL_MS,
+  DEFAULT_PONG_TIMEOUT_MS,
+} from "../modules/WebSocketBroadcaster";
+import { selectBroadcastTransport } from "../modules/ws/selectTransport";
 import { parseSubscribeFilter } from "@moveet/shared-types";
 import { recordWsConnection, recordWsDisconnection } from "../metrics";
 import logger from "../utils/logger";
@@ -12,10 +17,18 @@ export interface WebSocketSetupResult {
 
 /**
  * Create and configure the WebSocket server and broadcaster.
+ *
+ * The egress transport is chosen from config (`WS_TRANSPORT`): the default
+ * "inprocess" preserves the historical direct fan-out; "redis" publishes onto
+ * a pub/sub bus for the standalone gateway to fan out instead.
  */
 export function setupWebSocket(server: Server): WebSocketSetupResult {
   const wss = new WebSocketServer({ server });
-  const broadcaster = new WebSocketBroadcaster(wss, { flushIntervalMs: 100 });
+  const transport = selectBroadcastTransport(wss, {
+    pingIntervalMs: DEFAULT_PING_INTERVAL_MS,
+    pongTimeoutMs: DEFAULT_PONG_TIMEOUT_MS,
+  });
+  const broadcaster = new WebSocketBroadcaster(wss, { flushIntervalMs: 100, transport });
   broadcaster.start();
 
   wss.on("connection", (ws) => {

@@ -35,18 +35,36 @@ COPY . .
 
 # ── simulator runtime (bundled, plain node) ─────────────────────────────────
 FROM source AS simulator
-# Bundle the server and the pathfinding worker (preserving the workers/ subdir).
+# Bundle the server (ESM) and the pathfinding worker (self-contained CJS).
+# The worker is emitted as CommonJS into dist/workers/pathfinding-worker.cjs so
+# it runs regardless of "type":"module"; PathfindingPool launches that .cjs. It
+# inlines the shared A* cost/heap + OSM-parser modules the worker imports, which
+# plain node cannot resolve from raw extensionless ESM specifiers.
 RUN node_modules/.bin/esbuild \
       apps/simulator/src/index.ts \
-      apps/simulator/src/workers/pathfinding-worker.ts \
       --bundle --platform=node --format=esm --target=node26 --packages=external \
-      --outdir=apps/simulator/dist --outbase=apps/simulator/src
+      --outfile=apps/simulator/dist/index.js \
+ && node apps/simulator/scripts/build-worker.mjs
 ENV NODE_ENV=production \
     PORT=3000 \
     GEOJSON_PATH=/data/network.geojson
 EXPOSE 3000
 WORKDIR /repo/apps/simulator
 CMD ["node", "dist/index.js"]
+
+# ── ws-gateway runtime (bundled, plain node) ────────────────────────────────
+# The scale-out WebSocket fan-out process: subscribes to the simulator's Redis
+# broadcast channel and fans out to its own WS clients. Reuses the simulator's
+# source tree (shares ClientFanout); only the entrypoint differs.
+FROM source AS ws-gateway
+RUN node_modules/.bin/esbuild apps/simulator/src/ws-gateway.ts \
+      --bundle --platform=node --format=esm --target=node26 --packages=external \
+      --outfile=apps/simulator/dist/ws-gateway.js
+ENV NODE_ENV=production \
+    WS_GATEWAY_PORT=5020
+EXPOSE 5020
+WORKDIR /repo/apps/simulator
+CMD ["node", "dist/ws-gateway.js"]
 
 # ── adapter runtime (bundled, plain node) ───────────────────────────────────
 FROM source AS adapter
