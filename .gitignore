@@ -32,3 +32,6 @@ CLAUDE.md
 .logs/
 __pycache__/
 .worktrees/
+
+# Git worktrees (isolated workspaces)
+.worktrees/
