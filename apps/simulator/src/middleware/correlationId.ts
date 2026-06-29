@@ -1,28 +1,12 @@
-import type { Request, Response, NextFunction } from "express";
+import { createCorrelationIdMiddleware } from "@moveet/server-kit";
 import logger from "../utils/logger";
 
-export function correlationIdMiddleware(req: Request, res: Response, next: NextFunction): void {
-  const requestId = (req.headers["x-request-id"] as string | undefined) ?? crypto.randomUUID();
-
-  res.locals.requestId = requestId;
-  res.locals.logger = logger.child({ requestId });
-
-  const startTime = Date.now();
-
-  logger.info({ method: req.method, path: req.path, requestId });
-
-  res.on("finish", () => {
-    const duration = Date.now() - startTime;
-    logger.info({
-      method: req.method,
-      path: req.path,
-      status: res.statusCode,
-      duration,
-      requestId,
-    });
-  });
-
-  next();
-}
+/**
+ * Correlation-id middleware bound to the simulator's logger. Thin wrapper over
+ * the shared `@moveet/server-kit` middleware: reads/generates `x-request-id`,
+ * stores it on `res.locals.requestId`, echoes it on the response, and attaches a
+ * per-request child logger to `res.locals.logger`.
+ */
+export const correlationIdMiddleware = createCorrelationIdMiddleware({ logger });
 
 export default correlationIdMiddleware;
