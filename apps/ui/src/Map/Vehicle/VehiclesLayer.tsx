@@ -186,7 +186,7 @@ export default function VehiclesLayer({
   getBoundingBoxRef.current = getBoundingBox;
 
   // RAF interpolation loop: reads from vehicleStore, updates React state
-  // Throttled to ~30fps to avoid overwhelming React with state updates
+  // Throttled to ~60fps to keep motion smooth without unbounded re-renders
   useEffect(() => {
     let rafId: number;
     let lastVersion = -1;
@@ -203,9 +203,17 @@ export default function VehiclesLayer({
     let lastHiddenTypes: Set<VehicleType> | null = null;
     let lastBoundsKey = "";
     // Sticky add/remove flag — survives throttled frames so a removal isn't
-    // dropped when the 33ms gate skips the frame it was detected on.
+    // dropped when the 16ms gate skips the frame it was detected on.
     let structureChanged = false;
-    const STATE_UPDATE_INTERVAL = 33; // ~30fps for React state updates
+    // Publish interpolated positions at up to 60fps. The RAF loop already
+    // computes a fresh lerp every animation frame; capping the deck.gl publish
+    // at 30fps (the previous value) halved the visible motion frame rate and
+    // was the dominant cause of choppy movement. At 16ms a 60Hz display passes
+    // the gate every frame (full 60fps), while a 120Hz display is bounded to
+    // 60fps so the per-frame array rebuild + attribute upload stays cheap. The
+    // "nothing visible changed" guard above still suppresses updates on idle
+    // scenes, so this only raises the rate while vehicles are actually moving.
+    const STATE_UPDATE_INTERVAL = 16; // ~60fps for React state updates
 
     const render = () => {
       rafId = requestAnimationFrame(render);
@@ -345,7 +353,7 @@ export default function VehiclesLayer({
         return;
       }
 
-      // Throttle React state updates to avoid 60fps re-renders
+      // Throttle React state updates to a ~60fps ceiling
       if (now - lastSetStateTime < STATE_UPDATE_INTERVAL) return;
       lastSetStateTime = now;
       lastZoom = currentZoom;
@@ -459,7 +467,7 @@ export default function VehiclesLayer({
     [vehicleData]
   );
 
-  // Build deck.gl layers. The two layers are rebuilt each ~30fps tick because
+  // Build deck.gl layers. The two layers are rebuilt each ~60fps tick because
   // `vehicleData` carries fresh interpolated positions, but `updateTriggers`
   // pin the non-positional accessors (icon, ring colors) to stable keys so deck
   // only re-evaluates them when they actually change — pure-movement frames

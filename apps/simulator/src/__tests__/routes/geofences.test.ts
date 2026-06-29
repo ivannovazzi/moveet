@@ -169,7 +169,7 @@ describe("Geofence routes", () => {
     });
   });
 
-  describe("PATCH /geofences/:id/toggle", () => {
+  describe("POST /geofences/:id/toggle", () => {
     it("should toggle the active flag", async () => {
       manager.toggleZone.mockReturnValueOnce({
         id: "z1",
@@ -178,14 +178,14 @@ describe("Geofence routes", () => {
         active: false,
       });
 
-      const res = await request(app).patch("/geofences/z1/toggle");
+      const res = await request(app).post("/geofences/z1/toggle");
       expect(res.status).toBe(200);
       expect(res.body.active).toBe(false);
     });
 
     it("should return 404 when zone does not exist", async () => {
       manager.toggleZone.mockReturnValueOnce(null);
-      const res = await request(app).patch("/geofences/unknown/toggle");
+      const res = await request(app).post("/geofences/unknown/toggle");
       expect(res.status).toBe(404);
     });
   });
