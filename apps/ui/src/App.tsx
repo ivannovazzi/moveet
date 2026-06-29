@@ -105,7 +105,6 @@ export default function App() {
 
   // ─── Map / context-menu interactions ────────────────────────────
   const {
-    contextMenuRef,
     contextMenuXY,
     closeContextMenu,
     selectedItem,
@@ -368,25 +367,18 @@ export default function App() {
           </div>
         </ErrorBoundary>
       </div>
-      {contextMenuXY && (
-        <ContextMenu position={contextMenuXY} onClose={closeContextMenu}>
-          <div
-            ref={contextMenuRef}
-            className="flex flex-col items-stretch gap-2 rounded-lg bg-card/80 p-2 backdrop-blur-md"
-          >
-            <MapContextMenu
-              state={dispatch.dispatchState}
-              onFindDirections={onPointDestinationClick}
-              onFindRoad={onFindRoadClick}
-              onSendVehicle={onPointDestinationSingleClick}
-              onAddWaypoint={onContextMenuAddWaypoint}
-              onCreateIncident={onCreateIncident}
-              hasSelectedVehicle={!!filters.selected}
-              hasDispatchSelection={dispatch.selectedForDispatch.length > 0}
-            />
-          </div>
-        </ContextMenu>
-      )}
+      <ContextMenu position={contextMenuXY} onClose={closeContextMenu}>
+        <MapContextMenu
+          state={dispatch.dispatchState}
+          onFindDirections={onPointDestinationClick}
+          onFindRoad={onFindRoadClick}
+          onSendVehicle={onPointDestinationSingleClick}
+          onAddWaypoint={onContextMenuAddWaypoint}
+          onCreateIncident={onCreateIncident}
+          hasSelectedVehicle={!!filters.selected}
+          hasDispatchSelection={dispatch.selectedForDispatch.length > 0}
+        />
+      </ContextMenu>
       <Toaster position="bottom-right" />
     </div>
   );

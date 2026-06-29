@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import type { Fleet } from "@/types";
 import { vehicleStore } from "@/hooks/vehicleStore";
 import VehicleList from "@/Controls/Vehicles";
 import ContextMenu from "@/components/ContextMenu";
 import MapContextMenu from "@/components/MapContextMenu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { DispatchState } from "@/hooks/useDispatchState";
 import { createVehicle } from "@/test/mocks/types";
 
@@ -147,11 +147,15 @@ describe("VehicleList accessibility", () => {
 // ---------------------------------------------------------------------------
 // 3. ContextMenu focus management and keyboard navigation
 // ---------------------------------------------------------------------------
+// Focus management, Tab/arrow navigation and focus return are now provided by
+// the Radix DropdownMenu primitive (and covered by Radix's own tests). Here we
+// assert the contract this surface owns: menu semantics, labelling, dismissal,
+// and that items are exposed as keyboard-reachable menu items.
 describe("ContextMenu accessibility", () => {
   it("has role='menu' and aria-label", () => {
     render(
       <ContextMenu position={{ x: 100, y: 200 }} onClose={vi.fn()}>
-        <button>Action 1</button>
+        <DropdownMenuItem>Action 1</DropdownMenuItem>
       </ContextMenu>
     );
 
@@ -160,71 +164,29 @@ describe("ContextMenu accessibility", () => {
     expect(menu).toHaveAttribute("aria-label", "Context menu");
   });
 
-  it("focuses the first focusable element when opened", () => {
+  it("exposes children as focusable menu items", () => {
     render(
       <ContextMenu position={{ x: 100, y: 200 }} onClose={vi.fn()}>
-        <button>First</button>
-        <button>Second</button>
+        <DropdownMenuItem>First</DropdownMenuItem>
+        <DropdownMenuItem>Second</DropdownMenuItem>
       </ContextMenu>
     );
 
-    expect(document.activeElement).toBe(screen.getByText("First"));
+    const items = screen.getAllByRole("menuitem");
+    expect(items).toHaveLength(2);
+    expect(items[0]).toHaveTextContent("First");
   });
 
   it("calls onClose when Escape is pressed", () => {
     const onClose = vi.fn();
     render(
       <ContextMenu position={{ x: 100, y: 200 }} onClose={onClose}>
-        <button>Action</button>
+        <DropdownMenuItem>Action</DropdownMenuItem>
       </ContextMenu>
     );
 
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(onClose).toHaveBeenCalledOnce();
-  });
-
-  it("traps focus with Tab - wraps from last to first", async () => {
-    const user = userEvent.setup();
-    render(
-      <ContextMenu position={{ x: 100, y: 200 }} onClose={vi.fn()}>
-        <button>First</button>
-        <button>Second</button>
-        <button>Third</button>
-      </ContextMenu>
-    );
-
-    // Focus should start on First
-    expect(document.activeElement).toBe(screen.getByText("First"));
-
-    // Tab to Second
-    await user.tab();
-    expect(document.activeElement).toBe(screen.getByText("Second"));
-
-    // Tab to Third
-    await user.tab();
-    expect(document.activeElement).toBe(screen.getByText("Third"));
-
-    // Tab should wrap to First
-    await user.tab();
-    expect(document.activeElement).toBe(screen.getByText("First"));
-  });
-
-  it("traps focus with Shift+Tab - wraps from first to last", async () => {
-    const user = userEvent.setup();
-    render(
-      <ContextMenu position={{ x: 100, y: 200 }} onClose={vi.fn()}>
-        <button>First</button>
-        <button>Second</button>
-        <button>Third</button>
-      </ContextMenu>
-    );
-
-    // Focus should start on First
-    expect(document.activeElement).toBe(screen.getByText("First"));
-
-    // Shift+Tab should wrap to Third
-    await user.tab({ shift: true });
-    expect(document.activeElement).toBe(screen.getByText("Third"));
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+    expect(onClose).toHaveBeenCalled();
   });
 });
 
@@ -232,37 +194,34 @@ describe("ContextMenu accessibility", () => {
 // 4. MapContextMenu buttons have role="menuitem"
 // ---------------------------------------------------------------------------
 describe("MapContextMenu accessibility", () => {
-  it("buttons have role='menuitem' in BROWSE state", () => {
-    render(
-      <MapContextMenu
-        state={DispatchState.BROWSE}
-        onFindDirections={vi.fn()}
-        onFindRoad={vi.fn()}
-        onSendVehicle={vi.fn()}
-        onAddWaypoint={vi.fn()}
-        hasSelectedVehicle={false}
-        hasDispatchSelection={false}
-      />
+  function renderMenu(state: DispatchState) {
+    return render(
+      <DropdownMenu open modal={false}>
+        <DropdownMenuContent>
+          <MapContextMenu
+            state={state}
+            onFindDirections={vi.fn()}
+            onFindRoad={vi.fn()}
+            onSendVehicle={vi.fn()}
+            onAddWaypoint={vi.fn()}
+            hasSelectedVehicle={false}
+            hasDispatchSelection={false}
+          />
+        </DropdownMenuContent>
+      </DropdownMenu>
     );
+  }
 
-    const menuItems = screen.getAllByRole("menuitem");
-    expect(menuItems.length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByRole("menuitem", { name: "Find Directions To Here" })).toBeInTheDocument();
+  it("exposes items with role='menuitem' in BROWSE state", () => {
+    renderMenu(DispatchState.BROWSE);
+
+    expect(screen.getAllByRole("menuitem").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByRole("menuitem", { name: "Find directions to here" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Identify closest road" })).toBeInTheDocument();
   });
 
-  it("buttons have role='menuitem' in SELECT state", () => {
-    render(
-      <MapContextMenu
-        state={DispatchState.SELECT}
-        onFindDirections={vi.fn()}
-        onFindRoad={vi.fn()}
-        onSendVehicle={vi.fn()}
-        onAddWaypoint={vi.fn()}
-        hasSelectedVehicle={false}
-        hasDispatchSelection={false}
-      />
-    );
+  it("exposes a single menu item in SELECT state", () => {
+    renderMenu(DispatchState.SELECT);
 
     const menuItems = screen.getAllByRole("menuitem");
     expect(menuItems).toHaveLength(1);
