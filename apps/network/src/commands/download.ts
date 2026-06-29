@@ -84,7 +84,7 @@ export async function download(opts: DownloadOptions): Promise<string> {
 // network blip or a region without a published checksum does not break the
 // whole pipeline. An actual digest mismatch is a hard failure: the suspect
 // file is deleted so it can never be reused from cache.
-async function verifyChecksum(geofabrik: string, pbfPath: string): Promise<void> {
+export async function verifyChecksum(geofabrik: string, pbfPath: string): Promise<void> {
   const checksumUrl = buildChecksumUrl(geofabrik);
   const checksumText = await fetchText(checksumUrl);
   if (checksumText === null) {
@@ -119,7 +119,7 @@ async function verifyChecksum(geofabrik: string, pbfPath: string): Promise<void>
 }
 
 // Stream the file through an MD5 hash so a large .pbf is never held in memory.
-function computeMd5(filePath: string): Promise<string> {
+export function computeMd5(filePath: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const hash = crypto.createHash("md5");
     const stream = fs.createReadStream(filePath);
@@ -132,7 +132,7 @@ function computeMd5(filePath: string): Promise<string> {
 // Fetch a small text resource (the .md5). Resolves with the body on success,
 // or null on any non-2xx status or network error so callers can degrade
 // gracefully rather than crash.
-function fetchText(url: string, redirects = 0): Promise<string | null> {
+export function fetchText(url: string, redirects = 0): Promise<string | null> {
   if (redirects > 5) return Promise.resolve(null);
   return new Promise((resolve) => {
     const parsedUrl = new URL(url);

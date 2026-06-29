@@ -260,6 +260,42 @@ describe("httpClient", () => {
       expect(globalThis.fetch).toHaveBeenCalledTimes(3);
     });
 
+    it("wraps a non-retryable generic error and does not retry", async () => {
+      // A plain Error (not TypeError/AbortError/HttpClientError) is not retryable:
+      // isRetryable() returns false, so it is wrapped and thrown on the first attempt.
+      const mockFn = vi.fn().mockRejectedValue(new Error("unexpected boom"));
+      globalThis.fetch = mockFn;
+
+      try {
+        await httpFetch("http://example.com/api", {}, { maxRetries: 3, sleep: instantSleep });
+        expect.unreachable("should have thrown");
+      } catch (err) {
+        expect(err).toBeInstanceOf(HttpClientError);
+        expect((err as HttpClientError).retryable).toBe(false);
+        expect((err as HttpClientError).message).toContain("unexpected boom");
+        expect((err as HttpClientError).cause).toBeInstanceOf(Error);
+      }
+      expect(mockFn).toHaveBeenCalledOnce();
+      expect(instantSleep).not.toHaveBeenCalled();
+    });
+
+    it("uses the default sleep implementation when none is injected", async () => {
+      // Exercises the default setTimeout-based sleep (no `sleep` override).
+      const mockFn = vi
+        .fn()
+        .mockResolvedValueOnce(new Response("", { status: 503, statusText: "Service Unavailable" }))
+        .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+      globalThis.fetch = mockFn;
+
+      const res = await httpFetch(
+        "http://example.com/api",
+        {},
+        { maxRetries: 2, baseDelayMs: 1, maxDelayMs: 2 }
+      );
+      expect(res.ok).toBe(true);
+      expect(mockFn).toHaveBeenCalledTimes(2);
+    });
+
     it("maxRetries=1 means no retry", async () => {
       const mockFn = vi
         .fn()
