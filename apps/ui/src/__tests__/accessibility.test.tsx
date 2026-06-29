@@ -62,6 +62,7 @@ describe("VehiclesLayer accessibility", () => {
         scale={1.5}
         vehicleFleetMap={new Map<string, Fleet>()}
         hiddenFleetIds={new Set<string>()}
+        hiddenVehicleTypes={new Set()}
         onClick={vi.fn()}
       />
     );
