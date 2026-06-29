@@ -28,7 +28,7 @@ export default function RealismTab({ config, loading, onSetRealism }: RealismTab
   ];
   return (
     <div className="flex flex-col gap-3">
-      <section className="flex flex-col gap-2 rounded-md border border-border bg-card p-3">
+      <section className="flex flex-col gap-2 rounded-md border border-border surface-raised p-3 shadow-raised">
         <div className="flex items-center justify-between gap-2">
           <span className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
             Live status
@@ -39,12 +39,12 @@ export default function RealismTab({ config, loading, onSetRealism }: RealismTab
           {rows.map(([key, value]) => (
             <div key={key} className="flex items-center justify-between gap-2">
               <dt className="text-muted-foreground">{key}</dt>
-              <dd className="text-foreground">{value}</dd>
+              <dd className="text-foreground tabular-nums">{value}</dd>
             </div>
           ))}
         </dl>
       </section>
-      <section className="flex flex-col gap-2 rounded-md border border-border bg-card p-3">
+      <section className="flex flex-col gap-2 rounded-md border border-border surface-raised p-3 shadow-raised">
         <div className="flex flex-col gap-1">
           <span className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
             Configuration

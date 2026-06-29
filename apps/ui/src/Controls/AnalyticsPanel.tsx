@@ -87,7 +87,7 @@ interface KpiCardProps {
 
 function KpiCard({ label, value, total, unit }: KpiCardProps) {
   return (
-    <div className="flex flex-col gap-1 rounded-md border border-border bg-card p-4 transition-colors hover:bg-accent/10">
+    <div className="flex flex-col gap-1 rounded-md border border-border surface-raised p-4 shadow-raised transition-colors duration-fast ease-standard hover:bg-accent/10">
       <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </span>
@@ -116,7 +116,7 @@ function FleetCard({ fleetId, history }: FleetCardProps) {
   if (!latest) return null;
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-border bg-card p-4 transition-colors hover:bg-accent/10">
+    <div className="flex flex-col gap-3 rounded-md border border-border surface-raised p-4 shadow-raised transition-colors duration-fast ease-standard hover:bg-accent/10">
       <div className="flex items-center gap-3">
         <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: "#4f9" }} />
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">

@@ -12,7 +12,7 @@ export function PanelShell({ children, className, ...props }: PanelShellProps) {
     <section
       {...props}
       className={cn(
-        "flex h-full w-full min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-lg",
+        "flex h-full w-full min-w-0 flex-col overflow-hidden rounded-lg border border-border surface-raised text-card-foreground shadow-elevated",
         className
       )}
     >
@@ -77,7 +77,7 @@ export function PanelBody({
     <div
       {...props}
       className={cn(
-        "flex min-h-0 flex-1 flex-col",
+        "flex min-h-0 flex-1 flex-col animate-fade-up",
         padded && "p-3",
         scrollable && "overflow-y-auto",
         className
@@ -106,7 +106,7 @@ export function PanelBadge({ children, tone = "active", className, ...props }: P
       {...props}
       data-tone={tone}
       className={cn(
-        "inline-flex h-5 min-w-5 items-center justify-center rounded-full border px-2 text-xs font-semibold tabular-nums",
+        "inline-flex h-5 min-w-5 items-center justify-center rounded-full border px-2 text-xs font-semibold tabular-nums shadow-raised",
         badgeToneClasses[tone],
         className
       )}

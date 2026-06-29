@@ -81,7 +81,7 @@ export default memo(function TogglesPanel({ modifiers, onChangeModifiers }: Togg
         {toggles.map(({ key, label }) => (
           <label
             key={key}
-            className="flex cursor-pointer items-center justify-between rounded-md px-3 py-2 transition-colors hover:bg-accent/10"
+            className="flex cursor-pointer items-center justify-between rounded-md px-3 py-2 transition-colors duration-fast ease-standard hover:bg-accent/10"
           >
             <span className="text-sm text-muted-foreground">{label}</span>
             <Switch

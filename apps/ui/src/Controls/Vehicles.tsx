@@ -164,7 +164,7 @@ export default function VehicleList({
             <button
               type="button"
               onClick={() => onFilterChange("")}
-              className="absolute right-2 flex size-6 items-center justify-center rounded-md border border-transparent bg-accent/50 text-base leading-none text-muted-foreground transition-colors hover:border-border hover:bg-accent hover:text-foreground"
+              className="absolute right-2 flex size-6 items-center justify-center rounded-md border border-transparent bg-accent/50 text-base leading-none text-muted-foreground transition-colors duration-fast ease-standard hover:border-border hover:bg-accent hover:text-foreground"
               aria-label="Clear search"
             >
               ×
@@ -198,7 +198,7 @@ export default function VehicleList({
               <button
                 key={vehicle.id}
                 className={cn(
-                  "grid w-full flex-shrink-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 overflow-hidden rounded-md border border-white/5 bg-white/[0.03] px-2.5 pb-1.5 pt-2 text-left transition-colors hover:border-white/10 hover:bg-white/[0.06] focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                  "grid w-full flex-shrink-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 overflow-hidden rounded-md border border-white/5 bg-white/[0.03] px-2.5 pb-1.5 pt-2 text-left transition-colors duration-fast ease-standard hover:border-white/10 hover:bg-white/[0.06] focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
                   isSelected &&
                     "border-accent/25 bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)]",
                   isDispatchSelected &&
@@ -222,7 +222,7 @@ export default function VehicleList({
                       aria-checked={isChecked}
                       aria-label={`Select ${vehicle.name}`}
                       className={cn(
-                        "size-3.5 flex-shrink-0 rounded-sm border border-foreground/25 transition-colors",
+                        "size-3.5 flex-shrink-0 rounded-sm border border-foreground/25 transition-colors duration-fast ease-standard",
                         isChecked && "border-accent bg-accent"
                       )}
                     />
@@ -275,7 +275,7 @@ export default function VehicleList({
         {hasMore && (
           <button
             type="button"
-            className="w-full rounded-md border border-dashed border-accent/20 p-2 text-xs text-accent transition-colors hover:border-accent/35 hover:bg-accent/5"
+            className="w-full rounded-md border border-dashed border-accent/20 p-2 text-xs text-accent transition-colors duration-fast ease-standard hover:border-accent/35 hover:bg-accent/5"
             onClick={() => setVisibleCount((c) => c + LOAD_MORE_COUNT)}
           >
             Show more ({visibleVehicles.length - visibleCount} remaining)

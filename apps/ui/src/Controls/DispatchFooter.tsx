@@ -16,7 +16,7 @@ interface DispatchFooterProps {
 }
 
 const footerClass =
-  "sticky bottom-0 flex items-center justify-between p-3 bg-card/90 backdrop-blur-md border-t border-border";
+  "sticky bottom-0 flex items-center justify-between p-3 surface-glass backdrop-blur-md border-t border-border";
 const textClass = "flex items-center gap-3 text-sm text-muted-foreground";
 const buttonsClass = "flex items-center gap-2";
 const errorClass = "mt-1 text-xs leading-tight text-status-error";

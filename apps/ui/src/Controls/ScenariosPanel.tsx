@@ -239,7 +239,7 @@ export default function ScenariosPanel() {
                   aria-valuenow={progress}
                 >
                   <div
-                    className="h-full rounded-full bg-accent transition-[width]"
+                    className="h-full rounded-full bg-accent transition-[width] duration-normal ease-standard"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
@@ -307,7 +307,7 @@ export default function ScenariosPanel() {
                   key={file.fileName}
                   type="button"
                   className={cn(
-                    "flex w-full flex-wrap items-center gap-3 rounded-md border border-white/5 bg-white/[0.03] px-2.5 py-2 text-left transition-colors hover:border-white/10 hover:bg-white/[0.06] disabled:cursor-default disabled:opacity-60",
+                    "flex w-full flex-wrap items-center gap-3 rounded-md border border-white/5 bg-white/[0.03] px-2.5 py-2 text-left transition-colors duration-fast ease-standard hover:border-white/10 hover:bg-white/[0.06] disabled:cursor-default disabled:opacity-60",
                     isLoading && "border-accent/25 bg-accent/10"
                   )}
                   onClick={() => loadScenario(file.fileName)}

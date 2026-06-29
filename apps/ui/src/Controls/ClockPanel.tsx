@@ -73,7 +73,7 @@ export default function ClockPanel() {
           <span className={cn(EYEBROW_BASE, EYEBROW_COLORS[clock.timeOfDay])}>
             {TIME_OF_DAY_LABELS[clock.timeOfDay]}
           </span>
-          <div className="font-mono text-5xl font-bold leading-none tracking-tight text-foreground">
+          <div className="font-mono text-5xl font-bold leading-none tracking-tight tabular-nums text-foreground">
             {timeStr}
           </div>
         </div>

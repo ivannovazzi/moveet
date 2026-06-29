@@ -178,22 +178,22 @@ export default function App() {
           <aside
             className={cn(
               "absolute bottom-0 top-0 left-14 z-30 w-[clamp(248px,22vw,304px)] overflow-hidden",
-              "transition-[transform,opacity,visibility] duration-slow ease-out",
+              "transition-[transform,opacity,visibility] duration-slow ease-emphasized",
               activePanel !== null
                 ? "visible translate-x-0 opacity-100 pointer-events-auto"
                 : "invisible -translate-x-[calc(100%+20px)] opacity-0 pointer-events-none"
             )}
             aria-hidden={activePanel === null}
           >
-            <div className="flex h-full w-full min-w-0 flex-col overflow-hidden border-r border-border bg-card/70 shadow-xl backdrop-blur-2xl">
+            <div className="flex h-full w-full min-w-0 flex-col overflow-hidden border-r border-border surface-glass shadow-elevated backdrop-blur-2xl">
               {activePanel === "vehicles" && (
                 <>
                   <button
                     type="button"
                     className={cn(
-                      "flex w-full items-center justify-center border-b border-border px-4 py-3 text-sm font-medium tracking-wide transition-colors",
+                      "flex w-full items-center justify-center border-b border-border px-4 py-3 text-sm font-medium tracking-wide transition-colors duration-fast ease-standard",
                       dispatch.dispatchMode
-                        ? "bg-accent/15 text-accent"
+                        ? "surface-accent text-accent-foreground shadow-glow-accent"
                         : "bg-foreground/5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
                     )}
                     onClick={dispatch.toggleDispatchMode}

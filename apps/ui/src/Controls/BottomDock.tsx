@@ -32,8 +32,8 @@ async function runWithToast(
 
 const DOCK_CLASS = cn(
   "absolute bottom-5 left-1/2 z-40 flex h-14 -translate-x-1/2 translate-y-3.5 items-center gap-5 px-6",
-  "rounded-lg border border-border bg-card/80 shadow-lg backdrop-blur-md",
-  "pointer-events-none opacity-0 transition-[opacity,transform] duration-700",
+  "rounded-lg border border-border surface-glass shadow-elevated backdrop-blur-md",
+  "pointer-events-none opacity-0 transition-[opacity,transform] duration-700 ease-emphasized",
   "[[data-ready]_&]:pointer-events-auto [[data-ready]_&]:translate-y-0 [[data-ready]_&]:opacity-100"
 );
 
@@ -345,7 +345,7 @@ export default function BottomDock({
                   : "bg-muted-foreground"
               )}
             />
-            <span className={cn("uppercase tracking-wide", active ? "opacity-85" : "opacity-55")}>
+            <span className={cn("uppercase tracking-wider", active ? "opacity-85" : "opacity-55")}>
               {label}
             </span>
           </span>

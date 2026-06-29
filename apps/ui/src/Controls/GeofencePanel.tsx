@@ -84,7 +84,7 @@ export default function GeofencePanel({
           role="tab"
           aria-selected={tab === "zones"}
           className={cn(
-            "-mb-px inline-flex flex-1 items-center justify-center gap-2 border-b-2 border-transparent px-4 py-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
+            "-mb-px inline-flex flex-1 items-center justify-center gap-2 border-b-2 border-transparent px-4 py-3 text-sm font-medium text-muted-foreground transition-colors duration-fast ease-standard hover:text-foreground",
             tab === "zones" && "border-accent text-foreground"
           )}
           onClick={() => setTab("zones")}
@@ -96,7 +96,7 @@ export default function GeofencePanel({
           role="tab"
           aria-selected={tab === "alerts"}
           className={cn(
-            "-mb-px inline-flex flex-1 items-center justify-center gap-2 border-b-2 border-transparent px-4 py-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
+            "-mb-px inline-flex flex-1 items-center justify-center gap-2 border-b-2 border-transparent px-4 py-3 text-sm font-medium text-muted-foreground transition-colors duration-fast ease-standard hover:text-foreground",
             tab === "alerts" && "border-accent text-foreground"
           )}
           onClick={() => setTab("alerts")}
@@ -125,7 +125,7 @@ export default function GeofencePanel({
               <div className="flex gap-2">
                 <button
                   type="button"
-                  className="flex-1 rounded-md border border-accent/40 bg-accent/15 px-3 py-2 text-sm font-medium text-accent transition-colors hover:bg-accent/25 hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                  className="flex-1 rounded-md border border-accent/40 bg-accent/15 px-3 py-2 text-sm font-medium text-accent transition-colors duration-fast ease-standard hover:bg-accent/25 hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-40"
                   onClick={onConfirmDrawing}
                   disabled={!canConfirm}
                   title="Finish drawing and name the zone"
@@ -134,7 +134,7 @@ export default function GeofencePanel({
                 </button>
                 <button
                   type="button"
-                  className="rounded-md border border-border bg-transparent px-3 py-2 text-sm text-muted-foreground transition-colors hover:border-status-error/30 hover:bg-status-error/10 hover:text-status-error"
+                  className="rounded-md border border-border bg-transparent px-3 py-2 text-sm text-muted-foreground transition-colors duration-fast ease-standard hover:border-status-error/30 hover:bg-status-error/10 hover:text-status-error"
                   onClick={onCancelDrawing}
                   title="Cancel drawing (Esc)"
                 >
@@ -145,7 +145,7 @@ export default function GeofencePanel({
           ) : (
             <button
               type="button"
-              className="w-full rounded-md border border-white/5 bg-white/[0.03] px-3 py-2 text-left text-sm font-medium text-muted-foreground transition-colors hover:border-accent/35 hover:bg-accent/10 hover:text-foreground"
+              className="w-full rounded-md border border-white/5 bg-white/[0.03] px-3 py-2 text-left text-sm font-medium text-muted-foreground transition-colors duration-fast ease-standard hover:border-accent/35 hover:bg-accent/10 hover:text-foreground"
               onClick={onStartDrawing}
               title="Draw a geofence zone on the map"
             >
@@ -162,7 +162,7 @@ export default function GeofencePanel({
               {fences.map((fence) => (
                 <div
                   key={fence.id}
-                  className="flex items-center gap-2 rounded-md border border-white/5 bg-white/[0.03] px-2.5 py-2 transition-colors hover:border-white/10 hover:bg-white/[0.06]"
+                  className="flex items-center gap-2 rounded-md border border-white/5 bg-white/[0.03] px-2.5 py-2 transition-colors duration-fast ease-standard hover:border-white/10 hover:bg-white/[0.06]"
                 >
                   <span
                     className="h-2 w-2 flex-shrink-0 rounded-full"

@@ -215,7 +215,7 @@ export default function SearchBar({
       ref={containerRef}
       className={cn(
         "pointer-events-auto absolute left-1/2 top-4 z-50 flex w-[min(640px,calc(100%-72px))]",
-        "-translate-x-1/2 flex-col overflow-hidden border border-border bg-card/80 shadow-lg backdrop-blur-md",
+        "-translate-x-1/2 flex-col overflow-hidden border border-border surface-glass shadow-floating backdrop-blur-md",
         "rounded-lg"
       )}
       role="combobox"
@@ -302,7 +302,7 @@ export default function SearchBar({
         {showResults && (
           <CommandList
             id="search-results"
-            className="max-h-[380px] overflow-y-auto p-2"
+            className="max-h-[380px] origin-top animate-scale-in overflow-y-auto p-2"
             aria-label="Search results"
           >
             {results.map((r, i) => {
@@ -313,7 +313,7 @@ export default function SearchBar({
                   id={`result-${i}`}
                   value={`${r.item.name ?? ""}-${i}`}
                   className={cn(
-                    "flex min-h-9 cursor-pointer select-none items-center gap-3 rounded-sm px-4 py-2 text-foreground transition-colors",
+                    "flex min-h-9 cursor-pointer select-none items-center gap-3 rounded-sm px-4 py-2 text-foreground transition-colors duration-fast ease-standard",
                     i === activeIdx && "bg-accent/10"
                   )}
                   aria-selected={i === activeIdx}
@@ -326,7 +326,7 @@ export default function SearchBar({
                 >
                   <span
                     className={cn(
-                      "flex size-3.5 shrink-0 items-center justify-center text-muted-foreground transition-colors [&_svg]:size-3.5",
+                      "flex size-3.5 shrink-0 items-center justify-center text-muted-foreground transition-colors duration-fast ease-standard [&_svg]:size-3.5",
                       i === activeIdx && "text-accent"
                     )}
                   >

@@ -70,10 +70,10 @@ export default function AdapterDrawer({
             Adapter control
           </div>
           <div className="flex items-start justify-between gap-3">
-            <SheetTitle className="text-lg">Connections</SheetTitle>
+            <SheetTitle className="text-lg tracking-tight">Connections</SheetTitle>
             <span
               className={cn(
-                "inline-flex h-5 items-center justify-center rounded-full border px-2 text-xs font-semibold",
+                "inline-flex h-5 items-center justify-center rounded-full border px-2 text-xs font-semibold shadow-raised",
                 badgeTone
               )}
             >

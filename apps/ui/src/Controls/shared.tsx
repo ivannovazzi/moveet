@@ -6,7 +6,10 @@ interface BlockProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 export function Block({ children, className, ...props }: BlockProps) {
   return (
-    <div {...props} className={cn("rounded-lg border border-border bg-card p-3", className)}>
+    <div
+      {...props}
+      className={cn("rounded-lg border border-border surface-raised p-3 shadow-raised", className)}
+    >
       {children}
     </div>
   );
