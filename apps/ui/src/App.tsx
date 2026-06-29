@@ -90,6 +90,10 @@ export default function App() {
 
   const { network, loading: networkLoading } = useNetwork();
   const { loading: roadsLoading } = useRoads();
+  // The map can't render (and the SearchBar has nothing to search) until the
+  // road network + roads have loaded. Drives both the loading overlay and the
+  // SearchBar's visibility.
+  const mapLoading = networkLoading || roadsLoading;
   const dataReady = useDataReady();
   const incidents = useIncidents();
   const recording = useRecording();
@@ -300,7 +304,7 @@ export default function App() {
         <ErrorBoundary fallback={<SectionErrorFallback section="Map" />}>
           <div className="relative flex min-h-0 min-w-0 flex-1">
             <ConnectionStatus connectionInfo={connectionInfo} onRetry={client.retryConnection} />
-            <LoadingOverlay visible={networkLoading || roadsLoading} />
+            <LoadingOverlay visible={mapLoading} />
             <MapView
               network={network}
               vehicles={vehicles}
@@ -328,12 +332,14 @@ export default function App() {
               drawConfirmId={geofences.drawConfirmId}
               onBboxChange={onBboxChange}
             />
-            <SearchBar
-              selectedItem={selectedItem}
-              onDestinationClick={onDestinationClick}
-              onItemSelect={(item) => setSelectedItem(item)}
-              onItemUnselect={() => setSelectedItem(null)}
-            />
+            {!mapLoading && (
+              <SearchBar
+                selectedItem={selectedItem}
+                onDestinationClick={onDestinationClick}
+                onItemSelect={(item) => setSelectedItem(item)}
+                onItemUnselect={() => setSelectedItem(null)}
+              />
+            )}
             <Zoom />
             <FleetLegend
               fleets={fleets}
