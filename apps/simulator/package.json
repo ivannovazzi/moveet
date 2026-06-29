@@ -15,6 +15,7 @@
     "type-check": "tsc --noEmit",
     "pretest": "npm run build:worker",
     "test": "vitest run",
+    "pretest:ci": "npm run build:worker",
     "test:ci": "vitest run --coverage",
     "test:watch": "vitest watch",
     "test:bench": "vitest bench --run src/__tests__/PerfBudget.bench.ts",
