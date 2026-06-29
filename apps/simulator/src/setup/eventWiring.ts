@@ -43,9 +43,18 @@ export interface EventWiringContext {
  *
  * Returns cleanup intervals that callers should clear on shutdown.
  */
+/** Cadence (ms) at which accumulated per-tick vehicle DTOs are flushed to the
+ * recording layer as a single batched snapshot. Matches the broadcaster flush
+ * cadence so recording granularity tracks the live wire feed. */
+const RECORDING_BATCH_FLUSH_MS = 100;
+
 export function wireEvents(ctx: EventWiringContext): {
   trafficBroadcastInterval: NodeJS.Timeout;
   analyticsBroadcastInterval: NodeJS.Timeout;
+  recordingBatchInterval: NodeJS.Timeout;
+  /** Flushes any pending recording batch immediately. Call before shutdown so
+   * the final tick window is not lost. Safe to call repeatedly. */
+  flushRecordingBatch: () => void;
 } {
   const {
     network,
@@ -65,11 +74,28 @@ export function wireEvents(ctx: EventWiringContext): {
   // Accumulate per-tick vehicle updates and run geofence checks once per flush
   const vehicleBatch: Map<string, VehicleDTO> = new Map();
 
+  // Recording capture is batched separately from the geofence batch: a plain
+  // array (not a Map) preserves every emitted DTO in order so intermediate
+  // positions within a flush window are not coalesced away (RecordingManager
+  // applies its own delta dedup). captureVehicleSnapshot is called ONCE per
+  // flush window instead of once per vehicle per tick (the prior behavior did
+  // a synchronous fs flush path per vehicle).
+  let recordingBatch: VehicleDTO[] = [];
+
+  const flushRecordingBatch = (): void => {
+    if (recordingBatch.length === 0) return;
+    const batch = recordingBatch;
+    recordingBatch = [];
+    recordingManager.captureVehicleSnapshot(batch);
+  };
+
   vehicleManager.on("update", (data) => {
     broadcaster.queueVehicleUpdate(data);
-    recordingManager.captureVehicleSnapshot([data]);
+    recordingBatch.push(data);
     vehicleBatch.set(data.id, data);
   });
+
+  const recordingBatchInterval = setInterval(flushRecordingBatch, RECORDING_BATCH_FLUSH_MS);
 
   // ─── Geofence event → WS broadcaster ───────────────────────────────
   geoFenceManager.on("geofence:event", (event) => {
@@ -253,5 +279,10 @@ export function wireEvents(ctx: EventWiringContext): {
     }
   }, analyticsIntervalMs);
 
-  return { trafficBroadcastInterval, analyticsBroadcastInterval };
+  return {
+    trafficBroadcastInterval,
+    analyticsBroadcastInterval,
+    recordingBatchInterval,
+    flushRecordingBatch,
+  };
 }

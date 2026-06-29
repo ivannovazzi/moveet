@@ -3,6 +3,7 @@ import type { VehicleDTO, SubscribeFilter } from "../types";
 import type { WsMessageMap, WsDataMessageType } from "@moveet/shared-types";
 import { WS_BROADCASTER } from "../constants";
 import { SpatialVehicleIndex } from "./SpatialVehicleIndex";
+import { recordWsDroppedFlush, recordWsBackpressureDisconnect } from "../metrics";
 import logger from "../utils/logger";
 
 /** @deprecated Import from constants.ts instead. Re-exported for backwards compatibility. */
@@ -315,7 +316,9 @@ export class WebSocketBroadcaster {
         (client as unknown as { bufferedAmount: number }).bufferedAmount > BACKPRESSURE_THRESHOLD
       ) {
         state.droppedFlushes++;
+        recordWsDroppedFlush();
         if (state.droppedFlushes > MAX_DROPPED_FLUSHES) {
+          recordWsBackpressureDisconnect();
           client.close();
         }
         continue;

@@ -30,9 +30,11 @@ import {
   createAnalyticsRoutes,
   createScenarioRoutes,
   createStateRoutes,
+  createMetricsRoutes,
 } from "./routes";
 import { createGeofenceRoutes } from "./routes/geofences";
 import type { RouteContext } from "./routes";
+import { metricsMiddleware } from "./middleware/metrics";
 import { setupWebSocket, wireEvents, registerGracefulShutdown } from "./setup";
 import { apiReference } from "@scalar/express-api-reference";
 
@@ -49,6 +51,9 @@ app.use(correlationIdMiddleware);
 
 // Apply general rate limiting to all routes
 app.use(generalRateLimiter.middleware());
+
+// Record HTTP request duration into the Prometheus histogram
+app.use(metricsMiddleware);
 
 const serverStartTime = Date.now();
 
@@ -119,6 +124,7 @@ app.use(createFleetRoutes(ctx));
 app.use(createAnalyticsRoutes(ctx));
 app.use(createScenarioRoutes(ctx));
 app.use(createGeofenceRoutes(geoFenceManager));
+app.use(createMetricsRoutes());
 if (persistenceManager) {
   app.use(createStateRoutes(persistenceManager));
 }
@@ -158,7 +164,12 @@ async function main() {
   });
 
   const { wss, broadcaster } = setupWebSocket(server);
-  const { trafficBroadcastInterval, analyticsBroadcastInterval } = wireEvents({
+  const {
+    trafficBroadcastInterval,
+    analyticsBroadcastInterval,
+    recordingBatchInterval,
+    flushRecordingBatch,
+  } = wireEvents({
     ...ctx,
     broadcaster,
     geoFenceManager,
@@ -179,6 +190,9 @@ async function main() {
     network,
     trafficBroadcastInterval,
     analyticsBroadcastInterval,
+    recordingBatchInterval,
+    flushRecordingBatch,
+    recordingManager,
     persistenceManager,
   });
 }

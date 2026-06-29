@@ -286,6 +286,37 @@ describe("Adapter", () => {
     });
   });
 
+  describe("correlation id propagation", () => {
+    it("forwards correlationId as the x-request-id header on sync", async () => {
+      (global.fetch as any).mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+
+      await adapter.sync({ vehicles: [] }, "corr-123");
+
+      const callArgs = (global.fetch as any).mock.calls[0];
+      expect(callArgs[1].headers["x-request-id"]).toBe("corr-123");
+      // Existing Content-Type header must be preserved alongside x-request-id.
+      expect(callArgs[1].headers["Content-Type"]).toBe("application/json");
+    });
+
+    it("forwards correlationId as the x-request-id header on get", async () => {
+      (global.fetch as any).mockResolvedValueOnce({ ok: true, json: async () => [] });
+
+      await adapter.get("corr-get-456");
+
+      const callArgs = (global.fetch as any).mock.calls[0];
+      expect(callArgs[1].headers["x-request-id"]).toBe("corr-get-456");
+    });
+
+    it("does not set x-request-id when no correlationId is provided", async () => {
+      (global.fetch as any).mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+
+      await adapter.sync({ vehicles: [] });
+
+      const callArgs = (global.fetch as any).mock.calls[0];
+      expect(callArgs[1].headers["x-request-id"]).toBeUndefined();
+    });
+  });
+
   describe("integration scenarios", () => {
     it("should handle multiple concurrent get requests", async () => {
       const mockVehicles = [

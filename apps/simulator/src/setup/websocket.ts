@@ -2,6 +2,7 @@ import type { Server } from "http";
 import { WebSocketServer } from "ws";
 import { WebSocketBroadcaster } from "../modules/WebSocketBroadcaster";
 import { parseSubscribeFilter } from "@moveet/shared-types";
+import { recordWsConnection, recordWsDisconnection } from "../metrics";
 import logger from "../utils/logger";
 
 export interface WebSocketSetupResult {
@@ -19,6 +20,7 @@ export function setupWebSocket(server: Server): WebSocketSetupResult {
 
   wss.on("connection", (ws) => {
     broadcaster.trackClient(ws);
+    recordWsConnection(broadcaster.clientCount);
     logger.info(`Client connected (total: ${broadcaster.clientCount})`);
 
     ws.on("message", (data) => {
@@ -47,6 +49,7 @@ export function setupWebSocket(server: Server): WebSocketSetupResult {
     });
 
     ws.on("close", () => {
+      recordWsDisconnection(broadcaster.clientCount);
       logger.info(`Client disconnected (total: ${broadcaster.clientCount})`);
     });
   });
