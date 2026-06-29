@@ -28,6 +28,15 @@ export class RouteManager extends EventEmitter {
   private lastPathfindAttempt: Map<string, number> = new Map();
   private static readonly PATHFIND_COOLDOWN = 3000;
 
+  /**
+   * Per-vehicle cache of the lean, serialized (non-circular) route. Built once
+   * per route and reused across every `/vehicles` poll, `getStatus`, and event
+   * emit so we don't re-serialize an unchanged route O(vehicles×routeLength)
+   * times per request. Invalidated whenever the vehicle's route changes (see
+   * {@link setRouteFor} / {@link deleteRoute}).
+   */
+  private serializedRouteCache: Map<string, Route> = new Map();
+
   constructor(
     private network: RoadNetwork,
     private registry: VehicleRegistry,
@@ -43,11 +52,34 @@ export class RouteManager extends EventEmitter {
   }
 
   setRoute(vehicleId: string, route: Route): void {
-    this.routes.set(vehicleId, route);
+    this.setRouteFor(vehicleId, route);
   }
 
   deleteRoute(vehicleId: string): void {
     this.routes.delete(vehicleId);
+    this.serializedRouteCache.delete(vehicleId);
+  }
+
+  /**
+   * Single chokepoint for assigning a vehicle's active route. Invalidates the
+   * vehicle's serialized-route cache so the next read re-serializes.
+   */
+  private setRouteFor(vehicleId: string, route: Route): void {
+    this.routes.set(vehicleId, route);
+    this.serializedRouteCache.delete(vehicleId);
+  }
+
+  /**
+   * Returns the lean, serialized (non-circular) form of a vehicle's route,
+   * computing it once and caching until the route changes.
+   */
+  private getSerializedRoute(vehicleId: string, route: Route): Route {
+    let serialized = this.serializedRouteCache.get(vehicleId);
+    if (!serialized) {
+      serialized = utils.nonCircularRouteEdges(route);
+      this.serializedRouteCache.set(vehicleId, serialized);
+    }
+    return serialized;
   }
 
   getDirections(): Direction[] {
@@ -55,7 +87,7 @@ export class RouteManager extends EventEmitter {
       const vehicle = this.registry.get(id)!;
       const direction: Direction = {
         vehicleId: id,
-        route: utils.nonCircularRouteEdges(route),
+        route: this.getSerializedRoute(id, route),
         eta: utils.estimateRouteDuration(route, vehicle.speed),
       };
       if (vehicle.waypoints) {
@@ -90,11 +122,11 @@ export class RouteManager extends EventEmitter {
         if (!this.registry.has(vehicleId)) return;
 
         if (route) {
-          this.routes.set(vehicleId, route);
+          this.setRouteFor(vehicleId, route);
           vehicle.edgeIndex = -1;
           this.emit("direction", {
             vehicleId,
-            route: utils.nonCircularRouteEdges(route),
+            route: this.getSerializedRoute(vehicleId, route),
             eta: utils.estimateRouteDuration(route, vehicle.speed),
           });
         }
@@ -130,13 +162,7 @@ export class RouteManager extends EventEmitter {
 
     const possibleEdges = this.network.getConnectedEdges(currentEdge);
     if (possibleEdges.length === 0) {
-      return {
-        ...currentEdge,
-        start: currentEdge.end,
-        end: currentEdge.start,
-        bearing: (currentEdge.bearing + 180) % 360,
-        oneway: false,
-      };
+      return this.network.getFallbackEdge(currentEdge);
     }
     return possibleEdges[0];
   }
@@ -145,13 +171,7 @@ export class RouteManager extends EventEmitter {
     const currentEdge = vehicle.currentEdge;
     const possibleEdges = this.network.getConnectedEdges(currentEdge);
     if (possibleEdges.length === 0) {
-      return {
-        ...currentEdge,
-        start: currentEdge.end,
-        end: currentEdge.start,
-        bearing: (currentEdge.bearing + 180) % 360,
-        oneway: false,
-      };
+      return this.network.getFallbackEdge(currentEdge);
     }
     const vehicleVisitedEdges = this.registry.getVisitedEdges(vehicle.id);
     const unvisitedEdges = possibleEdges.filter((e) => !vehicleVisitedEdges?.has(e.id));
@@ -218,7 +238,7 @@ export class RouteManager extends EventEmitter {
 
         const nextLeg = multiRoute.legs[wpIndex + 1];
         if (nextLeg) {
-          this.routes.set(vehicle.id, { edges: nextLeg.edges, distance: nextLeg.distance });
+          this.setRouteFor(vehicle.id, { edges: nextLeg.edges, distance: nextLeg.distance });
           vehicle.currentWaypointIndex = wpIndex + 1;
           vehicle.edgeIndex = -1;
         }
@@ -229,7 +249,7 @@ export class RouteManager extends EventEmitter {
         const dwellSeconds = waypoint?.dwellTime ?? 10 + Math.random() * 50;
         vehicle.dwellUntil = Date.now() + dwellSeconds * 1000;
         vehicle.speed = 0; // Will be set by caller via options.minSpeed
-        this.routes.delete(vehicle.id);
+        this.deleteRoute(vehicle.id);
         return null;
       }
     }
@@ -237,7 +257,7 @@ export class RouteManager extends EventEmitter {
     const dwellSeconds = 10 + Math.random() * 50;
     vehicle.dwellUntil = Date.now() + dwellSeconds * 1000;
     vehicle.speed = 0; // Will be set by caller via options.minSpeed
-    this.routes.delete(vehicle.id);
+    this.deleteRoute(vehicle.id);
     return null;
   }
 
@@ -434,12 +454,12 @@ export class RouteManager extends EventEmitter {
 
     const eta = utils.estimateRouteDuration(route, vehicle.speed);
 
+    this.setRouteFor(vehicleId, route);
     this.emit("direction", {
       vehicleId,
-      route: utils.nonCircularRouteEdges(route),
+      route: this.getSerializedRoute(vehicleId, route),
       eta,
     });
-    this.routes.set(vehicleId, route);
     const previousEdgeId = vehicle.currentEdge.id;
     this.traffic.leave(previousEdgeId);
     vehicle.currentEdge = route.edges[0];
@@ -525,7 +545,7 @@ export class RouteManager extends EventEmitter {
 
     const firstLeg = legs[0];
     const stitchedRoute: Route = { edges: allEdges, distance: totalDistance };
-    this.routes.set(vehicleId, { edges: firstLeg.edges, distance: firstLeg.distance });
+    this.setRouteFor(vehicleId, { edges: firstLeg.edges, distance: firstLeg.distance });
 
     const previousEdgeId = vehicle.currentEdge.id;
     this.traffic.leave(previousEdgeId);
@@ -537,6 +557,9 @@ export class RouteManager extends EventEmitter {
 
     const eta = utils.estimateRouteDuration(stitchedRoute, vehicle.speed);
 
+    // The emitted direction shows the full stitched multi-leg route, which is
+    // distinct from the active (first-leg) route stored above — so it is
+    // serialized directly rather than via the per-vehicle active-route cache.
     this.emit("direction", {
       vehicleId,
       route: utils.nonCircularRouteEdges(stitchedRoute),
@@ -589,18 +612,19 @@ export class RouteManager extends EventEmitter {
           if (!this.routes.has(vehicleId)) return;
 
           if (newRoute && newRoute.edges.length > 0) {
-            this.routes.set(vehicleId, newRoute);
+            this.setRouteFor(vehicleId, newRoute);
             vehicle.edgeIndex = -1;
 
+            const serialized = this.getSerializedRoute(vehicleId, newRoute);
             this.emit("vehicle:rerouted", {
               vehicleId,
               incidentId: incident.id,
-              newRoute: utils.nonCircularRouteEdges(newRoute),
+              newRoute: serialized,
             });
 
             this.emit("direction", {
               vehicleId,
-              route: utils.nonCircularRouteEdges(newRoute),
+              route: serialized,
               eta: utils.estimateRouteDuration(newRoute, vehicle.speed),
             });
           }
@@ -621,5 +645,6 @@ export class RouteManager extends EventEmitter {
     this.routes = new Map();
     this.waypointRoutes = new Map();
     this.lastPathfindAttempt = new Map();
+    this.serializedRouteCache = new Map();
   }
 }

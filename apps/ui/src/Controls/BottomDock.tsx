@@ -5,6 +5,28 @@ import type { ReplayStatus, SimulationStatus } from "@/types";
 import { Flame, Pause, Play, Record, Reset, Stop } from "@/components/Icons";
 import { useOptions } from "@/hooks/useOptions";
 import { Button, SquaredButton } from "@/components/Inputs";
+import { toast, toErrorMessage } from "@/lib/toast";
+
+/**
+ * Await an `ApiResponse`-returning client call and surface the outcome as a
+ * toast. The client never rejects (it returns `{ error }`), but we still guard
+ * against unexpected throws.
+ */
+async function runWithToast(
+  action: () => Promise<{ error?: string } | unknown>,
+  { success, failure }: { success?: string; failure: string }
+): Promise<void> {
+  try {
+    const res = (await action()) as { error?: string } | undefined;
+    if (res && typeof res === "object" && "error" in res && res.error) {
+      toast.error(`${failure}: ${res.error}`);
+      return;
+    }
+    if (success) toast.success(success);
+  } catch (err) {
+    toast.error(toErrorMessage(err, failure));
+  }
+}
 
 /* ── Dock container styling (glass overlay floating over the map) ── */
 
@@ -197,10 +219,38 @@ export default function BottomDock({
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval>>(undefined);
 
-  const handleStart = useCallback(() => client.start(options), [options]);
-  const handleReset = useCallback(async () => {
-    await client.reset();
-  }, []);
+  const handleStart = useCallback(
+    () =>
+      runWithToast(() => client.start(options), {
+        success: "Simulation started",
+        failure: "Failed to start simulation",
+      }),
+    [options]
+  );
+  const handleStop = useCallback(
+    () =>
+      runWithToast(() => client.stop(), {
+        success: "Simulation paused",
+        failure: "Failed to pause simulation",
+      }),
+    []
+  );
+  const handleReset = useCallback(
+    () =>
+      runWithToast(() => client.reset(), {
+        success: "Simulation reset",
+        failure: "Failed to reset simulation",
+      }),
+    []
+  );
+  const handleMakeZones = useCallback(
+    () =>
+      runWithToast(() => client.makeHeatzones(), {
+        success: "Heat zones generated",
+        failure: "Failed to generate heat zones",
+      }),
+    []
+  );
 
   useEffect(() => {
     if (isRecording) {
@@ -234,7 +284,7 @@ export default function BottomDock({
     <div className={DOCK_CLASS}>
       <div className="flex items-center gap-1">
         <SquaredButton
-          onClick={status.running ? client.stop : handleStart}
+          onClick={status.running ? handleStop : handleStart}
           icon={status.running ? <Pause /> : <Play />}
           size="lg"
           variant="surface"
@@ -250,7 +300,7 @@ export default function BottomDock({
           aria-label="Reset"
         />
         <SquaredButton
-          onClick={client.makeHeatzones}
+          onClick={handleMakeZones}
           icon={<Flame />}
           size="lg"
           variant="surface"

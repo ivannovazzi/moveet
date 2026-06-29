@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import express from "express";
 import request from "supertest";
+import { validateVehicleUpdates } from "../validation/vehicleUpdate";
 
 // Mock all external dependencies to test the route handlers in isolation
 const mockPluginManager = {
@@ -77,29 +78,7 @@ function createAdapterApp({ isReady = true }: { isReady?: boolean } = {}) {
       return;
     }
 
-    const invalid: string[] = [];
-    const vehicles: any[] = [];
-    for (let i = 0; i < rawVehicles.length; i++) {
-      const v = rawVehicles[i];
-      if (
-        typeof v.id !== "string" ||
-        typeof v.latitude !== "number" ||
-        typeof v.longitude !== "number"
-      ) {
-        invalid.push(
-          `vehicles[${i}]: missing or invalid id (string), latitude (number), or longitude (number)`
-        );
-        continue;
-      }
-      if (
-        v.metadata !== undefined &&
-        (typeof v.metadata !== "object" || v.metadata === null || Array.isArray(v.metadata))
-      ) {
-        invalid.push(`vehicles[${i}]: metadata, when present, must be a JSON object`);
-        continue;
-      }
-      vehicles.push(v);
-    }
+    const { vehicles, invalid } = validateVehicleUpdates(rawVehicles);
     if (invalid.length > 0) {
       res.status(400).json({ error: "Invalid vehicle updates", details: invalid });
       return;

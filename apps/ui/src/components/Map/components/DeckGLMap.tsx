@@ -25,42 +25,61 @@ interface DeckGLMapProps {
   cursor?: string;
 }
 
-// Separate road features into regular roads and highways for distinct styling
+// Separate road features into regular roads and highways for distinct styling.
 function useRoadLayers(
   data: RoadNetwork,
   strokeColor: string,
   strokeWidth: number,
   strokeOpacity: number
 ) {
+  // Filter the (large) feature set ONCE per network load. Toggling stroke
+  // opacity (showDirections) must not re-run this O(features) split, nor
+  // reallocate the data arrays — that would force deck.gl to re-upload all
+  // road geometry to the GPU.
+  const { roads, highways } = useMemo(() => {
+    const roads: RoadNetwork["features"] = [];
+    const highways: RoadNetwork["features"] = [];
+    for (const f of data.features) {
+      (f.properties.type === "highway" ? highways : roads).push(f);
+    }
+    return { roads, highways };
+  }, [data]);
+
   return useMemo(() => {
-    const roads = data.features.filter((f) => f.properties.type !== "highway");
-    const highways = data.features.filter((f) => f.properties.type === "highway");
+    const roadColor = hexToRgba(strokeColor, strokeOpacity);
+    const highwayColor = hexToRgba("#444", strokeOpacity);
+    // Color/opacity flows through getColor with an updateTriggers key so only
+    // the color attribute re-evaluates against the stable, already-uploaded
+    // path geometry.
+    const colorTrigger = `${strokeColor}:${strokeOpacity}`;
 
     return [
       new PathLayer({
         id: "roads",
         data: roads,
         getPath: (d) => d.geometry.coordinates as [number, number][],
-        getColor: hexToRgba(strokeColor, strokeOpacity),
+        getColor: roadColor,
         getWidth: strokeWidth,
         widthUnits: "pixels",
         widthMinPixels: 1,
         jointRounded: true,
         capRounded: true,
+        updateTriggers: { getColor: colorTrigger },
       }),
       new PathLayer({
         id: "highways",
         data: highways,
         getPath: (d) => d.geometry.coordinates as [number, number][],
-        getColor: hexToRgba("#444", strokeOpacity),
+        getColor: highwayColor,
         getWidth: strokeWidth * 2,
         widthUnits: "pixels",
         widthMinPixels: 1,
         jointRounded: true,
         capRounded: true,
+        updateTriggers: { getColor: `#444:${strokeOpacity}` },
       }),
     ];
-  }, [data, strokeColor, strokeWidth, strokeOpacity]);
+  }, [roads, highways, strokeColor, strokeWidth, strokeOpacity]);
 }
 
 export const DeckGLMap: React.FC<DeckGLMapProps> = ({

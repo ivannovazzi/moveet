@@ -133,12 +133,14 @@ export class AdapterSyncManager {
         } catch (error) {
           failures++;
           logger.error(`Failed to sync vehicles to adapter: ${error}`);
-          const cap = Math.max(intervalMs, MAX_SYNC_BACKOFF_MS);
-          const backoff = Math.min(intervalMs * 2 ** failures, cap);
+          // Cap the exponential backoff at MAX_SYNC_BACKOFF_MS. Using min() (not
+          // max()) is essential: with max(), an intervalMs above the cap would
+          // make the cap == intervalMs and silently defeat the 60s ceiling.
+          const backoff = Math.min(intervalMs * 2 ** failures, MAX_SYNC_BACKOFF_MS);
           const jitter = Math.floor(Math.random() * backoff * 0.1);
           if (failures === PERSISTENT_FAILURE_THRESHOLD) {
             logger.error(
-              `Adapter sync failing persistently (${failures} consecutive failures); backing off up to ${cap}ms between attempts`
+              `Adapter sync failing persistently (${failures} consecutive failures); backing off up to ${MAX_SYNC_BACKOFF_MS}ms between attempts`
             );
           }
           scheduleNext(backoff + jitter);

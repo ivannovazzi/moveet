@@ -127,7 +127,7 @@ describe("useVehicles — store-backed state", () => {
     expect(result.current.vehicles[0].speed).toBe(99);
   });
 
-  it("selection changes are immediate (no throttle needed)", () => {
+  it("selection changes are immediate (exposed via filters, not the array)", () => {
     const { result } = renderHook(() => useVehicles());
 
     act(() => {
@@ -138,11 +138,13 @@ describe("useVehicles — store-backed state", () => {
       result.current.onSelectVehicle("v1");
     });
 
-    expect(result.current.vehicles.find((v) => v.id === "v1")!.selected).toBe(true);
-    expect(result.current.vehicles.find((v) => v.id === "v2")!.selected).toBe(false);
+    // Selection is a scalar on `filters` so a hover/select no longer re-maps
+    // the whole vehicle array.
+    expect(result.current.filters.selected).toBe("v1");
+    expect(result.current.vehicles.find((v) => v.id === "v1")!.selected).toBe(false);
   });
 
-  it("hover changes are immediate", () => {
+  it("hover changes are immediate (exposed via filters, not the array)", () => {
     const { result } = renderHook(() => useVehicles());
 
     act(() => {
@@ -153,8 +155,8 @@ describe("useVehicles — store-backed state", () => {
       result.current.onHoverVehicle("v2");
     });
 
-    expect(result.current.vehicles.find((v) => v.id === "v2")!.hovered).toBe(true);
-    expect(result.current.vehicles.find((v) => v.id === "v1")!.hovered).toBe(false);
+    expect(result.current.filters.hovered).toBe("v2");
+    expect(result.current.vehicles.find((v) => v.id === "v2")!.hovered).toBe(false);
   });
 
   it("text filter changes recompute visibility correctly", () => {

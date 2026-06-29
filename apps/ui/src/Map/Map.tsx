@@ -16,7 +16,13 @@ import type { Filters } from "@/hooks/useVehicles";
 import { DispatchState, cursorForDispatchState } from "@/hooks/useDispatchState";
 import type { WaypointRef } from "@/hooks/useDispatchFlow";
 
-import { DeckGLMap } from "@/components/Map/components/DeckGLMap";
+// Lazily load the WebGL canvas so the app shell + control panels can paint
+// before the deck.gl/luma.gl stack (its own `deckgl` vendor chunk) is fetched
+// and the GL context is created. DeckGLMap is a named export, so adapt it to a
+// default export for React.lazy.
+const DeckGLMap = lazy(() =>
+  import("@/components/Map/components/DeckGLMap").then((m) => ({ default: m.DeckGLMap }))
+);
 import VehiclesLayer from "./Vehicle/VehiclesLayer";
 import Direction from "./Direction";
 import RoadRenderer from "./Road";
@@ -113,7 +119,7 @@ export default function Map({
   );
 
   return (
-    <>
+    <Suspense fallback={null}>
       <DeckGLMap
         data={network}
         strokeOpacity={modifiers.showDirections ? 0.4 : 0}
@@ -201,6 +207,6 @@ export default function Map({
         />
         {onBboxChange && <ViewportBboxReporter onBboxChange={onBboxChange} />}
       </DeckGLMap>
-    </>
+    </Suspense>
   );
 }

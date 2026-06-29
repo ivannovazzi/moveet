@@ -799,6 +799,32 @@ describe("RedpandaSink", () => {
       expect(mockSend.mock.calls[0][0].messages).toHaveLength(0);
       expect(mockEncode).not.toHaveBeenCalled();
     });
+
+    it("encodes lazily per chunk: a failed first chunk stops later chunks from encoding", async () => {
+      // batchSize 1 → one message per chunk; first send fails so the batch
+      // aborts before the second chunk is ever encoded. If encoding were still
+      // eager (whole batch up front), mockEncode would be called twice.
+      mockSend.mockRejectedValueOnce(new Error("broker unavailable"));
+      mockEncode.mockClear();
+
+      await sink.connect({
+        brokers: "localhost:9092",
+        format: "canonical-avro",
+        keyField: "id",
+        batchSize: 1,
+      });
+
+      await expect(
+        sink.publishUpdates([
+          { id: "v1", latitude: -1.28, longitude: 36.8 },
+          { id: "v2", latitude: -1.29, longitude: 36.81 },
+        ])
+      ).rejects.toThrow("First chunk failed to publish");
+
+      // Only the first chunk was encoded; the second chunk's encode was skipped.
+      expect(mockEncode).toHaveBeenCalledTimes(1);
+      expect(mockSend).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("TLS + SASL", () => {

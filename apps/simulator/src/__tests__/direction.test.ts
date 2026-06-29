@@ -26,7 +26,7 @@ describe("POST /direction (SimulationController.setDirections)", () => {
 
   /** Place a vehicle on a known bidirectional edge so A* routing reliably succeeds. */
   function placeOnRoutableEdge(vehicleId: string): void {
-    const internalVehicle = (manager as any).vehicles.get(vehicleId);
+    const internalVehicle = manager.registry.getAll().get(vehicleId)!;
     const startNode = network.findNearestNode([45.502, -73.567]);
     const startEdge = startNode.connections[0];
     internalVehicle.currentEdge = startEdge;
@@ -226,7 +226,7 @@ describe("POST /direction (SimulationController.setDirections)", () => {
 
       // Place vehicle on a known bidirectional edge (Second Avenue) so both dispatches
       // can succeed on this small directed test network.
-      const internalVehicle = (manager as any).vehicles.get(vehicleId);
+      const internalVehicle = manager.registry.getAll().get(vehicleId)!;
       const startNode = network.findNearestNode([45.502, -73.567]);
       const startEdge = startNode.connections[0];
       internalVehicle.currentEdge = startEdge;
@@ -261,7 +261,7 @@ describe("POST /direction (SimulationController.setDirections)", () => {
 
       // Place vehicle on a known bidirectional edge (Second Avenue) so dispatches
       // can succeed on this small directed test network.
-      const internalVehicle = (manager as any).vehicles.get(vehicleId);
+      const internalVehicle = manager.registry.getAll().get(vehicleId)!;
       const startNode = network.findNearestNode([45.502, -73.567]);
       const startEdge = startNode.connections[0];
       internalVehicle.currentEdge = startEdge;

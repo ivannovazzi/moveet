@@ -13,6 +13,12 @@ import { HealthAggregator } from "./health-aggregator";
 import { Publisher } from "./publisher";
 import { RealismEngine } from "../realism/RealismEngine";
 import type { RealismConfig, RealismStatus } from "../realism/types";
+import { createLogger } from "../utils/logger";
+
+const logger = createLogger("PluginManager");
+
+/** Default cadence for the unhealthy-sink reconnect loop (ms). */
+const DEFAULT_SINK_RECONNECT_INTERVAL_MS = 30_000;
 
 /**
  * PluginManager — backward-compatible facade that delegates to focused classes.
@@ -40,6 +46,11 @@ export class PluginManager {
   };
 
   private readonly realism: RealismEngine;
+
+  /** Handle for the periodic sink-reconnect loop; null when not running. */
+  private sinkReconnectTimer: ReturnType<typeof setInterval> | null = null;
+  /** Guards against overlapping reconnect sweeps if one runs long. */
+  private reconnecting = false;
 
   constructor(realismConfig: Record<string, unknown> = {}) {
     this.realism = new RealismEngine({
@@ -115,6 +126,81 @@ export class PluginManager {
     }
   }
 
+  /**
+   * Start a periodic, health-driven reconnect loop for sinks.
+   *
+   * Startup already skips a sink whose backend is down, but a broker that dies
+   * AFTER startup would otherwise stay broken forever (publishes report
+   * partial/failure indefinitely) until a manual re-add via the API. This loop
+   * health-checks each active sink and re-`addSink`s any unhealthy one with its
+   * last-known config, recovering automatically once the backend returns.
+   *
+   * Idempotent: a second call is a no-op while a loop is already running. The
+   * timer is `unref`'d so it never keeps the process alive on its own.
+   */
+  startSinkReconnectLoop(intervalMs: number = DEFAULT_SINK_RECONNECT_INTERVAL_MS): void {
+    if (this.sinkReconnectTimer) return;
+    this.sinkReconnectTimer = setInterval(() => {
+      void this.reconnectUnhealthySinks();
+    }, intervalMs);
+    this.sinkReconnectTimer.unref?.();
+  }
+
+  /** Stop the periodic sink-reconnect loop (no-op if not running). */
+  stopSinkReconnectLoop(): void {
+    if (this.sinkReconnectTimer) {
+      clearInterval(this.sinkReconnectTimer);
+      this.sinkReconnectTimer = null;
+    }
+  }
+
+  /**
+   * One reconnect sweep: health-check every active sink and re-connect any that
+   * is unhealthy, reusing its stored config. Re-entrancy guarded so a slow sweep
+   * never overlaps the next tick. Errors are logged, never thrown — a sink whose
+   * backend is still down simply stays unhealthy until the next sweep.
+   *
+   * Returns the list of sink types that were successfully reconnected (useful
+   * for tests and for callers that want to observe recovery).
+   */
+  async reconnectUnhealthySinks(): Promise<string[]> {
+    if (this.reconnecting) return [];
+    this.reconnecting = true;
+    const reconnected: string[] = [];
+    try {
+      const entries = Array.from(this.activeSinks.entries());
+      for (const [type, sink] of entries) {
+        let healthy = false;
+        try {
+          healthy = (await sink.healthCheck()).healthy;
+        } catch (err) {
+          logger.warn(
+            { sink: type, err: err instanceof Error ? err.message : err },
+            "Sink health check threw during reconnect sweep — treating as unhealthy"
+          );
+        }
+        if (healthy) continue;
+
+        const config = this.config.sinkConfig[type] ?? {};
+        try {
+          // addSink connects a fresh instance and only swaps it in on success,
+          // so a failed reconnect leaves the previous (broken) sink in place.
+          await this.addSink(type, config);
+          reconnected.push(type);
+          logger.info({ sink: type }, "Reconnected previously-unhealthy sink");
+        } catch (err) {
+          logger.warn(
+            { sink: type, err: err instanceof Error ? err.message : err },
+            "Sink reconnect attempt failed — will retry on the next sweep"
+          );
+        }
+      }
+    } finally {
+      this.reconnecting = false;
+    }
+    return reconnected;
+  }
+
   async getVehicles(): Promise<ExportVehicle[]> {
     if (!this.activeSource) return [];
     return this.activeSource.getVehicles();
@@ -173,6 +259,7 @@ export class PluginManager {
   }
 
   async shutdown(): Promise<void> {
+    this.stopSinkReconnectLoop();
     this.realism.stop();
     if (this.activeSource) await this.activeSource.disconnect();
     for (const sink of this.activeSinks.values()) {

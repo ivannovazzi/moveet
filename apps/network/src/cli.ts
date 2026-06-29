@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { Command } from "commander";
-import { resolveRegion } from "./regions.js";
+import { resolveRegion, parseBbox } from "./regions.js";
 import { download } from "./commands/download.js";
 import { extract } from "./commands/extract.js";
 import { filter, DEFAULT_ROAD_CLASSES } from "./commands/filter.js";
@@ -10,7 +10,7 @@ import { validate } from "./commands/validate.js";
 import { diff } from "./commands/diff.js";
 import { prepare } from "./commands/prepare.js";
 import path from "path";
-import { fileURLToPath } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_OUTPUT = "apps/simulator/data/network.geojson";
@@ -19,10 +19,7 @@ const CACHE_DIR = path.resolve(__dirname, "../.cache");
 
 const program = new Command();
 
-program
-  .name("network")
-  .description("OSM road network data pipeline for Moveet")
-  .version("0.1.0");
+program.name("network").description("OSM road network data pipeline for Moveet").version("0.1.0");
 
 program
   .command("download")
@@ -31,32 +28,18 @@ program
   .option("--bbox <w,s,e,n>", "Custom bounding box (west,south,east,north)")
   .option("--geofabrik <path>", "Geofabrik path (e.g. africa/kenya)")
   .option("--force", "Re-download even if cached")
-  .action(
-    async (opts: {
-      region?: string;
-      bbox?: string;
-      geofabrik?: string;
-      force?: boolean;
-    }) => {
-      const region = resolveRegion({
-        region: opts.region,
-        bbox: opts.bbox
-          ? (opts.bbox.split(",").map(Number) as [
-              number,
-              number,
-              number,
-              number,
-            ])
-          : undefined,
-        geofabrik: opts.geofabrik,
-      });
-      await download({
-        geofabrik: region.geofabrik,
-        cacheDir: CACHE_DIR,
-        force: opts.force,
-      });
-    },
-  );
+  .action(async (opts: { region?: string; bbox?: string; geofabrik?: string; force?: boolean }) => {
+    const region = resolveRegion({
+      region: opts.region,
+      bbox: opts.bbox ? parseBbox(opts.bbox) : undefined,
+      geofabrik: opts.geofabrik,
+    });
+    await download({
+      geofabrik: region.geofabrik,
+      cacheDir: CACHE_DIR,
+      force: opts.force,
+    });
+  });
 
 program
   .command("extract")
@@ -68,12 +51,7 @@ program
     extract({
       input: opts.input,
       output: opts.output,
-      bbox: opts.bbox.split(",").map(Number) as [
-        number,
-        number,
-        number,
-        number,
-      ],
+      bbox: parseBbox(opts.bbox),
     });
   });
 
@@ -82,11 +60,7 @@ program
   .description("Filter road classes from PBF using osmium")
   .requiredOption("--input <path>", "Input PBF file")
   .requiredOption("--output <path>", "Output filtered PBF file")
-  .option(
-    "--classes <list>",
-    "Comma-separated road classes",
-    [...DEFAULT_ROAD_CLASSES].join(","),
-  )
+  .option("--classes <list>", "Comma-separated road classes", [...DEFAULT_ROAD_CLASSES].join(","))
   .action((opts: { input: string; output: string; classes: string }) => {
     filter({
       input: opts.input,
@@ -99,11 +73,7 @@ program
   .command("export")
   .description("Export filtered PBF to GeoJSON using osmium")
   .requiredOption("--input <path>", "Input filtered roads PBF file")
-  .option(
-    "--output <path>",
-    "Output GeoJSON path",
-    "apps/simulator/data/network.geojson",
-  )
+  .option("--output <path>", "Output GeoJSON path", "apps/simulator/data/network.geojson")
   .option("--region <name>", "Region name for metadata", "unknown")
   .action((opts: { input: string; output: string; region: string }) => {
     exportNetwork({
@@ -144,25 +114,41 @@ program
 program
   .command("prepare [region]")
   .description("Full pipeline: download → extract → filter → export → validate")
+  .option("--bbox <w,s,e,n>", "Custom bounding box (west,south,east,north)")
+  .option("--geofabrik <path>", "Geofabrik path (e.g. africa/kenya)")
   .option("--output <path>", "Output GeoJSON path", DEFAULT_OUTPUT)
   .option("--force", "Force re-download even if cached")
   .option("--dry-run", "Print pipeline steps without executing")
   .action(
     async (
       region: string | undefined,
-      opts: { output: string; force?: boolean; dryRun?: boolean },
+      opts: {
+        bbox?: string;
+        geofabrik?: string;
+        output: string;
+        force?: boolean;
+        dryRun?: boolean;
+      }
     ) => {
       await prepare({
         region,
+        bbox: opts.bbox ? parseBbox(opts.bbox) : undefined,
+        geofabrik: opts.geofabrik,
         output: opts.output,
         force: opts.force,
         dryRun: opts.dryRun,
+        cacheDir: CACHE_DIR,
       });
-    },
+    }
   );
 
-export function runCLI(): void {
-  program.parse();
+export async function runCLI(): Promise<void> {
+  await program.parseAsync();
 }
 
-runCLI();
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  runCLI().catch((e: unknown) => {
+    console.error(e instanceof Error ? e.message : String(e));
+    process.exit(1);
+  });
+}

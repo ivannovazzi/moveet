@@ -412,4 +412,106 @@ describe("PluginManager", () => {
       expect(sink2.disconnect).toHaveBeenCalled();
     });
   });
+
+  describe("runtime sink reconnect", () => {
+    it("leaves a healthy sink alone (no reconnect)", async () => {
+      let created = 0;
+      const factory = () => {
+        created++;
+        return createMockSink({
+          type: "rp",
+          healthCheck: vi.fn().mockResolvedValue({ healthy: true }),
+        });
+      };
+      manager.registerSink("rp", factory);
+      await manager.addSink("rp", { brokers: "x" });
+      expect(created).toBe(1);
+
+      const reconnected = await manager.reconnectUnhealthySinks();
+      expect(reconnected).toEqual([]);
+      // No new instance created: the healthy sink was not re-added.
+      expect(created).toBe(1);
+    });
+
+    it("reconnects an unhealthy sink using its stored config", async () => {
+      let created = 0;
+      const sinks: DataSink[] = [];
+      const factory = () => {
+        created++;
+        // First instance becomes unhealthy; the reconnected instance is healthy.
+        const healthy = created > 1;
+        const sink = createMockSink({
+          type: "rp",
+          healthCheck: vi.fn().mockResolvedValue({ healthy }),
+        });
+        sinks.push(sink);
+        return sink;
+      };
+      manager.registerSink("rp", factory);
+      await manager.addSink("rp", { brokers: "broker:9092" });
+
+      const reconnected = await manager.reconnectUnhealthySinks();
+
+      expect(reconnected).toEqual(["rp"]);
+      // A fresh instance was connected with the stored config.
+      expect(created).toBe(2);
+      expect(sinks[1].connect).toHaveBeenCalledWith({ brokers: "broker:9092" });
+      // The old, unhealthy instance was disconnected during the swap.
+      expect(sinks[0].disconnect).toHaveBeenCalled();
+    });
+
+    it("keeps the broken sink in place when reconnect fails", async () => {
+      let created = 0;
+      const factory = () => {
+        created++;
+        const sink = createMockSink({
+          type: "rp",
+          healthCheck: vi.fn().mockResolvedValue({ healthy: false }),
+        });
+        // The reconnect instance fails to connect (backend still down).
+        if (created > 1) {
+          sink.connect = vi.fn().mockRejectedValue(new Error("still down"));
+        }
+        return sink;
+      };
+      manager.registerSink("rp", factory);
+      await manager.addSink("rp", { brokers: "broker:9092" });
+
+      const reconnected = await manager.reconnectUnhealthySinks();
+      expect(reconnected).toEqual([]);
+      // Sink remains registered (broken, awaiting the next sweep).
+      const status = await manager.getStatus();
+      expect(status.sinks.find((s) => s.type === "rp")).toBeDefined();
+    });
+
+    it("treats a throwing health check as unhealthy and attempts reconnect", async () => {
+      let created = 0;
+      const factory = () => {
+        created++;
+        return createMockSink({
+          type: "rp",
+          healthCheck:
+            created === 1
+              ? vi.fn().mockRejectedValue(new Error("probe blew up"))
+              : vi.fn().mockResolvedValue({ healthy: true }),
+        });
+      };
+      manager.registerSink("rp", factory);
+      await manager.addSink("rp", {});
+
+      const reconnected = await manager.reconnectUnhealthySinks();
+      expect(reconnected).toEqual(["rp"]);
+      expect(created).toBe(2);
+    });
+
+    it("start/stop loop is idempotent and stops on shutdown", async () => {
+      manager.startSinkReconnectLoop(60_000);
+      // Second call is a no-op (no throw, no duplicate timer leak).
+      manager.startSinkReconnectLoop(60_000);
+      manager.stopSinkReconnectLoop();
+      // Stopping again is safe.
+      manager.stopSinkReconnectLoop();
+      await manager.shutdown();
+    });
+  });
 });

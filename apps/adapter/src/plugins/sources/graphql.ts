@@ -1,8 +1,10 @@
-import { gql, GraphQLClient } from "graphql-request";
+import { gql, type GraphQLClient } from "graphql-request";
 import type { ConfigField, DataSource, HealthCheckResult, PluginConfig } from "../types";
 import type { ExportVehicle, Vehicle } from "../../types";
 import { MedicalType } from "../../types";
 import { createLogger } from "../../utils/logger";
+import { getNestedValue, isSafePath } from "../utils";
+import { createResilientGraphQLClient } from "../graphqlClient";
 
 const logger = createLogger("GraphQLSource");
 
@@ -13,26 +15,6 @@ function isMedical(vehicle: Vehicle): boolean {
 const DEFAULT_QUERY = `query { vehicles { nodes { id callsign isOnline _currentShift { id } _trackingType vehicleTypeRef { value } latitude longitude } } }`;
 const DEFAULT_VEHICLE_PATH = "vehicles.nodes";
 const DEFAULT_FIELD_MAP = { id: "id", name: "callsign", lat: "latitude", lng: "longitude" };
-
-const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
-
-function isSafePath(path: string): boolean {
-  return !path.split(".").some((key) => FORBIDDEN_KEYS.has(key));
-}
-
-function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
-  if (!isSafePath(path)) return undefined;
-  return path.split(".").reduce<unknown>((acc, key) => {
-    if (acc && typeof acc === "object" && key in (acc as Record<string, unknown>)) {
-      return (acc as Record<string, unknown>)[key];
-    }
-    return undefined;
-  }, obj);
-}
-
-function getFieldValue(obj: Record<string, unknown>, path: string): unknown {
-  return getNestedValue(obj, path);
-}
 
 export class GraphQLSource implements DataSource {
   readonly type = "graphql";
@@ -53,6 +35,20 @@ export class GraphQLSource implements DataSource {
       ],
     },
     { name: "fieldMap", label: "Field Map", type: "json" },
+    {
+      name: "timeoutMs",
+      label: "Request Timeout (ms)",
+      type: "number",
+      default: 10000,
+      description: "Per-request timeout; the request is aborted and retried/failed after this.",
+    },
+    {
+      name: "maxRetries",
+      label: "Max Attempts",
+      type: "number",
+      default: 3,
+      description: "Total attempts on transient failures (1 = no retry).",
+    },
   ];
   private client: GraphQLClient | null = null;
   private query: string = DEFAULT_QUERY;
@@ -75,7 +71,10 @@ export class GraphQLSource implements DataSource {
       headers["Authorization"] = `Bearer ${config.token as string}`;
     }
 
-    this.client = new GraphQLClient(url, { headers });
+    this.client = createResilientGraphQLClient(url, headers, {
+      timeoutMs: config.timeoutMs != null ? Number(config.timeoutMs) : undefined,
+      maxRetries: config.maxRetries != null ? Number(config.maxRetries) : undefined,
+    });
 
     if (config.query) {
       const q = (config.query as string).trim();
@@ -144,16 +143,16 @@ export class GraphQLSource implements DataSource {
 
       return vehicles
         .filter((v) => {
-          const lat = Number(getFieldValue(v, this.fieldMap.lat));
-          const lng = Number(getFieldValue(v, this.fieldMap.lng));
+          const lat = Number(getNestedValue(v, this.fieldMap.lat));
+          const lng = Number(getNestedValue(v, this.fieldMap.lng));
           return Number.isFinite(lat) && Number.isFinite(lng);
         })
         .map((v) => ({
-          id: getFieldValue(v, this.fieldMap.id) as string,
-          name: getFieldValue(v, this.fieldMap.name) as string,
+          id: getNestedValue(v, this.fieldMap.id) as string,
+          name: getNestedValue(v, this.fieldMap.name) as string,
           position: [
-            getFieldValue(v, this.fieldMap.lat) as number,
-            getFieldValue(v, this.fieldMap.lng) as number,
+            getNestedValue(v, this.fieldMap.lat) as number,
+            getNestedValue(v, this.fieldMap.lng) as number,
           ] as [number, number],
         }));
     } catch (error) {

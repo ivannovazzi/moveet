@@ -109,7 +109,7 @@ describe("app ESLint config integration", () => {
     let config;
 
     it("should load without errors", async () => {
-      config = await loadAppConfig("apps/ui/eslint.config.js");
+      config = await loadAppConfig("apps/ui/eslint.config.mjs");
       assert.ok(Array.isArray(config), "config should be an array");
     });
 

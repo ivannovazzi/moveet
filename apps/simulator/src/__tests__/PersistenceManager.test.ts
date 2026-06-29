@@ -183,12 +183,14 @@ describe("PersistenceManager", () => {
   // ─── Auto-save ────────────────────────────────────────────────────
 
   describe("autoSave", () => {
-    it("should save snapshots at the specified interval", () => {
+    it("should save snapshots at the specified interval", async () => {
       vi.useFakeTimers();
 
       pm.startAutoSave(100);
 
-      vi.advanceTimersByTime(350);
+      // Auto-save now serializes asynchronously (setImmediate-chunked), so use
+      // the async timer advance to flush the queued saves to completion.
+      await vi.advanceTimersByTimeAsync(350);
 
       const list = stateStore.listSnapshots(20);
       expect(list.length).toBe(3);
@@ -197,13 +199,13 @@ describe("PersistenceManager", () => {
       vi.useRealTimers();
     });
 
-    it("should stop saving when stopAutoSave is called", () => {
+    it("should stop saving when stopAutoSave is called", async () => {
       vi.useFakeTimers();
 
       pm.startAutoSave(100);
-      vi.advanceTimersByTime(150);
+      await vi.advanceTimersByTimeAsync(150);
       pm.stopAutoSave();
-      vi.advanceTimersByTime(300);
+      await vi.advanceTimersByTimeAsync(300);
 
       const list = stateStore.listSnapshots(20);
       expect(list.length).toBe(1);
@@ -229,6 +231,63 @@ describe("PersistenceManager", () => {
       expect(() => JSON.parse(data.geofences)).not.toThrow();
       expect(() => JSON.parse(data.incidents)).not.toThrow();
       expect(() => JSON.parse(data.analytics)).not.toThrow();
+    });
+
+    it("collectSnapshotChunked yields the same data as collectSnapshot", async () => {
+      const sync = pm.collectSnapshot();
+      const chunked = await pm.collectSnapshotChunked();
+      expect(chunked).toEqual(sync);
+    });
+  });
+
+  // ─── Chunked save ─────────────────────────────────────────────────
+
+  describe("saveNowChunked", () => {
+    it("persists a snapshot just like saveNow", async () => {
+      const meta = await pm.saveNowChunked();
+      expect(meta.id).toBeGreaterThan(0);
+      const row = stateStore.getLatestSnapshot();
+      expect(row?.id).toBe(meta.id);
+      expect(JSON.parse(row!.vehicles)).toHaveLength(1);
+    });
+
+    it("emits snapshot:saved", async () => {
+      const handler = vi.fn();
+      pm.on("snapshot:saved", handler);
+      await pm.saveNowChunked();
+      expect(handler).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // ─── Analytics-history pruning on auto-save ───────────────────────
+
+  describe("analytics-history pruning", () => {
+    it("prunes rows older than the retention window on each auto-save tick", async () => {
+      // Old row (well beyond the 7-day window) + a fresh row.
+      const old = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      stateStore.insertAnalytics({
+        summary: { totalVehicles: 0, activeVehicles: 0 } as any,
+        fleets: [],
+        timestamp: Date.parse(old),
+      });
+      stateStore.insertAnalytics({
+        summary: { totalVehicles: 1, activeVehicles: 1 } as any,
+        fleets: [],
+        timestamp: Date.now(),
+      });
+      expect(stateStore.getAnalyticsHistoryCount()).toBe(2);
+
+      vi.useFakeTimers();
+      try {
+        pm.startAutoSave(100);
+        await vi.advanceTimersByTimeAsync(100);
+      } finally {
+        pm.stopAutoSave();
+        vi.useRealTimers();
+      }
+
+      // The stale row is gone; the fresh row remains.
+      expect(stateStore.getAnalyticsHistoryCount()).toBe(1);
     });
   });
 });

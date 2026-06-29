@@ -12,5 +12,7 @@ declare namespace NodeJS {
     GEOJSON_PATH: string;
     ADAPTER_URL: string;
     SYNC_ADAPTER_TIMEOUT: string;
+    ANALYTICS_INTERVAL: string;
+    LOG_LEVEL: string;
   }
 }

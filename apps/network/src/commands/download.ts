@@ -19,10 +19,7 @@ export function getEtagPath(pbfPath: string): string {
   return `${pbfPath}.etag`;
 }
 
-export function shouldSkipDownload(
-  pbfPath: string,
-  newEtag: string | undefined,
-): boolean {
+export function shouldSkipDownload(pbfPath: string, newEtag: string | undefined): boolean {
   if (!fs.existsSync(pbfPath)) return false;
   if (!newEtag) return false;
   const etagPath = getEtagPath(pbfPath);
@@ -48,15 +45,15 @@ export async function download(opts: DownloadOptions): Promise<string> {
   const headEtag = await getEtag(url);
 
   if (!force && shouldSkipDownload(dest, headEtag ?? undefined)) {
-    process.stdout.write(
-      `Skipping download (cached): ${path.basename(dest)}\n`,
-    );
+    process.stdout.write(`Skipping download (cached): ${path.basename(dest)}\n`);
     return dest;
   }
 
   process.stdout.write(`Downloading ${url}\n`);
   await streamDownload(url, dest);
 
+  // Only record the ETag after a verified, fully-written file exists, so a
+  // truncated download never gets cached as valid.
   if (headEtag) {
     fs.writeFileSync(etagPath, headEtag, "utf8");
   }
@@ -86,22 +83,35 @@ function getEtag(url: string, redirects = 0): Promise<string | null> {
   });
 }
 
-function streamDownload(
-  url: string,
-  dest: string,
-  redirects = 0,
-): Promise<void> {
-  if (redirects > 5)
-    return Promise.reject(new Error(`Too many redirects downloading ${url}`));
+function streamDownload(url: string, dest: string, redirects = 0): Promise<void> {
+  if (redirects > 5) return Promise.reject(new Error(`Too many redirects downloading ${url}`));
+
+  const partPath = `${dest}.part`;
+
   return new Promise((resolve, reject) => {
     const parsedUrl = new URL(url);
     const mod = parsedUrl.protocol === "https:" ? https : http;
-    const file = fs.createWriteStream(dest);
+    const file = fs.createWriteStream(partPath);
+
+    // Remove the partial file on any failure so a dropped connection never
+    // leaves a truncated artifact behind to be reused.
+    const fail = (err: Error) => {
+      file.destroy();
+      try {
+        if (fs.existsSync(partPath)) fs.unlinkSync(partPath);
+      } catch {
+        // best-effort cleanup
+      }
+      reject(err);
+    };
+
+    file.on("error", fail);
+
     mod
       .get(url, (res) => {
         if (res.statusCode && [301, 302, 307, 308].includes(res.statusCode)) {
           file.close();
-          fs.unlinkSync(dest);
+          if (fs.existsSync(partPath)) fs.unlinkSync(partPath);
           const location = res.headers["location"];
           if (!location) {
             reject(new Error(`Redirect with no Location header from ${url}`));
@@ -111,8 +121,7 @@ function streamDownload(
           return;
         }
         if (res.statusCode && res.statusCode >= 400) {
-          file.close();
-          reject(new Error(`HTTP ${res.statusCode} downloading ${url}`));
+          fail(new Error(`HTTP ${res.statusCode} downloading ${url}`));
           return;
         }
         const total = parseInt(res.headers["content-length"] ?? "0", 10);
@@ -121,18 +130,36 @@ function streamDownload(
           received += chunk.length;
           if (total > 0) {
             const pct = Math.round((received / total) * 100);
-            process.stdout.write(
-              `\r  ${pct}% (${(received / 1e6).toFixed(1)} MB)`,
-            );
+            process.stdout.write(`\r  ${pct}% (${(received / 1e6).toFixed(1)} MB)`);
           }
         });
+        res.on("error", fail);
         res.pipe(file);
         file.on("finish", () => {
           process.stdout.write("\n");
-          file.close();
-          resolve();
+          file.close((closeErr) => {
+            if (closeErr) {
+              fail(closeErr);
+              return;
+            }
+            // Verify completeness when the server told us the size.
+            if (total > 0 && received !== total) {
+              fail(
+                new Error(`Incomplete download: received ${received} of ${total} bytes from ${url}`)
+              );
+              return;
+            }
+            try {
+              // Atomic publish: the full file only ever appears at `dest`.
+              fs.renameSync(partPath, dest);
+            } catch (renameErr) {
+              fail(renameErr as Error);
+              return;
+            }
+            resolve();
+          });
         });
       })
-      .on("error", reject);
+      .on("error", fail);
   });
 }

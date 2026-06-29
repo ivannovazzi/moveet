@@ -1,52 +1,44 @@
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import path from "path";
 
-const OSMIUM_IMAGE = "ghcr.io/osmcode/osmium-tool:v1.16.0";
+let osmiumAvailable: boolean | undefined;
 
 function hasLocalOsmium(): boolean {
+  if (osmiumAvailable !== undefined) return osmiumAvailable;
   try {
-    execSync("osmium version", { stdio: "pipe" });
-    return true;
+    execFileSync("osmium", ["version"], { stdio: "pipe" });
+    osmiumAvailable = true;
   } catch {
-    return false;
+    osmiumAvailable = false;
   }
+  return osmiumAvailable;
 }
 
-export function buildOsmiumCommand(args: string[], workdir: string): string {
-  if (hasLocalOsmium()) {
-    const absWorkdir = path.resolve(workdir);
-    return `osmium ${args.map((a) => (a.includes("/") ? `${absWorkdir}/${a}` : a)).join(" ")}`;
-  }
+/**
+ * Build the osmium argument array for a given workdir. File arguments (those
+ * ending in a known extension) are resolved relative to the workdir; flags and
+ * values are passed through unchanged. Returned as an array so callers invoke
+ * osmium without a shell (no injection, paths with spaces are safe).
+ */
+export function buildOsmiumArgs(args: string[], workdir: string): string[] {
   const absWorkdir = path.resolve(workdir);
-  return `docker run --rm -v ${absWorkdir}:/data ${OSMIUM_IMAGE} osmium ${args.join(" ")}`;
+  return args.map((a) =>
+    a.endsWith(".osm.pbf") || a.endsWith(".geojson") || a.endsWith(".json")
+      ? path.join(absWorkdir, a)
+      : a
+  );
 }
 
 export function osmium(args: string[], workdir: string): void {
-  if (hasLocalOsmium()) {
-    const absWorkdir = path.resolve(workdir);
-    const resolvedArgs = args.map((a) =>
-      a.endsWith(".osm.pbf") || a.endsWith(".geojson") || a.endsWith(".json")
-        ? path.join(absWorkdir, a)
-        : a,
-    );
-    execSync(`osmium ${resolvedArgs.join(" ")}`, { stdio: "inherit" });
-    return;
-  }
-  const absWorkdir = path.resolve(workdir);
-  const cmd = `docker run --rm -v ${absWorkdir}:/data ${OSMIUM_IMAGE} osmium ${args.join(" ")}`;
-  execSync(cmd, { stdio: "inherit" });
+  execFileSync("osmium", buildOsmiumArgs(args, workdir), { stdio: "inherit" });
 }
 
-export function checkDockerAvailable(): void {
+export function checkOsmiumAvailable(): void {
   if (hasLocalOsmium()) return;
-  try {
-    execSync("docker --version", { stdio: "pipe" });
-  } catch {
-    throw new Error(
-      "osmium-tool is not available. Install it with:\n" +
-        "  macOS: brew install osmium-tool\n" +
-        "  Linux: apt install osmium-tool\n" +
-        "Or install Docker: https://docs.docker.com/get-docker/",
-    );
-  }
+  throw new Error(
+    "osmium-tool is not available. Install it with:\n" +
+      "  macOS: brew install osmium-tool\n" +
+      "  Linux: apt install osmium-tool\n" +
+      "See https://osmcode.org/osmium-tool/"
+  );
 }

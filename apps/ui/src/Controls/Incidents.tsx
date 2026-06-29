@@ -1,18 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { IncidentDTO, IncidentType } from "@/types";
 import { Switch, SquaredButton } from "@/components/Inputs";
-import { PanelBadge, PanelBody, PanelEmptyState, PanelHeader } from "./PanelPrimitives";
+import {
+  PanelBadge,
+  PanelBody,
+  PanelEmptyState,
+  PanelErrorState,
+  PanelHeader,
+} from "./PanelPrimitives";
 
 interface IncidentsProps {
   incidents: IncidentDTO[];
   createRandom: () => Promise<void>;
   remove: (id: string) => Promise<void>;
+  error?: string | null;
 }
 
 const INCIDENT_COLORS: Record<IncidentType, string> = {
-  closure: "#f44336", // matches --color-incident-closure
-  accident: "#ff9800", // matches --color-incident-accident
-  construction: "#ffeb3b", // matches --color-incident-construction
+  closure: "#f44336",
+  accident: "#ff9800",
+  construction: "#ffeb3b",
 };
 
 function formatTimeRemaining(expiresAt: number): string {
@@ -28,7 +35,7 @@ function formatTimeRemaining(expiresAt: number): string {
   return `${seconds}s`;
 }
 
-export default function Incidents({ incidents, createRandom, remove }: IncidentsProps) {
+export default function Incidents({ incidents, createRandom, remove, error }: IncidentsProps) {
   const [, setTick] = useState(0);
   const [autoGenerate, setAutoGenerate] = useState(false);
   const createRandomRef = useRef(createRandom);
@@ -89,7 +96,10 @@ export default function Incidents({ incidents, createRandom, remove }: Incidents
             onClick={createRandom}
           />
         </div>
-        {incidents.length === 0 ? <PanelEmptyState>No active incidents</PanelEmptyState> : null}
+        {error ? <PanelErrorState>{error}</PanelErrorState> : null}
+        {incidents.length === 0 && !error ? (
+          <PanelEmptyState>No active incidents</PanelEmptyState>
+        ) : null}
 
         <div className="flex flex-col gap-2">
           {incidents.map((incident) => (

@@ -1,5 +1,0 @@
-localhost:8080
-
-encode zstd gzip
-try_files {path} /index.html
-file_server

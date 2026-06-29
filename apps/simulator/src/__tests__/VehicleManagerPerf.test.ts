@@ -46,29 +46,29 @@ describe("VehicleManager performance optimizations", () => {
     manager.stopLocationUpdates();
   });
 
-  /** Helper: get internal Vehicle map */
+  /** Helper: get internal Vehicle map via the public registry sub-manager */
   function internalVehicles(): Map<string, Vehicle> {
-    return (manager as any).vehicles as Map<string, Vehicle>;
+    return manager.registry.getAll();
   }
 
-  /** Helper: get the active vehicles set */
+  /** Helper: get the active vehicles set via the public game-loop sub-manager */
   function activeVehicles(): Set<string> {
-    return (manager as any).activeVehicles as Set<string>;
+    return manager.gameLoop.getActiveVehicles();
   }
 
-  /** Helper: get the game loop interval */
+  /** Helper: get the game loop interval via the public game-loop sub-manager */
   function gameLoopInterval(): NodeJS.Timeout | null {
-    return (manager as any).gameLoopInterval as NodeJS.Timeout | null;
+    return manager.gameLoop.getGameLoopIntervalRef();
   }
 
-  /** Helper: get the edge index */
+  /** Helper: get the edge index via the public registry sub-manager */
   function vehiclesByEdge(): Map<string, Set<string>> {
-    return (manager as any).vehiclesByEdge as Map<string, Set<string>>;
+    return manager.registry.getVehiclesByEdge();
   }
 
-  /** Helper: get lastUpdateTimes */
+  /** Helper: get lastUpdateTimes via the public game-loop sub-manager */
   function lastUpdateTimes(): Map<string, number> {
-    return (manager as any).lastUpdateTimes as Map<string, number>;
+    return manager.gameLoop.getLastUpdateTimes();
   }
 
   // ─── Task 1: Single game loop ──────────────────────────────────────
@@ -134,16 +134,18 @@ describe("VehicleManager performance optimizations", () => {
         manager.startVehicleMovement(v.id, 500);
       }
 
-      // Stub updateVehicle to track calls
+      // Stub the per-tick update (the gameLoop callback delegates to this) to
+      // track calls, then fall through to the real route-manager update.
       const updateCalls: string[] = [];
-      const origUpdateVehicle = (manager as any).updateVehicle.bind(manager);
+      const options = manager.getOptions();
+      const origUpdateVehicle = manager.routeManager.updateVehicle.bind(manager.routeManager);
       (manager as any).updateVehicle = (vehicle: Vehicle, deltaMs: number) => {
         updateCalls.push(vehicle.id);
-        origUpdateVehicle(vehicle, deltaMs);
+        origUpdateVehicle(vehicle, deltaMs, options);
       };
 
       // Manually trigger the game loop tick
-      (manager as any).gameLoopTick();
+      manager.gameLoop.gameLoopTick();
 
       // All active vehicles should have been updated
       expect(updateCalls.length).toBe(vehicles.length);
@@ -166,7 +168,7 @@ describe("VehicleManager performance optimizations", () => {
       };
 
       // Trigger the tick
-      (manager as any).gameLoopTick();
+      manager.gameLoop.gameLoopTick();
 
       // deltaMs should be approximately 250ms (at least > 200, allowing for timing)
       expect(deltas.length).toBe(1);
@@ -186,7 +188,7 @@ describe("VehicleManager performance optimizations", () => {
         updateCalls.push(vehicle.id);
       };
 
-      (manager as any).gameLoopTick();
+      manager.gameLoop.gameLoopTick();
 
       expect(updateCalls.length).toBe(2);
       expect(updateCalls).toContain(vehicles[0].id);
@@ -235,7 +237,7 @@ describe("VehicleManager performance optimizations", () => {
         updateEvents.push(dto.id);
       });
 
-      (manager as any).gameLoopTick();
+      manager.gameLoop.gameLoopTick();
 
       expect(updateEvents.length).toBe(vehicles.length);
     });
@@ -261,7 +263,7 @@ describe("VehicleManager performance optimizations", () => {
       const testEdge = vehicles[0].currentEdge;
 
       // Place a second vehicle on the same edge
-      (manager as any).addToEdgeIndex(vehicles[1].id, testEdge.id);
+      manager.registry.addToEdgeIndex(vehicles[1].id, testEdge.id);
 
       const edgeIndex = vehiclesByEdge();
       const vehicleIdsOnEdge = edgeIndex.get(testEdge.id);
@@ -282,7 +284,7 @@ describe("VehicleManager performance optimizations", () => {
       vehicle.progress = 0.99; // near end of edge
 
       // Stub setRandomDestination to avoid pathfinding
-      (manager as any).setRandomDestination = () => {};
+      manager.routeManager.setRandomDestination = () => {};
 
       // Force an update which should transition to next edge
       (manager as any).updateVehicle(vehicle, 5000);
@@ -315,7 +317,7 @@ describe("VehicleManager performance optimizations", () => {
       vehicle.targetSpeed = 200;
 
       // Stub setRandomDestination to avoid pathfinding
-      (manager as any).setRandomDestination = () => {};
+      manager.routeManager.setRandomDestination = () => {};
 
       // Run many updates to cause several edge transitions
       for (let i = 0; i < 20; i++) {
@@ -341,7 +343,7 @@ describe("VehicleManager performance optimizations", () => {
 
     it("should clean up the index on reset", async () => {
       // Stub setRandomDestination to avoid pathfinding crashes
-      (manager as any).setRandomDestination = () => {};
+      manager.routeManager.setRandomDestination = () => {};
 
       await manager.reset();
 
@@ -364,7 +366,7 @@ describe("VehicleManager performance optimizations", () => {
       const edgeSet = vehiclesByEdge().get(edgeId);
       if (edgeSet && edgeSet.size === 1) {
         // Only this vehicle is on this edge, removing it should clean up
-        (manager as any).removeFromEdgeIndex(vehicle.id, edgeId);
+        manager.registry.removeFromEdgeIndex(vehicle.id, edgeId);
         expect(vehiclesByEdge().has(edgeId)).toBe(false);
       }
     });
@@ -387,16 +389,16 @@ describe("VehicleManager performance optimizations", () => {
       closeAhead.currentEdge = testEdge;
 
       // Update edge index for moved vehicles
-      (manager as any).addToEdgeIndex(farAhead.id, testEdge.id);
-      (manager as any).addToEdgeIndex(closeAhead.id, testEdge.id);
+      manager.registry.addToEdgeIndex(farAhead.id, testEdge.id);
+      manager.registry.addToEdgeIndex(closeAhead.id, testEdge.id);
 
       me.progress = 0.1;
       closeAhead.progress = 0.3;
       farAhead.progress = 0.7;
 
-      const ahead = (manager as any).findVehicleAhead(me);
+      const ahead = manager.registry.findVehicleAhead(me);
       expect(ahead).toBeDefined();
-      expect(ahead.id).toBe(closeAhead.id);
+      expect(ahead!.id).toBe(closeAhead.id);
     });
 
     it("should return undefined when no vehicle is ahead", () => {
@@ -406,12 +408,12 @@ describe("VehicleManager performance optimizations", () => {
 
       const testEdge = me.currentEdge;
       behind.currentEdge = testEdge;
-      (manager as any).addToEdgeIndex(behind.id, testEdge.id);
+      manager.registry.addToEdgeIndex(behind.id, testEdge.id);
 
       me.progress = 0.8;
       behind.progress = 0.2;
 
-      const ahead = (manager as any).findVehicleAhead(me);
+      const ahead = manager.registry.findVehicleAhead(me);
       expect(ahead).toBeUndefined();
     });
 
@@ -434,7 +436,7 @@ describe("VehicleManager performance optimizations", () => {
 
       me.progress = 0.5;
 
-      const ahead = (manager as any).findVehicleAhead(me);
+      const ahead = manager.registry.findVehicleAhead(me);
       expect(ahead).toBeUndefined();
     });
 
@@ -445,12 +447,12 @@ describe("VehicleManager performance optimizations", () => {
 
       const testEdge = me.currentEdge;
       other.currentEdge = testEdge;
-      (manager as any).addToEdgeIndex(other.id, testEdge.id);
+      manager.registry.addToEdgeIndex(other.id, testEdge.id);
 
       me.progress = 0.9;
       other.progress = 0.1;
 
-      const ahead = (manager as any).findVehicleAhead(me);
+      const ahead = manager.registry.findVehicleAhead(me);
       expect(ahead).toBeUndefined();
     });
 
@@ -461,12 +463,12 @@ describe("VehicleManager performance optimizations", () => {
 
       const testEdge = me.currentEdge;
       sameProgress.currentEdge = testEdge;
-      (manager as any).addToEdgeIndex(sameProgress.id, testEdge.id);
+      manager.registry.addToEdgeIndex(sameProgress.id, testEdge.id);
 
       me.progress = 0.5;
       sameProgress.progress = 0.5;
 
-      const ahead = (manager as any).findVehicleAhead(me);
+      const ahead = manager.registry.findVehicleAhead(me);
       expect(ahead).toBeUndefined();
     });
 
@@ -480,7 +482,7 @@ describe("VehicleManager performance optimizations", () => {
       // Place all on the same edge
       for (const v of vehicles) {
         v.currentEdge = testEdge;
-        (manager as any).addToEdgeIndex(v.id, testEdge.id);
+        manager.registry.addToEdgeIndex(v.id, testEdge.id);
       }
 
       me.progress = 0.1;
@@ -488,9 +490,9 @@ describe("VehicleManager performance optimizations", () => {
       vehicles[2].progress = 0.3; // closest ahead
       vehicles[3].progress = 0.8; // farthest ahead
 
-      const ahead = (manager as any).findVehicleAhead(me);
+      const ahead = manager.registry.findVehicleAhead(me);
       expect(ahead).toBeDefined();
-      expect(ahead.id).toBe(vehicles[2].id);
+      expect(ahead!.id).toBe(vehicles[2].id);
     });
 
     it("should be used by updateSpeed for following distance", () => {
@@ -502,7 +504,7 @@ describe("VehicleManager performance optimizations", () => {
 
       // Place both on the same edge
       follower.currentEdge = leader.currentEdge;
-      (manager as any).addToEdgeIndex(follower.id, leader.currentEdge.id);
+      manager.registry.addToEdgeIndex(follower.id, leader.currentEdge.id);
 
       leader.progress = 0.5;
       leader.speed = 30;
@@ -516,7 +518,7 @@ describe("VehicleManager performance optimizations", () => {
 
       manager.setOptions({ maxSpeed: 999, minSpeed: 1, speedVariation: 0 });
 
-      (manager as any).updateSpeed(follower, 1000);
+      manager.routeManager.updateSpeed(follower, 1000, manager.getOptions());
 
       expect(follower.targetSpeed).toBeLessThanOrEqual(leader.speed * 0.9);
     });
@@ -529,7 +531,7 @@ describe("VehicleManager performance optimizations", () => {
       const vehicles = Array.from(internalVehicles().values());
 
       // Stub setRandomDestination
-      (manager as any).setRandomDestination = () => {};
+      manager.routeManager.setRandomDestination = () => {};
 
       manager.setOptions({ minSpeed: 30, maxSpeed: 60, speedVariation: 0 });
 
@@ -560,7 +562,7 @@ describe("VehicleManager performance optimizations", () => {
         for (const v of vehicles) {
           lastUpdateTimes().set(v.id, tickNow - 500);
         }
-        (manager as any).gameLoopTick();
+        manager.gameLoop.gameLoopTick();
       }
 
       // All vehicles should have moved

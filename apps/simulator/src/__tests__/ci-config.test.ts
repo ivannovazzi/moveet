@@ -14,18 +14,14 @@ describe("CI workflow configuration", () => {
   });
 
   it("contains the required job names", () => {
-    const requiredJobs = ["setup", "format-check", "lint", "test", "build"];
+    const requiredJobs = ["verify", "format-check", "security-audit"];
     for (const job of requiredJobs) {
       expect(ciContent).toContain(`  ${job}:`);
     }
   });
 
-  it("format-check job depends on setup", () => {
-    const formatCheckBlock = ciContent.slice(
-      ciContent.indexOf("  format-check:"),
-      ciContent.indexOf("\n\n", ciContent.indexOf("  format-check:"))
-    );
-    expect(formatCheckBlock).toContain("needs: setup");
+  it("verify job runs lint, type-check, test and build through a single turbo invocation", () => {
+    expect(ciContent).toContain("npx turbo lint type-check test:ci build");
   });
 
   it("format-check job runs npm run format:check", () => {
@@ -36,27 +32,23 @@ describe("CI workflow configuration", () => {
     expect(formatCheckBlock).toContain("npm run format:check");
   });
 
-  it("format-check runs in parallel with lint, test, and build (all depend only on setup)", () => {
-    // Extract the needs line for each parallel job
-    const parallelJobs = ["format-check", "lint", "test", "build"];
-    for (const job of parallelJobs) {
+  it("every job installs deps with npm ci (no cache-miss-without-install)", () => {
+    const jobs = ["verify", "format-check", "security-audit"];
+    for (const job of jobs) {
       const jobStart = ciContent.indexOf(`  ${job}:`);
       expect(jobStart).toBeGreaterThan(-1);
-      const jobBlock = ciContent.slice(
-        jobStart,
-        ciContent.indexOf("\n\n", jobStart) === -1
-          ? ciContent.length
-          : ciContent.indexOf("\n\n", jobStart)
-      );
-      expect(jobBlock).toContain("needs: setup");
+      const end = ciContent.indexOf("\n\n", jobStart);
+      const jobBlock = ciContent.slice(jobStart, end === -1 ? ciContent.length : end);
+      expect(jobBlock).toContain("npm ci");
     }
   });
 
-  it("all jobs use the same node version", () => {
-    const nodeVersionMatches = ciContent.match(/node-version:\s*(\S+)/g);
-    expect(nodeVersionMatches).not.toBeNull();
-    const versions = nodeVersionMatches!.map((m) => m.replace("node-version:", "").trim());
-    const unique = [...new Set(versions)];
+  it("pins a single node version via the NODE_VERSION env", () => {
+    expect(ciContent).toMatch(/NODE_VERSION:\s*\S+/);
+    // Every job references the same pinned version, not a hardcoded literal.
+    const nodeVersionRefs = ciContent.match(/node-version:\s*(\S+)/g) ?? [];
+    expect(nodeVersionRefs.length).toBeGreaterThan(0);
+    const unique = [...new Set(nodeVersionRefs.map((m) => m.replace("node-version:", "").trim()))];
     expect(unique).toHaveLength(1);
   });
 

@@ -50,9 +50,9 @@ describe("VehicleManager", () => {
     manager.stopLocationUpdates();
   });
 
-  /** Helper: get internal Vehicle map for accessing private state */
+  /** Helper: get internal Vehicle map via the public registry sub-manager */
   function internalVehicles(): Map<string, Vehicle> {
-    return (manager as any).vehicles as Map<string, Vehicle>;
+    return manager.registry.getAll();
   }
 
   /** Helper: get the first internal vehicle (all should have valid currentEdge now) */
@@ -152,7 +152,7 @@ describe("VehicleManager", () => {
       vehicle.speed = 200;
       vehicle.targetSpeed = 200;
 
-      (manager as any).updateSpeed(vehicle, 1000);
+      manager.routeManager.updateSpeed(vehicle, 1000, manager.getOptions());
 
       expect(vehicle.speed).toBeLessThanOrEqual(vehicle.currentEdge.maxSpeed);
     });
@@ -165,7 +165,7 @@ describe("VehicleManager", () => {
       vehicle.speed = 100;
       vehicle.targetSpeed = 100;
 
-      (manager as any).updateSpeed(vehicle, 1000);
+      manager.routeManager.updateSpeed(vehicle, 1000, manager.getOptions());
 
       expect(vehicle.speed).toBeLessThanOrEqual(globalMax);
     });
@@ -184,7 +184,7 @@ describe("VehicleManager", () => {
       traffic.leave(vehicle.currentEdge.id);
       traffic.leave(vehicle.currentEdge.id);
 
-      (manager as any).updateSpeed(vehicle, 1000);
+      manager.routeManager.updateSpeed(vehicle, 1000, manager.getOptions());
 
       expect(vehicle.speed).toBeGreaterThanOrEqual(minSpeed);
     });
@@ -202,7 +202,7 @@ describe("VehicleManager", () => {
       // Set dwell far in the future
       vehicle.dwellUntil = Date.now() + 60_000;
 
-      (manager as any).updateVehicle(vehicle, 500);
+      manager.routeManager.updateVehicle(vehicle, 500, manager.getOptions());
 
       expect(vehicle.position[0]).toBe(originalPosition[0]);
       expect(vehicle.position[1]).toBe(originalPosition[1]);
@@ -216,9 +216,9 @@ describe("VehicleManager", () => {
       vehicle.dwellUntil = Date.now() - 1000;
 
       // Stub setRandomDestination to prevent crashes on tiny network
-      (manager as any).setRandomDestination = () => {};
+      manager.routeManager.setRandomDestination = () => {};
 
-      (manager as any).updateVehicle(vehicle, 500);
+      manager.routeManager.updateVehicle(vehicle, 500, manager.getOptions());
 
       expect(vehicle.dwellUntil).toBeUndefined();
     });
@@ -250,7 +250,7 @@ describe("VehicleManager", () => {
 
       manager.setOptions({ maxSpeed: 999, minSpeed: 1, speedVariation: 0 });
 
-      (manager as any).updateSpeed(follower, 1000);
+      manager.routeManager.updateSpeed(follower, 1000, manager.getOptions());
 
       // The follower's targetSpeed should be limited to leader.speed * 0.9
       expect(follower.targetSpeed).toBeLessThanOrEqual(leader.speed * 0.9);
@@ -295,7 +295,7 @@ describe("VehicleManager", () => {
       // (Math.random() < deltaMs / 5000) does NOT trigger
       const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0.99);
 
-      (manager as any).updateSpeed(follower, 1000);
+      manager.routeManager.updateSpeed(follower, 1000, manager.getOptions());
 
       randomSpy.mockRestore();
 
@@ -325,11 +325,11 @@ describe("VehicleManager", () => {
 
       // Stub setRandomDestination to prevent crashes on tiny network
       // when updateVehicle tries pathfinding with no route set
-      (manager as any).setRandomDestination = () => {};
+      manager.routeManager.setRandomDestination = () => {};
 
       const originalPosition: [number, number] = [...vehicle.position];
 
-      (manager as any).updateVehicle(vehicle, 2000);
+      manager.routeManager.updateVehicle(vehicle, 2000, manager.getOptions());
 
       const moved =
         vehicle.position[0] !== originalPosition[0] || vehicle.position[1] !== originalPosition[1];
@@ -345,12 +345,12 @@ describe("VehicleManager", () => {
       vehicle.targetSpeed = 30;
 
       // Stub setRandomDestination to prevent crashes on tiny network
-      (manager as any).setRandomDestination = () => {};
+      manager.routeManager.setRandomDestination = () => {};
 
       const initialEdgeId = vehicle.currentEdge.id;
       const initialProgress = vehicle.progress;
 
-      (manager as any).updateVehicle(vehicle, 500);
+      manager.routeManager.updateVehicle(vehicle, 500, manager.getOptions());
 
       const progressChanged = vehicle.progress !== initialProgress;
       const edgeChanged = vehicle.currentEdge.id !== initialEdgeId;
@@ -541,7 +541,7 @@ describe("VehicleManager", () => {
       manager.on("direction", directionListener);
 
       // Place vehicle on a known bidirectional edge so routing succeeds
-      const internalVehicle = (manager as any).vehicles.get(vehicle.id);
+      const internalVehicle = manager.registry.getAll().get(vehicle.id)!;
       const startNode = network.findNearestNode([45.502, -73.567]);
       const startEdge = startNode.connections[0];
       internalVehicle.currentEdge = startEdge;

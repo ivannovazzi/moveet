@@ -33,6 +33,13 @@ export class PersistenceManager extends EventEmitter {
 
   private autoSaveTimer: NodeJS.Timeout | null = null;
 
+  /**
+   * Retention window for analytics_history rows. Rows older than this are
+   * pruned on each auto-save tick so the table (written every few seconds) does
+   * not grow without bound. 7 days keeps a useful history while bounding size.
+   */
+  private static readonly ANALYTICS_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+
   constructor(deps: PersistenceManagerDeps) {
     super();
     this.stateStore = deps.stateStore;
@@ -52,12 +59,30 @@ export class PersistenceManager extends EventEmitter {
     this.stopAutoSave();
     log.info(`Auto-save started (interval: ${intervalMs}ms)`);
     this.autoSaveTimer = setInterval(() => {
-      try {
-        this.saveNow();
-      } catch (err) {
+      // Off-load the snapshot serialization across event-loop turns so the 5×
+      // JSON.stringify of full state does not stall the loop in one burst.
+      this.saveNowChunked().catch((err) => {
         log.error(`Auto-save failed: ${err}`);
-      }
+      });
+      // Bound the analytics_history table (written every few seconds).
+      this.pruneAnalyticsHistory();
     }, intervalMs);
+  }
+
+  /**
+   * Prunes analytics_history rows older than the retention window. Safe no-op
+   * on any error (best-effort housekeeping that must never break auto-save).
+   */
+  private pruneAnalyticsHistory(): void {
+    try {
+      const cutoff = new Date(Date.now() - PersistenceManager.ANALYTICS_RETENTION_MS).toISOString();
+      const removed = this.stateStore.pruneAnalyticsHistory(cutoff);
+      if (removed > 0) {
+        log.info(`Pruned ${removed} analytics_history row(s) older than ${cutoff}`);
+      }
+    } catch (err) {
+      log.error(`Analytics-history prune failed: ${err}`);
+    }
   }
 
   /**
@@ -80,6 +105,21 @@ export class PersistenceManager extends EventEmitter {
     const data = this.collectSnapshot();
     const meta = this.stateStore.saveSnapshot(data);
     // Keep at most 50 snapshots to prevent unbounded growth
+    this.stateStore.deleteOldSnapshots(50);
+    log.info(`Snapshot saved (id: ${meta.id})`);
+    this.emit("snapshot:saved", meta);
+    return meta;
+  }
+
+  /**
+   * Like {@link saveNow}, but serializes each section across event-loop turns
+   * so the 5× full-state `JSON.stringify` does not block the loop in one burst.
+   * Used by the auto-save timer. The DB write itself is still atomic — only the
+   * (CPU-bound) serialization is chunked.
+   */
+  async saveNowChunked(): Promise<SnapshotMeta> {
+    const data = await this.collectSnapshotChunked();
+    const meta = this.stateStore.saveSnapshot(data);
     this.stateStore.deleteOldSnapshots(50);
     log.info(`Snapshot saved (id: ${meta.id})`);
     this.emit("snapshot:saved", meta);
@@ -124,6 +164,29 @@ export class PersistenceManager extends EventEmitter {
     );
 
     // Analytics summary
+    const analytics = JSON.stringify(this.vehicleManager.analytics.getSnapshot());
+
+    return { vehicles, fleets, geofences, incidents, analytics };
+  }
+
+  /**
+   * Async variant of {@link collectSnapshot} that yields the event loop between
+   * each section's `JSON.stringify`, so a large fleet's serialization is spread
+   * across turns instead of stalling the loop in one synchronous burst.
+   */
+  async collectSnapshotChunked(): Promise<SnapshotData> {
+    const yieldToLoop = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
+
+    const vehicles = JSON.stringify(this.vehicleManager.getVehicles());
+    await yieldToLoop();
+    const fleets = JSON.stringify(this.fleetManager.getFleets());
+    await yieldToLoop();
+    const geofences = JSON.stringify(this.geoFenceManager.getAllZones());
+    await yieldToLoop();
+    const incidents = JSON.stringify(
+      this.incidentManager.getActiveIncidents().map((i) => this.incidentManager.toDTO(i))
+    );
+    await yieldToLoop();
     const analytics = JSON.stringify(this.vehicleManager.analytics.getSnapshot());
 
     return { vehicles, fleets, geofences, incidents, analytics };

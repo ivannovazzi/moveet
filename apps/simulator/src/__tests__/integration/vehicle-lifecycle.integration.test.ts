@@ -52,12 +52,12 @@ function createVehicleManager(network: RoadNetwork, fleet: FleetManager): Vehicl
 
 /** Access the internal Vehicle map (private field). */
 function internalVehicles(manager: VehicleManager): Map<string, Vehicle> {
-  return (manager as unknown as { vehicles: Map<string, Vehicle> }).vehicles;
+  return manager.registry.getAll();
 }
 
 /** Access the internal routes map (private field). */
 function internalRoutes(manager: VehicleManager): Map<string, unknown> {
-  return (manager as unknown as { routes: Map<string, unknown> }).routes;
+  return (manager.routeManager as unknown as { routes: Map<string, unknown> }).routes;
 }
 
 // ─── 1. Vehicle Lifecycle ─────────────────────────────────────────────
@@ -105,7 +105,7 @@ describe("Integration: Vehicle Lifecycle", () => {
   // Test 2
   it("should move vehicles along their edges when game loop ticks are applied", () => {
     // Suppress setRandomDestination during updateVehicle to avoid async calls
-    (manager as unknown as Record<string, unknown>).setRandomDestination = () => {};
+    (manager.routeManager as unknown as Record<string, unknown>).setRandomDestination = () => {};
 
     const vehicle = internalVehicles(manager).values().next().value!;
     vehicle.speed = 40;
@@ -116,10 +116,7 @@ describe("Integration: Vehicle Lifecycle", () => {
     const initialProgress = vehicle.progress;
 
     // Simulate a game loop tick by calling the private updateVehicle
-    (manager as unknown as { updateVehicle: (v: Vehicle, dt: number) => void }).updateVehicle(
-      vehicle,
-      2000
-    );
+    manager.routeManager.updateVehicle(vehicle, 2000, manager.getOptions());
 
     const moved =
       vehicle.position[0] !== initialPosition[0] ||
@@ -150,9 +147,9 @@ describe("Integration: Vehicle Lifecycle", () => {
     expect(routes.has(vehicle.id)).toBe(true);
 
     // Simulate multiple ticks to move the vehicle along the route
-    const updateVehicle = (
-      manager as unknown as { updateVehicle: (v: Vehicle, dt: number) => void }
-    ).updateVehicle.bind(manager);
+    const opts = manager.getOptions();
+    const updateVehicle = (v: Vehicle, dt: number) =>
+      manager.routeManager.updateVehicle(v, dt, opts);
     for (let i = 0; i < 50; i++) {
       updateVehicle(vehicle, 500);
     }
@@ -166,16 +163,16 @@ describe("Integration: Vehicle Lifecycle", () => {
 
   // Test 4
   it("should transition to next edge when current edge is completed", () => {
-    (manager as unknown as Record<string, unknown>).setRandomDestination = () => {};
+    (manager.routeManager as unknown as Record<string, unknown>).setRandomDestination = () => {};
 
     const vehicle = internalVehicles(manager).values().next().value!;
     vehicle.dwellUntil = undefined;
 
     // Use the position-update method directly to bypass speed clamping.
     // updatePosition uses vehicle.speed directly for distance calculation.
-    const updatePosition = (
-      manager as unknown as { updatePosition: (v: Vehicle, dt: number) => void }
-    ).updatePosition.bind(manager);
+    const updatePositionOpts = manager.getOptions();
+    const updatePosition = (v: Vehicle, dt: number) =>
+      manager.routeManager.updatePositionCore(v, dt, updatePositionOpts);
 
     // Set a realistic high speed (km/h). The grid cell edges are ~0.22 km,
     // so 60 km/h for 20 seconds of sim time should traverse several edges.
@@ -220,7 +217,7 @@ describe("Integration: Vehicle Lifecycle", () => {
 
   // Test 6
   it("should emit update events during game loop ticks", () => {
-    (manager as unknown as Record<string, unknown>).setRandomDestination = () => {};
+    (manager.routeManager as unknown as Record<string, unknown>).setRandomDestination = () => {};
 
     const vehicle = internalVehicles(manager).values().next().value!;
     vehicle.speed = 40;
@@ -234,9 +231,7 @@ describe("Integration: Vehicle Lifecycle", () => {
     manager.on("update", (data) => updateEvents.push(data));
 
     // Manually trigger a game loop tick
-    const gameLoopTick = (manager as unknown as { gameLoopTick: () => void }).gameLoopTick.bind(
-      manager
-    );
+    const gameLoopTick = manager.gameLoop.gameLoopTick.bind(manager.gameLoop);
     gameLoopTick();
 
     expect(updateEvents.length).toBeGreaterThanOrEqual(1);
@@ -284,8 +279,9 @@ describe("Integration: Incident Rerouting", () => {
     const result = await manager.findAndSetRoutes(vehicle.id, [45.504, -73.564]);
     if (result.status !== "ok") return; // skip if no route on this tiny network
 
-    const routes = (manager as unknown as { routes: Map<string, { edges: { id: string }[] }> })
-      .routes;
+    const routes = (
+      manager.routeManager as unknown as { routes: Map<string, { edges: { id: string }[] }> }
+    ).routes;
     const route = routes.get(vehicle.id);
     if (!route || route.edges.length < 2) return;
 
@@ -379,8 +375,9 @@ describe("Integration: Incident Rerouting", () => {
     const result = await manager.findAndSetRoutes(vehicle.id, [45.504, -73.566]);
     if (result.status !== "ok") return;
 
-    const routes = (manager as unknown as { routes: Map<string, { edges: { id: string }[] }> })
-      .routes;
+    const routes = (
+      manager.routeManager as unknown as { routes: Map<string, { edges: { id: string }[] }> }
+    ).routes;
     const route = routes.get(vehicle.id);
     if (!route || route.edges.length < 2) return;
 
@@ -571,7 +568,7 @@ describe("Integration: Event Emission", () => {
 
   // Test 16
   it("should emit update events for each active vehicle in a game loop tick", () => {
-    (manager as unknown as Record<string, unknown>).setRandomDestination = () => {};
+    (manager.routeManager as unknown as Record<string, unknown>).setRandomDestination = () => {};
 
     const vehicles = Array.from(internalVehicles(manager).values());
     for (const v of vehicles) {
@@ -585,9 +582,7 @@ describe("Integration: Event Emission", () => {
     manager.on("update", (data: { id: string }) => updateIds.push(data.id));
 
     // Trigger the game loop
-    const gameLoopTick = (manager as unknown as { gameLoopTick: () => void }).gameLoopTick.bind(
-      manager
-    );
+    const gameLoopTick = manager.gameLoop.gameLoopTick.bind(manager.gameLoop);
     gameLoopTick();
 
     // Should have emitted an update for each active vehicle

@@ -1,21 +1,14 @@
 import fs from "fs";
 import crypto from "crypto";
 import type { Feature, FeatureCollection, LineString } from "geojson";
-import type {
-  Node,
-  Edge,
-  Route,
-  PathNode,
-  HeatZoneFeature,
-  POI,
-  HighwayType,
-  BoundingBox,
-} from "../types";
+import type { Node, Edge, Route, HeatZoneFeature, POI, HighwayType, BoundingBox } from "../types";
 import * as utils from "../utils/helpers";
 import { LRUCache, type CacheStats } from "../utils/LRUCache";
 import { HeatZoneManager } from "./HeatZoneManager";
 import { PathfindingPool } from "./PathfindingPool";
 import { SPATIAL_GRID } from "../constants";
+import { computeBaseTravelTime, applyDynamicCost } from "./pathfinding/cost";
+import { PathNodeHeap } from "./pathfinding/heap";
 import EventEmitter from "events";
 
 type Street = [number, number][];
@@ -79,6 +72,11 @@ export class RoadNetwork extends EventEmitter {
   private data: FeatureCollection;
   private heatZoneManager: HeatZoneManager = new HeatZoneManager();
   private poiNodes: Node[] | null = null;
+  // Memoized POI-node sector buckets for getRandomPOINode (rebuilt-per-call before).
+  private poiSectorBuckets: Node[][] | null = null;
+  // Cached derived collections (the source GeoJSON is immutable after load).
+  private speedLimitsCache: ReturnType<RoadNetwork["computeSpeedLimits"]> | null = null;
+  private lineStringFeaturesCache: FeatureCollection | null = null;
 
   // Spatial grid index for O(1) nearest-node lookups
   private spatialGrid: Map<string, Node[]> = new Map();
@@ -97,6 +95,16 @@ export class RoadNetwork extends EventEmitter {
 
   // Maximum speed across all edges — used for admissible A* heuristic
   private maxNetworkSpeed = 110; // updated after buildNetwork
+
+  // Precomputed static (time-invariant) per-edge base travel time (hours),
+  // keyed by edge id. Computed once after the graph is fully built; the A*
+  // relaxation loop adds only the dynamic incident/signal terms on top.
+  private edgeBaseCost: Map<string, number> = new Map();
+
+  // Precomputed connected-edge lookups for the movement hot path. Computed once
+  // at graph-build time so `getConnectedEdges` (called every tick per vehicle)
+  // does not allocate a freshly filtered array on each call.
+  private connectedEdges: Map<string, Edge[]> = new Map();
 
   // Turn restriction table: "fromStreetId|viaNodeId" → Set of forbidden toStreetIds ("no_*")
   // or: "fromStreetId|viaNodeId" → Set of ALLOWED toStreetIds only ("only_*")
@@ -144,6 +152,29 @@ export class RoadNetwork extends EventEmitter {
       if (edge.maxSpeed > maxSpeed) maxSpeed = edge.maxSpeed;
     }
     this.maxNetworkSpeed = maxSpeed > 0 ? maxSpeed : 110;
+
+    // Precompute static per-edge base travel times now that every node's
+    // connection list (the BPR flow proxy) is fully populated.
+    this.buildEdgeBaseCosts();
+  }
+
+  /**
+   * Precompute the static base travel time for every edge. Must run AFTER the
+   * graph is fully built so `edge.start.connections.length` (the BPR flow proxy)
+   * reflects all outbound edges of the start node.
+   */
+  private buildEdgeBaseCosts(): void {
+    for (const edge of this.edges.values()) {
+      const flow = edge.start.connections.length;
+      this.edgeBaseCost.set(edge.id, computeBaseTravelTime(edge, flow));
+      // Cache the connected-edge list (outbound edges of this edge's end node,
+      // excluding the immediate U-turn back to this edge's start). Stable for
+      // the life of the graph, so we compute it once instead of per tick.
+      this.connectedEdges.set(
+        edge.id,
+        edge.end.connections.filter((e) => e.end.id !== edge.start.id)
+      );
+    }
   }
 
   private computeBbox(): void {
@@ -283,6 +314,19 @@ export class RoadNetwork extends EventEmitter {
   }
 
   public getSpeedLimits(): Array<{
+    id: string;
+    speed: number;
+    coordinates: [number, number];
+    highway: string;
+  }> {
+    // Derived purely from the immutable source GeoJSON — compute once and cache.
+    if (!this.speedLimitsCache) {
+      this.speedLimitsCache = this.computeSpeedLimits();
+    }
+    return this.speedLimitsCache;
+  }
+
+  private computeSpeedLimits(): Array<{
     id: string;
     speed: number;
     coordinates: [number, number]; // [lat, lon]
@@ -543,10 +587,21 @@ export class RoadNetwork extends EventEmitter {
   public getRandomPOINode(): Node | null {
     // Sector-based POI selection: pick a random sector that has POI nodes,
     // then pick a random POI node from it — not biased by POI density.
-    const poiNodes = this.getPOINodes();
-    if (poiNodes.length === 0) return null;
+    const buckets = this.getPOISectorBuckets();
+    if (buckets.length === 0) return null;
+    const bucket = buckets[Math.floor(Math.random() * buckets.length)];
+    return bucket[Math.floor(Math.random() * bucket.length)];
+  }
 
-    // Bucket POI nodes by sector
+  /**
+   * POI nodes bucketed by geographic sector, computed once and memoized. The
+   * POI set and bbox are fixed after graph build, so the bucketing is stable —
+   * previously it was rebuilt on every getRandomPOINode call.
+   */
+  private getPOISectorBuckets(): Node[][] {
+    if (this.poiSectorBuckets) return this.poiSectorBuckets;
+
+    const poiNodes = this.getPOINodes();
     const { minLat, maxLat, minLon, maxLon } = this.bbox;
     const SECTORS_N = 10;
     const latStep = (maxLat - minLat) / SECTORS_N;
@@ -564,9 +619,8 @@ export class RoadNetwork extends EventEmitter {
       }
       bucket.push(node);
     }
-    const buckets = Array.from(poiSectors.values());
-    const bucket = buckets[Math.floor(Math.random() * buckets.length)];
-    return bucket[Math.floor(Math.random() * bucket.length)];
+    this.poiSectorBuckets = Array.from(poiSectors.values());
+    return this.poiSectorBuckets;
   }
 
   /**
@@ -640,7 +694,38 @@ export class RoadNetwork extends EventEmitter {
   }
 
   public getConnectedEdges(edge: Edge): Edge[] {
+    // Hot path (called every tick per vehicle): return the cached list computed
+    // at graph-build time. Fall back to on-demand computation for synthetic
+    // edges that are not part of the built graph (e.g. fallback U-turn edges).
+    const cached = this.connectedEdges.get(edge.id);
+    if (cached) return cached;
     return edge.end.connections.filter((e) => e.end.id !== edge.start.id);
+  }
+
+  // Lazily-built cache of synthetic "U-turn" fallback edges (one per real edge),
+  // used by movement when a dead-end edge has no connected edges. Reusing the
+  // cached object avoids spread-synthesizing a fresh Edge on the per-tick hot
+  // path. Lazy (not built upfront) since only dead-end edges ever need one.
+  private fallbackEdges: Map<string, Edge> = new Map();
+
+  /**
+   * Returns the synthetic reverse ("U-turn") edge for a dead-end edge — the
+   * same object the movement code previously rebuilt via spread every tick.
+   * Cached per edge so the hot path allocates nothing after first use.
+   */
+  public getFallbackEdge(edge: Edge): Edge {
+    let fallback = this.fallbackEdges.get(edge.id);
+    if (!fallback) {
+      fallback = {
+        ...edge,
+        start: edge.end,
+        end: edge.start,
+        bearing: (edge.bearing + 180) % 360,
+        oneway: false,
+      };
+      this.fallbackEdges.set(edge.id, fallback);
+    }
+    return fallback;
   }
 
   /**
@@ -668,49 +753,15 @@ export class RoadNetwork extends EventEmitter {
     const cameFrom = new Map<string, { prevId: string; edge: Edge }>();
     const gScore = new Map<string, number>();
 
-    // Min-heap for O(log n) extraction instead of O(n) linear scan
-    const heap: PathNode[] = [];
-    const inOpen = new Set<string>();
-
-    const pushHeap = (node: PathNode): void => {
-      heap.push(node);
-      let i = heap.length - 1;
-      while (i > 0) {
-        const parent = (i - 1) >> 1;
-        if (heap[parent].fScore <= heap[i].fScore) break;
-        [heap[parent], heap[i]] = [heap[i], heap[parent]];
-        i = parent;
-      }
-    };
-
-    const popHeap = (): PathNode => {
-      const top = heap[0];
-      const last = heap.pop()!;
-      if (heap.length > 0) {
-        heap[0] = last;
-        let i = 0;
-        while (true) {
-          let smallest = i;
-          const left = 2 * i + 1,
-            right = 2 * i + 2;
-          if (left < heap.length && heap[left].fScore < heap[smallest].fScore) smallest = left;
-          if (right < heap.length && heap[right].fScore < heap[smallest].fScore) smallest = right;
-          if (smallest === i) break;
-          [heap[i], heap[smallest]] = [heap[smallest], heap[i]];
-          i = smallest;
-        }
-      }
-      return top;
-    };
+    // Shared binary min-heap for O(log n) extraction instead of O(n) linear scan
+    const heap = new PathNodeHeap();
 
     gScore.set(start.id, 0);
     const initialH = this.calculateHeuristic(start, end);
-    pushHeap({ id: start.id, gScore: 0, fScore: initialH });
-    inOpen.add(start.id);
+    heap.push({ id: start.id, gScore: 0, fScore: initialH });
 
-    while (heap.length > 0) {
-      const current = popHeap();
-      inOpen.delete(current.id);
+    while (heap.size > 0) {
+      const current = heap.pop();
 
       if (closedSet.has(current.id)) continue;
 
@@ -747,24 +798,14 @@ export class RoadNetwork extends EventEmitter {
         // Skip impassable roads (smoothnessFactor === 0)
         if (edge.smoothnessFactor === 0) continue;
 
-        const surfacePenalty = edge.surface === "unpaved" || edge.surface === "dirt" ? 1.3 : 1.0;
-        // smoothnessFactor applied via edge.smoothnessFactor (see 9ozi.3)
-        const smoothnessPenalty = 1 / ((edge.smoothnessFactor ?? 1.0) || 1.0); // avoid div-by-zero for impassable=0
-        const flow = edge.start.connections.length; // proxy for observed flow
-        const bprRatio = flow / (edge.capacity ?? 1800);
-        const bprRatio2 = bprRatio * bprRatio;
-        const bprCongestion = 1 + 0.15 * (bprRatio2 * bprRatio2);
-        let travelTime =
-          (edge.distance / edge.maxSpeed) * surfacePenalty * smoothnessPenalty * bprCongestion;
-        if (incidentFactor !== undefined && incidentFactor < 1) {
-          travelTime = travelTime / incidentFactor;
-        }
-        // Add intersection delay for signalized nodes
-        const SIGNAL_DELAY_S = 45; // seconds — midpoint of 30-90s signal cycle
-        const SIGNAL_DELAY_H = SIGNAL_DELAY_S / 3600;
-        if (edge.end.trafficSignal) {
-          travelTime += SIGNAL_DELAY_H;
-        }
+        // Static base cost was precomputed at graph-build time; only the dynamic
+        // incident/signal terms are applied here in the hot relaxation loop.
+        const baseTravelTime = this.edgeBaseCost.get(edge.id)!;
+        const travelTime = applyDynamicCost(
+          baseTravelTime,
+          incidentFactor,
+          edge.end.trafficSignal === true
+        );
         const tentativeCost = current.gScore + travelTime;
         const existingCost = gScore.get(edge.end.id);
 
@@ -776,8 +817,7 @@ export class RoadNetwork extends EventEmitter {
 
           const h = this.calculateHeuristic(edge.end, end);
           const f = tentativeCost + h;
-          pushHeap({ id: edge.end.id, gScore: tentativeCost, fScore: f });
-          inOpen.add(edge.end.id);
+          heap.push({ id: edge.end.id, gScore: tentativeCost, fScore: f });
         }
       }
     }
@@ -1001,10 +1041,15 @@ export class RoadNetwork extends EventEmitter {
   }
 
   public getFeatures(): FeatureCollection {
-    return {
-      ...this.data,
-      // remove the points of interest
-      features: this.data.features.filter((feature) => feature.geometry?.type === "LineString"),
-    };
+    // The LineString-only view is derived from the immutable source GeoJSON;
+    // compute it once and cache (previously re-filtered on every /network call).
+    if (!this.lineStringFeaturesCache) {
+      this.lineStringFeaturesCache = {
+        ...this.data,
+        // remove the points of interest
+        features: this.data.features.filter((feature) => feature.geometry?.type === "LineString"),
+      };
+    }
+    return this.lineStringFeaturesCache;
   }
 }

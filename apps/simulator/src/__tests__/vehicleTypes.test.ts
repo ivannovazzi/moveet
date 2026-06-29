@@ -42,7 +42,7 @@ function createManager(
 }
 
 function getInternalVehicles(manager: VehicleManager): Map<string, Vehicle> {
-  return (manager as any).vehicles;
+  return manager.registry.getAll();
 }
 
 function cleanupManager(manager: VehicleManager): void {
@@ -213,11 +213,12 @@ describe("Vehicle Types", () => {
       // Mock heat zone ON
       vi.spyOn(network, "isPositionInHeatZone").mockReturnValue(true);
 
-      const updateSpeed = (manager as any).updateSpeed.bind(manager);
+      const opts = manager.getOptions();
+      const updateSpeed = (v: Vehicle, dt: number) => manager.routeManager.updateSpeed(v, dt, opts);
       updateSpeed(ambulance, 1000);
       updateSpeed(car, 1000);
 
-      const heatZoneFactor = (manager as any).options.heatZoneSpeedFactor;
+      const heatZoneFactor = manager.getOptions().heatZoneSpeedFactor;
       expect(heatZoneFactor).toBeLessThan(1);
 
       // Car's effective max is reduced by heatZoneFactor; ambulance's is not
@@ -238,10 +239,11 @@ describe("Vehicle Types", () => {
       car.speed = carProfile.maxSpeed;
       car.targetSpeed = carProfile.maxSpeed;
 
-      const updateSpeed = (manager as any).updateSpeed.bind(manager);
+      const opts = manager.getOptions();
+      const updateSpeed = (v: Vehicle, dt: number) => manager.routeManager.updateSpeed(v, dt, opts);
       updateSpeed(car, 1000);
 
-      const heatZoneFactor = (manager as any).options.heatZoneSpeedFactor;
+      const heatZoneFactor = manager.getOptions().heatZoneSpeedFactor;
       const effectiveMax = Math.min(carProfile.maxSpeed, car.currentEdge.maxSpeed) * heatZoneFactor;
       // Car speed must be clamped to heat-zone-adjusted max
       expect(car.speed).toBeLessThanOrEqual(effectiveMax + 0.01);

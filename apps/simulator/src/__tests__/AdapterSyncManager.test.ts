@@ -327,6 +327,32 @@ describe("AdapterSyncManager", () => {
       expect(syncSpy).toHaveBeenCalledTimes(5);
     });
 
+    it("should cap the backoff at 60s even when the interval exceeds the cap", async () => {
+      // Regression: a previous bug computed the cap as max(intervalMs, 60s), so
+      // an interval ABOVE 60s made the cap == interval and silently defeated the
+      // 60s ceiling. With the fix (min(interval*2^n, 60s)), the very first
+      // backed-off retry must fire at +60s, not at +interval.
+      const adapter = (syncManager as any).adapter;
+      const syncSpy = vi.spyOn(adapter, "sync").mockRejectedValue(new Error("adapter down"));
+
+      const interval = 100_000; // 100s — above the 60s cap
+      syncManager.startLocationUpdates(interval, function* () {} as any);
+
+      // First attempt fires at +interval and fails.
+      await vi.advanceTimersByTimeAsync(interval);
+      expect(syncSpy).toHaveBeenCalledTimes(1);
+
+      // Next attempt is capped at 60s: nothing at 59.999s, fires at 60s.
+      await vi.advanceTimersByTimeAsync(59_999);
+      expect(syncSpy).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(syncSpy).toHaveBeenCalledTimes(2);
+
+      // And it stays capped at 60s on subsequent failures.
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(syncSpy).toHaveBeenCalledTimes(3);
+    });
+
     it("should reset the delay to the configured interval after a successful sync", async () => {
       const adapter = (syncManager as any).adapter;
       const syncSpy = vi

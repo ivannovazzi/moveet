@@ -29,10 +29,7 @@ export function pruneNetwork(fc: FeatureCollection): {
   // Build adjacency from LineString features only
   for (const feature of fc.features) {
     if (feature.geometry.type !== "LineString") continue;
-    const coords = (feature as Feature<LineString>).geometry.coordinates as [
-      number,
-      number,
-    ][];
+    const coords = (feature as Feature<LineString>).geometry.coordinates as [number, number][];
     for (const coord of coords) addNode(nodeKey(coord));
     for (let i = 0; i < coords.length - 1; i++) {
       addEdge(nodeKey(coords[i]), nodeKey(coords[i + 1]));
@@ -84,13 +81,8 @@ export function pruneNetwork(fc: FeatureCollection): {
       kept.push(feature); // keep non-LineString features as-is
       continue;
     }
-    const coords = (feature as Feature<LineString>).geometry.coordinates as [
-      number,
-      number,
-    ][];
-    const inLargest = coords.every(
-      (c) => componentOf.get(nodeKey(c)) === largestId,
-    );
+    const coords = (feature as Feature<LineString>).geometry.coordinates as [number, number][];
+    const inLargest = coords.every((c) => componentOf.get(nodeKey(c)) === largestId);
     if (inLargest) {
       kept.push(feature);
     } else {
@@ -102,10 +94,7 @@ export function pruneNetwork(fc: FeatureCollection): {
   const remainingNodes = new Set<string>();
   for (const feature of kept) {
     if (feature.geometry.type !== "LineString") continue;
-    const coords = (feature as Feature<LineString>).geometry.coordinates as [
-      number,
-      number,
-    ][];
+    const coords = (feature as Feature<LineString>).geometry.coordinates as [number, number][];
     for (const coord of coords) remainingNodes.add(nodeKey(coord));
   }
 
@@ -127,9 +116,9 @@ export function prune(inputPath: string, outputPath?: string): void {
   fs.writeFileSync(dest, JSON.stringify(pruned));
 
   console.log(
-    `\nPrune: removed ${removedFeatures.toLocaleString()} features, ${removedNodes.toLocaleString()} nodes`,
+    `\nPrune: removed ${removedFeatures.toLocaleString()} features, ${removedNodes.toLocaleString()} nodes`
   );
   console.log(
-    `  ${originalCount.toLocaleString()} → ${pruned.features.length.toLocaleString()} features`,
+    `  ${originalCount.toLocaleString()} → ${pruned.features.length.toLocaleString()} features`
   );
 }

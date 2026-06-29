@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
 import client from "@/utils/client";
 import { Button } from "@/components/Inputs";
-import { PanelBody, PanelEmptyState, PanelHeader } from "./PanelPrimitives";
+import { PanelBody, PanelLoadingState, PanelHeader } from "./PanelPrimitives";
 import type { AnalyticsSummary, FleetAnalytics } from "@/hooks/analyticsStore";
 
 // ─── Formatting helpers ──────────────────────────────────────────────
@@ -175,7 +175,7 @@ export default function AnalyticsPanel({
       <>
         <PanelHeader title="Analytics" />
         <PanelBody>
-          <PanelEmptyState>Waiting for analytics data...</PanelEmptyState>
+          <PanelLoadingState>Waiting for analytics data…</PanelLoadingState>
         </PanelBody>
       </>
     );

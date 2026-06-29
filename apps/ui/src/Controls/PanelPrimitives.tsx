@@ -134,6 +134,53 @@ export function PanelEmptyState({ children, className, ...props }: PanelEmptySta
   );
 }
 
+interface PanelLoadingStateProps extends HTMLAttributes<HTMLDivElement> {
+  /** Optional loading message; defaults to "Loading…". */
+  children?: ReactNode;
+}
+
+// Mirrors PanelEmptyState's dashed surface but reads as an in-progress state,
+// with a small animated dot so it's distinguishable from "empty".
+export function PanelLoadingState({ children, className, ...props }: PanelLoadingStateProps) {
+  return (
+    <div
+      {...props}
+      role="status"
+      aria-live="polite"
+      className={cn(
+        "flex items-center justify-center gap-2 rounded-md border border-dashed border-border bg-muted/40 p-3 text-center text-xs leading-relaxed text-muted-foreground",
+        className
+      )}
+    >
+      <span
+        aria-hidden="true"
+        className="size-1.5 animate-pulse rounded-full bg-muted-foreground"
+      />
+      {children ?? "Loading…"}
+    </div>
+  );
+}
+
+interface PanelErrorStateProps extends HTMLAttributes<HTMLDivElement> {
+  children: ReactNode;
+}
+
+// Error variant of the panel placeholder — destructive-toned dashed surface.
+export function PanelErrorState({ children, className, ...props }: PanelErrorStateProps) {
+  return (
+    <div
+      {...props}
+      role="alert"
+      className={cn(
+        "rounded-md border border-dashed border-status-error/40 bg-status-error/10 p-3 text-center text-xs leading-relaxed text-status-error",
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
 interface PanelSectionLabelProps extends HTMLAttributes<HTMLSpanElement> {
   children: ReactNode;
 }

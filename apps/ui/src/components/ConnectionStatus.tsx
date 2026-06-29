@@ -27,7 +27,7 @@ export default function ConnectionStatus({ connectionInfo, onRetry }: Connection
         `Reconnecting... (attempt ${attempt + 1}/${maxAttempts})`
       ) : (
         <span className="inline-flex items-center gap-3">
-          Disconnected — please refresh the page
+          Disconnected
           <button
             type="button"
             onClick={onRetry}
@@ -36,6 +36,7 @@ export default function ConnectionStatus({ connectionInfo, onRetry }: Connection
           >
             Retry
           </button>
+          <span className="text-xs opacity-80">or refresh the page</span>
         </span>
       )}
     </div>

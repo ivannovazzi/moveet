@@ -1,8 +1,8 @@
 import express from "express";
 import compression from "compression";
 import cors from "cors";
-import type { VehicleUpdate } from "./types";
 import { PluginManager } from "./plugins/manager";
+import { validateVehicleUpdates } from "./validation/vehicleUpdate";
 import { REALISM_SCHEMA } from "./realism/config";
 import { loadConfig, logConfig } from "./utils/config";
 import { createLogger } from "./utils/logger";
@@ -82,6 +82,11 @@ async function startup(): Promise<void> {
     }
   }
 
+  // A sink whose broker dies AFTER startup would otherwise stay broken forever
+  // (publishes report partial/failure indefinitely). Periodically health-check
+  // active sinks and reconnect any that recover.
+  pluginManager.startSinkReconnectLoop();
+
   // Replay/emit background job runner: fetches a recording from the simulator
   // and re-emits it (back-dated) through the configured sinks.
   const emitJob = new EmitJobRunner({
@@ -99,7 +104,13 @@ async function startup(): Promise<void> {
     })
   );
   app.use(compression());
-  app.use(express.json());
+  // Cap the request body. /sync carries one position update per fleet vehicle;
+  // 1 MB comfortably holds thousands of updates while bounding memory and
+  // refusing accidental/abusive oversized payloads. Note for infra: a real
+  // rate limiter on the mutating endpoints (/sync, /config/*, /replay/emit) is
+  // still recommended — no rate-limit dependency is bundled here, so it is left
+  // to the ingress/proxy layer.
+  app.use(express.json({ limit: "1mb" }));
   app.use(correlationIdMiddleware);
 
   app.use((req, res, next) => {
@@ -143,30 +154,7 @@ async function startup(): Promise<void> {
       return;
     }
 
-    const invalid: string[] = [];
-    const vehicles: VehicleUpdate[] = [];
-    for (let i = 0; i < rawVehicles.length; i++) {
-      const v = rawVehicles[i] as Record<string, unknown>;
-      if (
-        typeof v.id !== "string" ||
-        typeof v.latitude !== "number" ||
-        typeof v.longitude !== "number"
-      ) {
-        invalid.push(
-          `vehicles[${i}]: missing or invalid id (string), latitude (number), or longitude (number)`
-        );
-        continue;
-      }
-      if (
-        v.metadata !== undefined &&
-        (typeof v.metadata !== "object" || v.metadata === null || Array.isArray(v.metadata))
-      ) {
-        invalid.push(`vehicles[${i}]: metadata, when present, must be a JSON object`);
-        continue;
-      }
-      // Carry the update through, including optional source-provided metadata.
-      vehicles.push(v as unknown as VehicleUpdate);
-    }
+    const { vehicles, invalid } = validateVehicleUpdates(rawVehicles);
     if (invalid.length > 0) {
       res.status(400).json({ error: "Invalid vehicle updates", details: invalid });
       return;

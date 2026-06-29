@@ -1,9 +1,12 @@
 import pino from "pino";
+import { parseLogLevel } from "./config";
 
 const isDev = process.env.NODE_ENV !== "production";
 
 const logger = pino({
-  level: process.env.LOG_LEVEL ?? "info",
+  // Validated/defaulted via the same zod schema field as the rest of the
+  // config (see parseLogLevel in config.ts), so an invalid LOG_LEVEL is caught.
+  level: parseLogLevel(),
   transport: isDev ? { target: "pino-pretty", options: { colorize: true } } : undefined,
 });
 
