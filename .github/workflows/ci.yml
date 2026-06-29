@@ -9,12 +9,12 @@ on:
 permissions:
   contents: read
 
-# Node is pinned to 24 to match .node-version, the root package.json engines,
-# and every Dockerfile (node:24-alpine). better-sqlite3 is a native module that
+# Node is pinned to 26 to match .node-version, the root package.json engines,
+# and every Dockerfile (node:26-alpine). better-sqlite3 is a native module that
 # is rebuilt from source on `npm ci`, so the running Node major must stay aligned
 # with these pins to avoid a NODE_MODULE_VERSION (ABI) mismatch at test time.
 env:
-  NODE_VERSION: 24
+  NODE_VERSION: 26
 
 jobs:
   # Lint, type-check, test and build run through a single topological, cached

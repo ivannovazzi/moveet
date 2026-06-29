@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/ivannovazzi/moveet/actions/workflows/ci.yml/badge.svg)](https://github.com/ivannovazzi/moveet/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D24-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D26-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 
@@ -55,7 +55,7 @@ A real-time vehicle fleet simulator that runs vehicles on actual road networks w
 
 ### Prerequisites
 
-- **Node.js** ≥ 24, npm ≥ 9 (workspace root)
+- **Node.js** ≥ 26, npm ≥ 9 (workspace root)
 - **Docker** (optional)
 
 ### Run locally
@@ -435,9 +435,9 @@ docker compose -f docker-compose.yml -f docker-compose.flare-dev.yml up --build
 
 | Package       | Path                                 | Tech                                                           | Port |
 | ------------- | ------------------------------------ | -------------------------------------------------------------- | ---- |
-| **network**   | [`apps/network/`](apps/network/)     | Node.js 24 · Commander · osmium-tool (local install)           | CLI  |
-| **simulator** | [`apps/simulator/`](apps/simulator/) | Node.js 24 · Express 4 · ws 8 · Turf.js 7                      | 5010 |
-| **adapter**   | [`apps/adapter/`](apps/adapter/)     | Node.js 24 · Express 4                                         | 5011 |
+| **network**   | [`apps/network/`](apps/network/)     | Node.js 26 · Commander · osmium-tool (local install)           | CLI  |
+| **simulator** | [`apps/simulator/`](apps/simulator/) | Node.js 26 · Express 4 · ws 8 · Turf.js 7                      | 5010 |
+| **adapter**   | [`apps/adapter/`](apps/adapter/)     | Node.js 26 · Express 4                                         | 5011 |
 | **ui**        | [`apps/ui/`](apps/ui/)               | React 19 · deck.gl 9 · Vite · TypeScript 6.0 · Tailwind CSS v4 | 5012 |
 
 Each package has its own README with deeper architecture notes.

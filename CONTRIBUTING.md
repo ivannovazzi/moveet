@@ -4,7 +4,7 @@ Thank you for your interest in contributing to Moveet! This guide will help you 
 
 ## Prerequisites
 
-- **Node.js** >= 24 (the version pinned in `.node-version` and `package.json` `engines`)
+- **Node.js** >= 26 (the version pinned in `.node-version` and `package.json` `engines`)
 - **npm** (ships with Node.js)
 
 ## Development Setup

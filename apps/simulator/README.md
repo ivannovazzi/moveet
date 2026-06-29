@@ -20,7 +20,7 @@ Vehicle location simulator for fleet management systems. Simulates multiple vehi
 
 ## Requirements
 
-- Node.js 24 (the repo pins Node 24; the `better-sqlite3` native module is compiled for your Node major on install)
+- Node.js 26 (the repo pins Node 26; the `better-sqlite3` native module is compiled for your Node major on install)
 - Docker (optional)
 - OpenStreetMap export file (.geojson)
 

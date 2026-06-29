@@ -18,7 +18,7 @@
 # Targets: `simulator`, `adapter`, `ui`. See docker-compose.yml.
 
 # ── deps: install the whole workspace (cached on manifest changes) ──────────
-FROM node:24-alpine AS deps
+FROM node:26-alpine AS deps
 WORKDIR /repo
 COPY package.json package-lock.json ./
 COPY packages/shared-types/package.json packages/shared-types/
@@ -39,7 +39,7 @@ FROM source AS simulator
 RUN node_modules/.bin/esbuild \
       apps/simulator/src/index.ts \
       apps/simulator/src/workers/pathfinding-worker.ts \
-      --bundle --platform=node --format=esm --target=node24 --packages=external \
+      --bundle --platform=node --format=esm --target=node26 --packages=external \
       --outdir=apps/simulator/dist --outbase=apps/simulator/src
 ENV NODE_ENV=production \
     PORT=3000 \
@@ -51,7 +51,7 @@ CMD ["node", "dist/index.js"]
 # ── adapter runtime (bundled, plain node) ───────────────────────────────────
 FROM source AS adapter
 RUN node_modules/.bin/esbuild apps/adapter/src/index.ts \
-      --bundle --platform=node --format=esm --target=node24 --packages=external \
+      --bundle --platform=node --format=esm --target=node26 --packages=external \
       --outfile=apps/adapter/dist/index.js
 ENV NODE_ENV=production \
     PORT=5011
