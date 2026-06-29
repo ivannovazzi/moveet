@@ -4,6 +4,7 @@ import {
   VEHICLE_RENDER,
   VEHICLE_INTERPOLATION,
   HEAT_LAYER,
+  shouldSnapPosition,
 } from "./constants";
 
 describe("constants", () => {
@@ -77,6 +78,50 @@ describe("constants", () => {
       expect(VEHICLE_INTERPOLATION.MAX_T).toBe(1.15);
       expect(VEHICLE_INTERPOLATION.MAX_T).toBeGreaterThan(1);
       expect(VEHICLE_INTERPOLATION.MAX_T).toBeLessThan(2);
+    });
+
+    it("should set the continuity-gap ceiling above the max supported tick", () => {
+      // Above the 2000 ms max update-interval slider so a normal slow tick still
+      // animates, but well below the seconds-to-minutes gap of a hidden tab.
+      expect(VEHICLE_INTERPOLATION.MAX_CONTINUOUS_GAP_MS).toBe(2500);
+      expect(VEHICLE_INTERPOLATION.MAX_CONTINUOUS_GAP_MS).toBeGreaterThan(2000);
+    });
+  });
+
+  describe("shouldSnapPosition", () => {
+    const speedMps = 40 * (1000 / 3600); // ~11 m/s, a typical moving vehicle
+
+    it("snaps a brand-new vehicle", () => {
+      expect(shouldSnapPosition({ isNew: true, elapsedMs: 500, distanceM: 5, speedMps })).toBe(
+        true
+      );
+    });
+
+    it("animates a normal continuous step", () => {
+      // ~5.5 m in 500 ms at 11 m/s is well within the plausible envelope.
+      expect(shouldSnapPosition({ isNew: false, elapsedMs: 500, distanceM: 5.5, speedMps })).toBe(
+        false
+      );
+    });
+
+    it("snaps after a long continuity gap even when the distance looks plausible", () => {
+      // Backgrounded-tab case: elapsed is minutes, so the speed-scaled envelope
+      // would otherwise be huge. The absolute gap guard must still snap.
+      const elapsedMs = 5 * 60 * 1000; // 5 minutes
+      const distanceM = speedMps * (elapsedMs / 1000); // exactly "plausible" by speed
+      expect(shouldSnapPosition({ isNew: false, elapsedMs, distanceM, speedMps })).toBe(true);
+    });
+
+    it("snaps a teleport/reposition (large jump in a short time)", () => {
+      expect(shouldSnapPosition({ isNew: false, elapsedMs: 500, distanceM: 2000, speedMps })).toBe(
+        true
+      );
+    });
+
+    it("does not snap a small reposition of a stopped vehicle (within the floor)", () => {
+      expect(shouldSnapPosition({ isNew: false, elapsedMs: 500, distanceM: 40, speedMps: 0 })).toBe(
+        false
+      );
     });
   });
 
