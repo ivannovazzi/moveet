@@ -30,6 +30,7 @@
     "type-check": "turbo type-check",
     "test:commitlint": "node --test commitlint.config.test.mjs",
     "test:repo": "vitest run --config vitest.repo-policy.config.ts",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "prepare": "husky"
   },
   "devDependencies": {

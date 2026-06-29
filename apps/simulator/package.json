@@ -17,6 +17,7 @@
     "test": "vitest run",
     "test:ci": "vitest run --coverage",
     "test:watch": "vitest watch",
+    "test:bench": "vitest bench --run src/__tests__/PerfBudget.bench.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.{ts,js,json,md}\"",

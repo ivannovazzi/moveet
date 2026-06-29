@@ -16,6 +16,7 @@ import type { TrafficManager } from "./TrafficManager";
 import { EventEmitter } from "events";
 import * as utils from "../utils/helpers";
 import { getProfile, FOLLOWING_DISTANCE_BY_SIZE } from "../utils/vehicleProfiles";
+import { rng } from "../utils/rng";
 import logger from "../utils/logger";
 
 /**
@@ -113,7 +114,7 @@ export class RouteManager extends EventEmitter {
   // ─── Random destination ───────────────────────────────────────────
 
   private pickDestination(): Node {
-    if (Math.random() < 0.6) {
+    if (rng() < 0.6) {
       const poiNode = this.network.getRandomPOINode();
       if (poiNode) return poiNode;
     }
@@ -188,11 +189,11 @@ export class RouteManager extends EventEmitter {
     const vehicleVisitedEdges = this.registry.getVisitedEdges(vehicle.id);
     const unvisitedEdges = possibleEdges.filter((e) => !vehicleVisitedEdges?.has(e.id));
     if (unvisitedEdges.length > 0) {
-      const nextEdge = unvisitedEdges[Math.floor(Math.random() * unvisitedEdges.length)];
+      const nextEdge = unvisitedEdges[Math.floor(rng() * unvisitedEdges.length)];
       vehicleVisitedEdges?.add(nextEdge.id);
       return nextEdge;
     }
-    return possibleEdges[Math.floor(Math.random() * possibleEdges.length)];
+    return possibleEdges[Math.floor(rng() * possibleEdges.length)];
   }
 
   /**
@@ -244,7 +245,7 @@ export class RouteManager extends EventEmitter {
       });
 
       if (wpIndex < vehicle.waypoints.length - 1) {
-        const dwellSeconds = waypoint?.dwellTime ?? 10 + Math.random() * 50;
+        const dwellSeconds = waypoint?.dwellTime ?? 10 + rng() * 50;
         vehicle.dwellUntil = Date.now() + dwellSeconds * 1000;
         vehicle.speed = 0; // Will be set by caller via options.minSpeed
 
@@ -258,7 +259,7 @@ export class RouteManager extends EventEmitter {
       } else {
         this.emit("route:completed", { vehicleId: vehicle.id });
         this.clearWaypointState(vehicle);
-        const dwellSeconds = waypoint?.dwellTime ?? 10 + Math.random() * 50;
+        const dwellSeconds = waypoint?.dwellTime ?? 10 + rng() * 50;
         vehicle.dwellUntil = Date.now() + dwellSeconds * 1000;
         vehicle.speed = 0; // Will be set by caller via options.minSpeed
         this.deleteRoute(vehicle.id);
@@ -266,7 +267,7 @@ export class RouteManager extends EventEmitter {
       }
     }
 
-    const dwellSeconds = 10 + Math.random() * 50;
+    const dwellSeconds = 10 + rng() * 50;
     vehicle.dwellUntil = Date.now() + dwellSeconds * 1000;
     vehicle.speed = 0; // Will be set by caller via options.minSpeed
     this.deleteRoute(vehicle.id);
@@ -386,8 +387,8 @@ export class RouteManager extends EventEmitter {
     const effectiveMax =
       Math.min(profile.maxSpeed, adjustedEdgeMaxSpeed) * speedFactor * congestion;
 
-    if (!vehicle.targetSpeed || Math.random() < deltaMs / 5000) {
-      const variation = 1 + (Math.random() * 2 - 1) * options.speedVariation;
+    if (!vehicle.targetSpeed || rng() < deltaMs / 5000) {
+      const variation = 1 + (rng() * 2 - 1) * options.speedVariation;
       vehicle.targetSpeed = Math.min(
         effectiveMax,
         Math.max(profile.minSpeed, effectiveMax * variation)

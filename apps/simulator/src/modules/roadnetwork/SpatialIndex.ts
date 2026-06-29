@@ -12,6 +12,7 @@
 import type { Node, Edge, POI, BoundingBox } from "../../types";
 import * as utils from "../../utils/helpers";
 import { SPATIAL_GRID } from "../../constants";
+import { rng } from "../../utils/rng";
 
 const SECTORS_N = 10;
 
@@ -119,21 +120,21 @@ export class SpatialIndex {
   public getRandomEdge(): Edge {
     // Geographic sector normalization: pick a random occupied sector
     // (10×10 coarse grid over the bbox), then pick a random edge within it.
-    const bucket = this.sectorEdges[Math.floor(Math.random() * this.sectorEdges.length)];
-    return bucket[Math.floor(Math.random() * bucket.length)];
+    const bucket = this.sectorEdges[Math.floor(rng() * this.sectorEdges.length)];
+    return bucket[Math.floor(rng() * bucket.length)];
   }
 
   public getRandomNode(): Node {
     // Sector-based: pick a random occupied sector, then a random node within it.
-    const bucket = this.sectorNodes[Math.floor(Math.random() * this.sectorNodes.length)];
-    return bucket[Math.floor(Math.random() * bucket.length)];
+    const bucket = this.sectorNodes[Math.floor(rng() * this.sectorNodes.length)];
+    return bucket[Math.floor(rng() * bucket.length)];
   }
 
   public getRandomPOINode(): Node | null {
     const buckets = this.getPOISectorBuckets();
     if (buckets.length === 0) return null;
-    const bucket = buckets[Math.floor(Math.random() * buckets.length)];
-    return bucket[Math.floor(Math.random() * bucket.length)];
+    const bucket = buckets[Math.floor(rng() * buckets.length)];
+    return bucket[Math.floor(rng() * bucket.length)];
   }
 
   /**

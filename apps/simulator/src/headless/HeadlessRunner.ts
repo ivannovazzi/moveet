@@ -5,6 +5,7 @@ import { IncidentManager } from "../modules/IncidentManager";
 import { RecordingManager } from "../modules/RecordingManager";
 import { config } from "../utils/config";
 import { createLogger } from "../utils/logger";
+import { mulberry32, setAmbientRng } from "../utils/rng";
 import type { RecordingMetadata, VehicleSnapshot } from "../types";
 
 const log = createLogger("headless");
@@ -40,20 +41,6 @@ export interface HeadlessRunnerOptions {
 
 /** Progress callback fired roughly once per processed chunk. */
 export type HeadlessProgress = (step: number, totalSteps: number) => void;
-
-/**
- * Builds a seeded mulberry32 PRNG.
- */
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return function () {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 /**
  * Headless fast-forward generator.
@@ -104,9 +91,12 @@ export class HeadlessRunner {
     const steps = this.totalSteps;
     const chunkSteps = this.opts.chunkSteps ?? DEFAULT_CHUNK_STEPS;
 
-    // Best-effort deterministic seeding: the sim's RNG is `Math.random`. We swap
-    // it for a seeded mulberry32 for the duration of the run so a given seed
-    // yields the same vehicle placement and routing.
+    // Deterministic seeding. The placement/routing seams (SpatialIndex random
+    // node/edge, RouteManager destination + dwell + speed jitter) now draw from
+    // the injectable ambient Rng (src/utils/rng.ts), so we install a seeded
+    // mulberry32 stream there. A single shared stream also backs the legacy
+    // global `Math.random` swap so any not-yet-threaded spot (heat zones, etc.)
+    // stays reproducible too. Both are restored in `finally`.
     const restoreRandom = installSeededRandom(seed);
 
     // Vehicle origin: mirror the simulator's configured source. When an adapter
@@ -203,15 +193,20 @@ export class HeadlessRunner {
 export type { VehicleSnapshot };
 
 /**
- * Overrides the global `Math.random` with a seeded mulberry32 PRNG and returns a
- * restore function. The simulator seeds vehicles and routes via `Math.random`,
- * so this makes a given `seed` reproducible on a best-effort basis.
+ * Installs a seeded mulberry32 stream for the duration of a run and returns a
+ * restore function. A SINGLE stream backs both:
+ *  - the injectable ambient Rng (`src/utils/rng.ts`), which the threaded
+ *    placement/routing seams draw from, and
+ *  - the global `Math.random` (legacy fallback for any spot not yet threaded),
+ * so a given `seed` reproduces the same generated recording byte-for-byte.
  */
 function installSeededRandom(seed: number): () => void {
+  const stream = mulberry32(seed);
+  const restoreAmbient = setAmbientRng(stream);
   const original = Math.random;
-  const rng = mulberry32(seed);
-  Math.random = rng;
+  Math.random = () => stream.next();
   return () => {
     Math.random = original;
+    restoreAmbient();
   };
 }

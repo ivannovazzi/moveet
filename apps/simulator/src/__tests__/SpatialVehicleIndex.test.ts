@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { SpatialVehicleIndex } from "../modules/SpatialVehicleIndex";
 import { SPATIAL_GRID } from "../constants";
+import { mulberry32 } from "../utils/rng";
 
 describe("SpatialVehicleIndex", () => {
   describe("grid cell assignment", () => {
@@ -311,11 +312,14 @@ describe("SpatialVehicleIndex", () => {
     it("should handle 1000+ vehicles efficiently", () => {
       const index = new SpatialVehicleIndex();
       const vehicleCount = 2000;
+      // Seeded RNG so placement (and therefore the per-cell distribution this
+      // test asserts on) is reproducible across runs.
+      const rng = mulberry32(0xc0ffee);
 
       // Place vehicles across Nairobi area (-1.35 to -1.2, 36.75 to 36.9)
       for (let i = 0; i < vehicleCount; i++) {
-        const lat = -1.35 + Math.random() * 0.15;
-        const lng = 36.75 + Math.random() * 0.15;
+        const lat = -1.35 + rng.next() * 0.15;
+        const lng = 36.75 + rng.next() * 0.15;
         index.update(`v${i}`, lat, lng);
       }
 
@@ -356,19 +360,21 @@ describe("SpatialVehicleIndex", () => {
     it("should efficiently update moving vehicles", () => {
       const index = new SpatialVehicleIndex();
       const vehicleCount = 1000;
+      // Seeded RNG for reproducible placement + movement.
+      const rng = mulberry32(0xbeef);
 
       // Initial placement
       for (let i = 0; i < vehicleCount; i++) {
-        const lat = -1.35 + Math.random() * 0.15;
-        const lng = 36.75 + Math.random() * 0.15;
+        const lat = -1.35 + rng.next() * 0.15;
+        const lng = 36.75 + rng.next() * 0.15;
         index.update(`v${i}`, lat, lng);
       }
 
       // Simulate movement (update all positions)
       const start = performance.now();
       for (let i = 0; i < vehicleCount; i++) {
-        const lat = -1.35 + Math.random() * 0.15;
-        const lng = 36.75 + Math.random() * 0.15;
+        const lat = -1.35 + rng.next() * 0.15;
+        const lng = 36.75 + rng.next() * 0.15;
         index.update(`v${i}`, lat, lng);
       }
       const updateMs = performance.now() - start;
