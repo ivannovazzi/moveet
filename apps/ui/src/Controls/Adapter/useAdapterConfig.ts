@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { HealthResponse, ConfigResponse } from "./adapterClient";
 import * as api from "./adapterClient";
 import client from "@/utils/client";
+import { toast, toErrorMessage } from "@/lib/toast";
 
 export type AdapterStatus = "healthy" | "unhealthy" | "unreachable";
 
@@ -88,12 +89,11 @@ export function useAdapterConfig(isOpen: boolean) {
         await fetchConfig();
         // Reset simulator so it re-fetches vehicles from the new source
         await client.reset();
+        toast.success(`Source set to ${type}`);
       } catch (e) {
-        setState((prev) => ({
-          ...prev,
-          loading: false,
-          error: e instanceof Error ? e.message : "Failed to set source",
-        }));
+        const message = toErrorMessage(e, "Failed to set source");
+        setState((prev) => ({ ...prev, loading: false, error: message }));
+        toast.error(message);
       }
     },
     [fetchConfig]
@@ -106,12 +106,11 @@ export function useAdapterConfig(isOpen: boolean) {
         const res = await api.addSink(type, config);
         setState((prev) => ({ ...prev, health: res.status, loading: false }));
         await fetchConfig();
+        toast.success(`Sink "${type}" added`);
       } catch (e) {
-        setState((prev) => ({
-          ...prev,
-          loading: false,
-          error: e instanceof Error ? e.message : "Failed to add sink",
-        }));
+        const message = toErrorMessage(e, "Failed to add sink");
+        setState((prev) => ({ ...prev, loading: false, error: message }));
+        toast.error(message);
       }
     },
     [fetchConfig]
@@ -124,12 +123,11 @@ export function useAdapterConfig(isOpen: boolean) {
         const res = await api.removeSink(type);
         setState((prev) => ({ ...prev, health: res.status, loading: false }));
         await fetchConfig();
+        toast.success(`Sink "${type}" removed`);
       } catch (e) {
-        setState((prev) => ({
-          ...prev,
-          loading: false,
-          error: e instanceof Error ? e.message : "Failed to remove sink",
-        }));
+        const message = toErrorMessage(e, "Failed to remove sink");
+        setState((prev) => ({ ...prev, loading: false, error: message }));
+        toast.error(message);
       }
     },
     [fetchConfig]
@@ -142,12 +140,11 @@ export function useAdapterConfig(isOpen: boolean) {
         await api.setRealism(realismConfig);
         await fetchConfig();
         setState((prev) => ({ ...prev, loading: false }));
+        toast.success("Realism settings updated");
       } catch (e) {
-        setState((prev) => ({
-          ...prev,
-          loading: false,
-          error: e instanceof Error ? e.message : "Failed to set realism",
-        }));
+        const message = toErrorMessage(e, "Failed to set realism");
+        setState((prev) => ({ ...prev, loading: false, error: message }));
+        toast.error(message);
       }
     },
     [fetchConfig]

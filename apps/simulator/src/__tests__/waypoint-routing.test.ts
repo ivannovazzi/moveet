@@ -24,7 +24,7 @@ describe("Multi-stop waypoint routing", () => {
   let origVehicleCount: number;
 
   function placeOnRoutableEdge(vehicleId: string): void {
-    const internalVehicle = (manager as any).vehicles.get(vehicleId);
+    const internalVehicle = manager.registry.getAll().get(vehicleId)!;
     const startNode = network.findNearestNode([45.502, -73.567]);
     const startEdge = startNode.connections[0];
     internalVehicle.currentEdge = startEdge;
@@ -143,11 +143,11 @@ describe("Multi-stop waypoint routing", () => {
         },
       ]);
 
-      const internalVehicle = (manager as any).vehicles.get(vehicleId);
+      const internalVehicle = manager.registry.getAll().get(vehicleId)!;
       expect(internalVehicle.waypoints).toHaveLength(2);
       expect(internalVehicle.currentWaypointIndex).toBe(0);
-      expect(internalVehicle.waypoints[0].label).toBe("A");
-      expect(internalVehicle.waypoints[1].label).toBe("B");
+      expect(internalVehicle.waypoints![0].label).toBe("A");
+      expect(internalVehicle.waypoints![1].label).toBe("B");
     });
 
     it("should return error for non-existent vehicle", async () => {
@@ -192,8 +192,8 @@ describe("Multi-stop waypoint routing", () => {
       manager.on("route:completed", (data) => routeCompleteEvents.push(data));
 
       // Simulate reaching the end of leg 0 by calling handleRouteCompleted directly
-      const vehicle = (manager as any).vehicles.get(vehicleId);
-      (manager as any).handleRouteCompleted(vehicle);
+      const vehicle = manager.registry.getAll().get(vehicleId)!;
+      (manager.routeManager as any).handleRouteCompleted(vehicle);
 
       expect(waypointEvents).toHaveLength(1);
       expect(waypointEvents[0].vehicleId).toBe(vehicleId);
@@ -223,8 +223,8 @@ describe("Multi-stop waypoint routing", () => {
       const routeCompleteEvents: any[] = [];
       manager.on("route:completed", (data) => routeCompleteEvents.push(data));
 
-      const vehicle = (manager as any).vehicles.get(vehicleId);
-      (manager as any).handleRouteCompleted(vehicle);
+      const vehicle = manager.registry.getAll().get(vehicleId)!;
+      (manager.routeManager as any).handleRouteCompleted(vehicle);
 
       expect(routeCompleteEvents).toHaveLength(1);
       expect(routeCompleteEvents[0].vehicleId).toBe(vehicleId);
@@ -252,9 +252,9 @@ describe("Multi-stop waypoint routing", () => {
         },
       ]);
 
-      const vehicle = (manager as any).vehicles.get(vehicleId);
+      const vehicle = manager.registry.getAll().get(vehicleId)!;
       const beforeDwell = Date.now();
-      (manager as any).handleRouteCompleted(vehicle);
+      (manager.routeManager as any).handleRouteCompleted(vehicle);
 
       // dwellUntil should be approximately now + customDwell seconds
       const dwellDelta = vehicle.dwellUntil! - beforeDwell;

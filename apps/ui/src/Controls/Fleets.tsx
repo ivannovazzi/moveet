@@ -3,7 +3,13 @@ import { cn } from "@/lib/utils";
 import type { Fleet, Vehicle } from "@/types";
 import { Button, SquaredButton } from "@/components/Inputs";
 import { Input } from "@/components/ui/input";
-import { PanelBadge, PanelBody, PanelEmptyState, PanelHeader } from "./PanelPrimitives";
+import {
+  PanelBadge,
+  PanelBody,
+  PanelEmptyState,
+  PanelErrorState,
+  PanelHeader,
+} from "./PanelPrimitives";
 
 interface FleetsProps {
   fleets: Fleet[];
@@ -12,6 +18,7 @@ interface FleetsProps {
   onDeleteFleet: (id: string) => Promise<void>;
   onAssignVehicle: (fleetId: string, vehicleId: string) => Promise<void>;
   onUnassignVehicle: (fleetId: string, vehicleId: string) => Promise<void>;
+  error?: string | null;
 }
 
 export default function Fleets({
@@ -21,6 +28,7 @@ export default function Fleets({
   onDeleteFleet,
   onAssignVehicle,
   onUnassignVehicle,
+  error,
 }: FleetsProps) {
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState("");
@@ -75,6 +83,7 @@ export default function Fleets({
       />
 
       <PanelBody className="gap-3">
+        {error ? <PanelErrorState>{error}</PanelErrorState> : null}
         {fleets.length < 10 ? (
           <div className="flex justify-end">
             <Button size="sm" onClick={() => setIsAdding(true)} type="button">
@@ -82,7 +91,7 @@ export default function Fleets({
             </Button>
           </div>
         ) : null}
-        {fleets.length === 0 && !isAdding ? (
+        {fleets.length === 0 && !isAdding && !error ? (
           <PanelEmptyState>No fleets defined</PanelEmptyState>
         ) : null}
 

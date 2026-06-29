@@ -32,10 +32,7 @@ export function analyzeNetwork(fc: FeatureCollection): ValidationReport {
 
   for (const feature of fc.features) {
     if (feature.geometry.type !== "LineString") continue;
-    const coords = (feature as Feature<LineString>).geometry.coordinates as [
-      number,
-      number,
-    ][];
+    const coords = (feature as Feature<LineString>).geometry.coordinates as [number, number][];
     totalEdges++;
     for (const coord of coords) addNode(nodeKey(coord));
     for (let i = 0; i < coords.length - 1; i++) {
@@ -65,8 +62,7 @@ export function analyzeNetwork(fc: FeatureCollection): ValidationReport {
   components.sort((a, b) => b - a);
   const totalNodes = adjacency.size;
   const isolatedNodes = components.filter((s) => s === 1).length;
-  const largestComponentPct =
-    totalNodes > 0 ? (components[0] / totalNodes) * 100 : 0;
+  const largestComponentPct = totalNodes > 0 ? (components[0] / totalNodes) * 100 : 0;
 
   return {
     totalNodes,
@@ -77,9 +73,7 @@ export function analyzeNetwork(fc: FeatureCollection): ValidationReport {
     // Pass if ≥95% of nodes are in the largest component and <5% are isolated.
     // Real-world city exports always have some small disconnected fragments at
     // bbox boundaries; a strict component count would reject valid networks.
-    passed:
-      largestComponentPct >= 95 &&
-      isolatedNodes / Math.max(totalNodes, 1) < 0.05,
+    passed: largestComponentPct >= 95 && isolatedNodes / Math.max(totalNodes, 1) < 0.05,
   };
 }
 
@@ -93,13 +87,11 @@ export function validate(inputPath: string): ValidationReport {
   console.log(`  Nodes:                ${report.totalNodes.toLocaleString()}`);
   console.log(`  Edges:                ${report.totalEdges.toLocaleString()}`);
   console.log(
-    `  Connected components: ${report.connectedComponents} ${report.connectedComponents > 3 ? "⚠️" : "✔"}`,
+    `  Connected components: ${report.connectedComponents} ${report.connectedComponents > 3 ? "⚠️" : "✔"}`
   );
+  console.log(`  Largest component:    ${report.largestComponentPct}% of nodes`);
   console.log(
-    `  Largest component:    ${report.largestComponentPct}% of nodes`,
-  );
-  console.log(
-    `  Isolated nodes:       ${report.isolatedNodes} ${report.isolatedNodes > 0 ? "⚠️" : "✔"}`,
+    `  Isolated nodes:       ${report.isolatedNodes} ${report.isolatedNodes > 0 ? "⚠️" : "✔"}`
   );
   console.log(`\n  Result: ${report.passed ? "✔  PASSED" : "✗  FAILED"}\n`);
 

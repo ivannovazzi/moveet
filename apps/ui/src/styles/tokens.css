@@ -1,30 +1,16 @@
+/**
+ * Domain color tokens that live outside Tailwind's `@theme` palette (see
+ * index.css). These are the colors referenced at runtime via `var(--…)` from
+ * canvas/deck.gl code (which can't read Tailwind utility classes) and from a
+ * handful of inline styles.
+ *
+ * The former large legacy hex palette (neutrals, overlays, map road colors,
+ * glass/panel surfaces, spacing/control/radius/scrollbar scales, the React-Aria
+ * theme bridge, …) was removed once nothing referenced it — the live design
+ * system is the oklch `@theme` block in index.css plus Tailwind utilities.
+ */
 :root {
-  /* Neutrals */
-  --color-bg-app: #080a10;
-  --color-bg-dark: #060810;
-  --color-bg-dark-2: #0e1018;
-  --color-bg-dark-3: #333;
-  --color-bg-dark-4: #444;
-  --color-gray: #666;
-  --color-gray-light: #999;
-  --color-gray-lighter: #ccc;
-  --color-gray-lightest: #eee;
-  --color-white: #fff;
-  --color-text: rgba(255, 255, 255, 0.87);
-  --color-text-primary: rgba(255, 255, 255, 0.92);
-  --color-text-secondary: rgba(255, 255, 255, 0.55);
-
-  /* Overlays */
-  --color-overlay-1: rgba(255, 255, 255, 0.1);
-  --color-overlay-2: rgba(255, 255, 255, 0.2);
-  --color-overlay-subtle: rgba(255, 255, 255, 0.05);
-
-  /* Primary */
-  --color-primary: #0b6055;
-  --color-accent: #39f;
-  --color-accent-dark: #145ecf;
-
-  /* POI Categories */
+  /* POI category fills — consumed by Map/POI/helpers.ts getFillByType() */
   --color-poi-shop: #993300;
   --color-poi-leisure: #339900;
   --color-poi-craft: #333399;
@@ -32,143 +18,13 @@
   --color-poi-bus: #bbf;
   --color-poi-default: #666;
 
-  /* Map */
-  --color-map-road-highway: #1a1d28;
-  --color-map-road-default: #2a2e3e;
-  --color-map-polyline: #4488ff;
-  --color-map-polyline-hovered: #f93;
-  --color-map-polyline-selected: #39f;
-  --color-map-road-highlight: #fff;
-  --color-map-traffic-zone: #f00;
-
-  /* Danger */
-  --color-danger-border: #f006;
-  --color-danger-bg: #f001;
-
-  /* Spacing */
-  --space-1: 2px;
-  --space-2: 4px;
-  --space-3: 6px;
-  --space-4: 8px;
-  --space-5: 12px;
-  --space-6: 16px;
-  --space-7: 24px;
-  --space-8: 32px;
-
-  /* Interactive element heights — unified scale */
-  --control-xs: 24px;
-  --control-sm: 28px;
-  --control: 32px;
-  --control-lg: 40px;
-  --control-xl: 56px;
-
-  /* Legacy aliases (deprecated — migrate to new names) */
-  --control-height-sm: var(--control-sm);
-  --control-height: var(--control);
-  --control-height-lg: var(--control-lg);
-
-  /* Icon sizes */
-  --icon-sm: 14px;
-  --icon: 16px;
-  --icon-lg: 18px;
-
-  /* Border Radius */
-  --radius-xs: 3px;
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 12px;
-  --radius-full: 50%;
-
-  /* Font Sizes */
-  --text-xs: 10px;
-  --text-sm: 12px;
-  --text-base: 13px;
-  --text-md: 14px;
-  --text-lg: 15px;
-  --text-xl: 17px;
-  --text-2xl: 21px;
-
-  /* Glass surfaces — elevated elements (dock, search bar) */
-  --glass-bg: rgba(26, 32, 50, 0.78);
-  --glass-border: 1px solid rgba(255, 255, 255, 0.13);
-  --glass-blur: blur(28px);
-  --glass-shadow: 0 16px 48px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-
-  /* Panel surfaces — sidebar & rail (darker, more anchored) */
-  --panel-surface: rgba(10, 14, 22, 0.85);
-  --panel-surface-strong: rgba(16, 20, 32, 0.92);
-  --panel-border: 1px solid rgba(255, 255, 255, 0.09);
-  --panel-shadow: 0 24px 60px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  --panel-header-bg:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0)),
-    var(--panel-surface-strong);
-
-  /* Status colors */
-  --color-success-bg: rgba(68, 204, 68, 0.12);
-  --color-success-bg-hover: rgba(68, 204, 68, 0.2);
-  --color-success: #4c4;
-  --color-danger-bg: rgba(244, 67, 54, 0.12);
-  --color-danger-bg-hover: rgba(244, 67, 54, 0.18);
-  --color-danger: #f44;
-  --color-active-bg: rgba(57, 153, 255, 0.14);
-  --color-active-border: rgba(57, 153, 255, 0.22);
-
-  /* Focus states */
-  --focus-border: rgba(57, 153, 255, 0.5);
-  --focus-ring: 0 0 0 2px rgba(57, 153, 255, 0.1);
-  --focus-bg: rgba(57, 153, 255, 0.06);
-
-  /* Surfaces — reusable bg/border for interactive elements */
-  --surface-bg: rgba(255, 255, 255, 0.05);
-  --surface-bg-hover: rgba(255, 255, 255, 0.08);
-  --surface-bg-active: rgba(255, 255, 255, 0.12);
-  --surface-border: 1px solid rgba(255, 255, 255, 0.08);
-  --surface-border-hover: 1px solid rgba(255, 255, 255, 0.14);
-
-  /* Shadows */
-  --shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  --shadow-inset: inset 0 2px 4px rgba(0, 0, 0, 0.2);
-
-  /* Effects */
-  --blur: blur(10px);
-
-  /* Transitions */
-  --transition-fast: 200ms;
-  --transition-normal: 300ms;
-  --transition-slow: 500ms;
-
-  /* Incident colors */
-  --color-incident-closure: #f44336;
-  --color-incident-accident: #ff9800;
-  --color-incident-construction: #ffeb3b;
-
-  /* Time-of-day */
-  --color-time-morning: #fb923c;
-  --color-time-evening: #f87171;
-  --color-time-night: #a5b4fc;
-
-  /* Geofence events */
-  --color-geofence-enter: #4ade80;
-  --color-geofence-exit: #f87171;
-  --color-geofence-info: #93c5fd;
-
-  /* Status */
-  --color-status-healthy: #6ed86e;
-  --color-status-warning: #ffb347;
-
-  /* Disabled */
-  --disabled-opacity: 0.4;
-
-  /* Scrollbar */
-  --scrollbar-width: 5px;
-  --scrollbar-thumb: rgba(255, 255, 255, 0.1);
-  --scrollbar-track: transparent;
-
-  /* Vehicle rendering */
+  /* Vehicle rendering — resolved at runtime by VehiclesLayer.resolveCSSColor()
+     and mirrored in the TypeLegend swatches. Per-type defaults used when a
+     vehicle has no fleet color. */
   --color-vehicle-fill: #dcdcdc;
-  --color-vehicle-stroke: #333;
-  --color-vehicle-hover-stroke: rgb(251, 201, 1);
-  --color-vehicle-selected-stroke: #06c;
-  --color-vehicle-selected-bg: rgba(33, 255, 205, 0.3);
+  --color-vehicle-car: #dcdcdc;
+  --color-vehicle-truck: #f59e0b;
+  --color-vehicle-motorcycle: #8b5cf6;
+  --color-vehicle-ambulance: #ef4444;
+  --color-vehicle-bus: #3b82f6;
 }

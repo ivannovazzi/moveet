@@ -1,9 +1,8 @@
 @import "tailwindcss";
 
-/* Transitional: existing design tokens still referenced by not-yet-migrated
-   CSS Modules. Removed in the cleanup phase once all modules are converted. */
+/* Domain color tokens (POI + vehicle) consumed at runtime by canvas/deck.gl
+   code that can't read Tailwind utilities. */
 @import "./styles/tokens.css";
-@import "./styles/theme.css";
 
 /* Dark-only: the dark token set applies everywhere. `dark` is also hard-set
    on <html> in index.html. */
@@ -42,6 +41,15 @@
   --color-status-idle: oklch(0.7 0.02 255);
 
   --font-sans: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+
+  /* Motion scale — registers the `duration-fast|normal|slow` Tailwind
+     transition-duration utilities (Tailwind v4 reads the
+     `--transition-duration-*` namespace). Keep transitions on this scale; the
+     one-off 700ms entrance reveal is the only longer animation and is reserved
+     for the `[data-ready]` paint-in. */
+  --transition-duration-fast: 150ms;
+  --transition-duration-normal: 250ms;
+  --transition-duration-slow: 400ms;
 }
 
 :root {
@@ -56,12 +64,6 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  /* Backward compat aliases for not-yet-migrated CSS Modules */
-  --bg-1: var(--color-overlay-1);
-  --bg-2: var(--color-overlay-2);
-  --bg-primary: var(--color-primary);
-  --blur-px: var(--blur);
 }
 
 html,

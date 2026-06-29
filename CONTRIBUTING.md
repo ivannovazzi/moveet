@@ -4,7 +4,7 @@ Thank you for your interest in contributing to Moveet! This guide will help you 
 
 ## Prerequisites
 
-- **Node.js** >= 18
+- **Node.js** >= 26 (the version pinned in `.node-version` and `package.json` `engines`)
 - **npm** (ships with Node.js)
 
 ## Development Setup
@@ -44,27 +44,27 @@ npm run test     # runs tests across all projects
 
 Or run each project individually:
 
-| Project | Directory | Commands |
-|---|---|---|
+| Project                           | Directory         | Commands                  |
+| --------------------------------- | ----------------- | ------------------------- |
 | **simulator** (simulation engine) | `apps/simulator/` | `npm run dev` (port 5010) |
-| **adapter** (bridge service) | `apps/adapter/` | `npm run dev` (port 5011) |
-| **ui** (dashboard) | `apps/ui/` | `npm run dev` (port 5012) |
+| **adapter** (bridge service)      | `apps/adapter/`   | `npm run dev` (port 5011) |
+| **ui** (dashboard)                | `apps/ui/`        | `npm run dev` (port 5012) |
 
 The simulator works standalone with synthetic vehicles. The adapter is only needed when connecting to an external fleet management system.
 
 ## Project Structure
 
-- **apps/simulator/** -- Core simulation engine. Loads a GeoJSON road network, builds a graph, runs A* pathfinding, and simulates vehicle movement. Exposes a REST API and WebSocket server.
+- **apps/simulator/** -- Core simulation engine. Loads a GeoJSON road network, builds a graph, runs A\* pathfinding, and simulates vehicle movement. Exposes a REST API and WebSocket server.
 - **apps/adapter/** -- Optional bridge that translates between the simulator's HTTP API and external systems (GraphQL, Kafka/Redpanda).
-- **apps/ui/** -- React dashboard with a custom D3.js SVG map renderer showing vehicles, routes, heat zones, and points of interest.
+- **apps/ui/** -- React dashboard with a deck.gl + luma.gl WebGL map renderer showing vehicles, routes, heat zones, and points of interest.
 
 ## Code Style
 
-- **TypeScript** is used throughout all three projects.
-- **ESLint** enforces code quality. Run the linter before submitting changes:
-  - `npm run lint` in `apps/simulator/` and `apps/adapter/`
-  - `npm run lint` in `apps/ui/`
-- **Prettier** handles formatting in the UI project.
+- **TypeScript** is used throughout every app and package.
+- **ESLint** enforces code quality and **Prettier** handles formatting across all apps (a single root `.prettierrc.json` is shared by every workspace). Run them from the root before submitting changes:
+  - `npm run lint` (ESLint across all workspaces via Turborepo)
+  - `npm run format:check` (Prettier check) or `npm run format` (write)
+- Type-checking is a separate task: `npm run type-check`.
 - Follow existing conventions in the codebase. When in doubt, match the style of surrounding code.
 
 ## Testing

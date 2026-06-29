@@ -4,7 +4,17 @@ import { z } from "zod";
 const require = createRequire(import.meta.url);
 const raw = require("../regions.json") as Record<string, unknown>;
 
-const BboxSchema = z.tuple([z.number(), z.number(), z.number(), z.number()]);
+const Coord = z.number().refine(Number.isFinite, "must be a finite number");
+export const BboxSchema = z.tuple([Coord, Coord, Coord, Coord]);
+
+/**
+ * Parse a "west,south,east,north" string into a validated bbox tuple.
+ * Rejects the wrong number of components or any non-finite value (NaN),
+ * so bad input fails fast instead of flowing into osmium.
+ */
+export function parseBbox(raw: string): Bbox {
+  return BboxSchema.parse(raw.split(",").map(Number));
+}
 
 const RegionEntrySchema = z.object({
   bbox: BboxSchema,
@@ -37,9 +47,7 @@ export function resolveRegion(opts: ResolveOptions): ResolvedRegion {
   if (opts.region) {
     const entry = manifest[opts.region];
     if (!entry) {
-      throw new Error(
-        `Unknown region: ${opts.region}. Known regions: ${listRegions().join(", ")}`,
-      );
+      throw new Error(`Unknown region: ${opts.region}. Known regions: ${listRegions().join(", ")}`);
     }
     return entry;
   }

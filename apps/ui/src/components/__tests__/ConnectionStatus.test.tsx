@@ -27,7 +27,8 @@ describe("ConnectionStatus", () => {
 
     const banner = screen.getByTestId("connection-status");
     expect(banner).toBeInTheDocument();
-    expect(banner).toHaveTextContent("Disconnected — please refresh the page");
+    expect(banner).toHaveTextContent("Disconnected");
+    expect(banner).toHaveTextContent("or refresh the page");
     expect(banner).toHaveAttribute("role", "alert");
   });
 

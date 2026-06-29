@@ -10,7 +10,7 @@
   },
   "private": true,
   "engines": {
-    "node": ">=24"
+    "node": ">=26"
   },
   "workspaces": [
     "apps/*",
@@ -46,7 +46,7 @@
       "prettier --write",
       "eslint --fix"
     ],
-    "apps/{simulator,adapter}/**/*.{ts,js}": [
+    "apps/{simulator,adapter,network}/**/*.{ts,js}": [
       "prettier --write",
       "eslint --fix"
     ],
@@ -57,8 +57,5 @@
   "overrides": {
     "flatted": "3.4.2"
   },
-  "packageManager": "npm@11.12.0",
-  "dependencies": {
-    "@deck.gl/widgets": "^9.2.11"
-  }
+  "packageManager": "npm@11.12.0"
 }

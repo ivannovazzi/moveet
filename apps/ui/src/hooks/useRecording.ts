@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import client from "@/utils/client";
+import { toast } from "@/lib/toast";
 import type { RecordingFile, RecordingMetadata } from "@/types";
 
 export function useRecording() {
@@ -34,13 +35,18 @@ export function useRecording() {
       if (res.error) {
         setError(res.error);
         console.warn("useRecording: startRecording failed", res.error);
+        toast.error(`Failed to start recording: ${res.error}`);
         return;
       }
-      if (res.data) setIsRecording(true);
+      if (res.data) {
+        setIsRecording(true);
+        toast.success("Recording started");
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Unknown error";
       setError(msg);
       console.warn("useRecording: startRecording failed", msg);
+      toast.error(`Failed to start recording: ${msg}`);
     }
   }, []);
 
@@ -51,16 +57,19 @@ export function useRecording() {
       if (res.error) {
         setError(res.error);
         console.warn("useRecording: stopRecording failed", res.error);
+        toast.error(`Failed to stop recording: ${res.error}`);
         setIsRecording(false);
         return undefined;
       }
       setIsRecording(false);
       await refreshRecordings();
+      toast.success("Recording saved");
       return res.data;
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Unknown error";
       setError(msg);
       console.warn("useRecording: stopRecording failed", msg);
+      toast.error(`Failed to stop recording: ${msg}`);
       setIsRecording(false);
       return undefined;
     }

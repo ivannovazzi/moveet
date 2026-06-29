@@ -49,6 +49,7 @@ import { useRoads } from "./hooks/useRoads";
 import { useDataReady } from "./data/useData";
 import AnalyticsPanel from "./Controls/AnalyticsPanel";
 import LoadingOverlay from "./components/LoadingOverlay";
+import { Toaster } from "./components/ui/sonner";
 
 export default function App() {
   const connectionInfo = useConnectionState();
@@ -78,6 +79,7 @@ export default function App() {
     unassignVehicle,
     hiddenFleetIds,
     toggleFleetVisibility,
+    error: fleetsError,
   } = useFleets();
   const { hiddenVehicleTypes, toggleVehicleType } = useVehicleTypeFilter();
   const [viewportBbox, setViewportBbox] = useState<BoundingBox | null>(null);
@@ -173,7 +175,7 @@ export default function App() {
           <aside
             className={cn(
               "absolute bottom-0 top-0 left-14 z-30 w-[clamp(248px,22vw,304px)] overflow-hidden",
-              "transition-[transform,opacity,visibility] duration-300 ease-out",
+              "transition-[transform,opacity,visibility] duration-slow ease-out",
               activePanel !== null
                 ? "visible translate-x-0 opacity-100 pointer-events-auto"
                 : "invisible -translate-x-[calc(100%+20px)] opacity-0 pointer-events-none"
@@ -199,11 +201,12 @@ export default function App() {
                     filter={filters.filter}
                     onFilterChange={onFilterChange}
                     vehicles={vehicles}
+                    selectedId={filters.selected}
                     onSelectVehicle={onSelectVehicle}
                     onHoverVehicle={onHoverVehicle}
                     onUnhoverVehicle={onUnhoverVehicle}
                     maxSpeed={maxSpeedRef.current}
-                    fleets={fleets}
+                    vehicleFleetMap={vehicleFleetMap}
                     dispatchState={dispatch.dispatchState}
                     selectedForDispatch={dispatch.selectedForDispatch}
                     onToggleVehicleForDispatch={dispatch.onToggleVehicleForDispatch}
@@ -232,6 +235,7 @@ export default function App() {
                   onDeleteFleet={deleteFleet}
                   onAssignVehicle={assignVehicle}
                   onUnassignVehicle={unassignVehicle}
+                  error={fleetsError}
                 />
               )}
               {activePanel === "incidents" && (
@@ -239,6 +243,7 @@ export default function App() {
                   incidents={incidents.incidents}
                   createRandom={incidents.createRandom}
                   remove={incidents.remove}
+                  error={incidents.error}
                 />
               )}
               {activePanel === "recordings" && (
@@ -376,6 +381,7 @@ export default function App() {
           </div>
         </ContextMenu>
       )}
+      <Toaster position="bottom-right" />
     </div>
   );
 }

@@ -9,7 +9,7 @@
     "start": "NODE_ENV=production node ./dist/index.js",
     "build": "tsc",
     "type-check": "tsc --noEmit",
-    "lint": "tsc --noEmit && eslint .",
+    "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.{ts,js,json,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,js,json,md}\"",

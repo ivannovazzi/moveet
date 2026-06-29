@@ -46,18 +46,19 @@ describe("Vehicle seed position", () => {
     manager.stopLocationUpdates();
   });
 
-  /** Helper: get internal Vehicle map for accessing private state */
+  /** Helper: get internal Vehicle map via the public registry sub-manager */
   function internalVehicles(): Map<string, Vehicle> {
-    return (manager as any).vehicles as Map<string, Vehicle>;
+    return manager.registry.getAll();
   }
 
   /** Helper: call the private addVehicle method directly */
   function callAddVehicle(id: string, name: string, seedPosition?: [number, number]): void {
-    // Stub setRandomDestination to prevent route-finding on tiny network
-    const origSetRandom = (manager as any).setRandomDestination;
-    (manager as any).setRandomDestination = () => {};
+    // Stub the route manager's setRandomDestination to skip route-finding on
+    // the tiny test network while seeding.
+    const origSetRandom = manager.routeManager.setRandomDestination;
+    manager.routeManager.setRandomDestination = () => {};
     (manager as any).addVehicle(id, name, seedPosition);
-    (manager as any).setRandomDestination = origSetRandom;
+    manager.routeManager.setRandomDestination = origSetRandom;
   }
 
   describe("with seed position", () => {

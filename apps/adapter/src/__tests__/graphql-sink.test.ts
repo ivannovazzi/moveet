@@ -133,4 +133,64 @@ describe("GraphQLSink", () => {
       sink.publishUpdates([{ id: "v1", latitude: -1.3, longitude: 36.8 }])
     ).rejects.toThrow("GraphQL sink not connected");
   });
+
+  describe("batchSize chunking", () => {
+    const makeUpdates = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({ id: `v${i}`, latitude: -1.3, longitude: 36.8 }));
+
+    it("has a batchSize config field defaulting to 0 (single mutation)", () => {
+      const sink = new GraphQLSink();
+      const field = sink.configSchema.find((f) => f.name === "batchSize");
+      expect(field).toBeDefined();
+      expect(field!.default).toBe(0);
+    });
+
+    it("sends a single mutation when batchSize is 0", async () => {
+      const sink = new GraphQLSink();
+      await sink.connect({ url: "https://api.example.com/graphql", batchSize: 0 });
+      const result = await sink.publishUpdates(makeUpdates(10));
+      expect(mockRequest).toHaveBeenCalledTimes(1);
+      // Unchunked path returns void.
+      expect(result).toBeUndefined();
+    });
+
+    it("splits into chunks when updates exceed batchSize", async () => {
+      const sink = new GraphQLSink();
+      await sink.connect({ url: "https://api.example.com/graphql", batchSize: 2 });
+      const result = await sink.publishUpdates(makeUpdates(5));
+      // 5 updates / batch 2 → 3 chunks → 3 mutations.
+      expect(mockRequest).toHaveBeenCalledTimes(3);
+      expect(result).toEqual({ attempted: 5, succeeded: 5, failures: [] });
+    });
+
+    it("aborts remaining chunks after a chunk failure to preserve ordering", async () => {
+      mockRequest
+        .mockResolvedValueOnce({}) // chunk 0 ok
+        .mockRejectedValueOnce(new Error("upstream 500")); // chunk 1 fails
+      const sink = new GraphQLSink();
+      await sink.connect({ url: "https://api.example.com/graphql", batchSize: 2 });
+      const result = await sink.publishUpdates(makeUpdates(6)); // 3 chunks
+
+      // Only chunks 0 and 1 attempted; chunk 2 aborted.
+      expect(mockRequest).toHaveBeenCalledTimes(2);
+      expect(result).toEqual({
+        attempted: 6,
+        succeeded: 2,
+        failures: [
+          { itemId: "chunk-1", error: "upstream 500" },
+          { itemId: "chunk-2", error: "not attempted (batch aborted after chunk 1 failed)" },
+        ],
+      });
+    });
+
+    it("throws when the first chunk fails (nothing delivered)", async () => {
+      mockRequest.mockRejectedValueOnce(new Error("broker down"));
+      const sink = new GraphQLSink();
+      await sink.connect({ url: "https://api.example.com/graphql", batchSize: 2 });
+      await expect(sink.publishUpdates(makeUpdates(6))).rejects.toThrow(
+        "GraphQL sink: first chunk failed to publish"
+      );
+      expect(mockRequest).toHaveBeenCalledTimes(1);
+    });
+  });
 });

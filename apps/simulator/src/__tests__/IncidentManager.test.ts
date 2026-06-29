@@ -419,7 +419,7 @@ describe("Vehicle rerouting on incidents", () => {
     const dest = network.getRandomNode();
     await manager.findAndSetRoutes(vehicle.id, dest.coordinates);
 
-    const routes = (manager as any).routes as Map<string, any>;
+    const routes = (manager.routeManager as any).routes as Map<string, any>;
     const route = routes.get(vehicle.id);
     if (!route || route.edges.length < 2) return;
 

@@ -7,15 +7,19 @@ import { useRegisterLayers } from "../../components/Map/hooks/useDeckLayers";
 import { useMapContext } from "../../components/Map/hooks";
 import { VehicleIconAtlasManager, type VehicleAtlas } from "./vehicleIconAtlas";
 
-// Type-specific default colors (used when no fleet color)
+// Type-specific default colors (used when no fleet color). These reference the
+// shared --color-vehicle-* tokens (tokens.css) and are resolved to concrete
+// values at runtime via resolveCSSColor() so the atlas is keyed by a stable,
+// concrete color regardless of where the color came from.
 const VEHICLE_TYPE_COLORS: Record<string, string> = {
-  car: "#dcdcdc",
-  truck: "#f59e0b",
-  motorcycle: "#8b5cf6",
-  ambulance: "#ef4444",
-  bus: "#3b82f6",
+  car: "var(--color-vehicle-car)",
+  truck: "var(--color-vehicle-truck)",
+  motorcycle: "var(--color-vehicle-motorcycle)",
+  ambulance: "var(--color-vehicle-ambulance)",
+  bus: "var(--color-vehicle-bus)",
 };
 
+// Fallback used when a CSS variable can't be resolved (e.g. jsdom in tests).
 const DEFAULT_FILL = "#dcdcdc";
 const SELECTED_STROKE: [number, number, number, number] = [0, 102, 204, 255];
 const SELECTED_BG: [number, number, number, number] = [33, 255, 205, 77];
@@ -154,7 +158,7 @@ export default function VehiclesLayer({
   // (and renders instantly) before the first fleet-colored vehicle arrives.
   const [atlas, setAtlas] = useState<VehicleAtlas>(() => {
     for (const [type, color] of Object.entries(VEHICLE_TYPE_COLORS)) {
-      atlasManager.register(type, color);
+      atlasManager.register(type, resolveCSSColor(color));
     }
     return atlasManager.build();
   });
@@ -430,7 +434,11 @@ export default function VehiclesLayer({
     [vehicleData]
   );
 
-  // Build deck.gl layers
+  // Build deck.gl layers. The two layers are rebuilt each ~30fps tick because
+  // `vehicleData` carries fresh interpolated positions, but `updateTriggers`
+  // pin the non-positional accessors (icon, ring colors) to stable keys so deck
+  // only re-evaluates them when they actually change — pure-movement frames
+  // re-upload only position/angle, not icon/color attributes.
   const layers = useMemo(() => {
     const ringLayer = new ScatterplotLayer<VehicleIconDatum>({
       id: "vehicle-highlight-ring",
@@ -443,6 +451,10 @@ export default function VehiclesLayer({
       stroked: true,
       lineWidthMinPixels: 2,
       pickable: false,
+      updateTriggers: {
+        getFillColor: selectedId ?? hoveredId ?? "",
+        getLineColor: selectedId ?? hoveredId ?? "",
+      },
     });
 
     const vehiclesLayer = new IconLayer<VehicleIconDatum>({
@@ -460,10 +472,14 @@ export default function VehiclesLayer({
       onClick: handleClick,
       autoHighlight: true,
       highlightColor: [251, 201, 1, 80],
+      updateTriggers: {
+        // Icons only change when the atlas rebuilds (new type/color combo).
+        getIcon: atlas,
+      },
     });
 
     return [ringLayer, vehiclesLayer];
-  }, [vehicleData, ringData, atlas, iconSize, handleClick]);
+  }, [vehicleData, ringData, atlas, iconSize, handleClick, selectedId, hoveredId]);
 
   // Register layers with the DeckGLMap parent
   useRegisterLayers("vehicles", layers);

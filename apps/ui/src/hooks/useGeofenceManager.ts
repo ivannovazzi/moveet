@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import client from "@/utils/client";
+import { toast } from "@/lib/toast";
 import type { GeoFence, GeoFenceEvent, CreateGeoFenceRequest } from "@moveet/shared-types";
 
 /** Cap on retained geofence alert events (newest first). */
@@ -57,6 +58,7 @@ export function useGeofenceManager() {
       } catch {
         setFences(prev);
         console.warn("Failed to toggle geofence");
+        toast.error("Failed to toggle zone");
       }
     },
     [fences]
@@ -72,6 +74,7 @@ export function useGeofenceManager() {
       } catch {
         setFences(prev);
         console.warn("Failed to delete geofence");
+        toast.error("Failed to delete zone");
       }
     },
     [fences]
@@ -98,8 +101,11 @@ export function useGeofenceManager() {
 
   const onCreateZone = useCallback((req: CreateGeoFenceRequest) => {
     client.createGeofence(req).then((response) => {
-      if (response.data) {
+      if (response.error) {
+        toast.error(`Failed to create zone: ${response.error}`);
+      } else if (response.data) {
         setFences((prev) => [...prev, response.data!]);
+        toast.success(`Zone "${response.data.name}" created`);
       }
       setPendingPolygon(null);
     });

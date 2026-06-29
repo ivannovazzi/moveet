@@ -83,8 +83,7 @@ describe("pruneNetwork", () => {
     expect(pruned.features).toHaveLength(2);
     expect(removedFeatures).toBe(1);
     // Verify the kept features are from component B
-    const coords = (pruned.features[0] as Feature<LineString>).geometry
-      .coordinates;
+    const coords = (pruned.features[0] as Feature<LineString>).geometry.coordinates;
     expect(coords[0][0]).toBe(10);
   });
 
@@ -93,5 +92,26 @@ describe("pruneNetwork", () => {
     const { pruned, removedFeatures } = pruneNetwork(fc);
     expect(pruned.features).toHaveLength(0);
     expect(removedFeatures).toBe(0);
+  });
+
+  it("preserves Point features (POIs) through pruning", () => {
+    const fc: FeatureCollection = {
+      type: "FeatureCollection",
+      features: [
+        makeLine([
+          [0, 0],
+          [1, 1],
+        ]),
+        {
+          type: "Feature",
+          properties: { amenity: "fuel", name: "Gas Station" },
+          geometry: { type: "Point", coordinates: [0.5, 0.5] },
+        },
+      ],
+    };
+    const { pruned } = pruneNetwork(fc);
+    const points = pruned.features.filter((f) => f.geometry.type === "Point");
+    expect(points).toHaveLength(1);
+    expect(points[0].properties?.name).toBe("Gas Station");
   });
 });

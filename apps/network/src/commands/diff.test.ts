@@ -21,7 +21,7 @@ describe("diffNetworks", () => {
           [0, 0],
           [1, 0],
         ],
-        { name: "A St" },
+        { name: "A St" }
       ),
     ]);
     const result = diffNetworks(fc, fc);
@@ -83,7 +83,7 @@ describe("diffNetworks", () => {
           [0, 0],
           [1, 0],
         ],
-        { oneway: "no" },
+        { oneway: "no" }
       ),
     ]);
     const next = makeFC([
@@ -92,7 +92,7 @@ describe("diffNetworks", () => {
           [0, 0],
           [1, 0],
         ],
-        { oneway: "yes" },
+        { oneway: "yes" }
       ),
     ]);
     const result = diffNetworks(old, next);
@@ -106,7 +106,7 @@ describe("diffNetworks", () => {
           [0, 0],
           [1, 0],
         ],
-        { maxspeed: "50" },
+        { maxspeed: "50" }
       ),
     ]);
     const next = makeFC([
@@ -115,7 +115,7 @@ describe("diffNetworks", () => {
           [0, 0],
           [1, 0],
         ],
-        { maxspeed: "80" },
+        { maxspeed: "80" }
       ),
     ]);
     const result = diffNetworks(old, next);

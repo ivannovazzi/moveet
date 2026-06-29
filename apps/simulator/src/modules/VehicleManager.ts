@@ -1,14 +1,11 @@
 import type {
   Vehicle,
-  Edge,
   Incident,
   VehicleDTO,
-  Route,
   Direction,
   DirectionResult,
   StartOptions,
   Waypoint,
-  MultiStopRoute,
   TrafficProfile,
   VehicleType,
 } from "../types";
@@ -112,52 +109,6 @@ export class VehicleManager extends EventEmitter {
     this.gameLoop.on("update", (data) => this.emit("update", data));
 
     this.init();
-  }
-
-  // ─── Backward-compatible private field accessors ──────────────────
-  // These getters/methods exist so that existing tests using (manager as any).fieldName
-  // continue to work after the refactor. TypeScript flags them as unused because
-  // they are only accessed dynamically from test code. We suppress with @ts-expect-error.
-
-  // @ts-expect-error TS6133 - accessed dynamically by tests
-  private get vehicles(): Map<string, Vehicle> {
-    return this.registry.getAll();
-  }
-  // @ts-expect-error TS6133
-  private get visitedEdges() {
-    return (this.registry as any).visitedEdges;
-  }
-  // @ts-expect-error TS6133
-  private get routes(): Map<string, Route> {
-    return (this.routeManager as any).routes;
-  }
-  // @ts-expect-error TS6133
-  private get waypointRoutes(): Map<string, MultiStopRoute> {
-    return (this.routeManager as any).waypointRoutes;
-  }
-  // @ts-expect-error TS6133
-  private get activeVehicles(): Set<string> {
-    return this.gameLoop.getActiveVehicles();
-  }
-  // @ts-expect-error TS6133
-  private get gameLoopInterval(): NodeJS.Timeout | null {
-    return this.gameLoop.getGameLoopIntervalRef();
-  }
-  // @ts-expect-error TS6133
-  private get gameLoopIntervalMs(): number {
-    return this.gameLoop.getGameLoopIntervalMs();
-  }
-  // @ts-expect-error TS6133
-  private get lastUpdateTimes(): Map<string, number> {
-    return this.gameLoop.getLastUpdateTimes();
-  }
-  // @ts-expect-error TS6133
-  private get vehiclesByEdge(): Map<string, Set<string>> {
-    return this.registry.getVehiclesByEdge();
-  }
-  // @ts-expect-error TS6133
-  private get lastPathfindAttempt(): Map<string, number> {
-    return (this.routeManager as any).lastPathfindAttempt;
   }
 
   // ─── Initialization ───────────────────────────────────────────────
@@ -450,9 +401,7 @@ export class VehicleManager extends EventEmitter {
     return this.traffic.getTrafficSnapshot((id) => this.network.getEdge(id));
   }
 
-  // ─── Backward-compatible private method proxies ───────────────────
-  // Tests access these via (manager as any).methodName(...).
-  // ts-expect-error blocks below suppress TS6133 "declared but never read" warnings.
+  // ─── Internal helpers ─────────────────────────────────────────────
 
   private setRandomDestination(vehicleId: string): void {
     this.routeManager.setRandomDestination(vehicleId);
@@ -460,67 +409,5 @@ export class VehicleManager extends EventEmitter {
 
   private updateVehicle(vehicle: Vehicle, deltaMs: number): void {
     this.routeManager.updateVehicle(vehicle, deltaMs, this.options);
-  }
-
-  // @ts-expect-error TS6133
-  private updateSpeed(vehicle: Vehicle, deltaMs: number): void {
-    this.routeManager.updateSpeed(vehicle, deltaMs, this.options);
-  }
-
-  // @ts-expect-error TS6133
-  private gameLoopTick(): void {
-    this.gameLoop.gameLoopTick();
-  }
-  // @ts-expect-error TS6133
-  private startGameLoop(intervalMs: number): void {
-    this.gameLoop.startGameLoop(intervalMs);
-  }
-  // @ts-expect-error TS6133
-  private stopGameLoop(): void {
-    this.gameLoop.stopGameLoop();
-  }
-  // @ts-expect-error TS6133
-  private restartGameLoop(intervalMs: number): void {
-    this.gameLoop.restartGameLoop(intervalMs);
-  }
-  // @ts-expect-error TS6133
-  private findVehicleAhead(vehicle: Vehicle): Vehicle | undefined {
-    return this.registry.findVehicleAhead(vehicle);
-  }
-  // @ts-expect-error TS6133
-  private addToEdgeIndex(vehicleId: string, edgeId: string): void {
-    this.registry.addToEdgeIndex(vehicleId, edgeId);
-  }
-  // @ts-expect-error TS6133
-  private removeFromEdgeIndex(vehicleId: string, edgeId: string): void {
-    this.registry.removeFromEdgeIndex(vehicleId, edgeId);
-  }
-  // @ts-expect-error TS6133
-  private moveInEdgeIndex(vehicleId: string, fromEdgeId: string, toEdgeId: string): void {
-    this.registry.moveInEdgeIndex(vehicleId, fromEdgeId, toEdgeId);
-  }
-  // @ts-expect-error TS6133
-  private peekNextEdge(vehicle: Vehicle): Edge {
-    return this.routeManager.peekNextEdge(vehicle);
-  }
-  // @ts-expect-error TS6133
-  private getNextEdge(vehicle: Vehicle): Edge {
-    return this.routeManager.getNextEdge(vehicle);
-  }
-  // @ts-expect-error TS6133
-  private updatePositionCore(vehicle: Vehicle, deltaMs: number, route?: Route): void {
-    this.routeManager.updatePositionCore(vehicle, deltaMs, this.options, route);
-  }
-  // @ts-expect-error TS6133
-  private handleRouteCompleted(vehicle: Vehicle): null {
-    return (this.routeManager as any).handleRouteCompleted(vehicle);
-  }
-  // @ts-expect-error TS6133
-  private updatePosition(vehicle: Vehicle, deltaMs: number): void {
-    this.routeManager.updatePositionCore(vehicle, deltaMs, this.options);
-  }
-  // @ts-expect-error TS6133
-  private updatePositionOnRoute(vehicle: Vehicle, route: Route, deltaMs: number): void {
-    this.routeManager.updatePositionCore(vehicle, deltaMs, this.options, route);
   }
 }

@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Fleet, Vehicle, DispatchAssignment, DirectionResult } from "@/types";
 import { DispatchState } from "@/hooks/useDispatchState";
 import { useDirectionContext } from "@/data/useData";
@@ -15,7 +15,7 @@ function SpeedBar({ speed, maxSpeed }: { speed: number; maxSpeed: number }) {
 
   return (
     <div
-      className="col-span-full h-[3px] rounded-r-full bg-gradient-to-r from-orange-500/60 via-yellow-400/65 to-status-ok/70 transition-[width] duration-700"
+      className="col-span-full h-[3px] rounded-r-full bg-gradient-to-r from-orange-500/60 via-yellow-400/65 to-status-ok/70 transition-[width] duration-normal"
       style={{ width: `${width}%`, gridArea: "bar" }}
     />
   );
@@ -24,12 +24,15 @@ function SpeedBar({ speed, maxSpeed }: { speed: number; maxSpeed: number }) {
 interface VehicleListProps {
   filter: string;
   vehicles: Vehicle[];
+  /** Currently selected vehicle id — derived per-row instead of folded into each Vehicle. */
+  selectedId?: string;
   maxSpeed: number;
   onFilterChange: (value: string) => void;
   onSelectVehicle: (id: string) => void;
   onHoverVehicle: (id: string) => void;
   onUnhoverVehicle: () => void;
-  fleets: Fleet[];
+  /** id → Fleet map (built once in App.tsx) — O(1) per-row fleet lookup. */
+  vehicleFleetMap: Map<string, Fleet>;
   dispatchState?: DispatchState;
   selectedForDispatch?: string[];
   onToggleVehicleForDispatch?: (id: string) => void;
@@ -93,12 +96,13 @@ function ResultBadge({ result }: { result: DirectionResult }) {
 export default function VehicleList({
   filter,
   vehicles,
+  selectedId,
   maxSpeed,
   onFilterChange,
   onSelectVehicle,
   onHoverVehicle,
   onUnhoverVehicle,
-  fleets,
+  vehicleFleetMap,
   dispatchState,
   selectedForDispatch,
   onToggleVehicleForDispatch,
@@ -107,6 +111,12 @@ export default function VehicleList({
 }: VehicleListProps) {
   const { directions } = useDirectionContext();
   const visibleVehicles = vehicles.filter((v) => v.visible);
+
+  // O(1) membership test per row instead of array.includes() per row.
+  const selectedForDispatchSet = useMemo(
+    () => new Set(selectedForDispatch ?? []),
+    [selectedForDispatch]
+  );
 
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
   useEffect(() => {
@@ -168,11 +178,12 @@ export default function VehicleList({
         ) : (
           slicedVehicles.map((vehicle) => {
             const routeDistance = directions.get(vehicle.id)?.route.distance;
-            const vehicleFleet = fleets.find((f) => f.vehicleIds.includes(vehicle.id));
-            const isChecked = selectedForDispatch?.includes(vehicle.id) ?? false;
+            const vehicleFleet = vehicleFleetMap.get(vehicle.id);
+            const isChecked = selectedForDispatchSet.has(vehicle.id);
             const assignment = assignments?.find((a) => a.vehicleId === vehicle.id);
             const result = results?.find((r) => r.vehicleId === vehicle.id);
-            const isSelected = !showCheckbox && !isResults && vehicle.selected;
+            const isRowSelected = selectedId === vehicle.id;
+            const isSelected = !showCheckbox && !isResults && isRowSelected;
             const isDispatchSelected = showCheckbox && isChecked;
 
             const handleClick = () => {
@@ -200,7 +211,7 @@ export default function VehicleList({
                 onClick={handleClick}
                 onMouseEnter={() => onHoverVehicle(vehicle.id)}
                 onMouseLeave={() => onUnhoverVehicle()}
-                aria-pressed={showCheckbox ? isChecked : vehicle.selected}
+                aria-pressed={showCheckbox ? isChecked : isRowSelected}
                 aria-label={`${vehicle.name}, ${Math.round(vehicle.speed)} km/h, ${formatRouteDistance(routeDistance)}`}
                 title={`${vehicle.name} · ${Math.round(vehicle.speed)} km/h · ${formatRouteDistance(routeDistance)}`}
               >

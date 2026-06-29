@@ -1,4 +1,5 @@
 import type { Route } from "../types";
+import { serializeRoute } from "./serializer";
 
 export function calculateBearing(start: [number, number], end: [number, number]): number {
   const [lat1, lon1] = start.map((x) => (x * Math.PI) / 180);
@@ -33,15 +34,13 @@ export function calculateDistance(p1: [number, number], p2: [number, number]): n
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+/**
+ * Returns a non-circular, wire-safe copy of a route (endpoint-node
+ * `connections` stripped). Thin alias over {@link serializeRoute}, kept for the
+ * existing call sites and tests.
+ */
 export function nonCircularRouteEdges(route: Route): Route {
-  return {
-    ...route,
-    edges: route.edges.map((edge) => ({
-      ...edge,
-      start: { ...edge.start, connections: [] },
-      end: { ...edge.end, connections: [] },
-    })),
-  };
+  return serializeRoute(route);
 }
 
 export function estimateRouteDuration(route: Route, speed: number = 1): number {

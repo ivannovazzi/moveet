@@ -10,6 +10,7 @@ import type { ScenarioManager } from "../modules/scenario";
 import type { StateStore } from "../modules/StateStore";
 import type { GenerationManager } from "../modules/GenerationManager";
 import type { VehicleDTO, RecordingMetadata } from "../types";
+import { config } from "../utils/config";
 import logger from "../utils/logger";
 
 export interface EventWiringContext {
@@ -26,9 +27,6 @@ export interface EventWiringContext {
   /** Optional — only present when PERSISTENCE_ENABLED=true */
   stateStore?: StateStore;
 }
-
-/** Default analytics broadcast interval in ms (5 seconds). */
-const DEFAULT_ANALYTICS_INTERVAL_MS = 5000;
 
 /**
  * Wire all domain events to the WebSocket broadcaster and recording manager.
@@ -218,9 +216,8 @@ export function wireEvents(ctx: EventWiringContext): {
   scenarioManager.on("scenario:stopped", (data) => broadcaster.broadcast("scenario:stopped", data));
 
   // ─── Analytics snapshot broadcast ─────────────────────────────────
-  const analyticsIntervalMs = process.env.ANALYTICS_INTERVAL
-    ? parseInt(process.env.ANALYTICS_INTERVAL, 10)
-    : DEFAULT_ANALYTICS_INTERVAL_MS;
+  // Validated/defaulted via the zod envSchema (config.analyticsInterval).
+  const analyticsIntervalMs = config.analyticsInterval;
 
   const analyticsBroadcastInterval = setInterval(() => {
     const snapshot = vehicleManager.analytics.getSnapshot();

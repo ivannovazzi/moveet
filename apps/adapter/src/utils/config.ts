@@ -30,7 +30,13 @@ export const envSchema = z.object({
 
   /**
    * Base URL of the simulator, used to fetch recordings for replay/emit.
-   * Defaults to localhost; compose sets `http://simulator:3000`.
+   *
+   * The simulator listens on container port 3000, which docker maps to host
+   * port 5010 (`5010:3000`). So the correct value depends on the network:
+   *  - Local dev (host → host-mapped port): `http://localhost:5010` (the default).
+   *  - In compose (adapter container → simulator container, by service name):
+   *    `http://simulator:3000` — the container's own port, NOT the host mapping.
+   * Both are correct in their respective contexts; this is not a port mismatch.
    */
   SIMULATOR_URL: z.string().default("http://localhost:5010"),
 });

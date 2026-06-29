@@ -9,78 +9,40 @@ on:
 permissions:
   contents: read
 
+# Node is pinned to 26 to match .node-version, the root package.json engines,
+# and every Dockerfile (node:26-alpine). better-sqlite3 is a native module that
+# is rebuilt from source on `npm ci`, so the running Node major must stay aligned
+# with these pins to avoid a NODE_MODULE_VERSION (ABI) mismatch at test time.
+env:
+  NODE_VERSION: 26
+
 jobs:
-  setup:
-    name: Install dependencies
+  # Lint, type-check, test and build run through a single topological, cached
+  # turbo invocation. Each job does its own `npm ci` (npm's own download cache is
+  # restored by setup-node) so there is never a "cache-miss with no install"
+  # failure, and better-sqlite3 is always built against this job's Node.
+  verify:
+    name: Lint / type-check / test / build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
-      - name: Cache node_modules
-        id: cache
+      - run: npm ci
+      # Cache the turbo task results across runs. Keyed on the lockfile + all
+      # source/config so an unchanged tree is a hit; restore-keys lets a partial
+      # tree change reuse the most recent prior cache instead of starting cold.
+      - name: Cache turbo
         uses: actions/cache@v5
         with:
-          path: |
-            node_modules
-            apps/*/node_modules
-          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
-      - name: Install dependencies
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: npm ci
-
-  format-check:
-    name: Format check
-    needs: setup
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-      - uses: actions/cache@v5
-        with:
-          path: |
-            node_modules
-            apps/*/node_modules
-          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
-      - run: npm run format:check
-
-  lint:
-    name: Lint
-    needs: setup
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-      - uses: actions/cache@v5
-        with:
-          path: |
-            node_modules
-            apps/*/node_modules
-          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
-      - run: npm run lint
-
-  test:
-    name: Test
-    needs: setup
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-      - uses: actions/cache@v5
-        with:
-          path: |
-            node_modules
-            apps/*/node_modules
-          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
-      - run: npx turbo test:ci
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ hashFiles('package-lock.json', 'turbo.json', 'apps/**/src/**', 'packages/**/src/**', 'apps/**/*.json', 'packages/**/*.json') }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
+      - name: Lint, type-check, test, build
+        run: npx turbo lint type-check test:ci build
       - name: Upload coverage reports
         if: always()
         uses: actions/upload-artifact@v7
@@ -93,55 +55,32 @@ jobs:
             apps/network/coverage/
           retention-days: 14
 
-  build:
-    name: Build
-    needs: setup
+  format-check:
+    name: Format check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
-      - uses: actions/cache@v5
-        with:
-          path: |
-            node_modules
-            apps/*/node_modules
-          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
-      - uses: actions/cache@v5
-        with:
-          path: .turbo
-          key: ${{ runner.os }}-turbo-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-turbo-
-      - run: npm run build
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
 
   security-audit:
     name: Security audit
-    needs: setup
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
-      - uses: actions/cache@v5
-        with:
-          path: |
-            node_modules
-            apps/*/node_modules
-          key: ${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}
-      - name: Audit root
-        # fast-xml-parser 4.x has no fix for GHSA-jp2q-39xq-3w4g (high severity).
-        # Transitive via @deck.gl/geo-layers → @loaders.gl/wms → @loaders.gl/xml.
-        # Use --audit-level=critical until upstream releases a patched 4.x.
-        run: npm audit --audit-level=critical
-      - name: Audit simulator
-        working-directory: apps/simulator
-        run: npm audit --audit-level=critical
-      - name: Audit adapter
-        working-directory: apps/adapter
-        run: npm audit --audit-level=critical
-      - name: Audit UI
-        working-directory: apps/ui
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      # Single workspaces-aware audit from the root covers every app + package.
+      #
+      # fast-xml-parser 4.x has no fix for GHSA-jp2q-39xq-3w4g (high severity).
+      # Transitive via @deck.gl/geo-layers → @loaders.gl/wms → @loaders.gl/xml.
+      # Use --audit-level=critical until upstream releases a patched 4.x.
+      - name: Audit (root + all workspaces)
         run: npm audit --audit-level=critical

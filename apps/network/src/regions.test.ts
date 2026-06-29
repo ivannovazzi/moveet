@@ -20,9 +20,7 @@ describe("resolveRegion", () => {
   });
 
   it("throws on unknown region without bbox fallback", () => {
-    expect(() => resolveRegion({ region: "atlantis" })).toThrow(
-      /unknown region: atlantis/i,
-    );
+    expect(() => resolveRegion({ region: "atlantis" })).toThrow(/unknown region: atlantis/i);
   });
 
   it("bbox must have exactly 4 numbers [W, S, E, N]", () => {
@@ -30,7 +28,7 @@ describe("resolveRegion", () => {
       resolveRegion({
         bbox: [1, 2, 3] as unknown as [number, number, number, number],
         geofabrik: "x/y",
-      }),
+      })
     ).toThrow();
   });
 });

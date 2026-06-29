@@ -10,10 +10,27 @@ function readJSON(path: string): Record<string, unknown> {
   return JSON.parse(readFileSync(resolve(root, path), "utf-8"));
 }
 
-describe("ESM module configuration", () => {
-  const tsconfig = readJSON("tsconfig.json") as {
-    compilerOptions: Record<string, string>;
+// Resolve the effective compilerOptions, following a single `extends` chain
+// (the app tsconfig extends the monorepo's root tsconfig.base.json).
+function readEffectiveTsconfig(path: string): {
+  compilerOptions: Record<string, string>;
+} {
+  const local = readJSON(path) as {
+    extends?: string;
+    compilerOptions?: Record<string, string>;
   };
+  let base: Record<string, string> = {};
+  if (local.extends) {
+    const baseCfg = JSON.parse(readFileSync(resolve(root, local.extends), "utf-8")) as {
+      compilerOptions?: Record<string, string>;
+    };
+    base = baseCfg.compilerOptions ?? {};
+  }
+  return { compilerOptions: { ...base, ...(local.compilerOptions ?? {}) } };
+}
+
+describe("ESM module configuration", () => {
+  const tsconfig = readEffectiveTsconfig("tsconfig.json");
   const pkg = readJSON("package.json") as Record<string, string>;
 
   it("package.json declares ESM via type: module", () => {

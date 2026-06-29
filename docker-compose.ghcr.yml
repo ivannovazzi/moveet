@@ -38,7 +38,7 @@ services:
       - "5012:8080"
     # No environment block: the UI is a static SPA (built by Vite, served by
     # Caddy). VITE_API_URL / VITE_WS_URL are baked into the bundle at image
-    # BUILD time (see apps/ui/Dockerfile — no build args, so the defaults
-    # http://localhost:5010 / ws://localhost:5010 apply) and cannot be changed
+    # BUILD time (see the `ui` target in the root Dockerfile — no build args, so
+    # the defaults http://localhost:5010 / ws://localhost:5010 apply) and cannot be changed
     # via runtime env vars. The browser reaches the simulator through its
     # published host port 5010 above, so the baked defaults are correct here.

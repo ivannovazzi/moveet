@@ -9,11 +9,30 @@ describe("buildExportArgs", () => {
     });
     expect(args[0]).toBe("export");
     expect(args[1]).toBe("nairobi-roads.osm.pbf");
-    expect(args).toContain("--geometry-types=linestring");
     expect(args).toContain("--output-format=geojson");
     expect(args).toContain("--overwrite");
     const oIdx = args.indexOf("-o");
     expect(args[oIdx + 1]).toBe("network.geojson");
+  });
+
+  it("includes both linestring and point geometry types", () => {
+    const args = buildExportArgs({
+      input: "/cache/region-roads.osm.pbf",
+      output: "/cache/network.geojson",
+    });
+    const geomArg = args.find((a) => a.startsWith("--geometry-types="));
+    expect(geomArg).toBeDefined();
+    expect(geomArg).toContain("linestring");
+    expect(geomArg).toContain("point");
+  });
+
+  it("uses basename for input and output paths", () => {
+    const args = buildExportArgs({
+      input: "/long/path/to/input.osm.pbf",
+      output: "/long/path/to/output.geojson",
+    });
+    expect(args).toContain("input.osm.pbf");
+    expect(args).not.toContain("/long/path/to/input.osm.pbf");
   });
 });
 

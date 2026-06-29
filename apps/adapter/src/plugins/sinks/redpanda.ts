@@ -12,6 +12,7 @@ import type {
   SinkPublishResult,
 } from "../types";
 import type { VehicleUpdate } from "../../types";
+import { getNestedValue } from "../utils";
 import { createLogger } from "../../utils/logger";
 
 const logger = createLogger("RedpandaSink");
@@ -170,15 +171,11 @@ const TRAJECTORY_TEMPLATE: PayloadTemplate = {
   ignition: "ignition",
 };
 
-/** Resolve a dot-path (e.g. `"metadata.deviceType"`) against a context object. */
-function resolvePath(context: unknown, path: string): unknown {
-  return path.split(".").reduce<unknown>((acc, segment) => {
-    if (acc != null && typeof acc === "object" && segment in (acc as Record<string, unknown>)) {
-      return (acc as Record<string, unknown>)[segment];
-    }
-    return undefined;
-  }, context);
-}
+/**
+ * Resolve a dot-path (e.g. `"metadata.deviceType"`) against a context object.
+ * Delegates to the shared prototype-pollution-guarded {@link getNestedValue}.
+ */
+const resolvePath = getNestedValue;
 
 /**
  * Resolve a {@link PayloadTemplate} against a context into a plain JSON object.
@@ -773,13 +770,15 @@ export class RedpandaSink implements DataSink {
   }
 
   /**
-   * Build canonical-AVRO messages for a batch, honouring `fanOut` and
-   * `keyField` exactly like the JSON template path. Each emitted message's
-   * value is a registry-encoded Buffer.
+   * Expand a batch of updates into the per-message contexts for the
+   * canonical-AVRO format, honouring `fanOut`. Building contexts is cheap (no
+   * encoding); the registry-encode happens lazily, per chunk, in
+   * {@link publishUpdates} so peak memory is one chunk of encoded Buffers rather
+   * than the whole batch.
    */
-  private async buildCanonicalAvroMessages(updates: VehicleUpdate[]): Promise<Message[]> {
+  private buildCanonicalAvroContexts(updates: VehicleUpdate[]): MessageContext[] {
     const ts = Date.now();
-    const contexts: MessageContext[] = updates.flatMap((update) => {
+    return updates.flatMap((update) => {
       const context = this.buildContext(update, ts);
       if (!this.fanOut) return [context];
 
@@ -787,59 +786,92 @@ export class RedpandaSink implements DataSink {
       if (!Array.isArray(array) || array.length === 0) return [];
       return array.map((device) => ({ ...context, device }));
     });
-    return Promise.all(contexts.map((context) => this.buildCanonicalAvroMessage(context)));
   }
 
   /**
-   * Build the Kafka messages for a batch of updates. An explicit
-   * `payloadTemplate` (or the `trajectory` preset, expressed as a template)
-   * drives {@link buildTemplateMessages} (which honours `fanOut`); otherwise
-   * the `dispatch` preset's dedicated code path is used (one message per
-   * update, no fan-out).
+   * Build the eager (JSON-serialised) Kafka messages for a batch of updates. An
+   * explicit `payloadTemplate` (or the `trajectory` preset, expressed as a
+   * template) drives {@link buildTemplateMessages} (which honours `fanOut`);
+   * otherwise the `dispatch` preset's dedicated code path is used. NOT used for
+   * the canonical-AVRO format, which encodes lazily per chunk.
    */
-  private async buildMessages(updates: VehicleUpdate[]): Promise<Message[]> {
-    if (this.format === "canonical-avro") {
-      return this.buildCanonicalAvroMessages(updates);
-    }
+  private buildJsonMessages(updates: VehicleUpdate[]): Message[] {
     const template = this.resolveActiveTemplate();
     return template
       ? this.buildTemplateMessages(updates, template)
       : this.buildDispatchMessages(updates);
   }
 
+  /**
+   * Plan a publish as a list of lazily-materialised chunks. Each chunk producer
+   * yields its Message[] only when invoked, so the canonical-AVRO format encodes
+   * one chunk at a time (flattening peak memory) while the JSON formats — whose
+   * serialisation is cheap and already done — simply slice a pre-built array.
+   * `total` is the total message count across all chunks.
+   */
+  private planChunks(updates: VehicleUpdate[]): {
+    total: number;
+    chunks: Array<() => Promise<Message[]>>;
+  } {
+    const chunk = <T>(items: T[]): T[][] => {
+      const out: T[][] = [];
+      for (let i = 0; i < items.length; i += this.batchSize) {
+        out.push(items.slice(i, i + this.batchSize));
+      }
+      return out;
+    };
+
+    if (this.format === "canonical-avro") {
+      const contexts = this.buildCanonicalAvroContexts(updates);
+      const contextChunks = chunk(contexts);
+      return {
+        total: contexts.length,
+        chunks: contextChunks.map(
+          (c) => () => Promise.all(c.map((ctx) => this.buildCanonicalAvroMessage(ctx)))
+        ),
+      };
+    }
+
+    const messages = this.buildJsonMessages(updates);
+    const messageChunks = chunk(messages);
+    return {
+      total: messages.length,
+      chunks: messageChunks.map((c) => () => Promise.resolve(c)),
+    };
+  }
+
   async publishUpdates(updates: VehicleUpdate[]): Promise<SinkPublishResult | void> {
     if (!this.producer) return;
+    const producer = this.producer;
 
-    const messages = await this.buildMessages(updates);
+    const { total, chunks } = this.planChunks(updates);
 
-    if (messages.length <= this.batchSize) {
-      await this.producer.send({ topic: this.topic, messages, acks: this.acks });
+    // Single send: no chunking needed (also covers the empty-batch case).
+    if (chunks.length <= 1) {
+      const messages = chunks.length === 1 ? await chunks[0]() : [];
+      await producer.send({ topic: this.topic, messages, acks: this.acks });
       return;
     }
 
     // Chunked publishing: chunks are sent sequentially and the batch is
     // aborted on the first failure, so a retried/late chunk can never be
-    // delivered out of order relative to the rest of the batch.
-    const chunks: (typeof messages)[] = [];
-    for (let i = 0; i < messages.length; i += this.batchSize) {
-      chunks.push(messages.slice(i, i + this.batchSize));
-    }
-
-    const producer = this.producer;
+    // delivered out of order relative to the rest of the batch. For the
+    // canonical-AVRO format the chunk is registry-encoded just before its send,
+    // so only one chunk's encoded Buffers are resident at a time.
     let succeeded = 0;
     const failures: Array<{ itemId: string; error: string }> = [];
 
     for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
       try {
-        await producer.send({ topic: this.topic, messages: chunks[chunkIndex], acks: this.acks });
-        succeeded += chunks[chunkIndex].length;
+        const messages = await chunks[chunkIndex]();
+        await producer.send({ topic: this.topic, messages, acks: this.acks });
+        succeeded += messages.length;
       } catch (err) {
         const error = err instanceof Error ? err.message : String(err);
         const startIdx = chunkIndex * this.batchSize;
-        const chunkSize = chunks[chunkIndex].length;
         logger.error(
-          { chunkIndex, start: startIdx, end: startIdx + chunkSize - 1, error },
-          `Chunk ${chunkIndex} failed (messages ${startIdx}–${startIdx + chunkSize - 1})`
+          { chunkIndex, start: startIdx, error },
+          `Chunk ${chunkIndex} failed (starting at message ${startIdx})`
         );
         failures.push({ itemId: `chunk-${chunkIndex}`, error });
         // Abort the remainder of the batch to preserve ordering.
@@ -865,14 +897,14 @@ export class RedpandaSink implements DataSink {
           chunksSucceeded: chunks.length - failures.length,
           chunksTotal: chunks.length,
           messagesSucceeded: succeeded,
-          messagesTotal: messages.length,
-          messagesNotDelivered: messages.length - succeeded,
+          messagesTotal: total,
+          messagesNotDelivered: total - succeeded,
         },
-        `Partial failure: ${chunks.length - failures.length}/${chunks.length} chunks sent (${succeeded}/${messages.length} messages); remainder aborted to preserve ordering`
+        `Partial failure: ${chunks.length - failures.length}/${chunks.length} chunks sent (${succeeded}/${total} messages); remainder aborted to preserve ordering`
       );
     }
 
-    return { attempted: messages.length, succeeded, failures };
+    return { attempted: total, succeeded, failures };
   }
 
   async healthCheck(): Promise<HealthCheckResult> {

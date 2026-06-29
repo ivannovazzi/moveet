@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import client from "@/utils/client";
+import { toast, toErrorMessage } from "@/lib/toast";
 import { useNetworkContext } from "@/data/useData";
 import type {
   DirectionResult,
@@ -166,9 +167,9 @@ export function useDispatchFlow(): DispatchFlow {
       );
       if (offNetwork.length > 0) {
         const names = offNetwork.map((a) => a.vehicleName).join(", ");
-        setError(
-          `Some stops are outside the road network (${names}). Move or remove them, then dispatch again.`
-        );
+        const message = `Some stops are outside the road network (${names}). Move or remove them, then dispatch again.`;
+        setError(message);
+        toast.error(message);
         return;
       }
     }
@@ -198,12 +199,28 @@ export function useDispatchFlow(): DispatchFlow {
 
     try {
       const response = await client.batchDirection(body);
-      if (response.data?.results) {
-        setResults(response.data.results);
+      if (response.error) {
+        setError(response.error);
+        toast.error(`Dispatch failed: ${response.error}`);
+        return;
+      }
+      const results = response.data?.results ?? [];
+      setResults(results);
+      const failed = results.filter((r) => r.status === "error").length;
+      const succeeded = results.length - failed;
+      if (failed > 0) {
+        toast.error(
+          succeeded > 0
+            ? `Dispatched ${succeeded}, ${failed} failed to route`
+            : `Dispatch failed for all ${failed} vehicles`
+        );
+      } else {
+        toast.success(`Dispatched ${succeeded} ${succeeded === 1 ? "vehicle" : "vehicles"}`);
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Dispatch failed";
+      const message = toErrorMessage(err, "Dispatch failed");
       setError(message);
+      toast.error(`Dispatch failed: ${message}`);
       console.error("Dispatch failed:", err);
     } finally {
       setDispatching(false);

@@ -50,8 +50,5 @@ export function exportNetwork(opts: ExportOptions): void {
     fs.renameSync(tempOutput, opts.output);
   }
 
-  fs.writeFileSync(
-    `${opts.output}.meta.json`,
-    JSON.stringify(buildMetadata(opts), null, 2),
-  );
+  fs.writeFileSync(`${opts.output}.meta.json`, JSON.stringify(buildMetadata(opts), null, 2));
 }

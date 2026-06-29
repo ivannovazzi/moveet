@@ -4,17 +4,23 @@ Vehicle location simulator for fleet management systems. Simulates multiple vehi
 
 ## Features
 
-- **Real Road Networks**: Uses OpenStreetMap GeoJSON data for realistic vehicle movement
-- **Heat Zones**: Dynamic areas that affect vehicle behavior and speed
-- **A\* Pathfinding**: Intelligent routing between locations
-- **WebSocket Support**: Real-time vehicle updates
-- **External Adapter**: Integration with external fleet management systems
-- **Rate Limiting**: Built-in protection against API abuse
-- **Docker Support**: Easy deployment with Docker and docker-compose
+- **Real Road Networks**: builds a bidirectional graph from OpenStreetMap GeoJSON for realistic movement
+- **A\* Pathfinding**: haversine-heuristic routing, off-loaded to a worker-thread pool; turn restrictions, one-ways, surface/smoothness and congestion costs
+- **Multi-stop Routing**: waypoints with per-stop dwell times
+- **Traffic & Heat Zones**: time-of-day congestion model and dynamic slowdown polygons
+- **Incidents**: accidents/closures/construction that re-cost the network and trigger reroutes
+- **Geofences**: enter/exit detection with events
+- **Fleets**: fleet definitions and vehicle assignment
+- **Recording & Replay**: capture a live run to NDJSON and replay it
+- **Headless Generation**: deterministic fast-forward generation of recordings
+- **Analytics**: per-tick fleet/vehicle stats, broadcast and persisted as a time-series
+- **Persistence**: optional SQLite state snapshots + restore
+- **Real-time Transport**: WebSocket broadcasting; optional external adapter integration
+- **Rate Limiting** and **Docker Support**
 
 ## Requirements
 
-- Node.js >= 18
+- Node.js 26 (the repo pins Node 26; the `better-sqlite3` native module is compiled for your Node major on install)
 - Docker (optional)
 - OpenStreetMap export file (.geojson)
 
@@ -42,20 +48,33 @@ GEOJSON_PATH=./data/network.geojson
 
 ## Configuration Options
 
-| Variable                | Description                                                | Default                |
-| ----------------------- | ---------------------------------------------------------- | ---------------------- |
-| `PORT`                  | HTTP server port                                           | 5010                   |
-| `GEOJSON_PATH`          | Path to OpenStreetMap GeoJSON file                         | ./data/network.geojson |
-| `UPDATE_INTERVAL`       | Vehicle position update frequency (ms)                     | 500                    |
-| `MIN_SPEED`             | Minimum vehicle speed (km/h)                               | 20                     |
-| `MAX_SPEED`             | Maximum vehicle speed (km/h)                               | 60                     |
-| `ACCELERATION`          | Speed increase rate (km/h/update)                          | 5                      |
-| `DECELERATION`          | Speed decrease rate (km/h/update)                          | 7                      |
-| `TURN_THRESHOLD`        | Angle to trigger turn behavior (degrees)                   | 30                     |
-| `SPEED_VARIATION`       | Speed randomization factor (0.0-1.0)                       | 0.1                    |
-| `HEATZONE_SPEED_FACTOR` | Speed reduction in heat zones (0.0-1.0)                    | 0.5                    |
-| `ADAPTER_URL`           | URL of external adapter service (enables adapter when set) | -                      |
-| `SYNC_ADAPTER_TIMEOUT`  | Interval for syncing vehicle positions to adapter (ms)     | 5000                   |
+All config is parsed and validated through a single zod schema in `src/utils/config.ts`. Invalid values fail fast at startup with a descriptive error.
+
+| Variable                | Description                                                                              | Default                |
+| ----------------------- | ---------------------------------------------------------------------------------------- | ---------------------- |
+| `PORT`                  | HTTP server port                                                                         | 5010                   |
+| `GEOJSON_PATH`          | Path to OpenStreetMap GeoJSON file                                                       | ./data/network.geojson |
+| `UPDATE_INTERVAL`       | Vehicle position update frequency (ms)                                                   | 500                    |
+| `MIN_SPEED`             | Minimum vehicle speed (km/h)                                                             | 20                     |
+| `MAX_SPEED`             | Maximum vehicle speed (km/h); must be greater than `MIN_SPEED`                           | 60                     |
+| `ACCELERATION`          | Speed increase rate (km/h per tick)                                                      | 5                      |
+| `DECELERATION`          | Speed decrease rate (km/h per tick)                                                      | 7                      |
+| `TURN_THRESHOLD`        | Angle to trigger turn slowdown (degrees)                                                 | 30                     |
+| `SPEED_VARIATION`       | Speed randomization factor (0.0-1.0)                                                     | 0.1                    |
+| `HEATZONE_SPEED_FACTOR` | Speed multiplier inside heat zones (0.0-1.0)                                             | 0.5                    |
+| `VEHICLE_COUNT`         | Number of synthetic vehicles when running without an adapter                             | 70                     |
+| `VEHICLE_TYPES`         | Optional JSON vehicle-type distribution override (empty = built-in weighting)            | (built-in)             |
+| `ADAPTER_URL`           | URL of the external adapter service. **Presence enables the adapter**; empty = disabled  | (empty)                |
+| `ADAPTER_SYNC_INTERVAL` | How often (ms) vehicle positions are pushed to the adapter. 0 = follow `UPDATE_INTERVAL` | 0                      |
+| `SYNC_ADAPTER_TIMEOUT`  | Timeout (ms) for each adapter sync request                                               | 5000                   |
+| `PERSISTENCE_ENABLED`   | Enable the SQLite persistence layer                                                      | false                  |
+| `PERSISTENCE_INTERVAL`  | Auto-save snapshot interval (seconds)                                                    | 30                     |
+| `RESTORE_STATE`         | Restore state from the latest snapshot on startup                                        | false                  |
+| `STATE_DB_PATH`         | Path to the SQLite state database                                                        | data/state.db          |
+| `ANALYTICS_INTERVAL`    | How often (ms) the analytics snapshot is broadcast and persisted                         | 5000                   |
+| `LOG_LEVEL`             | Pino log level (`fatal`/`error`/`warn`/`info`/`debug`/`trace`/`silent`)                  | info                   |
+
+> Note: there is no `USE_ADAPTER` or `SYNC_ADAPTER` flag. The adapter is enabled simply by setting `ADAPTER_URL`.
 
 ## API Endpoints
 
@@ -195,13 +214,9 @@ Update simulation options.
 
 Connect to `ws://localhost:5010` for real-time updates.
 
-**Message Types:**
+**Message Types** (non-exhaustive): `vehicle`/`vehicles`, `status`, `clock`, `options`, `heatzones`, `direction`, `traffic`, `analytics`, `waypoint:reached`, `route:completed`, `vehicle:rerouted`, `incident:created`, `incident:cleared`, `geofence:event`, `fleet:created`/`fleet:deleted`/`fleet:assigned`, `scenario:*`, `replay:status`, `generate:progress`/`generate:complete`/`generate:error`, `reset`.
 
-- `vehicle`: Vehicle position update
-- `status`: Simulation status change
-- `heatzones`: Heat zone updates
-- `direction`: Vehicle direction change
-- `options`: Configuration change
+Beyond the endpoints shown above, the API also exposes incidents (`/incidents`), geofences (`/geofences`), fleets (`/fleets`), analytics (`/analytics/*`), traffic (`/traffic`, `/traffic-profile`), clock (`/clock`), speed limits (`/speed-limits`), recording, replay (`/replay/status`), scenarios, and state persistence (`/state/save`, `/state/restore`, `/state/snapshots`). See the OpenAPI/Scalar reference served by the app for the full set.
 
 ## Docker Usage
 
@@ -246,31 +261,31 @@ npm run lint
 
 ## Architecture
 
+This is a ~40-module, EventEmitter-based system. `src/index.ts` mounts the Express routes and WebSocket server; `src/setup/eventWiring.ts` is the single hub that forwards every module's events to the `WebSocketBroadcaster` and recording layer.
+
 ```
-┌─────────────────┐
-│   HTTP/WS API   │
-└────────┬────────┘
-         │
-    ┌────┴─────┐
-    │  index   │
-    └────┬─────┘
-         │
-    ┌────┴──────────────┐
-    │ SimulationController│
-    └────┬──────────────┘
-         │
-    ┌────┴─────────┐
-    │VehicleManager│
-    └────┬─────────┘
-         │
-    ┌────┴───────┐      ┌─────────┐
-    │RoadNetwork │──────│ Adapter │
-    └────────────┘      └─────────┘
-         │
-    ┌────┴──────────┐
-    │ HeatZoneManager│
-    └───────────────┘
+                 HTTP + WebSocket API (src/routes, src/setup)
+                                │
+                       SimulationController  ──────────────►  ReplayManager
+                                │                              ScenarioManager
+                                ▼                              GenerationManager / HeadlessRunner
+                          VehicleManager (facade)
+        ┌──────────────┬───────────┴───────────┬───────────────┐
+        ▼              ▼                        ▼               ▼
+  VehicleRegistry  RouteManager            GameLoop      AdapterSyncManager ──► Adapter
+  (+ spatial idx)   │  (physics, routes)   (tick)        AnalyticsAccumulator
+                    ▼
+                RoadNetwork  ──► pathfinding/{cost,heap}  +  PathfindingPool ─► pathfinding-worker (threads)
+                    │
+        ┌───────────┼───────────┬───────────┬──────────────┐
+        ▼           ▼           ▼           ▼              ▼
+  HeatZoneManager TrafficManager IncidentManager GeoFenceManager  (domain features)
+
+  StateStore + PersistenceManager (SQLite snapshots + analytics_history)
+  WebSocketBroadcaster (batched vehicle updates)
 ```
+
+See `CLAUDE.md` for a fuller module breakdown.
 
 ## Troubleshooting
 

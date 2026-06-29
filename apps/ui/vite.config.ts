@@ -17,9 +17,19 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
+        // Split the heavy, rarely-changing rendering/vendor deps into their own
+        // chunks so the app shell can load (and the map chunk can be lazily
+        // fetched) without dragging the whole WebGL stack into the entry bundle.
         manualChunks(id) {
-          if (id.includes("node_modules/d3")) {
-            return "d3";
+          if (!id.includes("node_modules")) return;
+          if (id.includes("@deck.gl") || id.includes("@luma.gl") || id.includes("@math.gl")) {
+            return "deckgl";
+          }
+          if (id.includes("radix-ui") || id.includes("@radix-ui")) {
+            return "radix";
+          }
+          if (id.includes("lucide-react")) {
+            return "icons";
           }
         },
       },

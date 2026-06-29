@@ -10,13 +10,17 @@
       "persistent": true
     },
     "lint": {
-      "dependsOn": ["^build"]
+      "outputs": []
     },
     "lint:fix": {
-      "dependsOn": ["^build"]
+      "outputs": []
     },
-    "format": {},
-    "format:check": {},
+    "format": {
+      "outputs": []
+    },
+    "format:check": {
+      "outputs": []
+    },
     "test": {
       "cache": false
     },
@@ -24,7 +28,8 @@
       "cache": false
     },
     "type-check": {
-      "dependsOn": ["^type-check"]
+      "dependsOn": ["^type-check"],
+      "outputs": []
     }
   }
 }

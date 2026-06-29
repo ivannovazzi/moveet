@@ -1,43 +1,73 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("child_process", () => ({
-  execSync: vi.fn(),
+  execFileSync: vi.fn(),
 }));
 
-import { execSync } from "child_process";
-import { buildOsmiumCommand, checkDockerAvailable } from "./docker.js";
+import { execFileSync } from "child_process";
+import { buildOsmiumArgs, osmium } from "./docker.js";
 
-const mockExec = vi.mocked(execSync);
+const mockExec = vi.mocked(execFileSync);
 
 beforeEach(() => {
   mockExec.mockReset();
+  // checkOsmiumAvailable caches the result at module scope; reset so the
+  // availability tests below each see a fresh probe.
+  vi.resetModules();
 });
 
-describe("buildOsmiumCommand", () => {
-  it("builds docker run command with correct volume mount", () => {
-    const cmd = buildOsmiumCommand(
+describe("buildOsmiumArgs", () => {
+  it("resolves file arguments relative to the workdir, leaving flags untouched", () => {
+    const args = buildOsmiumArgs(
       ["extract", "--bbox", "1,2,3,4", "input.osm.pbf", "-o", "out.osm.pbf"],
-      "/abs/workdir",
+      "/abs/workdir"
     );
-    expect(cmd).toContain("docker run --rm");
-    expect(cmd).toContain("-v /abs/workdir:/data");
-    expect(cmd).toContain("ghcr.io/osmcode/osmium-tool");
-    expect(cmd).toContain(
-      "osmium extract --bbox 1,2,3,4 input.osm.pbf -o out.osm.pbf",
+    expect(args).toEqual([
+      "extract",
+      "--bbox",
+      "1,2,3,4",
+      "/abs/workdir/input.osm.pbf",
+      "-o",
+      "/abs/workdir/out.osm.pbf",
+    ]);
+  });
+
+  it("resolves geojson and json outputs too", () => {
+    const args = buildOsmiumArgs(["export", "roads.osm.pbf", "-o", "out.geojson"], "/w");
+    expect(args).toContain("/w/roads.osm.pbf");
+    expect(args).toContain("/w/out.geojson");
+  });
+
+  it("does not mangle a path containing spaces", () => {
+    const args = buildOsmiumArgs(["export", "my roads.osm.pbf"], "/a b/work");
+    expect(args).toContain("/a b/work/my roads.osm.pbf");
+  });
+});
+
+describe("osmium", () => {
+  it("invokes osmium via execFileSync without a shell", () => {
+    mockExec.mockReturnValue(Buffer.from(""));
+    osmium(["export", "in.osm.pbf", "-o", "out.geojson"], "/w");
+    expect(mockExec).toHaveBeenCalledWith(
+      "osmium",
+      ["export", "/w/in.osm.pbf", "-o", "/w/out.geojson"],
+      { stdio: "inherit" }
     );
   });
 });
 
-describe("checkDockerAvailable", () => {
-  it("does not throw when docker is available", () => {
-    mockExec.mockReturnValue(Buffer.from("Docker version 24.0.0"));
-    expect(() => checkDockerAvailable()).not.toThrow();
+describe("checkOsmiumAvailable", () => {
+  it("does not throw when osmium is available", async () => {
+    mockExec.mockReturnValue(Buffer.from("osmium version 1.16.0"));
+    const { checkOsmiumAvailable } = await import("./docker.js");
+    expect(() => checkOsmiumAvailable()).not.toThrow();
   });
 
-  it("throws a clear error when docker is not available", () => {
+  it("throws a clear error when osmium is not available", async () => {
     mockExec.mockImplementation(() => {
-      throw new Error("command not found: docker");
+      throw new Error("command not found: osmium");
     });
-    expect(() => checkDockerAvailable()).toThrow(/docker is not available/i);
+    const { checkOsmiumAvailable } = await import("./docker.js");
+    expect(() => checkOsmiumAvailable()).toThrow(/osmium-tool is not available/i);
   });
 });

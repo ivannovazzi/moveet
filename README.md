@@ -2,11 +2,11 @@
 
 [![CI](https://github.com/ivannovazzi/moveet/actions/workflows/ci.yml/badge.svg)](https://github.com/ivannovazzi/moveet/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D24-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](apps/simulator/compose.yml)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D26-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 
-A real-time vehicle fleet simulator that runs vehicles on actual road networks with A\* pathfinding, realistic motion physics, BPR traffic congestion, time-of-day patterns, geofencing, incident-based rerouting, session recording, and a custom browser-side map rendering engine — no map tile provider required.
+A real-time vehicle fleet simulator that runs vehicles on actual road networks with A\* pathfinding, realistic motion physics, BPR traffic congestion, time-of-day patterns, geofencing, incident-based rerouting, session recording, and a custom WebGL map rendering engine — no map tile provider required.
 
 <!-- Screenshot goes here -->
 
@@ -30,24 +30,24 @@ A real-time vehicle fleet simulator that runs vehicles on actual road networks w
 
 ## Features
 
-|                              |                                                                                                                                                                                                                        |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 🗺 **Road-network agnostic** | Ingests any GeoJSON/OSM-derived road graph — swap the file to simulate a different city                                                                                                                                |
-| 🌐 **Network CLI**           | `apps/network` pipeline: download OSM data from Geofabrik, extract a bbox, filter road classes, export GeoJSON, validate topology, and diff versions — one `prepare` command does it all                               |
-| 🔀 **A\* pathfinding**       | Haversine heuristic over bidirectional road segments; respects turn restrictions, roundabouts, and road-class access rules; incident-aware route cache                                                                 |
-| 🚗 **Vehicle types**         | Five types (car, truck, motorcycle, ambulance, bus) with distinct speed profiles, acceleration curves, road restrictions, and special behaviours (e.g. ambulances ignore heat-zone penalties)                          |
-| 🚦 **Traffic realism**       | BPR congestion model (flow/capacity), time-of-day rush-hour/night demand multipliers, traffic-signal intersection delays, surface-smoothness speed factors                                                             |
-| 🎨 **Custom map renderer**   | D3 SVG scene with a Mercator projection (1×–15× zoom, pan); dedicated layers for roads, vehicles, POIs, heat-zone contours, incident markers, geofences, breadcrumb trails, and dispatch routes — no Leaflet or Mapbox |
-| 📡 **Real-time WebSocket**   | 100 ms batched broadcast with backpressure handling; streams vehicle positions, routes, heat zones, incidents, geofence events, fleet events, and replay frames                                                        |
-| 🔥 **Heat zones**            | Contour density map (green → red, 50 thresholds) derived from road-network intersection density                                                                                                                        |
-| 🔲 **Geofencing**            | Draw custom polygons on the map; monitor vehicles crossing zone boundaries; enter/exit events broadcast in real time                                                                                                   |
-| ⚠️ **Incidents & rerouting** | Operator-created road incidents trigger live A\* rerouting for all affected vehicles                                                                                                                                   |
-| 🎬 **Recording & replay**    | NDJSON session recording; replay with pause, seek, and 1×/2×/4× speed controls and interpolated progress bar                                                                                                           |
-| 🚘 **Breadcrumb trails**     | Per-vehicle position history rendered as fading path overlays on the map                                                                                                                                               |
-| 🚦 **Fleet management**      | Group vehicles into named, colour-coded fleets; assign/unassign at runtime                                                                                                                                             |
-| 🔍 **POI + road search**     | Typeahead combining road names and points of interest; dispatches selected vehicles to result                                                                                                                          |
-| 🖥 **Operator UI**           | Icon-rail sidebar (Vehicles · Fleets · Incidents · Geofences · Recordings · Visibility · Speed · Adapter) + bottom dock with live and replay controls                                                                  |
-| 🔌 **Adapter plugins**       | Hot-swappable source and sink plugins; configure via env vars or REST API at runtime                                                                                                                                   |
+|                              |                                                                                                                                                                                                                               |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🗺 **Road-network agnostic** | Ingests any GeoJSON/OSM-derived road graph — swap the file to simulate a different city                                                                                                                                       |
+| 🌐 **Network CLI**           | `apps/network` pipeline: download OSM data from Geofabrik, extract a bbox, filter road classes, export GeoJSON, validate topology, and diff versions — one `prepare` command does it all                                      |
+| 🔀 **A\* pathfinding**       | Haversine heuristic over bidirectional road segments; respects turn restrictions, roundabouts, and road-class access rules; incident-aware route cache                                                                        |
+| 🚗 **Vehicle types**         | Five types (car, truck, motorcycle, ambulance, bus) with distinct speed profiles, acceleration curves, road restrictions, and special behaviours (e.g. ambulances ignore heat-zone penalties)                                 |
+| 🚦 **Traffic realism**       | BPR congestion model (flow/capacity), time-of-day rush-hour/night demand multipliers, traffic-signal intersection delays, surface-smoothness speed factors                                                                    |
+| 🎨 **Custom map renderer**   | deck.gl + luma.gl WebGL scene (Web Mercator viewport, pan/zoom, fly-to); GPU layers for roads, vehicles, POIs, heat-zone contours, incident markers, geofences, breadcrumb trails, and dispatch routes — no Leaflet or Mapbox |
+| 📡 **Real-time WebSocket**   | 100 ms batched broadcast with backpressure handling; streams vehicle positions, routes, heat zones, incidents, geofence events, fleet events, and replay frames                                                               |
+| 🔥 **Heat zones**            | Contour density map (green → red, 50 thresholds) derived from road-network intersection density                                                                                                                               |
+| 🔲 **Geofencing**            | Draw custom polygons on the map; monitor vehicles crossing zone boundaries; enter/exit events broadcast in real time                                                                                                          |
+| ⚠️ **Incidents & rerouting** | Operator-created road incidents trigger live A\* rerouting for all affected vehicles                                                                                                                                          |
+| 🎬 **Recording & replay**    | NDJSON session recording; replay with pause, seek, and 1×/2×/4× speed controls and interpolated progress bar                                                                                                                  |
+| 🚘 **Breadcrumb trails**     | Per-vehicle position history rendered as fading path overlays on the map                                                                                                                                                      |
+| 🚦 **Fleet management**      | Group vehicles into named, colour-coded fleets; assign/unassign at runtime                                                                                                                                                    |
+| 🔍 **POI + road search**     | Typeahead combining road names and points of interest; dispatches selected vehicles to result                                                                                                                                 |
+| 🖥 **Operator UI**           | Icon-rail sidebar (Vehicles · Fleets · Incidents · Geofences · Recordings · Visibility · Speed · Adapter) + bottom dock with live and replay controls                                                                         |
+| 🔌 **Adapter plugins**       | Hot-swappable source and sink plugins; configure via env vars or REST API at runtime                                                                                                                                          |
 
 ---
 
@@ -55,7 +55,7 @@ A real-time vehicle fleet simulator that runs vehicles on actual road networks w
 
 ### Prerequisites
 
-- **Node.js** ≥ 24, npm ≥ 9 (workspace root)
+- **Node.js** ≥ 26, npm ≥ 9 (workspace root)
 - **Docker** (optional)
 
 ### Run locally
@@ -95,7 +95,7 @@ npm run dev -- prepare nairobi   # or any region in regions.json
 ```mermaid
 flowchart TD
     NET["<b>apps/network</b><br/>OSM CLI pipeline<br/>(offline, one-time)"]
-    UI["<b>apps/ui</b><br/>React 19 · D3 · Vite<br/>:5012"]
+    UI["<b>apps/ui</b><br/>React 19 · deck.gl · Vite<br/>:5012"]
     SIM["<b>apps/simulator</b><br/>Express · ws · Turf.js<br/>:5010"]
     ADP["<b>apps/adapter</b><br/>Express · plugin manager<br/>:5011"]
     EXT["External system<br/><i>GraphQL · Kafka · REST · …</i>"]
@@ -110,7 +110,7 @@ flowchart TD
 
 **Simulator** is the core — it builds a routable graph from GeoJSON, runs vehicles with per-vehicle interval timers, and serves a REST API + WebSocket feed. It works completely standalone.
 
-**UI** is a React app that renders everything in an SVG canvas using D3 with a Mercator projection. It has no map-tile dependency — roads, routes, heat-zone contours, POIs, incidents, geofences, breadcrumb trails, and vehicles are all drawn from GeoJSON/API data.
+**UI** is a React app that renders everything on a WebGL canvas using deck.gl + luma.gl over a Web Mercator viewport. It has no map-tile dependency — roads, routes, heat-zone contours, POIs, incidents, geofences, breadcrumb trails, and vehicles are all drawn from GeoJSON/API data.
 
 **Adapter** is optional — only needed when you want to push data to an external fleet management system. It hot-swaps source and sink plugins at runtime via its own REST API.
 
@@ -416,20 +416,29 @@ ghcr.io/ivannovazzi/moveet-ui
 
 ### Build from source
 
+All three images build from the single workspace-aware root `Dockerfile` (targets:
+`simulator`, `adapter`, `ui`). From the repo root:
+
 ```bash
-cd apps/simulator && docker compose up
+docker compose up --build
+```
+
+For the Flare dev environment (real fleet roster + dev Redpanda), layer the override:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.flare-dev.yml up --build
 ```
 
 ---
 
 ## Project Structure
 
-| Package       | Path                                 | Tech                                                  | Port |
-| ------------- | ------------------------------------ | ----------------------------------------------------- | ---- |
-| **network**   | [`apps/network/`](apps/network/)     | Node.js 24 · Commander · osmium-tool (local install)  | CLI  |
-| **simulator** | [`apps/simulator/`](apps/simulator/) | Node.js 24 · Express 4 · ws 8 · Turf.js 7             | 5010 |
-| **adapter**   | [`apps/adapter/`](apps/adapter/)     | Node.js 24 · Express 4                                | 5011 |
-| **ui**        | [`apps/ui/`](apps/ui/)               | React 19 · D3 7 · Vite · TypeScript 5.8 · CSS Modules | 5012 |
+| Package       | Path                                 | Tech                                                           | Port |
+| ------------- | ------------------------------------ | -------------------------------------------------------------- | ---- |
+| **network**   | [`apps/network/`](apps/network/)     | Node.js 26 · Commander · osmium-tool (local install)           | CLI  |
+| **simulator** | [`apps/simulator/`](apps/simulator/) | Node.js 26 · Express 4 · ws 8 · Turf.js 7                      | 5010 |
+| **adapter**   | [`apps/adapter/`](apps/adapter/)     | Node.js 26 · Express 4                                         | 5011 |
+| **ui**        | [`apps/ui/`](apps/ui/)               | React 19 · deck.gl 9 · Vite · TypeScript 6.0 · Tailwind CSS v4 | 5012 |
 
 Each package has its own README with deeper architecture notes.
 

@@ -6,9 +6,9 @@ type SquaredButtonTone = "neutral" | "active" | "success" | "danger";
 type SquaredButtonVariant = "surface" | "ghost";
 type SquaredButtonSize = "md" | "lg";
 
-type SquaredButtonProps = Omit<
+type SquaredButtonBaseProps = Omit<
   React.ComponentProps<typeof UIButton>,
-  "className" | "children" | "variant" | "size" | "disabled"
+  "className" | "children" | "variant" | "size" | "disabled" | "aria-label"
 > & {
   icon: React.ReactNode;
   tone?: SquaredButtonTone;
@@ -17,6 +17,7 @@ type SquaredButtonProps = Omit<
   active?: boolean;
   className?: string;
   iconClassName?: string;
+  /** Non-text adornments only (badges/indicators) — never the button's label. */
   children?: React.ReactNode;
   title?: string;
   /** Standard HTML disabled attribute */
@@ -24,6 +25,14 @@ type SquaredButtonProps = Omit<
   /** Legacy react-aria alias — mapped to native disabled (isDisabled ?? disabled) */
   isDisabled?: boolean;
 };
+
+/**
+ * SquaredButton is always icon-only (its `children` are decorative badges, not
+ * a text label), so an accessible name is mandatory: callers must pass either
+ * `aria-label` or `aria-labelledby`. The union enforces this at the type level.
+ */
+type SquaredButtonProps = SquaredButtonBaseProps &
+  ({ "aria-label": string } | { "aria-labelledby": string });
 
 const toneActiveClasses: Record<SquaredButtonTone, string> = {
   neutral: "bg-accent/15 border-accent/30 text-foreground",
@@ -52,6 +61,17 @@ export function SquaredButton({
   isDisabled,
   ...props
 }: SquaredButtonProps) {
+  if (import.meta.env.DEV) {
+    const hasLabel =
+      typeof (props as Record<string, unknown>)["aria-label"] === "string" ||
+      typeof (props as Record<string, unknown>)["aria-labelledby"] === "string";
+    if (!hasLabel) {
+      console.warn(
+        "SquaredButton is icon-only and requires an `aria-label` (or `aria-labelledby`) for accessibility."
+      );
+    }
+  }
+
   const iconNode = React.isValidElement<{ className?: string }>(icon)
     ? React.cloneElement(icon, {
         className: cn(icon.props.className, iconClassName),

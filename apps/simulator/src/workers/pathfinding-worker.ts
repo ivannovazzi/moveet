@@ -29,6 +29,8 @@ interface WorkerEdge {
   lanes: number;
   capacity: number;
   smoothnessFactor: number;
+  /** Precomputed static base travel time (hours); set after the graph is built. */
+  baseTravelTime: number;
 }
 
 interface WorkerNode {
@@ -43,6 +45,60 @@ interface PathNode {
   id: string;
   gScore: number;
   fScore: number;
+}
+
+// ---------------------------------------------------------------------------
+// Edge-cost helpers
+// ---------------------------------------------------------------------------
+//
+// These MUST stay identical to ../modules/pathfinding/cost.ts (the canonical
+// implementation used by the main-thread RoadNetwork). They are duplicated here
+// rather than imported because this worker is launched as a raw entry file by
+// `new Worker(...)` under plain Node, which cannot resolve the extensionless
+// relative ESM imports the rest of the codebase uses (tsconfig is owned by the
+// infra agent and forbids `.ts` import extensions). The duplication is locked
+// against drift by an equivalence test (see pathfinding-worker / RoadNetwork
+// route-equivalence tests). See task-4 deferred note.
+
+const SIGNAL_DELAY_S = 45; // seconds — midpoint of 30-90s signal cycle
+const SIGNAL_DELAY_H = SIGNAL_DELAY_S / 3600;
+
+/**
+ * Static (time-invariant) base travel time for an edge, in hours.
+ * `flow` is the outbound-edge count of the edge's start node (BPR flow proxy).
+ */
+function computeBaseTravelTime(
+  edge: {
+    distance: number;
+    maxSpeed: number;
+    surface: string;
+    capacity: number;
+    smoothnessFactor: number;
+  },
+  flow: number
+): number {
+  const surfacePenalty = edge.surface === "unpaved" || edge.surface === "dirt" ? 1.3 : 1.0;
+  const smoothnessPenalty = 1 / ((edge.smoothnessFactor ?? 1.0) || 1.0); // avoid div-by-zero for impassable=0
+  const bprRatio = flow / (edge.capacity ?? 1800);
+  const bprRatio2 = bprRatio * bprRatio;
+  const bprCongestion = 1 + 0.15 * (bprRatio2 * bprRatio2);
+  return (edge.distance / edge.maxSpeed) * surfacePenalty * smoothnessPenalty * bprCongestion;
+}
+
+/** Applies dynamic incident/signal terms on top of an edge's static base cost. */
+function applyDynamicCost(
+  baseTravelTime: number,
+  incidentFactor: number | undefined,
+  endHasSignal: boolean
+): number {
+  let travelTime = baseTravelTime;
+  if (incidentFactor !== undefined && incidentFactor < 1) {
+    travelTime = travelTime / incidentFactor;
+  }
+  if (endHasSignal) {
+    travelTime += SIGNAL_DELAY_H;
+  }
+  return travelTime;
 }
 
 // ---------------------------------------------------------------------------
@@ -213,6 +269,7 @@ function buildGraph(geojsonPath: string): Map<string, WorkerNode> {
           lanes,
           capacity,
           smoothnessFactor,
+          baseTravelTime: 0, // filled in after the graph is fully built
         });
       }
 
@@ -230,16 +287,22 @@ function buildGraph(geojsonPath: string): Map<string, WorkerNode> {
           lanes,
           capacity,
           smoothnessFactor,
+          baseTravelTime: 0, // filled in after the graph is fully built
         });
       }
     }
   }
 
-  // Compute max speed across all edges for admissible heuristic
+  // Compute max speed across all edges for admissible heuristic, and precompute
+  // each edge's static base travel time now that every node's outbound-edge
+  // count (the BPR flow proxy) is final. `node.edges.length` here is the start
+  // node's outbound count — identical to the main thread's flow proxy.
   let maxSpeed = 0;
   for (const node of nodes.values()) {
+    const flow = node.edges.length;
     for (const edge of node.edges) {
       if (edge.maxSpeed > maxSpeed) maxSpeed = edge.maxSpeed;
+      edge.baseTravelTime = computeBaseTravelTime(edge, flow);
     }
   }
   _maxNetworkSpeed = maxSpeed > 0 ? maxSpeed : 110;
@@ -290,7 +353,8 @@ function findRoute(
   >();
   const gScore = new Map<string, number>();
 
-  // Min-heap
+  // Binary min-heap (kept identical to ../modules/pathfinding/heap.ts; see the
+  // edge-cost-helper note above for why this worker cannot import it).
   const heap: PathNode[] = [];
 
   const pushHeap = (node: PathNode): void => {
@@ -389,25 +453,14 @@ function findRoute(
       // Skip impassable roads (smoothnessFactor === 0)
       if (edge.smoothnessFactor === 0) continue;
 
-      const surfacePenalty = edge.surface === "unpaved" || edge.surface === "dirt" ? 1.3 : 1.0;
-      // smoothnessFactor applied via edge.smoothnessFactor (see 9ozi.3)
-      const smoothnessPenalty = 1 / ((edge.smoothnessFactor ?? 1.0) || 1.0); // avoid div-by-zero for impassable=0
-      const flow = currentNode.edges.length; // proxy for observed flow (outbound edges from current node)
-      const bprRatio = flow / (edge.capacity ?? 1800);
-      const bprRatio2 = bprRatio * bprRatio;
-      const bprCongestion = 1 + 0.15 * (bprRatio2 * bprRatio2);
-      let travelTime =
-        (edge.distance / edge.maxSpeed) * surfacePenalty * smoothnessPenalty * bprCongestion;
-      if (incidentFactor !== undefined && incidentFactor < 1) {
-        travelTime = travelTime / incidentFactor;
-      }
-      // Add intersection delay for signalized nodes
-      const SIGNAL_DELAY_S = 45; // seconds — midpoint of 30-90s signal cycle
-      const SIGNAL_DELAY_H = SIGNAL_DELAY_S / 3600;
+      // Static base cost was precomputed at graph-build time; only the dynamic
+      // incident/signal terms are applied here in the hot relaxation loop.
       const endNode = nodes.get(edge.endNodeId);
-      if (endNode?.trafficSignal) {
-        travelTime += SIGNAL_DELAY_H;
-      }
+      const travelTime = applyDynamicCost(
+        edge.baseTravelTime,
+        incidentFactor,
+        endNode?.trafficSignal === true
+      );
       const tentativeCost = current.gScore + travelTime;
       const existingCost = gScore.get(edge.endNodeId);
 
@@ -477,5 +530,5 @@ if (parentPort) {
 }
 
 // Export for testing
-export { buildGraph, findRoute, calculateDistance };
+export { buildGraph, findRoute, calculateDistance, computeBaseTravelTime, applyDynamicCost };
 export type { WorkerNode, WorkerEdge };
