@@ -476,4 +476,147 @@ describe("SimulationService", () => {
       expect(mockHttp.get).toHaveBeenCalledWith("/status");
     });
   });
+
+  // ─── Public surface (post-decomposition) ───────────────────────
+  // The transport is split into domain segment modules behind a thin
+  // facade. This guards the facade against silently dropping or renaming a
+  // method when segments are added/moved. Every name below must remain a
+  // callable on the singleton.
+  describe("public API surface", () => {
+    const EXPECTED_METHODS = [
+      // connection / core channels
+      "connectWebSocket",
+      "retryConnection",
+      "disconnect",
+      "onConnect",
+      "offConnect",
+      "onDisconnect",
+      "offDisconnect",
+      "onConnectionStateChange",
+      "onVehicle",
+      "offVehicle",
+      "onStatus",
+      "offStatus",
+      "onOptions",
+      "offOptions",
+      "onHeatzones",
+      "offHeatzones",
+      "onDirection",
+      "offDirection",
+      "onReset",
+      "offReset",
+      // simulation + network
+      "start",
+      "stop",
+      "reset",
+      "direction",
+      "batchDirection",
+      "getStatus",
+      "getVehicles",
+      "getNetwork",
+      "getRoads",
+      "getPois",
+      "findRoad",
+      "findNode",
+      "getOptions",
+      "updateOptions",
+      "getDirections",
+      "getHeatzones",
+      "makeHeatzones",
+      "search",
+      // fleets
+      "getFleets",
+      "createFleet",
+      "deleteFleet",
+      "assignVehicles",
+      "unassignVehicles",
+      "onFleetCreated",
+      "offFleetCreated",
+      "onFleetDeleted",
+      "offFleetDeleted",
+      "onFleetAssigned",
+      "offFleetAssigned",
+      "onWaypointReached",
+      "offWaypointReached",
+      "onRouteCompleted",
+      "offRouteCompleted",
+      // incidents
+      "getIncidents",
+      "createRandomIncident",
+      "removeIncident",
+      "createIncidentAtPosition",
+      "onIncidentCreated",
+      "offIncidentCreated",
+      "onIncidentCleared",
+      "offIncidentCleared",
+      "onVehicleRerouted",
+      "offVehicleRerouted",
+      // recording / replay / generation
+      "startRecording",
+      "stopRecording",
+      "getRecordings",
+      "startReplay",
+      "pauseReplay",
+      "resumeReplay",
+      "stopReplay",
+      "seekReplay",
+      "setReplaySpeed",
+      "getReplayStatus",
+      "onReplayStatus",
+      "offReplayStatus",
+      "generateRecording",
+      "getGenerateStatus",
+      "onGenerateProgress",
+      "offGenerateProgress",
+      "onGenerateComplete",
+      "offGenerateComplete",
+      "onGenerateError",
+      "offGenerateError",
+      // clock / traffic / analytics
+      "getClock",
+      "setClock",
+      "onClock",
+      "offClock",
+      "getTraffic",
+      "onTraffic",
+      "offTraffic",
+      "onAnalytics",
+      "offAnalytics",
+      "getAnalyticsSummary",
+      "getFleetAnalytics",
+      "resetAnalytics",
+      // geofences
+      "getGeofences",
+      "createGeofence",
+      "updateGeofence",
+      "deleteGeofence",
+      "toggleGeofence",
+      "onGeofenceEvent",
+      "offGeofenceEvent",
+      "subscribe",
+      // scenarios
+      "getScenarios",
+      "loadScenarioByName",
+      "startScenario",
+      "pauseScenario",
+      "stopScenario",
+      "getScenarioStatus",
+      "onScenarioEvent",
+      "offScenarioEvent",
+    ] as const;
+
+    it.each(EXPECTED_METHODS)("exposes %s as a function", (name) => {
+      expect(typeof (service as unknown as Record<string, unknown>)[name]).toBe("function");
+    });
+
+    it("keeps every exposed method destructure-safe (bound, not bare prototype refs)", () => {
+      for (const name of EXPECTED_METHODS) {
+        const ref = (service as unknown as Record<string, unknown>)[name];
+        // Bound methods are own enumerable properties on the instance, not
+        // inherited from the prototype.
+        expect(Object.prototype.hasOwnProperty.call(service, name)).toBe(true);
+        expect(typeof ref).toBe("function");
+      }
+    });
+  });
 });

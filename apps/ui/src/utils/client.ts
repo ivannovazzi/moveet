@@ -1,686 +1,284 @@
+// SimulationService is the singleton transport facade for the UI. The REST/WS
+// surface is grouped by domain into segment classes under ./client/*; this file
+// composes them and re-exposes their (constructor-bound) methods so the public
+// API — names, signatures, return types, and destructure-safe binding — is
+// unchanged from when everything lived in one class.
 import { HttpClient } from "./httpClient";
 import { WebSocketClient } from "./wsClient";
-import type { ConnectionStateListener } from "./wsClient";
-import type {
-  ApiResponse,
-  StartOptions,
-  SimulationStatus,
-  VehicleDTO,
-  VehicleDirection as Direction,
-  Road,
-  Position,
-  Heatzone,
-  RoadNetwork,
-  POI,
-  Fleet,
-  DirectionResponse,
-  IncidentDTO,
-  IncidentType,
-  RecordingFile,
-  RecordingMetadata,
-  ReplayStatus,
-  GenerateRecordingRequest,
-  GenerateAcceptedResponse,
-  GenerateStatus,
-  ClockState,
-  TrafficEdge,
-  ScenarioFile,
-  ScenarioLoadResponse,
-  ScenarioStatus,
-  ScenarioEventPayload,
-} from "@/types";
-import type { AnalyticsSnapshot, AnalyticsSummary, FleetAnalytics } from "@/hooks/analyticsStore";
-import type {
-  ResetPayload,
-  WaypointReachedPayload,
-  RouteCompletedPayload,
-  IncidentClearedPayload,
-  VehicleReroutedPayload,
-  GenerateProgressPayload,
-  GenerateCompletePayload,
-  GenerateErrorPayload,
-} from "./wsTypes";
-import {
-  isValidVehicleDTO,
-  type GeoFence,
-  type GeoFenceEvent,
-  type CreateGeoFenceRequest,
-  type UpdateGeoFenceRequest,
-  type SubscribeFilter,
-} from "@moveet/shared-types";
+import { config as appConfig } from "./config";
+import type { ClientDeps } from "./client/types";
+import { ConnectionSegment } from "./client/connection";
+import { SimulationSegment } from "./client/simulation";
+import { FleetSegment } from "./client/fleets";
+import { IncidentSegment } from "./client/incidents";
+import { RecordingSegment } from "./client/recording";
+import { TelemetrySegment } from "./client/telemetry";
+import { GeofenceSegment } from "./client/geofences";
+import { ScenarioSegment } from "./client/scenarios";
 
 class SimulationService {
-  /** Set once we have logged a dropped invalid vehicle, to avoid console spam. */
-  private warnedInvalidVehicle = false;
+  // ─── Connection / core real-time channels ──────────────────────
+  connectWebSocket: ConnectionSegment["connectWebSocket"];
+  retryConnection: ConnectionSegment["retryConnection"];
+  disconnect: ConnectionSegment["disconnect"];
+  onConnect: ConnectionSegment["onConnect"];
+  offConnect: ConnectionSegment["offConnect"];
+  onDisconnect: ConnectionSegment["onDisconnect"];
+  offDisconnect: ConnectionSegment["offDisconnect"];
+  onConnectionStateChange: ConnectionSegment["onConnectionStateChange"];
+  onVehicle: ConnectionSegment["onVehicle"];
+  offVehicle: ConnectionSegment["offVehicle"];
+  onStatus: ConnectionSegment["onStatus"];
+  offStatus: ConnectionSegment["offStatus"];
+  onOptions: ConnectionSegment["onOptions"];
+  offOptions: ConnectionSegment["offOptions"];
+  onHeatzones: ConnectionSegment["onHeatzones"];
+  offHeatzones: ConnectionSegment["offHeatzones"];
+  onDirection: ConnectionSegment["onDirection"];
+  offDirection: ConnectionSegment["offDirection"];
+  onReset: ConnectionSegment["onReset"];
+  offReset: ConnectionSegment["offReset"];
 
-  constructor(
-    private http: HttpClient,
-    private ws: WebSocketClient
-  ) {
-    this.stop = this.stop.bind(this);
-    this.start = this.start.bind(this);
-    this.reset = this.reset.bind(this);
-    this.getStatus = this.getStatus.bind(this);
-    this.getRoads = this.getRoads.bind(this);
-    this.getPois = this.getPois.bind(this);
-    this.findNode = this.findNode.bind(this);
-    this.getOptions = this.getOptions.bind(this);
-    this.updateOptions = this.updateOptions.bind(this);
-    this.getDirections = this.getDirections.bind(this);
-    this.getHeatzones = this.getHeatzones.bind(this);
-    this.makeHeatzones = this.makeHeatzones.bind(this);
-    this.connectWebSocket = this.connectWebSocket.bind(this);
-    this.retryConnection = this.retryConnection.bind(this);
-    this.disconnect = this.disconnect.bind(this);
-    // events
-    this.onConnect = this.onConnect.bind(this);
-    this.onDisconnect = this.onDisconnect.bind(this);
-    this.onVehicle = this.onVehicle.bind(this);
-    this.onStatus = this.onStatus.bind(this);
-    this.onOptions = this.onOptions.bind(this);
-    this.offOptions = this.offOptions.bind(this);
-    this.onHeatzones = this.onHeatzones.bind(this);
-    this.offHeatzones = this.offHeatzones.bind(this);
-    this.onDirection = this.onDirection.bind(this);
-    this.offDirection = this.offDirection.bind(this);
-    this.onReset = this.onReset.bind(this);
-    this.direction = this.direction.bind(this);
-    this.batchDirection = this.batchDirection.bind(this);
-    this.getFleets = this.getFleets.bind(this);
-    this.createFleet = this.createFleet.bind(this);
-    this.deleteFleet = this.deleteFleet.bind(this);
-    this.assignVehicles = this.assignVehicles.bind(this);
-    this.unassignVehicles = this.unassignVehicles.bind(this);
-    this.onFleetCreated = this.onFleetCreated.bind(this);
-    this.offFleetCreated = this.offFleetCreated.bind(this);
-    this.onFleetDeleted = this.onFleetDeleted.bind(this);
-    this.offFleetDeleted = this.offFleetDeleted.bind(this);
-    this.onFleetAssigned = this.onFleetAssigned.bind(this);
-    this.offFleetAssigned = this.offFleetAssigned.bind(this);
-    this.onWaypointReached = this.onWaypointReached.bind(this);
-    this.offWaypointReached = this.offWaypointReached.bind(this);
-    this.onRouteCompleted = this.onRouteCompleted.bind(this);
-    this.offRouteCompleted = this.offRouteCompleted.bind(this);
-    // incidents
-    this.getIncidents = this.getIncidents.bind(this);
-    this.createRandomIncident = this.createRandomIncident.bind(this);
-    this.removeIncident = this.removeIncident.bind(this);
-    this.onIncidentCreated = this.onIncidentCreated.bind(this);
-    this.offIncidentCreated = this.offIncidentCreated.bind(this);
-    this.onIncidentCleared = this.onIncidentCleared.bind(this);
-    this.offIncidentCleared = this.offIncidentCleared.bind(this);
-    this.onVehicleRerouted = this.onVehicleRerouted.bind(this);
-    this.offVehicleRerouted = this.offVehicleRerouted.bind(this);
-    // recording / replay
-    this.startRecording = this.startRecording.bind(this);
-    this.stopRecording = this.stopRecording.bind(this);
-    this.getRecordings = this.getRecordings.bind(this);
-    this.startReplay = this.startReplay.bind(this);
-    this.pauseReplay = this.pauseReplay.bind(this);
-    this.resumeReplay = this.resumeReplay.bind(this);
-    this.stopReplay = this.stopReplay.bind(this);
-    this.seekReplay = this.seekReplay.bind(this);
-    this.getReplayStatus = this.getReplayStatus.bind(this);
-    this.onReplayStatus = this.onReplayStatus.bind(this);
-    this.offReplayStatus = this.offReplayStatus.bind(this);
-    // historical generation
-    this.generateRecording = this.generateRecording.bind(this);
-    this.getGenerateStatus = this.getGenerateStatus.bind(this);
-    this.onGenerateProgress = this.onGenerateProgress.bind(this);
-    this.offGenerateProgress = this.offGenerateProgress.bind(this);
-    this.onGenerateComplete = this.onGenerateComplete.bind(this);
-    this.offGenerateComplete = this.offGenerateComplete.bind(this);
-    this.onGenerateError = this.onGenerateError.bind(this);
-    this.offGenerateError = this.offGenerateError.bind(this);
-    this.createIncidentAtPosition = this.createIncidentAtPosition.bind(this);
-    // clock
-    this.getClock = this.getClock.bind(this);
-    this.setClock = this.setClock.bind(this);
-    this.onClock = this.onClock.bind(this);
-    this.offClock = this.offClock.bind(this);
-    // traffic
-    this.getTraffic = this.getTraffic.bind(this);
-    this.onTraffic = this.onTraffic.bind(this);
-    this.offTraffic = this.offTraffic.bind(this);
-    // analytics
-    this.onAnalytics = this.onAnalytics.bind(this);
-    this.getAnalyticsSummary = this.getAnalyticsSummary.bind(this);
-    this.getFleetAnalytics = this.getFleetAnalytics.bind(this);
-    this.resetAnalytics = this.resetAnalytics.bind(this);
-    // connection state
-    this.onConnectionStateChange = this.onConnectionStateChange.bind(this);
-    // scenarios
-    this.getScenarios = this.getScenarios.bind(this);
-    this.loadScenarioByName = this.loadScenarioByName.bind(this);
-    this.startScenario = this.startScenario.bind(this);
-    this.pauseScenario = this.pauseScenario.bind(this);
-    this.stopScenario = this.stopScenario.bind(this);
-    this.getScenarioStatus = this.getScenarioStatus.bind(this);
-    this.onScenarioEvent = this.onScenarioEvent.bind(this);
-    this.offScenarioEvent = this.offScenarioEvent.bind(this);
-    // geofences
-    this.getGeofences = this.getGeofences.bind(this);
-    this.createGeofence = this.createGeofence.bind(this);
-    this.updateGeofence = this.updateGeofence.bind(this);
-    this.deleteGeofence = this.deleteGeofence.bind(this);
-    this.toggleGeofence = this.toggleGeofence.bind(this);
-    this.onGeofenceEvent = this.onGeofenceEvent.bind(this);
-    this.offGeofenceEvent = this.offGeofenceEvent.bind(this);
-    this.subscribe = this.subscribe.bind(this);
-  }
+  // ─── Simulation control + network/road/POI queries ─────────────
+  start: SimulationSegment["start"];
+  stop: SimulationSegment["stop"];
+  reset: SimulationSegment["reset"];
+  direction: SimulationSegment["direction"];
+  batchDirection: SimulationSegment["batchDirection"];
+  getStatus: SimulationSegment["getStatus"];
+  getVehicles: SimulationSegment["getVehicles"];
+  getNetwork: SimulationSegment["getNetwork"];
+  getRoads: SimulationSegment["getRoads"];
+  getPois: SimulationSegment["getPois"];
+  findRoad: SimulationSegment["findRoad"];
+  findNode: SimulationSegment["findNode"];
+  getOptions: SimulationSegment["getOptions"];
+  updateOptions: SimulationSegment["updateOptions"];
+  getDirections: SimulationSegment["getDirections"];
+  getHeatzones: SimulationSegment["getHeatzones"];
+  makeHeatzones: SimulationSegment["makeHeatzones"];
+  search: SimulationSegment["search"];
 
-  connectWebSocket(): void {
-    this.ws.connect();
-  }
-
-  /** Reset the reconnect attempt counter and try connecting again. */
-  retryConnection(): void {
-    this.ws.retry();
-  }
-
-  disconnect(): void {
-    this.ws.disconnect();
-  }
-
-  onConnect(handler: () => void): void {
-    this.ws.on("connect", handler);
-  }
-
-  offConnect(handler?: () => void): void {
-    this.ws.off("connect", handler);
-  }
-
-  onDisconnect(handler: () => void): void {
-    this.ws.on("disconnect", handler);
-  }
-
-  offDisconnect(handler?: () => void): void {
-    this.ws.off("disconnect", handler);
-  }
-
-  onConnectionStateChange(listener: ConnectionStateListener): () => void {
-    return this.ws.onConnectionStateChange(listener);
-  }
-
-  onVehicle(handler: (vehicle: VehicleDTO) => void): void {
-    // Guard the vehicle hot path: drop any vehicle with non-finite
-    // position/speed/heading so NaN/Infinity never reaches the GL layer.
-    // Log at most once per session to avoid console spam under a bad feed.
-    const safeHandle = (v: VehicleDTO) => {
-      if (isValidVehicleDTO(v)) {
-        handler(v);
-      } else if (!this.warnedInvalidVehicle) {
-        this.warnedInvalidVehicle = true;
-        console.warn("Dropping vehicle update with non-finite position/speed/heading:", v);
-      }
-    };
-    this.ws.on<VehicleDTO>("vehicle", safeHandle);
-    this.ws.on<VehicleDTO[]>("vehicles", (vehicles) => {
-      for (const v of vehicles) safeHandle(v);
-    });
-  }
-
-  offVehicle(): void {
-    this.ws.off("vehicle");
-    this.ws.off("vehicles");
-  }
-
-  onStatus(handler: (status: SimulationStatus) => void): void {
-    this.ws.on("status", handler);
-  }
-
-  offStatus(handler?: (status: SimulationStatus) => void): void {
-    this.ws.off("status", handler);
-  }
-
-  onOptions(handler: (opts: StartOptions) => void): void {
-    this.ws.on("options", handler);
-  }
-
-  offOptions(handler?: (opts: StartOptions) => void): void {
-    this.ws.off("options", handler);
-  }
-
-  onHeatzones(handler: (heatzones: Heatzone[]) => void): void {
-    this.ws.on("heatzones", handler);
-  }
-
-  offHeatzones(handler?: (heatzones: Heatzone[]) => void): void {
-    this.ws.off("heatzones", handler);
-  }
-
-  onDirection(handler: (direction: Direction) => void): void {
-    this.ws.on("direction", handler);
-  }
-
-  offDirection(handler?: (direction: Direction) => void): void {
-    this.ws.off("direction", handler);
-  }
-
-  onReset(handler: (data: ResetPayload) => void): void {
-    this.ws.on("reset", handler);
-  }
-
-  offReset(handler?: (data: ResetPayload) => void): void {
-    this.ws.off("reset", handler);
-  }
-
-  async start(options: StartOptions): Promise<ApiResponse<void>> {
-    return this.http.post<StartOptions, void>("/start", options);
-  }
-
-  async stop(): Promise<ApiResponse<void>> {
-    return this.http.post("/stop");
-  }
-
-  async reset(): Promise<ApiResponse<void>> {
-    return this.http.post("/reset");
-  }
-
-  async direction(ids: string[], position: Position): Promise<ApiResponse<void>> {
-    const body = ids.map((id) => ({ id, lat: position[1], lng: position[0] }));
-    return this.http.post("/direction", body);
-  }
-
-  async batchDirection(
-    assignments: {
-      id: string;
-      lat: number;
-      lng: number;
-      waypoints?: { lat: number; lng: number; dwellTime?: number; label?: string }[];
-    }[]
-  ): Promise<ApiResponse<DirectionResponse>> {
-    return this.http.post("/direction", assignments);
-  }
-
-  async getStatus(): Promise<ApiResponse<SimulationStatus>> {
-    return this.http.get<SimulationStatus>("/status");
-  }
-
-  async getVehicles(): Promise<ApiResponse<VehicleDTO[]>> {
-    return this.http.get<VehicleDTO[]>("/vehicles");
-  }
-
-  async getNetwork(): Promise<ApiResponse<RoadNetwork>> {
-    return this.http.get<RoadNetwork>("/network");
-  }
-
-  async getRoads(): Promise<ApiResponse<Road[]>> {
-    return this.http.get<Road[]>("/roads");
-  }
-
-  async getPois(): Promise<ApiResponse<POI[]>> {
-    return this.http.get<POI[]>("/pois");
-  }
-
-  async findRoad(position: Position): Promise<ApiResponse<Road>> {
-    return this.http.post<Position, Road>("/find-road", position);
-  }
-
-  async findNode(position: Position): Promise<ApiResponse<Position>> {
-    return this.http.post<Position, Position>("/find-node", position);
-  }
-
-  async getOptions(): Promise<ApiResponse<StartOptions>> {
-    return this.http.get<StartOptions>("/options");
-  }
-
-  async updateOptions(options: StartOptions): Promise<ApiResponse<void>> {
-    return this.http.post<StartOptions, void>("/options", options);
-  }
-
-  async getDirections(): Promise<ApiResponse<Direction[]>> {
-    return this.http.get<Direction[]>("/directions");
-  }
-
-  async getHeatzones(): Promise<ApiResponse<Heatzone[]>> {
-    return this.http.get<Heatzone[]>("/heatzones");
-  }
-
-  async makeHeatzones(): Promise<ApiResponse<void>> {
-    return this.http.post("/heatzones");
-  }
-
-  async search(query: string): Promise<ApiResponse<unknown>> {
-    return this.http.post<{ query: string }>(`/search`, { query });
-  }
-
-  async getFleets(): Promise<ApiResponse<Fleet[]>> {
-    return this.http.get<Fleet[]>("/fleets");
-  }
-
-  async createFleet(name: string): Promise<ApiResponse<Fleet>> {
-    return this.http.post<{ name: string }, Fleet>("/fleets", { name });
-  }
-
-  async deleteFleet(id: string): Promise<ApiResponse<void>> {
-    return this.http.delete(`/fleets/${id}`);
-  }
-
-  async assignVehicles(fleetId: string, vehicleIds: string[]): Promise<ApiResponse<void>> {
-    return this.http.post<{ vehicleIds: string[] }>(`/fleets/${fleetId}/assign`, { vehicleIds });
-  }
-
-  async unassignVehicles(fleetId: string, vehicleIds: string[]): Promise<ApiResponse<void>> {
-    return this.http.post<{ vehicleIds: string[] }>(`/fleets/${fleetId}/unassign`, { vehicleIds });
-  }
-
-  onFleetCreated(handler: (fleet: Fleet) => void): void {
-    this.ws.on("fleet:created", handler);
-  }
-
-  offFleetCreated(handler?: (fleet: Fleet) => void): void {
-    this.ws.off("fleet:created", handler);
-  }
-
-  onFleetDeleted(handler: (data: { id: string }) => void): void {
-    this.ws.on("fleet:deleted", handler);
-  }
-
-  offFleetDeleted(handler?: (data: { id: string }) => void): void {
-    this.ws.off("fleet:deleted", handler);
-  }
-
-  onFleetAssigned(handler: (data: { fleetId: string | null; vehicleIds: string[] }) => void): void {
-    this.ws.on("fleet:assigned", handler);
-  }
-
-  offFleetAssigned(
-    handler?: (data: { fleetId: string | null; vehicleIds: string[] }) => void
-  ): void {
-    this.ws.off("fleet:assigned", handler);
-  }
-
-  onWaypointReached(handler: (data: WaypointReachedPayload) => void): void {
-    this.ws.on("waypoint:reached", handler);
-  }
-
-  offWaypointReached(handler?: (data: WaypointReachedPayload) => void): void {
-    this.ws.off("waypoint:reached", handler);
-  }
-
-  onRouteCompleted(handler: (data: RouteCompletedPayload) => void): void {
-    this.ws.on("route:completed", handler);
-  }
-
-  offRouteCompleted(handler?: (data: RouteCompletedPayload) => void): void {
-    this.ws.off("route:completed", handler);
-  }
+  // ─── Fleets ─────────────────────────────────────────────────────
+  getFleets: FleetSegment["getFleets"];
+  createFleet: FleetSegment["createFleet"];
+  deleteFleet: FleetSegment["deleteFleet"];
+  assignVehicles: FleetSegment["assignVehicles"];
+  unassignVehicles: FleetSegment["unassignVehicles"];
+  onFleetCreated: FleetSegment["onFleetCreated"];
+  offFleetCreated: FleetSegment["offFleetCreated"];
+  onFleetDeleted: FleetSegment["onFleetDeleted"];
+  offFleetDeleted: FleetSegment["offFleetDeleted"];
+  onFleetAssigned: FleetSegment["onFleetAssigned"];
+  offFleetAssigned: FleetSegment["offFleetAssigned"];
+  onWaypointReached: FleetSegment["onWaypointReached"];
+  offWaypointReached: FleetSegment["offWaypointReached"];
+  onRouteCompleted: FleetSegment["onRouteCompleted"];
+  offRouteCompleted: FleetSegment["offRouteCompleted"];
 
   // ─── Incidents ──────────────────────────────────────────────────
-
-  async getIncidents(): Promise<ApiResponse<IncidentDTO[]>> {
-    return this.http.get<IncidentDTO[]>("/incidents");
-  }
-
-  async createRandomIncident(): Promise<ApiResponse<IncidentDTO>> {
-    return this.http.post<undefined, IncidentDTO>("/incidents/random");
-  }
-
-  async removeIncident(id: string): Promise<ApiResponse<void>> {
-    return this.http.delete(`/incidents/${id}`);
-  }
-
-  onIncidentCreated(handler: (data: IncidentDTO) => void): void {
-    this.ws.on("incident:created", handler);
-  }
-
-  offIncidentCreated(handler?: (data: IncidentDTO) => void): void {
-    this.ws.off("incident:created", handler);
-  }
-
-  onIncidentCleared(handler: (data: IncidentClearedPayload) => void): void {
-    this.ws.on("incident:cleared", handler);
-  }
-
-  offIncidentCleared(handler?: (data: IncidentClearedPayload) => void): void {
-    this.ws.off("incident:cleared", handler);
-  }
-
-  onVehicleRerouted(handler: (data: VehicleReroutedPayload) => void): void {
-    this.ws.on("vehicle:rerouted", handler);
-  }
-
-  offVehicleRerouted(handler?: (data: VehicleReroutedPayload) => void): void {
-    this.ws.off("vehicle:rerouted", handler);
-  }
-
-  async createIncidentAtPosition(
-    lat: number,
-    lng: number,
-    type: IncidentType
-  ): Promise<ApiResponse<IncidentDTO>> {
-    return this.http.post("/incidents/at-position", { lat, lng, type });
-  }
-
-  // ─── Recording & Replay ────────────────────────────────────────
-
-  async startRecording(): Promise<ApiResponse<{ status: string; filePath: string }>> {
-    return this.http.post("/recording/start");
-  }
-
-  async stopRecording(): Promise<ApiResponse<RecordingMetadata>> {
-    return this.http.post("/recording/stop");
-  }
-
-  async getRecordings(): Promise<ApiResponse<RecordingFile[]>> {
-    return this.http.get<RecordingFile[]>("/recordings");
-  }
-
-  async startReplay(file: string, speed?: number): Promise<ApiResponse<{ status: string }>> {
-    return this.http.post("/replay/start", { file, speed });
-  }
-
-  async pauseReplay(): Promise<ApiResponse<void>> {
-    return this.http.post("/replay/pause");
-  }
-
-  async resumeReplay(): Promise<ApiResponse<void>> {
-    return this.http.post("/replay/resume");
-  }
-
-  async stopReplay(): Promise<ApiResponse<void>> {
-    return this.http.post("/replay/stop");
-  }
-
-  async seekReplay(timestamp: number): Promise<ApiResponse<void>> {
-    return this.http.post("/replay/seek", { timestamp });
-  }
-
-  async setReplaySpeed(speed: number): Promise<ApiResponse<void>> {
-    return this.http.post("/replay/speed", { speed });
-  }
-
-  async getReplayStatus(): Promise<ApiResponse<ReplayStatus>> {
-    return this.http.get<ReplayStatus>("/replay/status");
-  }
-
-  onReplayStatus(handler: (data: ReplayStatus) => void): void {
-    this.ws.on("replay:status", handler);
-  }
-
-  offReplayStatus(handler?: (data: ReplayStatus) => void): void {
-    this.ws.off("replay:status", handler);
-  }
-
-  // ─── Historical Generation ─────────────────────────────────────
-
-  async generateRecording(
-    body: GenerateRecordingRequest
-  ): Promise<ApiResponse<GenerateAcceptedResponse>> {
-    return this.http.post<GenerateRecordingRequest, GenerateAcceptedResponse>(
-      "/recording/generate",
-      body
-    );
-  }
-
-  async getGenerateStatus(): Promise<ApiResponse<GenerateStatus>> {
-    return this.http.get<GenerateStatus>("/recording/generate/status");
-  }
-
-  onGenerateProgress(handler: (data: GenerateProgressPayload) => void): void {
-    this.ws.on("generate:progress", handler);
-  }
-
-  offGenerateProgress(handler?: (data: GenerateProgressPayload) => void): void {
-    this.ws.off("generate:progress", handler);
-  }
-
-  onGenerateComplete(handler: (data: GenerateCompletePayload) => void): void {
-    this.ws.on("generate:complete", handler);
-  }
-
-  offGenerateComplete(handler?: (data: GenerateCompletePayload) => void): void {
-    this.ws.off("generate:complete", handler);
-  }
-
-  onGenerateError(handler: (data: GenerateErrorPayload) => void): void {
-    this.ws.on("generate:error", handler);
-  }
-
-  offGenerateError(handler?: (data: GenerateErrorPayload) => void): void {
-    this.ws.off("generate:error", handler);
-  }
-
-  // ─── Simulation Clock ──────────────────────────────────────────
-
-  async getClock(): Promise<ApiResponse<ClockState>> {
-    return this.http.get<ClockState>("/clock");
-  }
-
-  async setClock(params: {
-    speedMultiplier?: number;
-    setTime?: string;
-  }): Promise<ApiResponse<ClockState>> {
-    return this.http.post<typeof params, ClockState>("/clock", params);
-  }
-
-  onClock(handler: (state: ClockState) => void): void {
-    this.ws.on("clock", handler);
-  }
-
-  offClock(handler?: (state: ClockState) => void): void {
-    this.ws.off("clock", handler);
-  }
-
-  // ─── Traffic Congestion ──────────────────────────────────────────
-
-  async getTraffic(): Promise<ApiResponse<TrafficEdge[]>> {
-    return this.http.get<TrafficEdge[]>("/traffic");
-  }
-
-  onTraffic(handler: (data: TrafficEdge[]) => void): void {
-    this.ws.on("traffic", handler);
-  }
-
-  offTraffic(handler?: (data: TrafficEdge[]) => void): void {
-    this.ws.off("traffic", handler);
-  }
-
-  // ─── Analytics ────────────────────────────────────────────────────
-
-  onAnalytics(handler: (data: AnalyticsSnapshot) => void): void {
-    this.ws.on("analytics", handler);
-  }
-
-  offAnalytics(handler?: (data: AnalyticsSnapshot) => void): void {
-    this.ws.off("analytics", handler);
-  }
-
-  async getAnalyticsSummary(): Promise<ApiResponse<AnalyticsSummary>> {
-    return this.http.get<AnalyticsSummary>("/analytics/summary");
-  }
-
-  async getFleetAnalytics(id: string): Promise<ApiResponse<FleetAnalytics>> {
-    return this.http.get<FleetAnalytics>(`/analytics/fleet/${id}`);
-  }
-
-  async resetAnalytics(): Promise<ApiResponse<{ ok: true }>> {
-    return this.http.post<undefined, { ok: true }>("/analytics/reset");
-  }
-
-  // ─── Geofences ────────────────────────────────────────────────────
-
-  async getGeofences(): Promise<ApiResponse<GeoFence[]>> {
-    return this.http.get<GeoFence[]>("/geofences");
-  }
-
-  async createGeofence(req: CreateGeoFenceRequest): Promise<ApiResponse<GeoFence>> {
-    return this.http.post<CreateGeoFenceRequest, GeoFence>("/geofences", req);
-  }
-
-  async updateGeofence(id: string, req: UpdateGeoFenceRequest): Promise<ApiResponse<GeoFence>> {
-    return this.http.patch<UpdateGeoFenceRequest, GeoFence>(`/geofences/${id}`, req);
-  }
-
-  async deleteGeofence(id: string): Promise<ApiResponse<void>> {
-    return this.http.delete(`/geofences/${id}`);
-  }
-
-  async toggleGeofence(id: string): Promise<ApiResponse<GeoFence>> {
-    return this.http.post<undefined, GeoFence>(`/geofences/${id}/toggle`);
-  }
-
-  onGeofenceEvent(handler: (event: GeoFenceEvent) => void): void {
-    this.ws.on("geofence:event", handler);
-  }
-
-  offGeofenceEvent(handler?: (event: GeoFenceEvent) => void): void {
-    this.ws.off("geofence:event", handler);
-  }
-
-  subscribe(filter: SubscribeFilter | null): void {
-    this.ws.send({ type: "subscribe", filter });
-  }
-
-  // ─── Scenarios ────────────────────────────────────────────────────
-
-  async getScenarios(): Promise<ApiResponse<ScenarioFile[]>> {
-    return this.http.get<ScenarioFile[]>("/scenarios");
-  }
-
-  async loadScenarioByName(fileName: string): Promise<ApiResponse<ScenarioLoadResponse>> {
-    return this.http.post<undefined, ScenarioLoadResponse>(
-      `/scenarios/load/${encodeURIComponent(fileName)}`
-    );
-  }
-
-  async startScenario(): Promise<ApiResponse<ScenarioStatus>> {
-    return this.http.post<undefined, ScenarioStatus>("/scenarios/start");
-  }
-
-  async pauseScenario(): Promise<ApiResponse<ScenarioStatus>> {
-    return this.http.post<undefined, ScenarioStatus>("/scenarios/pause");
-  }
-
-  async stopScenario(): Promise<ApiResponse<ScenarioStatus>> {
-    return this.http.post<undefined, ScenarioStatus>("/scenarios/stop");
-  }
-
-  async getScenarioStatus(): Promise<ApiResponse<ScenarioStatus>> {
-    return this.http.get<ScenarioStatus>("/scenarios/status");
-  }
-
-  onScenarioEvent(handler: (data: ScenarioEventPayload) => void): void {
-    this.ws.on("scenario:event", handler);
-    this.ws.on("scenario:started", handler);
-    this.ws.on("scenario:completed", handler);
-    this.ws.on("scenario:paused", handler);
-    this.ws.on("scenario:resumed", handler);
-    this.ws.on("scenario:stopped", handler);
-  }
-
-  offScenarioEvent(): void {
-    this.ws.off("scenario:event");
-    this.ws.off("scenario:started");
-    this.ws.off("scenario:completed");
-    this.ws.off("scenario:paused");
-    this.ws.off("scenario:resumed");
-    this.ws.off("scenario:stopped");
+  getIncidents: IncidentSegment["getIncidents"];
+  createRandomIncident: IncidentSegment["createRandomIncident"];
+  removeIncident: IncidentSegment["removeIncident"];
+  createIncidentAtPosition: IncidentSegment["createIncidentAtPosition"];
+  onIncidentCreated: IncidentSegment["onIncidentCreated"];
+  offIncidentCreated: IncidentSegment["offIncidentCreated"];
+  onIncidentCleared: IncidentSegment["onIncidentCleared"];
+  offIncidentCleared: IncidentSegment["offIncidentCleared"];
+  onVehicleRerouted: IncidentSegment["onVehicleRerouted"];
+  offVehicleRerouted: IncidentSegment["offVehicleRerouted"];
+
+  // ─── Recording / replay / historical generation ────────────────
+  startRecording: RecordingSegment["startRecording"];
+  stopRecording: RecordingSegment["stopRecording"];
+  getRecordings: RecordingSegment["getRecordings"];
+  startReplay: RecordingSegment["startReplay"];
+  pauseReplay: RecordingSegment["pauseReplay"];
+  resumeReplay: RecordingSegment["resumeReplay"];
+  stopReplay: RecordingSegment["stopReplay"];
+  seekReplay: RecordingSegment["seekReplay"];
+  setReplaySpeed: RecordingSegment["setReplaySpeed"];
+  getReplayStatus: RecordingSegment["getReplayStatus"];
+  onReplayStatus: RecordingSegment["onReplayStatus"];
+  offReplayStatus: RecordingSegment["offReplayStatus"];
+  generateRecording: RecordingSegment["generateRecording"];
+  getGenerateStatus: RecordingSegment["getGenerateStatus"];
+  onGenerateProgress: RecordingSegment["onGenerateProgress"];
+  offGenerateProgress: RecordingSegment["offGenerateProgress"];
+  onGenerateComplete: RecordingSegment["onGenerateComplete"];
+  offGenerateComplete: RecordingSegment["offGenerateComplete"];
+  onGenerateError: RecordingSegment["onGenerateError"];
+  offGenerateError: RecordingSegment["offGenerateError"];
+
+  // ─── Clock / traffic / analytics ────────────────────────────────
+  getClock: TelemetrySegment["getClock"];
+  setClock: TelemetrySegment["setClock"];
+  onClock: TelemetrySegment["onClock"];
+  offClock: TelemetrySegment["offClock"];
+  getTraffic: TelemetrySegment["getTraffic"];
+  onTraffic: TelemetrySegment["onTraffic"];
+  offTraffic: TelemetrySegment["offTraffic"];
+  onAnalytics: TelemetrySegment["onAnalytics"];
+  offAnalytics: TelemetrySegment["offAnalytics"];
+  getAnalyticsSummary: TelemetrySegment["getAnalyticsSummary"];
+  getFleetAnalytics: TelemetrySegment["getFleetAnalytics"];
+  resetAnalytics: TelemetrySegment["resetAnalytics"];
+
+  // ─── Geofences ──────────────────────────────────────────────────
+  getGeofences: GeofenceSegment["getGeofences"];
+  createGeofence: GeofenceSegment["createGeofence"];
+  updateGeofence: GeofenceSegment["updateGeofence"];
+  deleteGeofence: GeofenceSegment["deleteGeofence"];
+  toggleGeofence: GeofenceSegment["toggleGeofence"];
+  onGeofenceEvent: GeofenceSegment["onGeofenceEvent"];
+  offGeofenceEvent: GeofenceSegment["offGeofenceEvent"];
+  subscribe: GeofenceSegment["subscribe"];
+
+  // ─── Scenarios ──────────────────────────────────────────────────
+  getScenarios: ScenarioSegment["getScenarios"];
+  loadScenarioByName: ScenarioSegment["loadScenarioByName"];
+  startScenario: ScenarioSegment["startScenario"];
+  pauseScenario: ScenarioSegment["pauseScenario"];
+  stopScenario: ScenarioSegment["stopScenario"];
+  getScenarioStatus: ScenarioSegment["getScenarioStatus"];
+  onScenarioEvent: ScenarioSegment["onScenarioEvent"];
+  offScenarioEvent: ScenarioSegment["offScenarioEvent"];
+
+  constructor(http: HttpClient, ws: WebSocketClient) {
+    const deps: ClientDeps = { http, ws };
+
+    const connection = new ConnectionSegment(deps);
+    const simulation = new SimulationSegment(deps);
+    const fleets = new FleetSegment(deps);
+    const incidents = new IncidentSegment(deps);
+    const recording = new RecordingSegment(deps);
+    const telemetry = new TelemetrySegment(deps);
+    const geofences = new GeofenceSegment(deps);
+    const scenarios = new ScenarioSegment(deps);
+
+    // Re-expose each segment's bound methods. They are already bound in their
+    // segment constructors, so assigning the references keeps them safe to
+    // destructure off the singleton.
+    this.connectWebSocket = connection.connectWebSocket;
+    this.retryConnection = connection.retryConnection;
+    this.disconnect = connection.disconnect;
+    this.onConnect = connection.onConnect;
+    this.offConnect = connection.offConnect;
+    this.onDisconnect = connection.onDisconnect;
+    this.offDisconnect = connection.offDisconnect;
+    this.onConnectionStateChange = connection.onConnectionStateChange;
+    this.onVehicle = connection.onVehicle;
+    this.offVehicle = connection.offVehicle;
+    this.onStatus = connection.onStatus;
+    this.offStatus = connection.offStatus;
+    this.onOptions = connection.onOptions;
+    this.offOptions = connection.offOptions;
+    this.onHeatzones = connection.onHeatzones;
+    this.offHeatzones = connection.offHeatzones;
+    this.onDirection = connection.onDirection;
+    this.offDirection = connection.offDirection;
+    this.onReset = connection.onReset;
+    this.offReset = connection.offReset;
+
+    this.start = simulation.start;
+    this.stop = simulation.stop;
+    this.reset = simulation.reset;
+    this.direction = simulation.direction;
+    this.batchDirection = simulation.batchDirection;
+    this.getStatus = simulation.getStatus;
+    this.getVehicles = simulation.getVehicles;
+    this.getNetwork = simulation.getNetwork;
+    this.getRoads = simulation.getRoads;
+    this.getPois = simulation.getPois;
+    this.findRoad = simulation.findRoad;
+    this.findNode = simulation.findNode;
+    this.getOptions = simulation.getOptions;
+    this.updateOptions = simulation.updateOptions;
+    this.getDirections = simulation.getDirections;
+    this.getHeatzones = simulation.getHeatzones;
+    this.makeHeatzones = simulation.makeHeatzones;
+    this.search = simulation.search;
+
+    this.getFleets = fleets.getFleets;
+    this.createFleet = fleets.createFleet;
+    this.deleteFleet = fleets.deleteFleet;
+    this.assignVehicles = fleets.assignVehicles;
+    this.unassignVehicles = fleets.unassignVehicles;
+    this.onFleetCreated = fleets.onFleetCreated;
+    this.offFleetCreated = fleets.offFleetCreated;
+    this.onFleetDeleted = fleets.onFleetDeleted;
+    this.offFleetDeleted = fleets.offFleetDeleted;
+    this.onFleetAssigned = fleets.onFleetAssigned;
+    this.offFleetAssigned = fleets.offFleetAssigned;
+    this.onWaypointReached = fleets.onWaypointReached;
+    this.offWaypointReached = fleets.offWaypointReached;
+    this.onRouteCompleted = fleets.onRouteCompleted;
+    this.offRouteCompleted = fleets.offRouteCompleted;
+
+    this.getIncidents = incidents.getIncidents;
+    this.createRandomIncident = incidents.createRandomIncident;
+    this.removeIncident = incidents.removeIncident;
+    this.createIncidentAtPosition = incidents.createIncidentAtPosition;
+    this.onIncidentCreated = incidents.onIncidentCreated;
+    this.offIncidentCreated = incidents.offIncidentCreated;
+    this.onIncidentCleared = incidents.onIncidentCleared;
+    this.offIncidentCleared = incidents.offIncidentCleared;
+    this.onVehicleRerouted = incidents.onVehicleRerouted;
+    this.offVehicleRerouted = incidents.offVehicleRerouted;
+
+    this.startRecording = recording.startRecording;
+    this.stopRecording = recording.stopRecording;
+    this.getRecordings = recording.getRecordings;
+    this.startReplay = recording.startReplay;
+    this.pauseReplay = recording.pauseReplay;
+    this.resumeReplay = recording.resumeReplay;
+    this.stopReplay = recording.stopReplay;
+    this.seekReplay = recording.seekReplay;
+    this.setReplaySpeed = recording.setReplaySpeed;
+    this.getReplayStatus = recording.getReplayStatus;
+    this.onReplayStatus = recording.onReplayStatus;
+    this.offReplayStatus = recording.offReplayStatus;
+    this.generateRecording = recording.generateRecording;
+    this.getGenerateStatus = recording.getGenerateStatus;
+    this.onGenerateProgress = recording.onGenerateProgress;
+    this.offGenerateProgress = recording.offGenerateProgress;
+    this.onGenerateComplete = recording.onGenerateComplete;
+    this.offGenerateComplete = recording.offGenerateComplete;
+    this.onGenerateError = recording.onGenerateError;
+    this.offGenerateError = recording.offGenerateError;
+
+    this.getClock = telemetry.getClock;
+    this.setClock = telemetry.setClock;
+    this.onClock = telemetry.onClock;
+    this.offClock = telemetry.offClock;
+    this.getTraffic = telemetry.getTraffic;
+    this.onTraffic = telemetry.onTraffic;
+    this.offTraffic = telemetry.offTraffic;
+    this.onAnalytics = telemetry.onAnalytics;
+    this.offAnalytics = telemetry.offAnalytics;
+    this.getAnalyticsSummary = telemetry.getAnalyticsSummary;
+    this.getFleetAnalytics = telemetry.getFleetAnalytics;
+    this.resetAnalytics = telemetry.resetAnalytics;
+
+    this.getGeofences = geofences.getGeofences;
+    this.createGeofence = geofences.createGeofence;
+    this.updateGeofence = geofences.updateGeofence;
+    this.deleteGeofence = geofences.deleteGeofence;
+    this.toggleGeofence = geofences.toggleGeofence;
+    this.onGeofenceEvent = geofences.onGeofenceEvent;
+    this.offGeofenceEvent = geofences.offGeofenceEvent;
+    this.subscribe = geofences.subscribe;
+
+    this.getScenarios = scenarios.getScenarios;
+    this.loadScenarioByName = scenarios.loadScenarioByName;
+    this.startScenario = scenarios.startScenario;
+    this.pauseScenario = scenarios.pauseScenario;
+    this.stopScenario = scenarios.stopScenario;
+    this.getScenarioStatus = scenarios.getScenarioStatus;
+    this.onScenarioEvent = scenarios.onScenarioEvent;
+    this.offScenarioEvent = scenarios.offScenarioEvent;
   }
 }
-
-import { config as appConfig } from "./config";
 
 export default new SimulationService(
   new HttpClient(appConfig.apiUrl),
