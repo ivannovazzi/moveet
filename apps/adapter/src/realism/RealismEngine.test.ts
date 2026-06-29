@@ -25,8 +25,17 @@ describe("RealismEngine (disabled)", () => {
     const { engine, publish } = makeEngine({ enabled: false });
     const updates = [{ id: "v1", latitude: 1, longitude: 2 }];
     const res = await engine.ingest(updates);
-    expect(publish).toHaveBeenCalledWith(updates);
+    // No publish context supplied → forwarded as undefined.
+    expect(publish).toHaveBeenCalledWith(updates, undefined);
     expect(res).toEqual({ status: "success", sinks: [] });
+  });
+
+  it("forwards the publish context to publish on the synchronous path", async () => {
+    const { engine, publish } = makeEngine({ enabled: false });
+    const updates = [{ id: "v1", latitude: 1, longitude: 2 }];
+    const context = { correlationId: "req-123", traceId: "req-123" };
+    await engine.ingest(updates, context);
+    expect(publish).toHaveBeenCalledWith(updates, context);
   });
 });
 

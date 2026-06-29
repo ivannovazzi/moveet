@@ -4,13 +4,13 @@ import { mulberry32, makeGaussian } from "./rng";
 import { resolveRealismConfig } from "./config";
 import { gaussMarkovStep, markovStep, metersToLatLon, type ConnState } from "./models";
 import type { DeviceState, RealismConfig, RealismStatus, DegradedSample } from "./types";
-import type { PublishResult, IngestResult, AcceptedResult } from "../plugins/types";
+import type { PublishContext, PublishResult, IngestResult, AcceptedResult } from "../plugins/types";
 
 const logger = createLogger("RealismEngine");
 
 export interface RealismEngineDeps {
   /** Publish degraded updates to all active sinks. */
-  publish: (updates: VehicleUpdate[]) => Promise<PublishResult>;
+  publish: (updates: VehicleUpdate[], context?: PublishContext) => Promise<PublishResult>;
   now?: () => number;
   rng?: () => number;
   config?: Record<string, unknown>;
@@ -75,9 +75,12 @@ export class RealismEngine {
     return this.cfg.enabled;
   }
 
-  async ingest(updates: VehicleUpdate[]): Promise<IngestResult> {
+  async ingest(updates: VehicleUpdate[], context?: PublishContext): Promise<IngestResult> {
     if (!this.cfg.enabled) {
-      return this.publish(updates);
+      // Synchronous passthrough: the request context reaches the sinks. The
+      // async (enabled) path below buffers and re-emits via the scheduler, with
+      // no request context available, so it publishes without one.
+      return this.publish(updates, context);
     }
     const t = this.now();
     for (const u of updates) {
