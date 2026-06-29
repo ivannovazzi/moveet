@@ -49,7 +49,40 @@ export const VEHICLE_INTERPOLATION = {
   /** Minimum teleport threshold — ensures stopped vehicles (speed≈0) still accept
    *  small real-world repositions without snapping. */
   TELEPORT_MIN_FLOOR_M: 50,
+  /**
+   * Absolute ceiling (ms) on the gap between consecutive position updates for a
+   * vehicle. Beyond this the continuity assumption is broken — the rAF loop was
+   * starved (backgrounded tab, sleep/wake, long GC stall, resync), so the stored
+   * position is stale and we snap to the truth instead of animating a fly-across.
+   * Independent of speed/distance: the distance-scaled teleport envelope grows
+   * with elapsed and therefore can't catch a long idle gap on its own. Set above
+   * the max supported update interval (2000 ms) so a normal slow tick still
+   * animates; this also implicitly bounds the EMA lerp duration, since any larger
+   * gap snaps (and resets lerpMs) rather than feeding the EMA.
+   */
+  MAX_CONTINUOUS_GAP_MS: 2500,
 } as const;
+
+/**
+ * Decide whether a position update should snap (jump) rather than animate.
+ * Snap when the vehicle is brand-new, when the update follows a continuity gap
+ * (stale frame after a starved rAF loop), or when the delta exceeds what plausible
+ * continuous motion could produce in the elapsed time (teleport / reposition).
+ */
+export function shouldSnapPosition(params: {
+  isNew: boolean;
+  elapsedMs: number;
+  distanceM: number;
+  speedMps: number;
+}): boolean {
+  const { isNew, elapsedMs, distanceM, speedMps } = params;
+  if (isNew) return true;
+  if (elapsedMs > VEHICLE_INTERPOLATION.MAX_CONTINUOUS_GAP_MS) return true;
+  const maxPlausibleM =
+    speedMps * (elapsedMs / 1000) * VEHICLE_INTERPOLATION.TELEPORT_FACTOR +
+    VEHICLE_INTERPOLATION.TELEPORT_MIN_FLOOR_M;
+  return distanceM > maxPlausibleM;
+}
 
 // Heat layer contour density viewport
 export const HEAT_LAYER = {
