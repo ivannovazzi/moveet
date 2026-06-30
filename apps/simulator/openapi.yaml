@@ -1666,7 +1666,7 @@ paths:
                 $ref: "#/components/schemas/Error"
 
   /geofences/{id}/toggle:
-    patch:
+    post:
       operationId: toggleGeofence
       summary: Toggle the active flag of a geofence zone
       tags: [Geofences]
