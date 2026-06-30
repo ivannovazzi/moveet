@@ -39,7 +39,7 @@ export default function SinksTab({ health, config, loading, onAdd, onRemove }: S
   return (
     <div className="flex flex-col gap-3">
       {activeSinks.length > 0 && (
-        <section className="flex flex-col gap-2 rounded-md border border-border bg-card p-3">
+        <section className="flex flex-col gap-2 rounded-md border border-border surface-raised p-3 shadow-raised">
           <div className="flex items-center justify-between gap-2">
             <span className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
               Active sinks
@@ -132,7 +132,7 @@ export default function SinksTab({ health, config, loading, onAdd, onRemove }: S
       )}
 
       {availableToAdd.length > 0 && (
-        <section className="flex flex-col gap-2 rounded-md border border-border bg-card p-3">
+        <section className="flex flex-col gap-2 rounded-md border border-border surface-raised p-3 shadow-raised">
           <div className="flex flex-col gap-1">
             <span className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
               Add sink

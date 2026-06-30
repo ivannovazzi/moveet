@@ -75,8 +75,8 @@ export default function IconRail({ activePanel, onPanelChange, incidentCount }: 
   return (
     <nav
       className={cn(
-        "z-[31] flex w-14 flex-shrink-0 flex-col items-center gap-2 border-r border-border bg-card py-3",
-        "pointer-events-none -translate-x-4 opacity-0 transition-[opacity,transform] duration-700 ease-out",
+        "z-[31] flex w-14 flex-shrink-0 flex-col items-center gap-2 border-r border-border surface-raised py-3",
+        "pointer-events-none -translate-x-4 opacity-0 transition-[opacity,transform] duration-700 ease-emphasized",
         "[[data-ready]_&]:pointer-events-auto [[data-ready]_&]:translate-x-0 [[data-ready]_&]:opacity-100"
       )}
       aria-label="Sidebar navigation"

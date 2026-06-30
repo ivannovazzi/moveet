@@ -19,11 +19,28 @@ export type {
   IncidentDTO,
   RecordingMetadata,
   ReplayStatus,
+  // Moved from this file into shared-types (single cross-service source of truth).
+  Heatzone,
+  VehicleDirection,
+  TrafficEdge,
+  RecordingFile,
+  ScenarioEventPayload,
+  // Shared REST response/request DTOs.
+  DirectionResponse,
+  GenerateRecordingRequest,
+  GenerateAcceptedResponse,
+  GenerateStatus,
+  ScenarioFile,
+  ScenarioLoadResponse,
+  ScenarioStatus,
 } from "@moveet/shared-types";
+
+// `RoadNetwork` is the UI's name for the shared `RoadNetworkResponse` shape.
+export type { RoadNetworkResponse as RoadNetwork } from "@moveet/shared-types";
 
 // ─── UI-specific types ──────────────────────────────────────────────
 
-import type { Position, VehicleDTO, Route, Waypoint } from "@moveet/shared-types";
+import type { Position, VehicleDTO, Waypoint } from "@moveet/shared-types";
 
 export interface ApiResponse<T> {
   data: T | undefined;
@@ -54,144 +71,14 @@ interface VehicleUIFlags {
 
 export type Vehicle = VehicleDTO & VehicleUIFlags;
 
-interface RoadFeature {
-  type: "Feature";
-  geometry: {
-    type: "LineString";
-    coordinates: Position[];
-  };
-  properties: {
-    name?: string;
-    type?: string;
-    speed_limit?: number;
-    highway?: string;
-    streetId?: string;
-    "@id"?: string;
-  };
-}
-
-export interface RoadNetwork {
-  type: "FeatureCollection";
-  features: RoadFeature[];
-}
-
-export interface VehicleDirection {
-  vehicleId: string;
-  route: Route;
-  eta: number;
-  waypoints?: Waypoint[];
-  currentWaypointIndex?: number;
-}
-
 export interface Road {
   name: string;
   nodeIds: Set<string>;
   streets: Position[][];
 }
 
-export interface Heatzone {
-  type: "Feature";
-  properties: {
-    id: string;
-    intensity: number;
-    timestamp: string;
-    radius: number;
-  };
-  geometry: {
-    type: "Polygon";
-    coordinates: Position[];
-  };
-}
-
-export interface DirectionResponse {
-  status: string;
-  results: import("@moveet/shared-types").DirectionResult[];
-}
-
 export interface DispatchAssignment {
   vehicleId: string;
   vehicleName: string;
   waypoints: Waypoint[];
-}
-
-// ─── Traffic ────────────────────────────────────────────────────────
-
-export interface TrafficEdge {
-  edgeId: string;
-  congestion: number; // 0.2 (jammed) to 1.0 (free flow)
-  coordinates: [number, number][];
-  highway: string;
-  streetId: string;
-}
-
-// ─── Recording & Replay ────────────────────────────────────────────
-
-export interface RecordingFile {
-  /** Numeric id assigned by the simulator stateStore (present for generated/persisted recordings). */
-  id?: number;
-  fileName: string;
-  fileSize: number;
-  modifiedAt: string;
-  /** Number of vehicles captured (populated for generated recordings). */
-  vehicleCount?: number;
-  /** True when produced by the headless historical generator. */
-  generated?: boolean;
-}
-
-// ─── Historical Generation ─────────────────────────────────────────
-
-export interface GenerateRecordingRequest {
-  /** Historical start time as an ISO 8601 string. */
-  startTime: string;
-  hours: number;
-  vehicleCount: number;
-  /** Sim-ms advanced per step. */
-  stepMs: number;
-  seed?: number;
-}
-
-export interface GenerateAcceptedResponse {
-  status: "generating";
-  jobId: string;
-}
-
-export interface GenerateStatus {
-  state: "idle" | "running" | "done" | "error";
-  jobId?: string;
-  step?: number;
-  totalSteps?: number;
-  pct?: number;
-}
-
-// ─── Scenarios ────────────────────────────────────────────────────
-
-export interface ScenarioFile {
-  fileName: string;
-  fileSize: number;
-  modifiedAt: string;
-}
-
-export interface ScenarioLoadResponse {
-  status: string;
-  scenario: { name: string; duration: number; eventCount: number };
-}
-
-export interface ScenarioStatus {
-  state: "idle" | "running" | "paused";
-  scenario: { name: string; duration: number; eventCount: number } | null;
-  elapsed: number;
-  eventIndex: number;
-  eventsExecuted: number;
-  upcomingEvents: Array<{ at: number; type: string }>;
-}
-
-export interface ScenarioEventPayload {
-  type?: string;
-  index?: number;
-  at?: number;
-  action?: { type: string };
-  name?: string;
-  eventCount?: number;
-  elapsed?: number;
-  eventsExecuted?: number;
 }

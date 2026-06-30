@@ -1,6 +1,7 @@
 import type { DataVehicle, Vehicle, VehicleType } from "../types";
 import { config } from "../utils/config";
 import Adapter from "./Adapter";
+import { recordAdapterSync } from "../metrics";
 import logger from "../utils/logger";
 
 /** Maximum backoff delay between sync attempts after consecutive failures (ms). */
@@ -98,20 +99,34 @@ export class AdapterSyncManager {
 
     const syncOnce = async (): Promise<void> => {
       const vehicles = Array.from(getVehicles());
-      await this.adapter.sync({
-        vehicles: vehicles.map((v) => ({
-          id: v.id,
-          name: v.name,
-          type: v.type,
-          latitude: v.position[0],
-          longitude: v.position[1],
-          speed: v.speed, // km/h
-          heading: v.bearing, // degrees
-          // Carry source-provided metadata opaquely back to the adapter/sinks.
-          ...(v.sourceMetadata !== undefined ? { metadata: v.sourceMetadata } : {}),
-        })),
-        timestamp: Date.now(),
-      });
+      // The periodic sync runs outside any HTTP request, so generate a fresh
+      // correlation id per push cycle and forward it as x-request-id so the
+      // adapter can thread it into its telemetry envelope.
+      const correlationId = crypto.randomUUID();
+      const start = process.hrtime.bigint();
+      try {
+        await this.adapter.sync(
+          {
+            vehicles: vehicles.map((v) => ({
+              id: v.id,
+              name: v.name,
+              type: v.type,
+              latitude: v.position[0],
+              longitude: v.position[1],
+              speed: v.speed, // km/h
+              heading: v.bearing, // degrees
+              // Carry source-provided metadata opaquely back to the adapter/sinks.
+              ...(v.sourceMetadata !== undefined ? { metadata: v.sourceMetadata } : {}),
+            })),
+            timestamp: Date.now(),
+          },
+          correlationId
+        );
+        recordAdapterSync("success", Number(process.hrtime.bigint() - start) / 1e9);
+      } catch (error) {
+        recordAdapterSync("failure", Number(process.hrtime.bigint() - start) / 1e9);
+        throw error;
+      }
     };
 
     const scheduleNext = (delayMs: number): void => {

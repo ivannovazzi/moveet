@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DeckGL from "@deck.gl/react";
 import { MapView, WebMercatorViewport } from "@deck.gl/core";
 import type { Layer, MapViewState } from "@deck.gl/core";
@@ -12,6 +12,15 @@ import { useDeckLayerManager, DeckLayersContext } from "../hooks/useDeckLayers";
 import { DeckMapContextProvider } from "../providers/MapContextProvider";
 import { DeckControlsProvider } from "../providers/ControlsContextProvider";
 import { DeckOverlayProvider } from "../providers/OverlayContextProvider";
+import { computeFeatureBounds, cullRoadFeatures, type ViewportBox } from "./roadCulling";
+
+/**
+ * Recompute viewport culling at most this often (ms). Panning fires viewState
+ * changes every animation frame; without throttling we would re-cull the whole
+ * network ~60x/s. A coarse cadence keeps panning smooth while still updating
+ * the bound feature set promptly.
+ */
+const CULL_THROTTLE_MS = 120;
 
 interface DeckGLMapProps {
   data: RoadNetwork;
@@ -25,38 +34,63 @@ interface DeckGLMapProps {
   cursor?: string;
 }
 
-// Separate road features into regular roads and highways for distinct styling.
+// Separate road features into regular roads and highways for distinct styling,
+// then cull each group to the current viewport + zoom LOD before binding.
 function useRoadLayers(
   data: RoadNetwork,
   strokeColor: string,
   strokeWidth: number,
-  strokeOpacity: number
+  strokeOpacity: number,
+  viewportBox: ViewportBox | null,
+  zoom: number
 ) {
-  // Filter the (large) feature set ONCE per network load. Toggling stroke
-  // opacity (showDirections) must not re-run this O(features) split, nor
-  // reallocate the data arrays — that would force deck.gl to re-upload all
-  // road geometry to the GPU.
-  const { roads, highways } = useMemo(() => {
+  // Split the (large) feature set and precompute per-feature bounds ONCE per
+  // network load. Toggling stroke opacity (showDirections) or panning must not
+  // re-run this O(features) work. The bounds arrays are index-aligned with the
+  // feature arrays and feed the bbox-intersection test in cullRoadFeatures.
+  const { roads, highways, roadBounds, highwayBounds } = useMemo(() => {
     const roads: RoadNetwork["features"] = [];
     const highways: RoadNetwork["features"] = [];
     for (const f of data.features) {
       (f.properties.type === "highway" ? highways : roads).push(f);
     }
-    return { roads, highways };
+    return {
+      roads,
+      highways,
+      roadBounds: computeFeatureBounds(roads),
+      highwayBounds: computeFeatureBounds(highways),
+    };
   }, [data]);
+
+  // Cull to the viewport (+ margin) and zoom LOD. Recomputed only when the
+  // (throttled) viewport box or zoom changes — see useThrottledCullInputs — so
+  // panning does not re-slice on every animation frame. Highways are major
+  // arterials and are never dropped by the LOD filter; only the bbox cull
+  // applies to them.
+  const visibleRoads = useMemo<RoadNetwork["features"]>(() => {
+    if (!viewportBox) return roads;
+    return cullRoadFeatures(roads, roadBounds, viewportBox, zoom);
+  }, [roads, roadBounds, viewportBox, zoom]);
+
+  const visibleHighways = useMemo<RoadNetwork["features"]>(() => {
+    if (!viewportBox) return highways;
+    return cullRoadFeatures(highways, highwayBounds, viewportBox, zoom);
+  }, [highways, highwayBounds, viewportBox, zoom]);
 
   return useMemo(() => {
     const roadColor = hexToRgba(strokeColor, strokeOpacity);
     const highwayColor = hexToRgba("#444", strokeOpacity);
     // Color/opacity flows through getColor with an updateTriggers key so only
-    // the color attribute re-evaluates against the stable, already-uploaded
-    // path geometry.
+    // the color attribute re-evaluates. Geometry re-uploads only when the
+    // bound `data` array actually changes (viewport/zoom cull), and deck.gl
+    // diff-updates by the stable layer id, so a color/opacity-only change does
+    // not rebind geometry.
     const colorTrigger = `${strokeColor}:${strokeOpacity}`;
 
     return [
       new PathLayer({
         id: "roads",
-        data: roads,
+        data: visibleRoads,
         getPath: (d) => d.geometry.coordinates as [number, number][],
         getColor: roadColor,
         getWidth: strokeWidth,
@@ -68,7 +102,7 @@ function useRoadLayers(
       }),
       new PathLayer({
         id: "highways",
-        data: highways,
+        data: visibleHighways,
         getPath: (d) => d.geometry.coordinates as [number, number][],
         getColor: highwayColor,
         getWidth: strokeWidth * 2,
@@ -79,7 +113,54 @@ function useRoadLayers(
         updateTriggers: { getColor: `#444:${strokeOpacity}` },
       }),
     ];
-  }, [roads, highways, strokeColor, strokeWidth, strokeOpacity]);
+  }, [visibleRoads, visibleHighways, strokeColor, strokeWidth, strokeOpacity]);
+}
+
+/**
+ * Throttle the culling inputs (viewport bbox + zoom) derived from viewState so
+ * the O(features) cull runs at most once per CULL_THROTTLE_MS during a pan/zoom
+ * gesture, with a trailing update so the final resting frame is never skipped.
+ */
+function useThrottledCullInputs(
+  viewport: WebMercatorViewport | null,
+  zoom: number
+): { box: ViewportBox | null; zoom: number } {
+  const computeBox = useCallback((): ViewportBox | null => {
+    if (!viewport) return null;
+    const [west, south, east, north] = viewport.getBounds();
+    return [
+      [west, south],
+      [east, north],
+    ];
+  }, [viewport]);
+
+  const [inputs, setInputs] = useState<{ box: ViewportBox | null; zoom: number }>(() => ({
+    box: computeBox(),
+    zoom,
+  }));
+
+  const lastRunRef = useRef(0);
+  const trailingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const apply = () => {
+      lastRunRef.current = Date.now();
+      setInputs({ box: computeBox(), zoom });
+    };
+    const elapsed = Date.now() - lastRunRef.current;
+    if (elapsed >= CULL_THROTTLE_MS) {
+      apply();
+    } else {
+      // Schedule a trailing run so the last gesture frame still updates.
+      if (trailingRef.current) clearTimeout(trailingRef.current);
+      trailingRef.current = setTimeout(apply, CULL_THROTTLE_MS - elapsed);
+    }
+    return () => {
+      if (trailingRef.current) clearTimeout(trailingRef.current);
+    };
+  }, [computeBox, zoom]);
+
+  return inputs;
 }
 
 export const DeckGLMap: React.FC<DeckGLMapProps> = ({
@@ -111,12 +192,6 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
   });
   const { registeredLayers, contextValue: layerContextValue } = useDeckLayerManager();
 
-  const roadLayers = useRoadLayers(data, strokeColor, strokeWidth, strokeOpacity);
-  const allLayers = useMemo(
-    () => [...roadLayers, ...registeredLayers],
-    [roadLayers, registeredLayers]
-  );
-
   // Build a WebMercatorViewport for context consumers
   const viewport = useMemo(() => {
     if (!size.width || !size.height || !viewState) return null;
@@ -130,6 +205,22 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
       bearing: viewState.bearing ?? 0,
     });
   }, [size.width, size.height, viewState]);
+
+  // Throttled viewport box + zoom feed the road culling/LOD. Decoupling these
+  // from per-frame viewState changes keeps panning smooth on large networks.
+  const cullInputs = useThrottledCullInputs(viewport, viewState.zoom ?? 0);
+  const roadLayers = useRoadLayers(
+    data,
+    strokeColor,
+    strokeWidth,
+    strokeOpacity,
+    cullInputs.box,
+    cullInputs.zoom
+  );
+  const allLayers = useMemo(
+    () => [...roadLayers, ...registeredLayers],
+    [roadLayers, registeredLayers]
+  );
 
   /** Returns [[west, south], [east, north]] i.e. [[minLng, minLat], [maxLng, maxLat]]. */
   const getBoundingBox = useCallback((): [[number, number], [number, number]] => {

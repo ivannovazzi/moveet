@@ -8,11 +8,35 @@
  * Protocol:
  *   Request:  { type: 'findRoute', id: number, startId: string, endId: string, incidentEdges?: Record<string, number> }
  *   Response: { type: 'result',    id: number, route: { edgeIds: string[], distance: number } | null }
+ *
+ * This worker no longer hand-duplicates the A* cost function, the binary heap or
+ * the OSM-tag parsers: it imports them from the same canonical modules the
+ * main-thread RoadNetwork uses (`../modules/pathfinding/{cost,heap}` and
+ * `../modules/roadnetwork/types`). Those imports use extensionless ESM specifiers
+ * that plain Node cannot resolve when this file is launched directly via
+ * `new Worker(...)`, so the worker is pre-bundled into a self-contained
+ * `dist/workers/pathfinding-worker.cjs` at build time (esbuild) and the
+ * PathfindingPool launches that bundle. Under vitest the equivalence test imports
+ * this module in-process (vitest transforms the TS + its relative imports), so
+ * the same shared code is exercised both ways. The only logic still local to the
+ * worker is the GeoJSON-to-adjacency parse and the A* loop itself: the parse
+ * builds a flat, non-circular node/edge shape that differs from GraphBuilder's
+ * circular `Edge` objects, so sharing it is not worth the entanglement (see the
+ * deferred note in apps/simulator/CLAUDE.md).
  */
 
 import { parentPort, workerData } from "worker_threads";
 import fs from "fs";
 import type { FeatureCollection, LineString } from "geojson";
+import { computeBaseTravelTime, applyDynamicCost } from "../modules/pathfinding/cost";
+import { PathNodeHeap } from "../modules/pathfinding/heap";
+import {
+  parseSmoothness,
+  parseMaxSpeed,
+  parseOneway,
+  VALID_HIGHWAYS,
+} from "../modules/roadnetwork/types";
+import type { HighwayType } from "../types";
 
 // ---------------------------------------------------------------------------
 // Lightweight graph types (no circular refs)
@@ -41,104 +65,12 @@ interface WorkerNode {
   trafficSignal?: boolean;
 }
 
-interface PathNode {
-  id: string;
-  gScore: number;
-  fScore: number;
-}
-
-// ---------------------------------------------------------------------------
-// Edge-cost helpers
-// ---------------------------------------------------------------------------
-//
-// These MUST stay identical to ../modules/pathfinding/cost.ts (the canonical
-// implementation used by the main-thread RoadNetwork). They are duplicated here
-// rather than imported because this worker is launched as a raw entry file by
-// `new Worker(...)` under plain Node, which cannot resolve the extensionless
-// relative ESM imports the rest of the codebase uses (tsconfig is owned by the
-// infra agent and forbids `.ts` import extensions). The duplication is locked
-// against drift by an equivalence test (see pathfinding-worker / RoadNetwork
-// route-equivalence tests). See task-4 deferred note.
-
-const SIGNAL_DELAY_S = 45; // seconds — midpoint of 30-90s signal cycle
-const SIGNAL_DELAY_H = SIGNAL_DELAY_S / 3600;
-
-/**
- * Static (time-invariant) base travel time for an edge, in hours.
- * `flow` is the outbound-edge count of the edge's start node (BPR flow proxy).
- */
-function computeBaseTravelTime(
-  edge: {
-    distance: number;
-    maxSpeed: number;
-    surface: string;
-    capacity: number;
-    smoothnessFactor: number;
-  },
-  flow: number
-): number {
-  const surfacePenalty = edge.surface === "unpaved" || edge.surface === "dirt" ? 1.3 : 1.0;
-  const smoothnessPenalty = 1 / ((edge.smoothnessFactor ?? 1.0) || 1.0); // avoid div-by-zero for impassable=0
-  const bprRatio = flow / (edge.capacity ?? 1800);
-  const bprRatio2 = bprRatio * bprRatio;
-  const bprCongestion = 1 + 0.15 * (bprRatio2 * bprRatio2);
-  return (edge.distance / edge.maxSpeed) * surfacePenalty * smoothnessPenalty * bprCongestion;
-}
-
-/** Applies dynamic incident/signal terms on top of an edge's static base cost. */
-function applyDynamicCost(
-  baseTravelTime: number,
-  incidentFactor: number | undefined,
-  endHasSignal: boolean
-): number {
-  let travelTime = baseTravelTime;
-  if (incidentFactor !== undefined && incidentFactor < 1) {
-    travelTime = travelTime / incidentFactor;
-  }
-  if (endHasSignal) {
-    travelTime += SIGNAL_DELAY_H;
-  }
-  return travelTime;
-}
-
 // ---------------------------------------------------------------------------
 // Graph building
 // ---------------------------------------------------------------------------
 
 // Module-level max network speed for admissible heuristic (set by buildGraph)
 let _maxNetworkSpeed = 110;
-
-type HighwayType =
-  | "motorway"
-  | "trunk"
-  | "primary"
-  | "secondary"
-  | "tertiary"
-  | "residential"
-  | "unclassified"
-  | "living_street";
-
-const DEFAULT_SPEEDS: Record<HighwayType, number> = {
-  motorway: 110,
-  trunk: 80,
-  primary: 60,
-  secondary: 50,
-  tertiary: 40,
-  residential: 30,
-  unclassified: 35,
-  living_street: 20,
-};
-
-const VALID_HIGHWAYS = new Set<string>([
-  "motorway",
-  "trunk",
-  "primary",
-  "secondary",
-  "tertiary",
-  "residential",
-  "unclassified",
-  "living_street",
-]);
 
 // Coordinate snapping to deduplicate near-identical intersection nodes
 const COORD_SNAP_EPSILON = 1e-7;
@@ -149,40 +81,6 @@ function snapCoord(val: number): string {
 
 function makeNodeKey(lat: number, lon: number): string {
   return `${snapCoord(lat)},${snapCoord(lon)}`;
-}
-
-function parseOneway(value: string | undefined | null): "forward" | "reverse" | false {
-  if (!value || value === "no" || value === "false" || value === "0") return false;
-  if (value === "-1" || value === "reverse") return "reverse";
-  return "forward"; // yes, true, 1
-}
-
-function parseMaxSpeed(raw: string | undefined, highway: HighwayType): number {
-  if (!raw) return DEFAULT_SPEEDS[highway];
-  if (raw.includes("-")) {
-    const parts = raw.split("-").map(Number);
-    if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-      return (parts[0] + parts[1]) / 2;
-    }
-  }
-  const parsed = Number(raw);
-  return isNaN(parsed) ? DEFAULT_SPEEDS[highway] : parsed;
-}
-
-const SMOOTHNESS_FACTORS: Record<string, number> = {
-  excellent: 1.0,
-  good: 0.9,
-  intermediate: 0.75,
-  bad: 0.6,
-  very_bad: 0.45,
-  horrible: 0.3,
-  very_horrible: 0.2,
-  impassable: 0.0,
-};
-
-function parseSmoothness(raw: string | undefined): number {
-  if (!raw) return 1.0;
-  return SMOOTHNESS_FACTORS[raw] ?? 1.0;
 }
 
 function calculateDistance(p1: [number, number], p2: [number, number]): number {
@@ -353,40 +251,9 @@ function findRoute(
   >();
   const gScore = new Map<string, number>();
 
-  // Binary min-heap (kept identical to ../modules/pathfinding/heap.ts; see the
-  // edge-cost-helper note above for why this worker cannot import it).
-  const heap: PathNode[] = [];
-
-  const pushHeap = (node: PathNode): void => {
-    heap.push(node);
-    let i = heap.length - 1;
-    while (i > 0) {
-      const parent = (i - 1) >> 1;
-      if (heap[parent].fScore <= heap[i].fScore) break;
-      [heap[parent], heap[i]] = [heap[i], heap[parent]];
-      i = parent;
-    }
-  };
-
-  const popHeap = (): PathNode => {
-    const top = heap[0];
-    const last = heap.pop()!;
-    if (heap.length > 0) {
-      heap[0] = last;
-      let i = 0;
-      while (true) {
-        let smallest = i;
-        const left = 2 * i + 1;
-        const right = 2 * i + 2;
-        if (left < heap.length && heap[left].fScore < heap[smallest].fScore) smallest = left;
-        if (right < heap.length && heap[right].fScore < heap[smallest].fScore) smallest = right;
-        if (smallest === i) break;
-        [heap[i], heap[smallest]] = [heap[smallest], heap[i]];
-        i = smallest;
-      }
-    }
-    return top;
-  };
+  // Shared binary min-heap (identical to the main-thread A*); see the module
+  // header for why this worker is bundled rather than launched as raw TS.
+  const heap = new PathNodeHeap();
 
   const maxNetworkSpeed = _maxNetworkSpeed;
   const heuristic = (nodeId: string): number => {
@@ -395,10 +262,10 @@ function findRoute(
   };
 
   gScore.set(startId, 0);
-  pushHeap({ id: startId, gScore: 0, fScore: heuristic(startId) });
+  heap.push({ id: startId, gScore: 0, fScore: heuristic(startId) });
 
-  while (heap.length > 0) {
-    const current = popHeap();
+  while (heap.size > 0) {
+    const current = heap.pop();
 
     if (closedSet.has(current.id)) continue;
 
@@ -473,7 +340,7 @@ function findRoute(
         });
         gScore.set(edge.endNodeId, tentativeCost);
         const f = tentativeCost + heuristic(edge.endNodeId);
-        pushHeap({ id: edge.endNodeId, gScore: tentativeCost, fScore: f });
+        heap.push({ id: edge.endNodeId, gScore: tentativeCost, fScore: f });
       }
     }
   }
@@ -529,6 +396,9 @@ if (parentPort) {
   );
 }
 
-// Export for testing
+// Export for testing. computeBaseTravelTime/applyDynamicCost are re-exported from
+// the shared cost module so the equivalence test can assert the worker uses the
+// exact same canonical functions as the main thread (they are now the same
+// reference, not a hand-synced copy).
 export { buildGraph, findRoute, calculateDistance, computeBaseTravelTime, applyDynamicCost };
 export type { WorkerNode, WorkerEdge };

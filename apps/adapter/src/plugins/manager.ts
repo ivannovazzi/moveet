@@ -6,6 +6,7 @@ import type {
   AdapterConfig,
   AdapterStatus,
   IngestResult,
+  PublishContext,
   PublishResult,
 } from "./types";
 import { PluginRegistry } from "./registry";
@@ -211,8 +212,13 @@ export class PluginManager {
     return this.activeSource.getFleets();
   }
 
-  async publishUpdates(updates: VehicleUpdate[]): Promise<IngestResult> {
-    return this.realism.ingest(updates);
+  async publishUpdates(updates: VehicleUpdate[], context?: PublishContext): Promise<IngestResult> {
+    // When realism is disabled the publish is synchronous and the request
+    // context flows straight to the sinks. When enabled, updates are buffered
+    // and re-emitted later by the engine scheduler, by which point the request
+    // is long gone — so no per-request correlation id is threaded through that
+    // async path (it stays null, which is honest).
+    return this.realism.ingest(updates, context);
   }
 
   /**
@@ -220,8 +226,8 @@ export class PluginManager {
    * engine. Used by the replay emitter, which owns its own virtual-clock-driven
    * RealismEngine and so must not double-apply degradation here.
    */
-  async publishToSinks(updates: VehicleUpdate[]): Promise<PublishResult> {
-    return this.publisher.publishUpdates(updates, this.activeSinks);
+  async publishToSinks(updates: VehicleUpdate[], context?: PublishContext): Promise<PublishResult> {
+    return this.publisher.publishUpdates(updates, this.activeSinks, context);
   }
 
   getRealismConfig(): RealismConfig {

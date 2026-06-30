@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Manual trigger for the opt-in docker-compose E2E job below.
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -43,6 +45,11 @@ jobs:
             ${{ runner.os }}-turbo-
       - name: Lint, type-check, test, build
         run: npx turbo lint type-check test:ci build
+      # Repo-policy checks (ESM config, workspace layout) run as their own root
+      # step, outside the per-app turbo suites, so an infra/CI refactor reddens
+      # this dedicated check rather than an app's unit tests.
+      - name: Repo-policy checks
+        run: npm run test:repo
       - name: Upload coverage reports
         if: always()
         uses: actions/upload-artifact@v7
@@ -79,8 +86,48 @@ jobs:
       - run: npm ci
       # Single workspaces-aware audit from the root covers every app + package.
       #
-      # fast-xml-parser 4.x has no fix for GHSA-jp2q-39xq-3w4g (high severity).
-      # Transitive via @deck.gl/geo-layers → @loaders.gl/wms → @loaders.gl/xml.
-      # Use --audit-level=critical until upstream releases a patched 4.x.
+      # Gate on high: highs are within scope of our threat model (e.g. ws powers
+      # the simulator WebSocket server). Keep the tree clean of high and critical
+      # advisories; resolve new ones via npm audit fix or a safe dependency bump.
       - name: Audit (root + all workspaces)
-        run: npm audit --audit-level=critical
+        run: npm audit --audit-level=high
+
+  # ─── docker-compose smoke E2E ────────────────────────────────────────
+  # Opt-in, SEPARATE job: boots the whole stack with docker compose and
+  # exercises it black-box (start a sim, poll /vehicles, assert a WS frame
+  # arrives and a vehicle moves). It is slow and needs Docker, so it is NOT in
+  # the `verify` gate and `npm test` never depends on it. It runs only when:
+  #   - the workflow is dispatched manually (workflow_dispatch), or
+  #   - a PR carries the `e2e` label.
+  # It builds the images from source (docker-compose.yml) so it does not depend
+  # on published GHCR images, and bind-mounts the committed integration-network
+  # fixture as the road network (no slow OSM download in CI).
+  e2e:
+    name: docker-compose smoke E2E
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'e2e'))
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      # The simulator image needs a road network bind-mounted at
+      # apps/simulator/data/network.geojson (data/* is gitignored). Use the
+      # committed simulator-ready integration fixture so the job does not need a
+      # slow/flaky OSM download.
+      - name: Provide a road network fixture
+        run: |
+          mkdir -p apps/simulator/data
+          cp apps/simulator/src/__tests__/fixtures/integration-network.geojson \
+             apps/simulator/data/network.geojson
+      - name: Run docker-compose smoke E2E (build from source)
+        env:
+          MOVEET_E2E_COMPOSE_FILE: docker-compose.yml
+        run: npm run test:e2e
+      - name: Dump compose logs on failure
+        if: failure()
+        run: docker compose -p moveet-e2e -f docker-compose.yml logs || true

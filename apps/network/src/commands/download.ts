@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import fs from "fs";
 import https from "https";
 import http from "http";
@@ -8,6 +9,21 @@ const GEOFABRIK_BASE = "https://download.geofabrik.de";
 
 export function buildDownloadUrl(geofabrik: string): string {
   return `${GEOFABRIK_BASE}/${geofabrik}-latest.osm.pbf`;
+}
+
+// Geofabrik publishes an MD5 checksum next to every extract at the same URL
+// with `.md5` appended.
+export function buildChecksumUrl(geofabrik: string): string {
+  return `${buildDownloadUrl(geofabrik)}.md5`;
+}
+
+// A Geofabrik `.md5` file is a single line of the form `<md5hex>  <filename>`.
+// Return just the lowercased hex digest, or null if the contents are not a
+// recognisable 32-char hex checksum.
+export function parseChecksumFile(contents: string): string | null {
+  const token = contents.trim().split(/\s+/)[0]?.toLowerCase();
+  if (token && /^[0-9a-f]{32}$/.test(token)) return token;
+  return null;
 }
 
 export function getCachePath(geofabrik: string, cacheDir: string): string {
@@ -52,6 +68,8 @@ export async function download(opts: DownloadOptions): Promise<string> {
   process.stdout.write(`Downloading ${url}\n`);
   await streamDownload(url, dest);
 
+  await verifyChecksum(geofabrik, dest);
+
   // Only record the ETag after a verified, fully-written file exists, so a
   // truncated download never gets cached as valid.
   if (headEtag) {
@@ -59,6 +77,93 @@ export async function download(opts: DownloadOptions): Promise<string> {
   }
 
   return dest;
+}
+
+// Verify the downloaded file against Geofabrik's published MD5. A missing or
+// unreachable checksum is a soft failure (warn and continue) so a transient
+// network blip or a region without a published checksum does not break the
+// whole pipeline. An actual digest mismatch is a hard failure: the suspect
+// file is deleted so it can never be reused from cache.
+export async function verifyChecksum(geofabrik: string, pbfPath: string): Promise<void> {
+  const checksumUrl = buildChecksumUrl(geofabrik);
+  const checksumText = await fetchText(checksumUrl);
+  if (checksumText === null) {
+    process.stdout.write(
+      `Warning: could not fetch checksum ${checksumUrl}, skipping integrity verification\n`
+    );
+    return;
+  }
+
+  const expected = parseChecksumFile(checksumText);
+  if (!expected) {
+    process.stdout.write(
+      `Warning: unrecognised checksum file at ${checksumUrl}, skipping integrity verification\n`
+    );
+    return;
+  }
+
+  const actual = await computeMd5(pbfPath);
+  if (actual !== expected) {
+    try {
+      if (fs.existsSync(pbfPath)) fs.unlinkSync(pbfPath);
+    } catch {
+      // best-effort cleanup
+    }
+    throw new Error(
+      `Checksum mismatch for ${path.basename(pbfPath)}: expected ${expected}, got ${actual}. ` +
+        `The download was corrupted or tampered with and has been deleted.`
+    );
+  }
+
+  process.stdout.write(`Checksum OK (md5 ${actual})\n`);
+}
+
+// Stream the file through an MD5 hash so a large .pbf is never held in memory.
+export function computeMd5(filePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash("md5");
+    const stream = fs.createReadStream(filePath);
+    stream.on("error", reject);
+    stream.on("data", (chunk) => hash.update(chunk));
+    stream.on("end", () => resolve(hash.digest("hex")));
+  });
+}
+
+// Fetch a small text resource (the .md5). Resolves with the body on success,
+// or null on any non-2xx status or network error so callers can degrade
+// gracefully rather than crash.
+export function fetchText(url: string, redirects = 0): Promise<string | null> {
+  if (redirects > 5) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const parsedUrl = new URL(url);
+    const mod = parsedUrl.protocol === "https:" ? https : http;
+    const req = mod.get(url, (res) => {
+      if (res.statusCode && [301, 302, 307, 308].includes(res.statusCode)) {
+        const location = res.headers["location"];
+        res.resume();
+        if (!location) {
+          resolve(null);
+          return;
+        }
+        resolve(fetchText(location, redirects + 1));
+        return;
+      }
+      if (!res.statusCode || res.statusCode >= 400) {
+        res.resume();
+        resolve(null);
+        return;
+      }
+      let body = "";
+      res.setEncoding("utf8");
+      res.on("data", (chunk) => {
+        body += chunk;
+      });
+      res.on("end", () => resolve(body));
+      res.on("error", () => resolve(null));
+    });
+    req.on("error", () => resolve(null));
+    req.end();
+  });
 }
 
 function getEtag(url: string, redirects = 0): Promise<string | null> {

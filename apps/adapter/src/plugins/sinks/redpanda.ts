@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { Agent } from "node:https";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import type { Admin, Message, Producer, SASLOptions } from "kafkajs";
 import { Kafka } from "kafkajs";
 import { SchemaRegistry, SchemaType } from "@kafkajs/confluent-schema-registry";
@@ -9,11 +12,19 @@ import type {
   DataSink,
   HealthCheckResult,
   PluginConfig,
+  PublishContext,
   SinkPublishResult,
 } from "../types";
 import type { VehicleUpdate } from "../../types";
-import { getNestedValue } from "../utils";
 import { createLogger } from "../../utils/logger";
+import { parsePayloadTemplate, resolveTemplate, type PayloadTemplate } from "../format/template";
+import {
+  expandContexts,
+  resolveKey,
+  type ContextDefaults,
+  type MessageContext,
+} from "../format/context";
+import { chunk, sendChunksParallel, type ChunkPlan } from "../format/chunking";
 
 const logger = createLogger("RedpandaSink");
 
@@ -23,89 +34,46 @@ const DEFAULT_HEALTH_CHECK_TIMEOUT_MS = 5000;
 // ─── Canonical Telemetry AVRO Schema ────────────────────────────────
 //
 // The platform's canonical telemetry-ingest envelope, published Confluent-AVRO
-// encoded to `telemetry.device.raw`. Field order and types MUST match the
-// platform's registered schema exactly — do not reorder or retype fields. This
-// is config of the redpanda sink (the only producer of these events), not a
-// shared cross-app type.
+// encoded to `telemetry.device.raw`. The schema is versioned in
+// `schemas/canonical-telemetry.v1.avsc` (loaded at module init below) rather
+// than hardcoded inline, so it can be round-trip tested against the real avro
+// codec and reviewed/diffed as a contract artifact. Field order and types MUST
+// match the platform's registered schema exactly; do not reorder or retype
+// fields. This is config of the redpanda sink (the only producer of these
+// events), not a shared cross-app type.
+
+/** Bare name of the versioned schema artifact. */
+const TELEMETRY_LOCATION_AVRO_SCHEMA_FILE = "canonical-telemetry.v1.avsc";
 
 /**
- * Confluent-AVRO schema for the canonical `telemetry.location.reported` event.
- * Registered under subject `telemetry.device.raw-telemetry.location.reported`.
+ * Resolve the versioned `.avsc` artifact. It lives at
+ * `src/plugins/sinks/schemas/`. Running under tsx/vitest the module dir IS that
+ * `schemas/` parent, so the first candidate hits. Running the esbuild bundle
+ * (`dist/index.js`) the module dir is `dist/`, so we also probe the original
+ * `src` tree (which the image's `source` stage preserves alongside `dist`),
+ * keeping the canonical schema a single source-of-truth artifact for both.
  */
-export const TELEMETRY_LOCATION_AVRO_SCHEMA = {
-  type: "record",
-  name: "TelemetryLocationEvent",
-  namespace: "telemetry.ingest",
-  fields: [
-    { name: "event_id", type: "string" },
-    { name: "event_type", type: "string" },
-    { name: "event_version", type: "int" },
-    { name: "occurred_at", type: "string" },
-    {
-      name: "source",
-      type: {
-        type: "record",
-        name: "EventSource",
-        fields: [
-          { name: "service", type: "string" },
-          { name: "environment", type: "string" },
-        ],
-      },
-    },
-    {
-      name: "metadata",
-      type: {
-        type: "record",
-        name: "EventMetadata",
-        fields: [
-          { name: "correlation_id", type: ["null", "string"], default: null },
-          { name: "causation_id", type: ["null", "string"], default: null },
-          { name: "trace_id", type: ["null", "string"], default: null },
-        ],
-      },
-    },
-    {
-      name: "data",
-      type: {
-        type: "record",
-        name: "TelemetryLocationData",
-        fields: [
-          { name: "device_id", type: "string" },
-          {
-            name: "source",
-            type: { type: "enum", name: "TelemetrySource", symbols: ["GPS", "MOBILE"] },
-          },
-          { name: "recorded_at", type: "string" },
-          { name: "latitude", type: "double" },
-          { name: "longitude", type: "double" },
-          { name: "accuracy_meters", type: ["null", "double"], default: null },
-          { name: "speed_mps", type: ["null", "double"], default: null },
-          { name: "heading_degrees", type: ["null", "double"], default: null },
-          { name: "altitude_meters", type: ["null", "double"], default: null },
-          { name: "satellites", type: ["null", "int"], default: null },
-          { name: "ignition_on", type: ["null", "boolean"], default: null },
-          { name: "moving", type: ["null", "boolean"], default: null },
-          { name: "battery_level", type: ["null", "double"], default: null },
-          { name: "battery_charging", type: ["null", "boolean"], default: null },
-          { name: "network", type: ["null", "string"], default: null },
-          {
-            name: "position_origin",
-            type: [
-              "null",
-              {
-                type: "enum",
-                name: "PositionOrigin",
-                symbols: ["GPS", "NETWORK", "PASSIVE", "UNKNOWN"],
-              },
-            ],
-            default: null,
-          },
-          { name: "sensor_readings", type: { type: "map", values: "string" }, default: {} },
-        ],
-      },
-    },
-  ],
-} as const;
+function resolveSchemaPath(): string {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    join(here, "schemas", TELEMETRY_LOCATION_AVRO_SCHEMA_FILE),
+    // bundle case: dist/ sibling of src/plugins/sinks/schemas
+    join(here, "..", "src", "plugins", "sinks", "schemas", TELEMETRY_LOCATION_AVRO_SCHEMA_FILE),
+  ];
+  return candidates.find((p) => existsSync(p)) ?? candidates[0];
+}
+
+/** Filesystem path to the versioned canonical-telemetry AVRO schema artifact. */
+export const TELEMETRY_LOCATION_AVRO_SCHEMA_PATH = resolveSchemaPath();
+
+/**
+ * Confluent-AVRO schema for the canonical `telemetry.location.reported` event,
+ * loaded from the versioned `.avsc` artifact. Registered under subject
+ * `telemetry.device.raw-telemetry.location.reported`.
+ */
+export const TELEMETRY_LOCATION_AVRO_SCHEMA: Record<string, unknown> = JSON.parse(
+  readFileSync(TELEMETRY_LOCATION_AVRO_SCHEMA_PATH, "utf8")
+);
 
 /** Subject under which the canonical schema is registered in Schema Registry. */
 export const TELEMETRY_LOCATION_AVRO_SUBJECT = "telemetry.device.raw-telemetry.location.reported";
@@ -114,49 +82,11 @@ export const TELEMETRY_LOCATION_AVRO_SUBJECT = "telemetry.device.raw-telemetry.l
 export const TELEMETRY_LOCATION_EVENT_TYPE = "telemetry.location.reported";
 
 /**
- * A single value in a {@link PayloadTemplate}. Resolved per-message against the
- * {@link MessageContext}:
- *  - `number` / `boolean` / `null` → emitted literally.
- *  - `string` starting with `"="` → literal string (the `=` is stripped).
- *  - any other `string` → a dot-path into the context; resolving to `undefined`
- *    omits the key entirely.
- *  - nested object → recursed.
- */
-type TemplateToken = string | number | boolean | null | { [key: string]: TemplateToken };
-type PayloadTemplate = Record<string, TemplateToken>;
-
-/**
- * The per-message context every template / `keyField` resolves against. Built
- * once per {@link VehicleUpdate} in {@link RedpandaSink.buildContext}.
- */
-interface MessageContext {
-  id: string;
-  type: VehicleUpdate["type"];
-  lat: number;
-  lon: number;
-  heading: number;
-  /** Ground speed in km/h. */
-  speedKmh: number;
-  /** Ground speed in m/s. */
-  speed: number;
-  ts: number;
-  ignition: boolean;
-  altitude: number;
-  accuracy: number;
-  metadata: Record<string, unknown>;
-  /**
-   * Present only when `fanOut` is configured: the current element of the
-   * fanned-out array, so per-device fields are reachable via `device.*` in
-   * `keyField` / `payloadTemplate`.
-   */
-  device?: unknown;
-}
-
-/**
  * Built-in `trajectory` preset, expressed as a template. Reproduces the
  * pure-GPS telemetry payload consumed by the trajectory-engine, plus a
  * metadata-sourced `deviceType` (omitted automatically when absent, preserving
- * back-compat with the prior payload that had no deviceType).
+ * back-compat with the prior payload that had no deviceType). The template /
+ * context / chunking machinery now lives in `../format/*` (sink-generic).
  */
 const TRAJECTORY_TEMPLATE: PayloadTemplate = {
   ts: "ts",
@@ -170,43 +100,6 @@ const TRAJECTORY_TEMPLATE: PayloadTemplate = {
   accuracy: "accuracy",
   ignition: "ignition",
 };
-
-/**
- * Resolve a dot-path (e.g. `"metadata.deviceType"`) against a context object.
- * Delegates to the shared prototype-pollution-guarded {@link getNestedValue}.
- */
-const resolvePath = getNestedValue;
-
-/**
- * Resolve a {@link PayloadTemplate} against a context into a plain JSON object.
- * Keys whose value is a path resolving to `undefined` are omitted.
- */
-function resolveTemplate(
-  template: PayloadTemplate,
-  context: MessageContext
-): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [key, token] of Object.entries(template)) {
-    const resolved = resolveToken(token, context);
-    if (resolved !== undefined) out[key] = resolved;
-  }
-  return out;
-}
-
-function resolveToken(token: TemplateToken, context: MessageContext): unknown {
-  // Literals: number / boolean / null are emitted verbatim.
-  if (typeof token === "number" || typeof token === "boolean" || token === null) {
-    return token;
-  }
-  if (typeof token === "string") {
-    // "=literal" → literal string (strip the leading "=").
-    if (token.startsWith("=")) return token.slice(1);
-    // Otherwise a dot-path into the context.
-    return resolvePath(context, token);
-  }
-  // Nested object → recurse.
-  return resolveTemplate(token as PayloadTemplate, context);
-}
 
 /** kafkajs `ssl` option once resolved: either `true` (system CAs) or explicit cert material. */
 type ResolvedSsl =
@@ -470,7 +363,10 @@ export class RedpandaSink implements DataSink {
     }
     this.keyField = keyField;
 
-    this.payloadTemplate = this.parsePayloadTemplate(config.payloadTemplate);
+    this.payloadTemplate = parsePayloadTemplate(
+      config.payloadTemplate,
+      "RedpandaSink: payloadTemplate"
+    );
 
     const fanOut = config.fanOut;
     this.fanOut = typeof fanOut === "string" && fanOut.trim() !== "" ? fanOut : null;
@@ -599,33 +495,12 @@ export class RedpandaSink implements DataSink {
   }
 
   /**
-   * Parse + validate the optional `payloadTemplate` config. Accepts either an
-   * already-parsed object or a JSON string (the `json` config field may arrive
-   * as either). Returns `null` when unset (→ fall back to the `format` preset).
-   */
-  private parsePayloadTemplate(raw: unknown): PayloadTemplate | null {
-    if (raw == null || raw === "") return null;
-    let parsed: unknown = raw;
-    if (typeof raw === "string") {
-      try {
-        parsed = JSON.parse(raw);
-      } catch {
-        throw new Error("RedpandaSink: payloadTemplate is not valid JSON");
-      }
-    }
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-      throw new Error("RedpandaSink: payloadTemplate must be a JSON object");
-    }
-    return parsed as PayloadTemplate;
-  }
-
-  /**
    * The effective template for the current config: an explicit
    * `payloadTemplate` overrides the `format` preset. Presets are implemented
    * internally as templates — see {@link TRAJECTORY_TEMPLATE}. The `dispatch`
    * preset keeps its dedicated code path (it injects a fresh UUID / timestamp
    * per message, which a static template can't express) and so returns `null`
-   * here, signalling {@link buildMessages} to use {@link buildDispatchMessages}.
+   * here, signalling {@link buildJsonMessages} to use {@link buildDispatchMessages}.
    */
   private resolveActiveTemplate(): PayloadTemplate | null {
     if (this.payloadTemplate) return this.payloadTemplate;
@@ -633,40 +508,15 @@ export class RedpandaSink implements DataSink {
     return null;
   }
 
-  /**
-   * Build the per-message context every template / `keyField` resolves against.
-   * `speed` is m/s (the trajectory-engine's unit), `speedKmh` is the raw
-   * source value. Update-supplied `timestamp`/`accuracy`/`connected` (e.g. from
-   * the realism engine) take precedence; otherwise `ts` falls back to the batch
-   * `Date.now()`, `accuracy` to the configured default, and `ignition` is
-   * derived from m/s speed.
-   */
-  private buildContext(update: VehicleUpdate, ts: number): MessageContext {
-    const speedKmh = update.speed ?? 0;
-    const speed = speedKmh / 3.6; // km/h → m/s
-    return {
-      id: update.id,
-      type: update.type,
-      lat: update.latitude,
-      lon: update.longitude,
-      heading: update.heading ?? 0,
-      speedKmh,
-      speed,
-      ts: update.timestamp ?? ts,
-      // A disconnected fix means ignition off regardless of speed; otherwise
-      // derive it from ground speed as before.
-      ignition: update.connected === false ? false : speed > 0.5,
-      altitude: this.defaultAltitude,
-      accuracy: update.accuracy ?? this.defaultAccuracy,
-      metadata: update.metadata ?? {},
-    };
+  /** The altitude/accuracy fallbacks the shared context builder applies. */
+  private contextDefaults(): ContextDefaults {
+    return { altitude: this.defaultAltitude, accuracy: this.defaultAccuracy };
   }
 
   /** Resolve one context into a single Kafka message via the template. */
   private buildMessage(template: PayloadTemplate, context: MessageContext) {
-    const keyValue = resolvePath(context, this.keyField);
     return {
-      key: keyValue === undefined || keyValue === null ? undefined : String(keyValue),
+      key: resolveKey(context, this.keyField),
       value: JSON.stringify(resolveTemplate(template, context)),
     };
   }
@@ -674,31 +524,13 @@ export class RedpandaSink implements DataSink {
   /**
    * Build the messages for a batch of updates from a {@link PayloadTemplate}:
    * the payload is the resolved template and the Kafka key is the `keyField`
-   * dot-path, both resolved against the per-message context.
-   *
-   * Without `fanOut`, each update maps to exactly one message. With `fanOut`
-   * set, the array at that path is resolved against the context and each
-   * element produces one message whose context carries `device: <element>`
-   * (so the shared position/speed/etc. are co-located across a vehicle's
-   * devices, while per-device fields are reachable via `device.*`). A
-   * missing/empty array emits nothing for that update.
+   * dot-path, both resolved against the per-message context. Fan-out expansion
+   * is delegated to the shared {@link expandContexts} helper.
    */
   private buildTemplateMessages(updates: VehicleUpdate[], template: PayloadTemplate) {
-    const ts = Date.now();
-    return updates.flatMap((update) => {
-      const context = this.buildContext(update, ts);
-
-      if (!this.fanOut) {
-        return [this.buildMessage(template, context)];
-      }
-
-      const array = resolvePath(context, this.fanOut);
-      if (!Array.isArray(array) || array.length === 0) {
-        return [];
-      }
-
-      return array.map((device) => this.buildMessage(template, { ...context, device }));
-    });
+    return expandContexts(updates, this.fanOut, this.contextDefaults()).map((context) =>
+      this.buildMessage(template, context)
+    );
   }
 
   /**
@@ -706,8 +538,17 @@ export class RedpandaSink implements DataSink {
    * envelope. Fields the simulator can't supply (satellites, battery, network,
    * position_origin) are left null per the schema's union defaults.
    * `data.source` is GPS unless the device/update metadata marks it `mobile`.
+   *
+   * The publish `context`'s correlation id (the inbound `x-request-id`) is
+   * stamped onto `metadata.correlation_id`, and `metadata.trace_id` is taken
+   * from the explicit trace id when present or derived from the correlation id
+   * otherwise. Both default to `null` when no request context was threaded
+   * through (e.g. the realism async path), preserving prior behaviour.
    */
-  private buildCanonicalEnvelope(context: MessageContext): Record<string, unknown> {
+  private buildCanonicalEnvelope(
+    context: MessageContext,
+    publishContext?: PublishContext
+  ): Record<string, unknown> {
     const device =
       context.device != null && typeof context.device === "object"
         ? (context.device as Record<string, unknown>)
@@ -723,13 +564,16 @@ export class RedpandaSink implements DataSink {
       (device?.deviceType as string | undefined);
     const telemetrySource = deviceType === "mobile" ? "MOBILE" : "GPS";
 
+    const correlationId = publishContext?.correlationId ?? null;
+    const traceId = publishContext?.traceId ?? correlationId;
+
     return {
       event_id: randomUUID(),
       event_type: TELEMETRY_LOCATION_EVENT_TYPE,
       event_version: 1,
       occurred_at: new Date().toISOString(),
       source: { service: this.sourceService, environment: this.sourceEnvironment },
-      metadata: { correlation_id: null, causation_id: null, trace_id: null },
+      metadata: { correlation_id: correlationId, causation_id: null, trace_id: traceId },
       data: {
         device_id: deviceId,
         source: telemetrySource,
@@ -757,35 +601,18 @@ export class RedpandaSink implements DataSink {
    * resolved via the same `keyField` dot-path as the JSON formats; the value is
    * the registry-encoded Buffer (5-byte Confluent header + Avro body).
    */
-  private async buildCanonicalAvroMessage(context: MessageContext): Promise<Message> {
+  private async buildCanonicalAvroMessage(
+    context: MessageContext,
+    publishContext?: PublishContext
+  ): Promise<Message> {
     if (!this.registry || this.schemaId == null) {
       throw new Error("RedpandaSink: schema registry not initialized for canonical-avro format");
     }
-    const keyValue = resolvePath(context, this.keyField);
-    const value = await this.registry.encode(this.schemaId, this.buildCanonicalEnvelope(context));
-    return {
-      key: keyValue === undefined || keyValue === null ? undefined : String(keyValue),
-      value,
-    };
-  }
-
-  /**
-   * Expand a batch of updates into the per-message contexts for the
-   * canonical-AVRO format, honouring `fanOut`. Building contexts is cheap (no
-   * encoding); the registry-encode happens lazily, per chunk, in
-   * {@link publishUpdates} so peak memory is one chunk of encoded Buffers rather
-   * than the whole batch.
-   */
-  private buildCanonicalAvroContexts(updates: VehicleUpdate[]): MessageContext[] {
-    const ts = Date.now();
-    return updates.flatMap((update) => {
-      const context = this.buildContext(update, ts);
-      if (!this.fanOut) return [context];
-
-      const array = resolvePath(context, this.fanOut);
-      if (!Array.isArray(array) || array.length === 0) return [];
-      return array.map((device) => ({ ...context, device }));
-    });
+    const value = await this.registry.encode(
+      this.schemaId,
+      this.buildCanonicalEnvelope(context, publishContext)
+    );
+    return { key: resolveKey(context, this.keyField), value };
   }
 
   /**
@@ -803,48 +630,46 @@ export class RedpandaSink implements DataSink {
   }
 
   /**
-   * Plan a publish as a list of lazily-materialised chunks. Each chunk producer
-   * yields its Message[] only when invoked, so the canonical-AVRO format encodes
-   * one chunk at a time (flattening peak memory) while the JSON formats — whose
-   * serialisation is cheap and already done — simply slice a pre-built array.
-   * `total` is the total message count across all chunks.
+   * Plan a publish as a list of lazily-materialised chunks (via the shared
+   * {@link chunk} helper). Each chunk producer yields its Message[] only when
+   * invoked, so the canonical-AVRO format encodes one chunk at a time
+   * (flattening peak memory) while the JSON formats — whose serialisation is
+   * cheap and already done — simply slice a pre-built array. `total` is the
+   * total message count across all chunks.
    */
-  private planChunks(updates: VehicleUpdate[]): {
-    total: number;
-    chunks: Array<() => Promise<Message[]>>;
-  } {
-    const chunk = <T>(items: T[]): T[][] => {
-      const out: T[][] = [];
-      for (let i = 0; i < items.length; i += this.batchSize) {
-        out.push(items.slice(i, i + this.batchSize));
-      }
-      return out;
-    };
-
+  private planChunks(
+    updates: VehicleUpdate[],
+    publishContext?: PublishContext
+  ): ChunkPlan<Message> {
     if (this.format === "canonical-avro") {
-      const contexts = this.buildCanonicalAvroContexts(updates);
-      const contextChunks = chunk(contexts);
+      const contexts = expandContexts(updates, this.fanOut, this.contextDefaults());
+      const contextChunks = chunk(contexts, this.batchSize);
       return {
         total: contexts.length,
         chunks: contextChunks.map(
-          (c) => () => Promise.all(c.map((ctx) => this.buildCanonicalAvroMessage(ctx)))
+          (c) => () =>
+            Promise.all(c.map((ctx) => this.buildCanonicalAvroMessage(ctx, publishContext)))
         ),
       };
     }
 
     const messages = this.buildJsonMessages(updates);
-    const messageChunks = chunk(messages);
+    const messageChunks = chunk(messages, this.batchSize);
     return {
       total: messages.length,
       chunks: messageChunks.map((c) => () => Promise.resolve(c)),
     };
   }
 
-  async publishUpdates(updates: VehicleUpdate[]): Promise<SinkPublishResult | void> {
+  async publishUpdates(
+    updates: VehicleUpdate[],
+    context?: PublishContext
+  ): Promise<SinkPublishResult | void> {
     if (!this.producer) return;
     const producer = this.producer;
 
-    const { total, chunks } = this.planChunks(updates);
+    const plan = this.planChunks(updates, context);
+    const { total, chunks } = plan;
 
     // Single send: no chunking needed (also covers the empty-batch case).
     if (chunks.length <= 1) {
@@ -853,54 +678,45 @@ export class RedpandaSink implements DataSink {
       return;
     }
 
-    // Chunked publishing: chunks are sent sequentially and the batch is
-    // aborted on the first failure, so a retried/late chunk can never be
-    // delivered out of order relative to the rest of the batch. For the
-    // canonical-AVRO format the chunk is registry-encoded just before its send,
-    // so only one chunk's encoded Buffers are resident at a time.
-    let succeeded = 0;
-    const failures: Array<{ itemId: string; error: string }> = [];
+    // Chunked publishing: chunks are sent CONCURRENTLY (Promise.allSettled).
+    // This is safe because the message stream is keyed per-entity
+    // (per-vehicle/per-device) and chunking splits across keys, so two chunks
+    // never carry the same key — Kafka preserves order within a key and there
+    // is no cross-key ordering to preserve. Parallelising lifts throughput from
+    // O(sum of chunk latencies) to O(max chunk latency), and a transient
+    // failure in one chunk no longer discards every other chunk's data (the old
+    // abort-on-first-failure behaviour). For the canonical-AVRO format each
+    // chunk is registry-encoded inside its own task, just before its send.
+    // The sink reports accurate attempted/succeeded/failures; the Publisher
+    // layer mirrors those onto the delivery metrics (single source of truth),
+    // so no metric recording happens here.
+    const result = await sendChunksParallel(plan, async (messages) => {
+      await producer.send({ topic: this.topic, messages, acks: this.acks });
+    });
 
-    for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
-      try {
-        const messages = await chunks[chunkIndex]();
-        await producer.send({ topic: this.topic, messages, acks: this.acks });
-        succeeded += messages.length;
-      } catch (err) {
-        const error = err instanceof Error ? err.message : String(err);
-        const startIdx = chunkIndex * this.batchSize;
-        logger.error(
-          { chunkIndex, start: startIdx, error },
-          `Chunk ${chunkIndex} failed (starting at message ${startIdx})`
-        );
-        failures.push({ itemId: `chunk-${chunkIndex}`, error });
-        // Abort the remainder of the batch to preserve ordering.
-        for (let j = chunkIndex + 1; j < chunks.length; j++) {
-          failures.push({
-            itemId: `chunk-${j}`,
-            error: `not attempted (batch aborted after chunk ${chunkIndex} failed)`,
-          });
-        }
-        break;
-      }
-    }
+    const { succeeded, failures } = result;
 
+    // Every chunk failed AND nothing was delivered: surface as a throw so the
+    // publisher marks the whole sink as failed (a partial success returns the
+    // metadata instead). Preserves the prior "first chunk failed" contract for
+    // the all-or-nothing case.
     if (failures.length > 0 && succeeded === 0) {
       throw new Error(
-        `First chunk failed to publish; ${chunks.length - 1} remaining chunk(s) aborted to preserve ordering. Error: ${failures[0].error}`
+        `All ${chunks.length} chunk(s) failed to publish; no messages delivered. Error: ${failures[0].error}`
       );
     }
 
     if (failures.length > 0) {
+      const dropped = total - succeeded;
       logger.warn(
         {
           chunksSucceeded: chunks.length - failures.length,
           chunksTotal: chunks.length,
           messagesSucceeded: succeeded,
           messagesTotal: total,
-          messagesNotDelivered: total - succeeded,
+          messagesNotDelivered: dropped,
         },
-        `Partial failure: ${chunks.length - failures.length}/${chunks.length} chunks sent (${succeeded}/${total} messages); remainder aborted to preserve ordering`
+        `Partial failure: ${chunks.length - failures.length}/${chunks.length} chunks sent (${succeeded}/${total} messages); failed chunks dropped (at-most-once, no DLQ)`
       );
     }
 

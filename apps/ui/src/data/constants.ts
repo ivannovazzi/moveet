@@ -7,7 +7,12 @@ export const DEFAULT_START_OPTIONS: StartOptions = {
   acceleration: 5,
   deceleration: 7,
   turnThreshold: 30,
-  updateInterval: 10000,
+  // Matches the simulator's UPDATE_INTERVAL default (500ms) and stays within
+  // the SpeedPanel slider range [50, 2000]. The previous 10000ms was both
+  // out of slider range and, if posted before getOptions() resolves, drove a
+  // 10s server tick — exceeding the client's MAX_CONTINUOUS_GAP_MS so vehicles
+  // teleported between updates instead of interpolating smoothly.
+  updateInterval: 500,
   adapterSyncInterval: 1000,
   speedVariation: 0.1,
   heatZoneSpeedFactor: 0.5,

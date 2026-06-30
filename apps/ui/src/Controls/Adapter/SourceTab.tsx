@@ -26,7 +26,7 @@ export default function SourceTab({ health, config, loading, onConnect }: Source
 
   return (
     <div className="flex flex-col gap-3">
-      <section className="flex flex-col gap-2 rounded-md border border-border bg-card p-3">
+      <section className="flex flex-col gap-2 rounded-md border border-border surface-raised p-3 shadow-raised">
         <div className="flex items-center justify-between gap-2">
           <span className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
             Active source
@@ -40,7 +40,7 @@ export default function SourceTab({ health, config, loading, onConnect }: Source
         </div>
       </section>
 
-      <section className="flex flex-col gap-2 rounded-md border border-border bg-card p-3">
+      <section className="flex flex-col gap-2 rounded-md border border-border surface-raised p-3 shadow-raised">
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-foreground">Source Type</span>
           <span className="text-xs text-muted-foreground">Select the upstream vehicle feed.</span>
@@ -61,7 +61,7 @@ export default function SourceTab({ health, config, loading, onConnect }: Source
       </section>
 
       {plugin && plugin.configSchema.length > 0 && (
-        <section className="flex flex-col gap-2 rounded-md border border-border bg-card p-3">
+        <section className="flex flex-col gap-2 rounded-md border border-border surface-raised p-3 shadow-raised">
           <div className="flex flex-col gap-1">
             <span className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
               Configuration
@@ -82,7 +82,7 @@ export default function SourceTab({ health, config, loading, onConnect }: Source
       )}
 
       {plugin && plugin.configSchema.length === 0 && (
-        <section className="flex flex-col gap-2 rounded-md border border-border bg-card p-3">
+        <section className="flex flex-col gap-2 rounded-md border border-border surface-raised p-3 shadow-raised">
           <Button disabled={loading || !selectedType} onClick={() => onConnect(selectedType)}>
             {loading ? "Connecting..." : "Connect source"}
           </Button>

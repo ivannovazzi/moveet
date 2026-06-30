@@ -265,6 +265,30 @@ describe("AdapterSyncManager", () => {
       const payload = syncSpy.mock.calls[0][0] as { vehicles: any[] };
       expect(payload.vehicles[0]).not.toHaveProperty("metadata");
     });
+
+    it("should generate and forward a correlation id per sync cycle", async () => {
+      const adapter = (syncManager as any).adapter;
+      const syncSpy = vi.spyOn(adapter, "sync").mockResolvedValue(undefined);
+
+      vi.useFakeTimers();
+      try {
+        syncManager.startLocationUpdates(1000, function* () {} as any);
+        await vi.advanceTimersByTimeAsync(1000);
+        await vi.advanceTimersByTimeAsync(1000);
+      } finally {
+        syncManager.stopLocationUpdates();
+        vi.useRealTimers();
+      }
+
+      expect(syncSpy).toHaveBeenCalledTimes(2);
+      // Each cycle passes a non-empty correlation id as the second argument.
+      const firstCorrelation = syncSpy.mock.calls[0][1] as string;
+      const secondCorrelation = syncSpy.mock.calls[1][1] as string;
+      expect(typeof firstCorrelation).toBe("string");
+      expect(firstCorrelation.length).toBeGreaterThan(0);
+      // A fresh id is generated each cycle.
+      expect(secondCorrelation).not.toBe(firstCorrelation);
+    });
   });
 
   // ─── Backoff on sync failures ─────────────────────────────────────

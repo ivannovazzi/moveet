@@ -287,7 +287,7 @@ export default function RecordReplay({
                 aria-valuenow={Math.round(genPct)}
               >
                 <div
-                  className="h-full bg-accent transition-[width]"
+                  className="h-full bg-accent transition-[width] duration-normal ease-standard"
                   style={{ width: `${genPct}%` }}
                 />
               </div>
@@ -313,7 +313,7 @@ export default function RecordReplay({
                 <div
                   key={file.fileName}
                   className={cn(
-                    "flex flex-col gap-2 rounded-md border border-white/5 bg-white/[0.03] px-2.5 py-2 transition-colors hover:bg-white/[0.06] hover:border-white/10",
+                    "flex flex-col gap-2 rounded-md border border-white/5 bg-white/[0.03] px-2.5 py-2 transition-colors duration-fast ease-standard hover:bg-white/[0.06] hover:border-white/10",
                     isActive && "border-accent/25 bg-accent/10 hover:border-accent/25"
                   )}
                 >
@@ -457,7 +457,10 @@ function EmitControl({ recording }: EmitControlProps) {
             role="progressbar"
             aria-valuenow={Math.round(pct)}
           >
-            <div className="h-full bg-accent transition-[width]" style={{ width: `${pct}%` }} />
+            <div
+              className="h-full bg-accent transition-[width] duration-normal ease-standard"
+              style={{ width: `${pct}%` }}
+            />
           </div>
         </div>
       )}

@@ -31,7 +31,7 @@ export function useMapInteractions({
   onUnselectVehicle,
   createIncidentAtPosition,
 }: UseMapInteractionsOptions) {
-  const [onContextClick, contextMenuRef, contextMenuXY, closeContextMenu] = useContextMenu();
+  const [onContextClick, contextMenuXY, closeContextMenu] = useContextMenu();
   const [selectedItem, setSelectedItem] = useState<Road | POI | null>(null);
   const [destination, setDestination] = useState<Position | null>(null);
 
@@ -154,7 +154,6 @@ export function useMapInteractions({
 
   return {
     // Context menu
-    contextMenuRef,
     contextMenuXY,
     closeContextMenu,
     // Selection state

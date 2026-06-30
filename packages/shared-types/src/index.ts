@@ -324,3 +324,11 @@ export interface ReplayStatus {
   speed?: number; // playback speed multiplier
   paused?: boolean;
 }
+
+// ─── WebSocket Contract ─────────────────────────────────────────────
+// The full simulator -> UI WS message contract lives in ./ws.ts.
+export * from "./ws";
+
+// ─── REST Response Contract ─────────────────────────────────────────
+// Shared simulator REST response/request DTOs live in ./rest.ts.
+export * from "./rest";

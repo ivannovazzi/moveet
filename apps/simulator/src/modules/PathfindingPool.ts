@@ -67,12 +67,21 @@ export class PathfindingPool {
 
     const size = poolSize ?? Math.min(os.cpus().length, 4);
 
-    // Resolve the worker entry across run modes:
-    //  - dev/tsx/vitest: src/modules → src/workers/*.ts
-    //  - tsc output:     dist/modules → dist/workers/*.js
-    //  - esbuild bundle: dist (index bundled) → dist/workers/*.js
+    // The worker is ALWAYS launched as a pre-bundled, self-contained file — it
+    // imports the shared A* cost/heap + OSM-parser modules with extensionless
+    // ESM specifiers that plain Node (and tsx, whose loader does not propagate
+    // into worker_threads) cannot resolve from the raw `.ts`. `build:worker`
+    // (esbuild) emits `dist/workers/pathfinding-worker.cjs`; both dev (tsx) and
+    // vitest launch that same `.cjs`, and so does the production image.
+    //
+    // Resolve it across run modes:
+    //  - dev/tsx/vitest: src/modules → ../../dist/workers/*.cjs
+    //  - tsc/esbuild:    dist/modules (or bundled dist) → dist/workers/*.cjs
+    //  - legacy esbuild ESM output kept as a fallback: dist/workers/*.js
     const workerCandidates = [
-      path.join(__dirname, "..", "workers", "pathfinding-worker.ts"),
+      path.join(__dirname, "..", "..", "dist", "workers", "pathfinding-worker.cjs"),
+      path.join(__dirname, "..", "workers", "pathfinding-worker.cjs"),
+      path.join(__dirname, "workers", "pathfinding-worker.cjs"),
       path.join(__dirname, "..", "workers", "pathfinding-worker.js"),
       path.join(__dirname, "workers", "pathfinding-worker.js"),
     ];

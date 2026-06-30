@@ -1,30 +1,14 @@
-import type { Request, Response, NextFunction } from "express";
+import { createErrorHandler } from "@moveet/server-kit";
 import logger from "../utils/logger";
 
 /**
- * Global Express error handler.
+ * Global Express error handler (must be registered last).
  *
- * Logs the failing request's method, path, and correlation request ID
- * (set by correlationIdMiddleware), including the stack trace outside
- * production. The correlation ID is echoed in the response body so
- * clients can reference it when reporting errors.
+ * Thin wrapper over the shared `@moveet/server-kit` error handler, bound to the
+ * simulator's logger. The shared handler logs via the request-scoped child
+ * logger when present, respects framework-supplied 4xx statuses, and never
+ * leaks internal 5xx error details to clients (only the requestId is echoed).
  */
-export function errorHandler(err: Error, req: Request, res: Response, _next: NextFunction): void {
-  const requestId = res.locals.requestId as string | undefined;
-  const isDev = process.env.NODE_ENV !== "production";
-
-  logger.error(
-    {
-      method: req.method,
-      path: req.path,
-      requestId,
-      ...(isDev && err.stack ? { stack: err.stack } : {}),
-    },
-    `Unhandled error: ${err.message}`
-  );
-
-  if (res.headersSent) return;
-  res.status(500).json({ error: "Internal server error", requestId });
-}
+export const errorHandler = createErrorHandler({ logger });
 
 export default errorHandler;

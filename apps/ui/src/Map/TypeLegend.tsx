@@ -18,8 +18,8 @@ interface TypeLegendProps {
 
 export default function TypeLegend({ hiddenVehicleTypes, onToggle }: TypeLegendProps) {
   return (
-    <div className="absolute bottom-3 left-3 z-10 flex flex-col gap-2 rounded-lg border border-border bg-card/80 p-3 shadow-lg backdrop-blur-md">
-      {VEHICLE_TYPES.map(({ type, label, color }) => {
+    <div className="absolute bottom-3 left-3 z-10 flex flex-col gap-2 rounded-lg border border-border surface-glass p-3 shadow-elevated backdrop-blur-md">
+      {VEHICLE_TYPES.map(({ type, label, color }, i) => {
         const hidden = hiddenVehicleTypes.has(type);
         return (
           <button
@@ -28,10 +28,11 @@ export default function TypeLegend({ hiddenVehicleTypes, onToggle }: TypeLegendP
             onClick={() => onToggle(type)}
             aria-pressed={!hidden}
             className={cn(
-              "flex cursor-pointer items-center gap-3 rounded-md px-2 py-1 text-left transition-colors hover:bg-accent/10",
+              "flex animate-fade-up cursor-pointer items-center gap-3 rounded-md px-2 py-1 text-left transition-colors duration-fast ease-standard hover:bg-accent/10",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               hidden && "opacity-40"
             )}
+            style={{ animationDelay: `${Math.min(i, 6) * 30}ms` }}
             title={hidden ? `Show ${label}` : `Hide ${label}`}
           >
             <span
@@ -39,7 +40,9 @@ export default function TypeLegend({ hiddenVehicleTypes, onToggle }: TypeLegendP
               className="h-2.5 w-2.5 shrink-0 rounded-sm"
               style={{ backgroundColor: color }}
             />
-            <span className="whitespace-nowrap text-sm text-foreground">{label}</span>
+            <span className="whitespace-nowrap text-sm tracking-tight text-foreground">
+              {label}
+            </span>
           </button>
         );
       })}

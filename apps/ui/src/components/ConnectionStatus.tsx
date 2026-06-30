@@ -17,21 +17,26 @@ export default function ConnectionStatus({ connectionInfo, onRetry }: Connection
   return (
     <div
       className={cn(
-        "absolute inset-x-0 top-0 z-50 px-6 py-3 text-center text-sm font-medium tracking-wide text-background",
+        "absolute inset-x-0 top-0 z-50 animate-fade-up px-6 py-3 text-center text-sm font-medium tracking-tight text-background shadow-elevated",
         isReconnecting ? "bg-status-warn" : "bg-status-error"
       )}
       role="alert"
       data-testid="connection-status"
     >
       {isReconnecting ? (
-        `Reconnecting... (attempt ${attempt + 1}/${maxAttempts})`
+        <span className="inline-flex items-center gap-1.5">
+          Reconnecting...{" "}
+          <span className="tabular-nums opacity-80">
+            (attempt {attempt + 1}/{maxAttempts})
+          </span>
+        </span>
       ) : (
         <span className="inline-flex items-center gap-3">
           Disconnected
           <button
             type="button"
             onClick={onRetry}
-            className="rounded border border-background/40 px-2 py-0.5 text-xs font-semibold uppercase tracking-wider transition-colors hover:bg-background/15"
+            className="rounded border border-background/40 px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider transition-colors duration-fast ease-standard hover:bg-background/15"
             data-testid="connection-retry"
           >
             Retry

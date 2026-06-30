@@ -109,12 +109,12 @@ export default function Fleets({
             return (
               <div
                 key={fleet.id}
-                className="flex flex-col overflow-hidden rounded-md border border-white/5 bg-white/[0.03] transition-colors hover:border-white/10"
+                className="flex flex-col overflow-hidden rounded-md border border-white/5 bg-white/[0.03] transition-colors duration-fast ease-standard hover:border-white/10"
               >
                 <button
                   type="button"
                   className={cn(
-                    "flex w-full items-center gap-3 px-2.5 py-2 text-left transition-colors hover:bg-white/[0.06]",
+                    "flex w-full items-center gap-3 px-2.5 py-2 text-left transition-colors duration-fast ease-standard hover:bg-white/[0.06]",
                     isExpanded && "bg-white/[0.06]"
                   )}
                   onClick={() => toggleExpanded(fleet.id)}
@@ -161,14 +161,14 @@ export default function Fleets({
                         {memberVehicles.map((v) => (
                           <div
                             key={v.id}
-                            className="flex items-center justify-between rounded-sm px-2 py-1 transition-colors hover:bg-white/[0.06]"
+                            className="flex items-center justify-between rounded-sm px-2 py-1 transition-colors duration-fast ease-standard hover:bg-white/[0.06]"
                           >
                             <span className="min-w-0 truncate text-[13px] text-foreground">
                               {v.name}
                             </span>
                             <button
                               type="button"
-                              className="flex size-[22px] flex-shrink-0 items-center justify-center rounded-sm border border-transparent text-muted-foreground transition-colors hover:border-status-error/30 hover:bg-status-error/10 hover:text-status-error"
+                              className="flex size-[22px] flex-shrink-0 items-center justify-center rounded-sm border border-transparent text-muted-foreground transition-colors duration-fast ease-standard hover:border-status-error/30 hover:bg-status-error/10 hover:text-status-error"
                               onClick={() => onUnassignVehicle(fleet.id, v.id)}
                               aria-label={`Remove ${v.name}`}
                               title={`Remove ${v.name} from fleet`}
@@ -203,14 +203,14 @@ export default function Fleets({
                           {unassignedVehicles.map((v) => (
                             <div
                               key={v.id}
-                              className="flex items-center justify-between rounded-sm px-2 py-1 transition-colors hover:bg-white/[0.06]"
+                              className="flex items-center justify-between rounded-sm px-2 py-1 transition-colors duration-fast ease-standard hover:bg-white/[0.06]"
                             >
                               <span className="min-w-0 truncate text-[13px] text-foreground">
                                 {v.name}
                               </span>
                               <button
                                 type="button"
-                                className="flex size-[22px] flex-shrink-0 items-center justify-center rounded-sm border border-transparent text-muted-foreground transition-colors hover:border-status-ok/30 hover:bg-status-ok/10 hover:text-status-ok"
+                                className="flex size-[22px] flex-shrink-0 items-center justify-center rounded-sm border border-transparent text-muted-foreground transition-colors duration-fast ease-standard hover:border-status-ok/30 hover:bg-status-ok/10 hover:text-status-ok"
                                 onClick={() => onAssignVehicle(fleet.id, v.id)}
                                 aria-label={`Add ${v.name}`}
                                 title={`Add ${v.name} to fleet`}

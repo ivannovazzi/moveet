@@ -187,12 +187,50 @@ export class AnalyticsAccumulator {
 
   /**
    * Builds a full analytics snapshot (summary + per-fleet breakdowns).
+   *
+   * Prunes stats for retired vehicle ids first. Per-id maps grow as vehicles
+   * appear but are otherwise cleared only on full reset, so without this a long
+   * run with id churn (e.g. adapter-sourced vehicles whose ids come and go)
+   * leaks one entry per retired id. The prune runs here, on the periodic
+   * snapshot path, not on the hot per-tick path.
    */
   getSnapshot(): { summary: AnalyticsSummary; fleets: FleetAnalytics[] } {
+    this.pruneRetired();
     const summary = this.getSummary();
     const fleets = this.fleetManager.getFleets().map((f) => this.getFleetStats(f.id));
 
     return { summary, fleets };
+  }
+
+  // ─── Lifecycle ───────────────────────────────────────────────────
+
+  /**
+   * Drops all accumulated state for a single vehicle. Call when a vehicle is
+   * removed from the registry so its analytics do not outlive it.
+   */
+  removeVehicle(vehicleId: string): void {
+    this.stats.delete(vehicleId);
+    this.prevPositions.delete(vehicleId);
+    this.speedSamples.delete(vehicleId);
+  }
+
+  /**
+   * Removes per-id state for any vehicle no longer present in the registry.
+   * Bounded by the number of currently-tracked ids and runs off the hot path.
+   */
+  private pruneRetired(): void {
+    for (const id of this.stats.keys()) {
+      if (!this.registry.has(id)) this.removeVehicle(id);
+    }
+    // prevPositions / speedSamples ids are always a subset of stats ids
+    // (every accumulate path calls getOrCreateStats), but sweep them defensively
+    // in case state was set without a corresponding stats entry.
+    for (const id of this.prevPositions.keys()) {
+      if (!this.registry.has(id)) this.prevPositions.delete(id);
+    }
+    for (const id of this.speedSamples.keys()) {
+      if (!this.registry.has(id)) this.speedSamples.delete(id);
+    }
   }
 
   // ─── Reset ───────────────────────────────────────────────────────

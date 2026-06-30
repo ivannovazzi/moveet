@@ -1,5 +1,20 @@
+import {
+  Ban,
+  Construction,
+  LocateFixed,
+  MapPinPlus,
+  Navigation,
+  Send,
+  TriangleAlert,
+} from "lucide-react";
 import { DispatchState } from "@/hooks/useDispatchState";
-import { Button } from "@/components/Inputs";
+import {
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { IncidentType } from "@/types";
 
 interface MapContextMenuProps {
@@ -11,6 +26,16 @@ interface MapContextMenuProps {
   onCreateIncident?: (type: IncidentType) => void;
   hasSelectedVehicle: boolean;
   hasDispatchSelection: boolean;
+}
+
+/** Identify-closest-road is available in every dispatch state. */
+function IdentifyRoadItem({ onFindRoad }: { onFindRoad: () => void }) {
+  return (
+    <DropdownMenuItem onSelect={onFindRoad}>
+      <LocateFixed />
+      Identify closest road
+    </DropdownMenuItem>
+  );
 }
 
 export default function MapContextMenu({
@@ -27,62 +52,53 @@ export default function MapContextMenu({
     case DispatchState.BROWSE:
       return (
         <>
-          <Button role="menuitem" onClick={onFindDirections}>
-            Find Directions To Here
-          </Button>
-          <Button role="menuitem" onClick={onFindRoad}>
-            Identify closest road
-          </Button>
-          {hasSelectedVehicle && (
-            <Button role="menuitem" onClick={onSendVehicle}>
-              Send selected vehicle here
-            </Button>
-          )}
-          <Button role="menuitem" onClick={() => onCreateIncident?.("accident")}>
-            Create Accident
-          </Button>
-          <Button role="menuitem" onClick={() => onCreateIncident?.("closure")}>
-            Create Closure
-          </Button>
-          <Button role="menuitem" onClick={() => onCreateIncident?.("construction")}>
-            Create Construction
-          </Button>
+          <DropdownMenuItem onSelect={onFindDirections}>
+            <Navigation />
+            Find directions to here
+          </DropdownMenuItem>
+          <IdentifyRoadItem onFindRoad={onFindRoad} />
+          <DropdownMenuItem disabled={!hasSelectedVehicle} onSelect={onSendVehicle}>
+            <Send />
+            Send selected vehicle here
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <TriangleAlert />
+              Create incident
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuItem onSelect={() => onCreateIncident?.("accident")}>
+                <TriangleAlert />
+                Accident
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onCreateIncident?.("closure")}>
+                <Ban />
+                Closure
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onCreateIncident?.("construction")}>
+                <Construction />
+                Construction
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
         </>
-      );
-
-    case DispatchState.SELECT:
-      return (
-        <Button role="menuitem" onClick={onFindRoad}>
-          Identify closest road
-        </Button>
       );
 
     case DispatchState.ROUTE:
       return (
         <>
-          {hasDispatchSelection && (
-            <Button role="menuitem" onClick={onAddWaypoint}>
-              Add waypoint here
-            </Button>
-          )}
-          <Button role="menuitem" onClick={onFindRoad}>
-            Identify closest road
-          </Button>
+          <DropdownMenuItem disabled={!hasDispatchSelection} onSelect={onAddWaypoint}>
+            <MapPinPlus />
+            Add waypoint here
+          </DropdownMenuItem>
+          <IdentifyRoadItem onFindRoad={onFindRoad} />
         </>
       );
 
+    case DispatchState.SELECT:
     case DispatchState.DISPATCH:
-      return (
-        <Button role="menuitem" onClick={onFindRoad}>
-          Identify closest road
-        </Button>
-      );
-
     case DispatchState.RESULTS:
-      return (
-        <Button role="menuitem" onClick={onFindRoad}>
-          Identify closest road
-        </Button>
-      );
+      return <IdentifyRoadItem onFindRoad={onFindRoad} />;
   }
 }

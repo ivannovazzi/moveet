@@ -74,8 +74,8 @@ export function createGeofenceRoutes(geoFenceManager: GeoFenceManager): Router {
     res.json({ status: "removed" });
   });
 
-  // PATCH /geofences/:id/toggle — flip active flag
-  router.patch("/geofences/:id/toggle", (req, res) => {
+  // POST /geofences/:id/toggle — flip active flag
+  router.post("/geofences/:id/toggle", (req, res) => {
     const updated = geoFenceManager.toggleZone(req.params.id);
     if (!updated) {
       res.status(404).json({ error: "Zone not found" });

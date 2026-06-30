@@ -239,11 +239,15 @@ describe("RedpandaSink", () => {
       });
     });
 
-    it("stops sending after the first failed chunk so retries can't reorder messages", async () => {
-      // Chunk 0 succeeds, chunk 1 fails → chunk 2 must NOT be attempted.
+    it("attempts every chunk in parallel; one failed chunk doesn't discard the others", async () => {
+      // Chunks 0 and 2 succeed, chunk 1 fails. Because the message stream is
+      // keyed per-entity and chunks split across keys, the chunks are sent
+      // concurrently and a single chunk's failure no longer aborts the rest —
+      // chunk 2's 200 messages are still delivered.
       mockSend
-        .mockResolvedValueOnce(undefined)
-        .mockRejectedValueOnce(new Error("broker unavailable"));
+        .mockResolvedValueOnce(undefined) // chunk 0
+        .mockRejectedValueOnce(new Error("broker unavailable")) // chunk 1
+        .mockResolvedValueOnce(undefined); // chunk 2
 
       const sink = new RedpandaSink();
       await sink.connect({ brokers: "localhost:9092", topic: "test-topic", batchSize: 500 });
@@ -256,20 +260,21 @@ describe("RedpandaSink", () => {
 
       const result = await sink.publishUpdates(updates);
 
-      // Only chunks 0 and 1 were sent; the batch aborted before chunk 2.
-      expect(mockSend).toHaveBeenCalledTimes(2);
+      // All three chunks were attempted (parallel, no abort).
+      expect(mockSend).toHaveBeenCalledTimes(3);
+      // 500 (chunk 0) + 200 (chunk 2) delivered; chunk 1's 500 dropped.
       expect(result).toEqual({
         attempted: 1200,
-        succeeded: 500,
-        failures: [
-          { itemId: "chunk-1", error: "broker unavailable" },
-          { itemId: "chunk-2", error: "not attempted (batch aborted after chunk 1 failed)" },
-        ],
+        succeeded: 700,
+        failures: [{ itemId: "chunk-1", error: "broker unavailable" }],
       });
     });
 
-    it("throws when no chunk is delivered (first chunk fails, remainder aborted)", async () => {
-      mockSend.mockRejectedValueOnce(new Error("broker down"));
+    it("throws when every chunk fails so nothing is delivered", async () => {
+      mockSend
+        .mockRejectedValueOnce(new Error("broker down"))
+        .mockRejectedValueOnce(new Error("broker down"))
+        .mockRejectedValueOnce(new Error("broker down"));
 
       const sink = new RedpandaSink();
       await sink.connect({ brokers: "localhost:9092", topic: "test-topic", batchSize: 500 });
@@ -281,10 +286,10 @@ describe("RedpandaSink", () => {
       }));
 
       await expect(sink.publishUpdates(updates)).rejects.toThrow(
-        "First chunk failed to publish; 2 remaining chunk(s) aborted to preserve ordering"
+        "All 3 chunk(s) failed to publish; no messages delivered"
       );
-      // Sends are sequential and abort on first failure: only one attempt.
-      expect(mockSend).toHaveBeenCalledTimes(1);
+      // All chunks are attempted concurrently before the all-failed throw.
+      expect(mockSend).toHaveBeenCalledTimes(3);
     });
 
     it("does not use chunked path for messages under batchSize (no partial failure)", async () => {

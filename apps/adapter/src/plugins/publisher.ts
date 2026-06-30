@@ -1,6 +1,7 @@
 import type { VehicleUpdate } from "../types";
-import type { DataSink, PublishResult, SinkResult } from "./types";
+import type { DataSink, PublishContext, PublishResult, SinkResult } from "./types";
 import { createLogger } from "../utils/logger";
+import { metrics } from "../metrics";
 
 const logger = createLogger("Publisher");
 
@@ -12,17 +13,28 @@ const logger = createLogger("Publisher");
  *
  * Sinks may return partial-success metadata (attempted/succeeded/failures)
  * which is forwarded to the caller via each SinkResult.
+ *
+ * Each settled result is mirrored onto the `adapter_sink_delivery_total`
+ * counter: a clean publish counts as `success`, item/chunk-level partial
+ * failures count as `drop` (attempted-but-undelivered, the sink's at-most-once
+ * semantics), and a whole-sink throw counts as `failure`. This surfaces the
+ * drop/failure counts that previously lived only in the 200/202 response body.
  */
 export class Publisher {
   async publishUpdates(
     updates: VehicleUpdate[],
-    activeSinks: Map<string, DataSink>
+    activeSinks: Map<string, DataSink>,
+    context?: PublishContext
   ): Promise<PublishResult> {
     const sinkEntries = Array.from(activeSinks.entries());
 
     const settled = await Promise.allSettled(
       sinkEntries.map(async ([type, sink]) => {
-        const result = await sink.publishUpdates(updates);
+        // Only pass the context arg when present so existing call-site
+        // expectations (sink.publishUpdates(updates)) stay exact.
+        const result = context
+          ? await sink.publishUpdates(updates, context)
+          : await sink.publishUpdates(updates);
         const sinkResult: SinkResult = { type, success: true };
 
         // If the sink returned partial-failure metadata, incorporate it
@@ -42,13 +54,17 @@ export class Publisher {
     );
 
     const sinkResults: SinkResult[] = settled.map((outcome, i) => {
+      const sinkType = sinkEntries[i][0];
       if (outcome.status === "fulfilled") {
+        this.recordSinkMetrics(sinkType, outcome.value);
         return outcome.value;
       }
       const err = outcome.reason;
       const error = err instanceof Error ? err.message : String(err);
-      logger.error({ err, sink: sinkEntries[i][0] }, `Sink ${sinkEntries[i][0]} error`);
-      return { type: sinkEntries[i][0], success: false, error };
+      logger.error({ err, sink: sinkType }, `Sink ${sinkType} error`);
+      // A whole-sink throw: the entire publish to this sink failed.
+      metrics.recordDelivery(sinkType, "failure");
+      return { type: sinkType, success: false, error };
     });
 
     const failCount = sinkResults.filter((r) => !r.success).length;
@@ -62,5 +78,22 @@ export class Publisher {
     }
 
     return { status, sinks: sinkResults };
+  }
+
+  /**
+   * Mirror a fulfilled sink result onto the delivery counter. When the sink
+   * reported partial-failure metadata, the succeeded count is `success` and the
+   * (attempted − succeeded) shortfall is `drop`; otherwise a clean publish
+   * counts as a single `success`.
+   */
+  private recordSinkMetrics(sinkType: string, result: SinkResult): void {
+    if (result.attempted != null && result.succeeded != null) {
+      metrics.recordDelivery(sinkType, "success", result.succeeded);
+      const dropped = result.attempted - result.succeeded;
+      if (dropped > 0) metrics.recordDelivery(sinkType, "drop", dropped);
+      return;
+    }
+    // Sink returned void / no metadata: count the publish as one success.
+    metrics.recordDelivery(sinkType, "success");
   }
 }

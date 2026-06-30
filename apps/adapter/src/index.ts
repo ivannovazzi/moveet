@@ -9,6 +9,7 @@ import { createLogger } from "./utils/logger";
 import { correlationIdMiddleware } from "./middleware/correlationId";
 import { errorHandlerMiddleware } from "./middleware/errorHandler";
 import { EmitJobRunner } from "./replay/emitJob";
+import { metrics } from "./metrics";
 
 const logger = createLogger("index");
 
@@ -114,12 +115,20 @@ async function startup(): Promise<void> {
   app.use(correlationIdMiddleware);
 
   app.use((req, res, next) => {
-    if (!isReady && req.path !== "/health") {
+    // /health and /metrics must stay scrapeable even before plugins finish
+    // initializing, so monitoring sees the service come up.
+    if (!isReady && req.path !== "/health" && req.path !== "/metrics") {
       res.status(503).json({ error: "Service unavailable, plugins initializing" });
       return;
     }
     next();
   });
+
+  // === Observability ===
+
+  // Prometheus scrape endpoint. Exposes default Node/process metrics plus the
+  // adapter's custom sink-delivery counters and publish-latency histogram.
+  app.get("/metrics", metrics.metricsHandler);
 
   // === Data Endpoints ===
 
@@ -160,21 +169,34 @@ async function startup(): Promise<void> {
       return;
     }
 
+    // Thread the inbound x-request-id (set by correlationIdMiddleware) through to
+    // each sink so delivered telemetry can be correlated back to this request.
+    // The trace id is derived from the same id (single hop) until a dedicated
+    // tracing header is introduced.
+    const correlationId = (res.locals.requestId as string | undefined) ?? null;
+    const publishContext = { correlationId, traceId: correlationId };
+
+    // Time the whole publish so the latency histogram reflects what the caller
+    // experiences; the outcome label is filled in once we know the result.
+    const stopTimer = metrics.publishDuration.startTimer({ path: "/sync" });
     try {
-      const result = await pluginManager.publishUpdates(vehicles);
+      const result = await pluginManager.publishUpdates(vehicles, publishContext);
       // Realism-enabled path returns {status:"accepted"} (async emission via the
       // engine scheduler); 202 is in the 2xx range so the simulator's
       // Adapter.request (which only throws on !response.ok) treats it as success.
       if (result.status === "accepted") {
+        stopTimer({ outcome: "accepted" });
         res.status(202).json({ status: "accepted", count: vehicles.length });
         return;
       }
       // result is now narrowed to PublishResult
+      stopTimer({ outcome: result.status });
       const httpStatus = result.status === "failure" ? 502 : 200;
       res
         .status(httpStatus)
         .json({ status: result.status, count: vehicles.length, sinks: result.sinks });
     } catch (error) {
+      stopTimer({ outcome: "error" });
       res.locals.logger.error({ err: error }, "Error publishing updates");
       res.status(500).json({ error: "Failed to publish updates" });
     }

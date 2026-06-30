@@ -91,7 +91,7 @@ export function Typeahead<T>({
         />
         {open && (
           <div className="relative">
-            <CommandList className="absolute top-1 z-50 max-h-[400px] w-full overflow-y-auto rounded-md border border-border bg-popover p-1 shadow-lg">
+            <CommandList className="absolute top-1 z-50 max-h-[400px] w-full origin-top animate-scale-in overflow-y-auto rounded-md border border-border surface-glass p-1 shadow-floating backdrop-blur-md">
               <CommandEmpty>No results.</CommandEmpty>
               {items.map((item) => (
                 <CommandItem

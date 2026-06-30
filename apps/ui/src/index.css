@@ -50,6 +50,101 @@
   --transition-duration-fast: 150ms;
   --transition-duration-normal: 250ms;
   --transition-duration-slow: 400ms;
+
+  /* ── Polish layer: easing ──────────────────────────────────────────────
+     Refined timing functions (Tailwind v4 `--ease-*` namespace → `ease-<name>`
+     utilities). Use these instead of the default `ease-out` for considered,
+     non-linear motion. None overshoot — the restraint is deliberate.
+       • emphasized → entrances / panels paint-in (expo-out, long graceful tail)
+       • standard   → the default for hover / active state changes
+       • exit       → things leaving the screen (accelerate away)             */
+  --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /* ── Polish layer: elevation ───────────────────────────────────────────
+     Layered soft shadows (Tailwind v4 `--shadow-*` namespace → `shadow-<name>`).
+     Each token BUNDLES an inset top edge-highlight (light catching the top lip)
+     with the ambient + key shadows, so one class delivers the full premium
+     treatment with no extra markup. Prefer these over raw `shadow-lg`.
+       • shadow-raised      → inline raised chrome (list rows, badges, segments)
+       • shadow-elevated    → panels, legends, docked surfaces
+       • shadow-floating    → things truly above the map (dialogs, menus, search)
+       • shadow-glow-accent → active / primary emphasis (accent ring + soft halo) */
+  --shadow-raised: inset 0 1px 0 0 oklch(1 0 0 / 0.04), 0 1px 2px 0 oklch(0 0 0 / 0.3);
+  --shadow-elevated:
+    inset 0 1px 0 0 oklch(1 0 0 / 0.05), 0 1px 2px 0 oklch(0 0 0 / 0.35),
+    0 6px 16px -4px oklch(0 0 0 / 0.4);
+  --shadow-floating:
+    inset 0 1px 0 0 oklch(1 0 0 / 0.06), 0 2px 6px -1px oklch(0 0 0 / 0.4),
+    0 14px 34px -8px oklch(0 0 0 / 0.5);
+  --shadow-glow-accent:
+    inset 0 1px 0 0 oklch(1 0 0 / 0.06), 0 0 0 1px oklch(0.62 0.15 250 / 0.3),
+    0 4px 18px -4px oklch(0.62 0.15 250 / 0.32);
+
+  /* ── Polish layer: curated entrance animations ─────────────────────────
+     Registers `animate-<name>` utilities (Tailwind v4 `--animate-*` namespace).
+     Small, quiet gestures — a few px of travel, a hair of scale. The keyframes
+     live just below this block. All inherit the reduced-motion guard.
+       • animate-fade-up   → sections / list rows settling in (stagger with delay)
+       • animate-scale-in  → popovers, menus, dialogs, tooltips opening
+       • animate-sheen     → loading skeleton shimmer (loops)                   */
+  --animate-fade-up: fade-up var(--transition-duration-slow) var(--ease-emphasized) both;
+  --animate-scale-in: scale-in var(--transition-duration-normal) var(--ease-emphasized) both;
+  --animate-sheen: sheen 1.8s var(--ease-standard) infinite;
+}
+
+/* ── Polish layer: whisper-soft surface gradients ────────────────────────
+   Custom utilities (Tailwind v4 `@utility`). Each is a ~2-3% lightness top→
+   bottom shift — barely perceptible, just enough to give surfaces a sense of
+   light direction. Translucent variants keep `backdrop-blur` reading through.
+     • surface-glass   → replaces `bg-card/80` on glass overlays (dock, legends,
+                         zoom, search, menus). Pair with backdrop-blur + border.
+     • surface-raised  → opaque raised chrome (sidebar panel shell, list rows).
+     • surface-accent  → primary / active emphasis (replaces flat `bg-primary`). */
+@utility surface-glass {
+  background-image: linear-gradient(
+    180deg,
+    oklch(0.232 0.01 255 / 0.82),
+    oklch(0.2 0.009 255 / 0.78)
+  );
+}
+@utility surface-raised {
+  background-image: linear-gradient(180deg, oklch(0.224 0.009 255), oklch(0.198 0.009 255));
+}
+@utility surface-accent {
+  background-image: linear-gradient(180deg, oklch(0.658 0.15 250), oklch(0.6 0.15 250));
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes sheen {
+  0% {
+    background-position: -150% 0;
+  }
+  100% {
+    background-position: 250% 0;
+  }
 }
 
 :root {

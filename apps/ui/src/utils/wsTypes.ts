@@ -1,144 +1,20 @@
-import type {
-  VehicleDTO,
-  SimulationStatus,
-  StartOptions,
-  Heatzone,
-  VehicleDirection,
-  Fleet,
-  IncidentDTO,
-  ReplayStatus,
-  ClockState,
-  TrafficEdge,
-  ScenarioEventPayload,
-  RecordingFile,
-} from "@/types";
-import type { GeoFenceEvent } from "@moveet/shared-types";
-import type { AnalyticsSnapshot } from "@/hooks/analyticsStore";
+// Thin shim: the WebSocket message contract now lives in @moveet/shared-types
+// (packages/shared-types/src/ws.ts). Re-exported here so existing imports
+// (`@/utils/wsTypes`) keep working unchanged.
+export type {
+  WebSocketMessage,
+  WsMessageMap,
+  WsMessageType,
+  WsDataMessageType,
+  WsControlMessageType,
+  ResetPayload,
+  WaypointReachedPayload,
+  RouteCompletedPayload,
+  IncidentClearedPayload,
+  VehicleReroutedPayload,
+  GenerateProgressPayload,
+  GenerateCompletePayload,
+  GenerateErrorPayload,
+} from "@moveet/shared-types";
 
-export interface ResetPayload {
-  vehicles: VehicleDTO[];
-  directions: VehicleDirection[];
-}
-
-export interface WaypointReachedPayload {
-  vehicleId: string;
-  waypointIndex: number;
-  waypointLabel?: string;
-  remaining: number;
-}
-
-export interface RouteCompletedPayload {
-  vehicleId: string;
-}
-
-export interface IncidentClearedPayload {
-  id: string;
-  reason: string;
-}
-
-export interface VehicleReroutedPayload {
-  vehicleId: string;
-  incidentId: string;
-}
-
-export interface GenerateProgressPayload {
-  jobId: string;
-  step: number;
-  totalSteps: number;
-  pct: number;
-}
-
-export interface GenerateCompletePayload {
-  jobId: string;
-  recording: RecordingFile;
-}
-
-export interface GenerateErrorPayload {
-  jobId: string;
-  error: string;
-}
-
-// Discriminated union for WebSocket messages
-export type WebSocketMessage =
-  | { type: "connect" }
-  | { type: "disconnect" }
-  | { type: "vehicle"; data: VehicleDTO }
-  | { type: "vehicles"; data: VehicleDTO[] }
-  | { type: "status"; data: SimulationStatus }
-  | { type: "options"; data: StartOptions }
-  | { type: "heatzones"; data: Heatzone[] }
-  | { type: "direction"; data: VehicleDirection }
-  | { type: "reset"; data: ResetPayload }
-  | { type: "fleet:created"; data: Fleet }
-  | { type: "fleet:deleted"; data: { id: string } }
-  | { type: "fleet:assigned"; data: { fleetId: string | null; vehicleIds: string[] } }
-  | { type: "waypoint:reached"; data: WaypointReachedPayload }
-  | { type: "route:completed"; data: RouteCompletedPayload }
-  | { type: "incident:created"; data: IncidentDTO }
-  | { type: "incident:cleared"; data: IncidentClearedPayload }
-  | { type: "vehicle:rerouted"; data: VehicleReroutedPayload }
-  | { type: "replay:status"; data: ReplayStatus }
-  | { type: "generate:progress"; data: GenerateProgressPayload }
-  | { type: "generate:complete"; data: GenerateCompletePayload }
-  | { type: "generate:error"; data: GenerateErrorPayload }
-  | { type: "clock"; data: ClockState }
-  | { type: "traffic"; data: TrafficEdge[] }
-  | { type: "analytics"; data: AnalyticsSnapshot }
-  | { type: "geofence:event"; data: GeoFenceEvent }
-  | { type: "scenario:started"; data: ScenarioEventPayload }
-  | { type: "scenario:event"; data: ScenarioEventPayload }
-  | { type: "scenario:paused"; data: ScenarioEventPayload }
-  | { type: "scenario:resumed"; data: ScenarioEventPayload }
-  | { type: "scenario:completed"; data: ScenarioEventPayload }
-  | { type: "scenario:stopped"; data: ScenarioEventPayload };
-
-/**
- * Type guard to validate WebSocket message structure
- */
-export function isValidMessage(msg: unknown): msg is WebSocketMessage {
-  if (typeof msg !== "object" || msg === null) return false;
-  const message = msg as { type?: string; data?: unknown };
-
-  // Check if type field exists
-  if (typeof message.type !== "string") return false;
-
-  // Validate based on type
-  switch (message.type) {
-    case "connect":
-    case "disconnect":
-      return true;
-    case "vehicle":
-    case "vehicles":
-    case "status":
-    case "options":
-    case "heatzones":
-    case "direction":
-    case "reset":
-      return "data" in message;
-    case "fleet:created":
-    case "fleet:deleted":
-    case "fleet:assigned":
-    case "waypoint:reached":
-    case "route:completed":
-    case "incident:created":
-    case "incident:cleared":
-    case "vehicle:rerouted":
-    case "replay:status":
-    case "generate:progress":
-    case "generate:complete":
-    case "generate:error":
-    case "clock":
-    case "traffic":
-    case "analytics":
-    case "geofence:event":
-    case "scenario:started":
-    case "scenario:event":
-    case "scenario:paused":
-    case "scenario:resumed":
-    case "scenario:completed":
-    case "scenario:stopped":
-      return "data" in message;
-    default:
-      return false;
-  }
-}
+export { isValidMessage, isValidVehicleDTO } from "@moveet/shared-types";

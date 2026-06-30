@@ -105,7 +105,7 @@ export default function Incidents({ incidents, createRandom, remove, error }: In
           {incidents.map((incident) => (
             <div
               key={incident.id}
-              className="flex items-center gap-3 rounded-md border border-white/5 bg-white/[0.03] px-2.5 py-2 transition-colors hover:bg-white/[0.06]"
+              className="flex items-center gap-3 rounded-md border border-white/5 bg-white/[0.03] px-2.5 py-2 transition-colors duration-fast ease-standard hover:bg-white/[0.06]"
             >
               <span
                 className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
@@ -116,7 +116,7 @@ export default function Incidents({ incidents, createRandom, remove, error }: In
                 <div className="flex items-center gap-3">
                   <div className="h-1 w-12 flex-shrink-0 overflow-hidden rounded-sm bg-muted">
                     <div
-                      className="h-full rounded-sm transition-[width]"
+                      className="h-full rounded-sm transition-[width] duration-normal ease-standard"
                       style={{
                         width: `${(incident.severity ?? 0) * 100}%`,
                         backgroundColor: INCIDENT_COLORS[incident.type],

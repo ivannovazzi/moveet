@@ -161,8 +161,9 @@ describe("WebSocketBroadcaster", () => {
       const wss = createMockWSS([client1, client2]);
       const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer);
 
+      // Transport test: payload shape is irrelevant, only that it round-trips.
       const heatZoneData = { zones: [{ id: "hz1", intensity: 0.5 }] };
-      broadcaster.broadcast("heatzones", heatZoneData);
+      broadcaster.broadcast("heatzones", heatZoneData as never);
 
       // Both clients receive the message immediately (no timer advance needed)
       expect(client1.send).toHaveBeenCalledTimes(1);
@@ -181,7 +182,7 @@ describe("WebSocketBroadcaster", () => {
       const wss = createMockWSS([client]);
       const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer);
 
-      broadcaster.broadcast("direction", { vehicleId: "v1", route: [] });
+      broadcaster.broadcast("direction", { vehicleId: "v1", route: [] } as never);
 
       expect(client.send).toHaveBeenCalledTimes(1);
       const parsed = JSON.parse(client.send.mock.calls[0][0] as string);
@@ -228,7 +229,7 @@ describe("WebSocketBroadcaster", () => {
       const wss = createMockWSS([openClient, closedClient]);
       const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer);
 
-      broadcaster.broadcast("status", { running: true });
+      broadcaster.broadcast("status", { running: true } as never);
 
       expect(openClient.send).toHaveBeenCalledTimes(1);
       expect(closedClient.send).not.toHaveBeenCalled();
@@ -418,7 +419,7 @@ describe("WebSocketBroadcaster", () => {
 
       broadcaster.sendTo(client as unknown as WebSocket, "options", {
         updateInterval: 500,
-      });
+      } as never);
 
       expect(client.send).toHaveBeenCalledTimes(1);
       const parsed = JSON.parse(client.send.mock.calls[0][0] as string);
@@ -433,7 +434,7 @@ describe("WebSocketBroadcaster", () => {
 
       broadcaster.sendTo(client as unknown as WebSocket, "options", {
         updateInterval: 500,
-      });
+      } as never);
 
       expect(client.send).not.toHaveBeenCalled();
     });
@@ -784,13 +785,13 @@ describe("WebSocketBroadcaster", () => {
       const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer);
 
       // Non-vehicle broadcast should NOT check backpressure
-      broadcaster.broadcast("status", { running: true });
+      broadcaster.broadcast("status", { running: true } as never);
       expect(slowClient.send).toHaveBeenCalledTimes(1);
 
       // sendTo should NOT check backpressure
       broadcaster.sendTo(slowClient as unknown as WebSocket, "options", {
         updateInterval: 500,
-      });
+      } as never);
       expect(slowClient.send).toHaveBeenCalledTimes(2);
     });
 
@@ -1604,7 +1605,7 @@ describe("WebSocketBroadcaster", () => {
       const wss = createMockWSS([badClient, goodClient]);
       const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer);
 
-      expect(() => broadcaster.broadcast("status", { running: true })).not.toThrow();
+      expect(() => broadcaster.broadcast("status", { running: true } as never)).not.toThrow();
       expect(goodClient.send).toHaveBeenCalledTimes(1);
     });
 
@@ -1617,7 +1618,7 @@ describe("WebSocketBroadcaster", () => {
       const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer);
 
       expect(() =>
-        broadcaster.sendTo(badClient as unknown as WebSocket, "status", { running: true })
+        broadcaster.sendTo(badClient as unknown as WebSocket, "status", { running: true } as never)
       ).not.toThrow();
     });
   });

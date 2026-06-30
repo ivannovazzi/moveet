@@ -47,6 +47,19 @@ export interface SinkPublishResult {
   failures: SinkItemFailure[];
 }
 
+/**
+ * Optional per-publish context threaded from the inbound request through the
+ * fan-out to each sink, so a sink can stamp delivered messages with the
+ * caller's correlation/trace ids. Optional (and every field defaults to
+ * `null`) to preserve behaviour for callers/sinks that don't supply it.
+ */
+export interface PublishContext {
+  /** Inbound `x-request-id` — correlates this publish with the request log. */
+  correlationId?: string | null;
+  /** Distributed-trace id; derived from the correlation id when not supplied. */
+  traceId?: string | null;
+}
+
 export interface PublishResult {
   status: "success" | "partial" | "failure";
   sinks: SinkResult[];
@@ -103,7 +116,10 @@ export interface DataSink {
   readonly configSchema: ConfigField[];
   connect(config: PluginConfig): Promise<void>;
   disconnect(): Promise<void>;
-  publishUpdates(updates: VehicleUpdate[]): Promise<SinkPublishResult | void>;
+  publishUpdates(
+    updates: VehicleUpdate[],
+    context?: PublishContext
+  ): Promise<SinkPublishResult | void>;
   healthCheck(): Promise<HealthCheckResult>;
 }
 

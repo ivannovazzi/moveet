@@ -10,6 +10,16 @@ import type { ScenarioManager } from "../modules/scenario";
 import type { StateStore } from "../modules/StateStore";
 import type { GenerationManager } from "../modules/GenerationManager";
 import type { VehicleDTO, RecordingMetadata } from "../types";
+import type {
+  GeneratedRecording,
+  VehicleDirection,
+  Heatzone,
+  IncidentDTO,
+  IncidentClearedPayload,
+  WaypointReachedPayload,
+  RouteCompletedPayload,
+  VehicleReroutedPayload,
+} from "@moveet/shared-types";
 import { config } from "../utils/config";
 import logger from "../utils/logger";
 
@@ -33,9 +43,18 @@ export interface EventWiringContext {
  *
  * Returns cleanup intervals that callers should clear on shutdown.
  */
+/** Cadence (ms) at which accumulated per-tick vehicle DTOs are flushed to the
+ * recording layer as a single batched snapshot. Matches the broadcaster flush
+ * cadence so recording granularity tracks the live wire feed. */
+const RECORDING_BATCH_FLUSH_MS = 100;
+
 export function wireEvents(ctx: EventWiringContext): {
   trafficBroadcastInterval: NodeJS.Timeout;
   analyticsBroadcastInterval: NodeJS.Timeout;
+  recordingBatchInterval: NodeJS.Timeout;
+  /** Flushes any pending recording batch immediately. Call before shutdown so
+   * the final tick window is not lost. Safe to call repeatedly. */
+  flushRecordingBatch: () => void;
 } {
   const {
     network,
@@ -55,11 +74,28 @@ export function wireEvents(ctx: EventWiringContext): {
   // Accumulate per-tick vehicle updates and run geofence checks once per flush
   const vehicleBatch: Map<string, VehicleDTO> = new Map();
 
+  // Recording capture is batched separately from the geofence batch: a plain
+  // array (not a Map) preserves every emitted DTO in order so intermediate
+  // positions within a flush window are not coalesced away (RecordingManager
+  // applies its own delta dedup). captureVehicleSnapshot is called ONCE per
+  // flush window instead of once per vehicle per tick (the prior behavior did
+  // a synchronous fs flush path per vehicle).
+  let recordingBatch: VehicleDTO[] = [];
+
+  const flushRecordingBatch = (): void => {
+    if (recordingBatch.length === 0) return;
+    const batch = recordingBatch;
+    recordingBatch = [];
+    recordingManager.captureVehicleSnapshot(batch);
+  };
+
   vehicleManager.on("update", (data) => {
     broadcaster.queueVehicleUpdate(data);
-    recordingManager.captureVehicleSnapshot([data]);
+    recordingBatch.push(data);
     vehicleBatch.set(data.id, data);
   });
+
+  const recordingBatchInterval = setInterval(flushRecordingBatch, RECORDING_BATCH_FLUSH_MS);
 
   // ─── Geofence event → WS broadcaster ───────────────────────────────
   geoFenceManager.on("geofence:event", (event) => {
@@ -141,7 +177,7 @@ export function wireEvents(ctx: EventWiringContext): {
 
       // Persist metadata so the generated recording appears in /recordings, and
       // build the same row shape /recordings returns for the WS payload.
-      let recording: Record<string, unknown> = {
+      let recording: GeneratedRecording = {
         filePath: metadata.filePath,
         duration: metadata.duration,
         eventCount: metadata.eventCount,
@@ -181,27 +217,33 @@ export function wireEvents(ctx: EventWiringContext): {
 
   // ─── Replay events → WS broadcaster ────────────────────────────────
   simulationController.on("replayVehicle", (data) => {
-    const payload = data as { vehicles?: unknown[] };
+    const payload = data as { vehicles?: VehicleDTO[] };
     if (payload.vehicles && Array.isArray(payload.vehicles)) {
       broadcaster.broadcast("vehicles", payload.vehicles);
     }
   });
-  simulationController.on("replayDirection", (data) => broadcaster.broadcast("direction", data));
+  // Replay events carry recording-sourced data typed as `unknown` on the
+  // controller; cast to the contract type for the matching channel.
+  simulationController.on("replayDirection", (data) =>
+    broadcaster.broadcast("direction", data as VehicleDirection)
+  );
   simulationController.on("replayIncident:created", (data) =>
-    broadcaster.broadcast("incident:created", data)
+    broadcaster.broadcast("incident:created", data as IncidentDTO)
   );
   simulationController.on("replayIncident:cleared", (data) =>
-    broadcaster.broadcast("incident:cleared", data)
+    broadcaster.broadcast("incident:cleared", data as IncidentClearedPayload)
   );
-  simulationController.on("replayHeatzones", (data) => broadcaster.broadcast("heatzones", data));
+  simulationController.on("replayHeatzones", (data) =>
+    broadcaster.broadcast("heatzones", data as Heatzone[])
+  );
   simulationController.on("replayWaypoint:reached", (data) =>
-    broadcaster.broadcast("waypoint:reached", data)
+    broadcaster.broadcast("waypoint:reached", data as WaypointReachedPayload)
   );
   simulationController.on("replayRoute:completed", (data) =>
-    broadcaster.broadcast("route:completed", data)
+    broadcaster.broadcast("route:completed", data as RouteCompletedPayload)
   );
   simulationController.on("replayVehicle:rerouted", (data) =>
-    broadcaster.broadcast("vehicle:rerouted", data)
+    broadcaster.broadcast("vehicle:rerouted", data as VehicleReroutedPayload)
   );
   simulationController.on("replay:status", (data) => broadcaster.broadcast("replay:status", data));
 
@@ -237,5 +279,10 @@ export function wireEvents(ctx: EventWiringContext): {
     }
   }, analyticsIntervalMs);
 
-  return { trafficBroadcastInterval, analyticsBroadcastInterval };
+  return {
+    trafficBroadcastInterval,
+    analyticsBroadcastInterval,
+    recordingBatchInterval,
+    flushRecordingBatch,
+  };
 }

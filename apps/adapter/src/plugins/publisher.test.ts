@@ -2,6 +2,14 @@ import { describe, it, expect, vi } from "vitest";
 import { Publisher } from "./publisher";
 import type { DataSink, SinkPublishResult } from "./types";
 import type { VehicleUpdate } from "../types";
+import { metrics } from "../metrics";
+
+/** Read the current value of a sink-delivery counter cell (0 when absent). */
+async function deliveryCount(sink: string, outcome: string): Promise<number> {
+  const json = await metrics.sinkDeliveries.get();
+  const cell = json.values.find((v) => v.labels.sink === sink && v.labels.outcome === outcome);
+  return cell?.value ?? 0;
+}
 
 function createMockSink(overrides?: Partial<DataSink>): DataSink {
   return {
@@ -256,6 +264,51 @@ describe("Publisher", () => {
 
       const consoleSink = result.sinks.find((s) => s.type === "console")!;
       expect(consoleSink.success).toBe(true);
+    });
+
+    it("mirrors success and dropped counts onto the delivery metrics", async () => {
+      const before = {
+        success: await deliveryCount("metrics-sink", "success"),
+        drop: await deliveryCount("metrics-sink", "drop"),
+      };
+      const partial: SinkPublishResult = {
+        attempted: 10,
+        succeeded: 7,
+        failures: [{ itemId: "chunk-1", error: "broker down" }],
+      };
+      const sinks = new Map<string, DataSink>([
+        ["metrics-sink", createMockSink({ publishUpdates: vi.fn().mockResolvedValue(partial) })],
+      ]);
+
+      await publisher.publishUpdates(sampleUpdates, sinks);
+
+      // 7 delivered → success+7; (10-7)=3 undelivered → drop+3.
+      expect(await deliveryCount("metrics-sink", "success")).toBe(before.success + 7);
+      expect(await deliveryCount("metrics-sink", "drop")).toBe(before.drop + 3);
+    });
+
+    it("records a whole-sink throw as a failure on the delivery metrics", async () => {
+      const before = await deliveryCount("throwing-sink", "failure");
+      const sinks = new Map<string, DataSink>([
+        [
+          "throwing-sink",
+          createMockSink({ publishUpdates: vi.fn().mockRejectedValue(new Error("boom")) }),
+        ],
+      ]);
+
+      await publisher.publishUpdates(sampleUpdates, sinks);
+
+      expect(await deliveryCount("throwing-sink", "failure")).toBe(before + 1);
+    });
+
+    it("forwards the publish context to sinks when provided", async () => {
+      const sink = createMockSink();
+      const sinks = new Map<string, DataSink>([["ctx-sink", sink]]);
+      const context = { correlationId: "req-1", traceId: "req-1" };
+
+      await publisher.publishUpdates(sampleUpdates, sinks, context);
+
+      expect(sink.publishUpdates).toHaveBeenCalledWith(sampleUpdates, context);
     });
 
     it("treats sink returning void (no metadata) as success", async () => {

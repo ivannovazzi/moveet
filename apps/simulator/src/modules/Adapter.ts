@@ -24,12 +24,19 @@ interface SyncData {
 const REQUEST_TIMEOUT_MS = config.syncAdapterTimeout || 10_000;
 
 export default class Adapter {
-  private async request<T>(path: string, options: RequestInit): Promise<T> {
+  private async request<T>(path: string, options: RequestInit, correlationId?: string): Promise<T> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
+      // Forward the caller's correlation id as x-request-id so the adapter can
+      // thread it into its telemetry envelope. The header name must be exactly
+      // "x-request-id" to match the adapter's consumer.
+      const headers = correlationId
+        ? { ...(options.headers ?? {}), "x-request-id": correlationId }
+        : options.headers;
       const response = await fetch(`${config.adapterURL}${path}`, {
         ...options,
+        headers,
         keepalive: true,
         signal: controller.signal,
       });
@@ -64,8 +71,8 @@ export default class Adapter {
    * const vehicles = await adapter.get();
    * console.log(`Loaded ${vehicles.length} vehicles from adapter`);
    */
-  public async get(): Promise<DataVehicle[]> {
-    return this.request<DataVehicle[]>("/vehicles", { method: "GET" });
+  public async get(correlationId?: string): Promise<DataVehicle[]> {
+    return this.request<DataVehicle[]>("/vehicles", { method: "GET" }, correlationId);
   }
 
   /**
@@ -73,6 +80,7 @@ export default class Adapter {
    * Sends vehicle positions and timestamp in a single batch update.
    *
    * @param data - Synchronization payload containing vehicles array and optional timestamp
+   * @param correlationId - Optional correlation id forwarded as the x-request-id header
    * @returns Promise that resolves when sync completes
    * @throws {Error} If the adapter request fails
    *
@@ -84,13 +92,17 @@ export default class Adapter {
    *   timestamp: Date.now()
    * });
    */
-  public async sync(data: SyncData): Promise<void> {
-    await this.request<void>("/sync", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+  public async sync(data: SyncData, correlationId?: string): Promise<void> {
+    await this.request<void>(
+      "/sync",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
       },
-      body: JSON.stringify(data),
-    });
+      correlationId
+    );
   }
 }

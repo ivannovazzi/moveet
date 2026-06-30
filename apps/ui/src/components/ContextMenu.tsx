@@ -1,106 +1,65 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
+/**
+ * Cursor-anchored context menu surface, backed by the Radix DropdownMenu
+ * primitive (collision-aware positioning, arrow-key navigation, typeahead,
+ * Escape, outside-click and focus return all come from Radix).
+ *
+ * We can't use Radix's native `ContextMenu` because the right-click must first
+ * pass through deck.gl so the map position (lat/lng) is captured. Instead this
+ * is a *controlled* DropdownMenu whose `open` is driven by `position`, anchored
+ * to a zero-size, pointer-transparent trigger placed at the cursor point.
+ *
+ * `modal={false}` keeps the rest of the UI (and the map) interactive while the
+ * menu is open and lets an outside click / another right-click dismiss it.
+ */
 export default function ContextMenu({
   position,
   children,
   onClose,
 }: {
-  position: { x: number; y: number };
+  position: { x: number; y: number } | null;
   children: React.ReactNode;
   onClose?: () => void;
 }) {
-  const menuRef = useRef<HTMLDivElement>(null);
-  const [adjustedPosition, setAdjustedPosition] = useState(position);
+  const open = position !== null;
 
-  useLayoutEffect(() => {
-    if (!menuRef.current || !position) return;
-    const rect = menuRef.current.getBoundingClientRect();
-    const adjusted = { ...position };
-    if (rect.right > window.innerWidth) {
-      adjusted.x = position.x - rect.width;
-    }
-    if (rect.bottom > window.innerHeight) {
-      adjusted.y = position.y - rect.height;
-    }
-    adjusted.x = Math.max(0, adjusted.x);
-    adjusted.y = Math.max(0, adjusted.y);
-    setAdjustedPosition(adjusted);
-  }, [position]);
-
-  const getFocusable = () =>
-    Array.from(
-      menuRef.current?.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-      ) ?? []
-    );
-
-  // Move focus to the first focusable element on open
-  useEffect(() => {
-    if (!position) return;
-    const focusable = getFocusable();
-    (focusable[0] ?? menuRef.current)?.focus();
-  }, [position]);
-
-  // Trap Tab focus within the menu (wrap at both ends)
-  const handleTabKey = (e: React.KeyboardEvent) => {
-    if (e.key !== "Tab") return;
-    const focusable = getFocusable();
-    if (focusable.length === 0) return;
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    const active = document.activeElement;
-    if (e.shiftKey && active === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && active === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  };
-
-  // Close on outside click
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        onClose?.();
-      }
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [onClose]);
-
-  // Close on Escape
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onClose?.();
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
-
-  if (!position) return null;
-
-  return createPortal(
-    <div
-      ref={menuRef}
-      role="menu"
-      aria-label="Context menu"
-      tabIndex={-1}
-      onKeyDown={handleTabKey}
-      className="flex min-w-[180px] flex-col gap-1 rounded-md border border-border bg-popover p-2 text-sm text-popover-foreground shadow-md outline-none backdrop-blur-md"
-      style={{
-        position: "fixed",
-        top: adjustedPosition.y,
-        left: adjustedPosition.x,
-        zIndex: 1000,
+  return (
+    <DropdownMenu
+      open={open}
+      modal={false}
+      onOpenChange={(next) => {
+        if (!next) onClose?.();
       }}
     >
-      {children}
-    </div>,
-    document.body
+      <DropdownMenuTrigger asChild>
+        <button
+          aria-hidden
+          tabIndex={-1}
+          style={{
+            position: "fixed",
+            left: position?.x ?? 0,
+            top: position?.y ?? 0,
+            width: 0,
+            height: 0,
+            opacity: 0,
+            pointerEvents: "none",
+          }}
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        sideOffset={4}
+        aria-label="Context menu"
+        // Anchor is an invisible point; don't yank focus back to it on close.
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
+        {children}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

@@ -90,6 +90,10 @@ export default function App() {
 
   const { network, loading: networkLoading } = useNetwork();
   const { loading: roadsLoading } = useRoads();
+  // The map can't render (and the SearchBar has nothing to search) until the
+  // road network + roads have loaded. Drives both the loading overlay and the
+  // SearchBar's visibility.
+  const mapLoading = networkLoading || roadsLoading;
   const dataReady = useDataReady();
   const incidents = useIncidents();
   const recording = useRecording();
@@ -101,7 +105,6 @@ export default function App() {
 
   // ─── Map / context-menu interactions ────────────────────────────
   const {
-    contextMenuRef,
     contextMenuXY,
     closeContextMenu,
     selectedItem,
@@ -175,22 +178,22 @@ export default function App() {
           <aside
             className={cn(
               "absolute bottom-0 top-0 left-14 z-30 w-[clamp(248px,22vw,304px)] overflow-hidden",
-              "transition-[transform,opacity,visibility] duration-slow ease-out",
+              "transition-[transform,opacity,visibility] duration-slow ease-emphasized",
               activePanel !== null
                 ? "visible translate-x-0 opacity-100 pointer-events-auto"
                 : "invisible -translate-x-[calc(100%+20px)] opacity-0 pointer-events-none"
             )}
             aria-hidden={activePanel === null}
           >
-            <div className="flex h-full w-full min-w-0 flex-col overflow-hidden border-r border-border bg-card/70 shadow-xl backdrop-blur-2xl">
+            <div className="flex h-full w-full min-w-0 flex-col overflow-hidden border-r border-border surface-glass shadow-elevated backdrop-blur-2xl">
               {activePanel === "vehicles" && (
                 <>
                   <button
                     type="button"
                     className={cn(
-                      "flex w-full items-center justify-center border-b border-border px-4 py-3 text-sm font-medium tracking-wide transition-colors",
+                      "flex w-full items-center justify-center border-b border-border px-4 py-3 text-sm font-medium tracking-wide transition-colors duration-fast ease-standard",
                       dispatch.dispatchMode
-                        ? "bg-accent/15 text-accent"
+                        ? "surface-accent text-accent-foreground shadow-glow-accent"
                         : "bg-foreground/5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
                     )}
                     onClick={dispatch.toggleDispatchMode}
@@ -300,7 +303,7 @@ export default function App() {
         <ErrorBoundary fallback={<SectionErrorFallback section="Map" />}>
           <div className="relative flex min-h-0 min-w-0 flex-1">
             <ConnectionStatus connectionInfo={connectionInfo} onRetry={client.retryConnection} />
-            <LoadingOverlay visible={networkLoading || roadsLoading} />
+            <LoadingOverlay visible={mapLoading} />
             <MapView
               network={network}
               vehicles={vehicles}
@@ -328,12 +331,14 @@ export default function App() {
               drawConfirmId={geofences.drawConfirmId}
               onBboxChange={onBboxChange}
             />
-            <SearchBar
-              selectedItem={selectedItem}
-              onDestinationClick={onDestinationClick}
-              onItemSelect={(item) => setSelectedItem(item)}
-              onItemUnselect={() => setSelectedItem(null)}
-            />
+            {!mapLoading && (
+              <SearchBar
+                selectedItem={selectedItem}
+                onDestinationClick={onDestinationClick}
+                onItemSelect={(item) => setSelectedItem(item)}
+                onItemUnselect={() => setSelectedItem(null)}
+              />
+            )}
             <Zoom />
             <FleetLegend
               fleets={fleets}
@@ -362,25 +367,18 @@ export default function App() {
           </div>
         </ErrorBoundary>
       </div>
-      {contextMenuXY && (
-        <ContextMenu position={contextMenuXY} onClose={closeContextMenu}>
-          <div
-            ref={contextMenuRef}
-            className="flex flex-col items-stretch gap-2 rounded-lg bg-card/80 p-2 backdrop-blur-md"
-          >
-            <MapContextMenu
-              state={dispatch.dispatchState}
-              onFindDirections={onPointDestinationClick}
-              onFindRoad={onFindRoadClick}
-              onSendVehicle={onPointDestinationSingleClick}
-              onAddWaypoint={onContextMenuAddWaypoint}
-              onCreateIncident={onCreateIncident}
-              hasSelectedVehicle={!!filters.selected}
-              hasDispatchSelection={dispatch.selectedForDispatch.length > 0}
-            />
-          </div>
-        </ContextMenu>
-      )}
+      <ContextMenu position={contextMenuXY} onClose={closeContextMenu}>
+        <MapContextMenu
+          state={dispatch.dispatchState}
+          onFindDirections={onPointDestinationClick}
+          onFindRoad={onFindRoadClick}
+          onSendVehicle={onPointDestinationSingleClick}
+          onAddWaypoint={onContextMenuAddWaypoint}
+          onCreateIncident={onCreateIncident}
+          hasSelectedVehicle={!!filters.selected}
+          hasDispatchSelection={dispatch.selectedForDispatch.length > 0}
+        />
+      </ContextMenu>
       <Toaster position="bottom-right" />
     </div>
   );

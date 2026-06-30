@@ -34,10 +34,7 @@ describe("wireEvents", () => {
   let recordingManager: ReturnType<typeof createMockRecordingManager>;
   let geoFenceManager: GeoFenceManager;
   let scenarioManager: EventEmitter;
-  let result: {
-    trafficBroadcastInterval: NodeJS.Timeout;
-    analyticsBroadcastInterval: NodeJS.Timeout;
-  };
+  let result: ReturnType<typeof wireEvents>;
 
   beforeEach(() => {
     network = createMockEmitter();
@@ -72,6 +69,7 @@ describe("wireEvents", () => {
   afterEach(() => {
     clearInterval(result.trafficBroadcastInterval);
     clearInterval(result.analyticsBroadcastInterval);
+    clearInterval(result.recordingBatchInterval);
   });
 
   it("should return a traffic broadcast interval", () => {
@@ -87,10 +85,33 @@ describe("wireEvents", () => {
       expect(broadcaster.queueVehicleUpdate).toHaveBeenCalledWith(data);
     });
 
-    it("should capture vehicle snapshots for recording", () => {
+    it("should not capture per-vehicle synchronously on update (batched)", () => {
       const data = { id: "v1", position: [0, 0] };
       vehicleManager.emit("update", data);
-      expect(recordingManager.captureVehicleSnapshot).toHaveBeenCalledWith([data]);
+      // Capture is deferred to the batch flush, not invoked once per vehicle.
+      expect(recordingManager.captureVehicleSnapshot).not.toHaveBeenCalled();
+    });
+
+    it("should capture batched vehicle snapshots once per flush, not once per vehicle", () => {
+      const v1 = { id: "v1", position: [0, 0] };
+      const v2 = { id: "v2", position: [1, 1] };
+      const v3 = { id: "v3", position: [2, 2] };
+      vehicleManager.emit("update", v1);
+      vehicleManager.emit("update", v2);
+      vehicleManager.emit("update", v3);
+
+      // Drain the accumulated batch (same code path the periodic interval runs).
+      result.flushRecordingBatch();
+
+      // Three updates → exactly one batched capture call carrying all three DTOs
+      // in emit order (not three separate single-vehicle calls).
+      expect(recordingManager.captureVehicleSnapshot).toHaveBeenCalledTimes(1);
+      expect(recordingManager.captureVehicleSnapshot).toHaveBeenCalledWith([v1, v2, v3]);
+    });
+
+    it("should not call capture again when the batch is empty", () => {
+      result.flushRecordingBatch();
+      expect(recordingManager.captureVehicleSnapshot).not.toHaveBeenCalled();
     });
   });
 

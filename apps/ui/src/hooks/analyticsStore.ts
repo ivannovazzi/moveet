@@ -5,33 +5,13 @@
  * every 5 seconds and maintains a rolling history of the last 60 snapshots.
  */
 
-// ─── Analytics types (defined locally; shared-types updated separately) ──
+// ─── Analytics types ────────────────────────────────────────────────
+// Re-exported from shared-types so the analytics contract has a single
+// cross-service source of truth.
 
-export interface AnalyticsSummary {
-  totalVehicles: number;
-  activeVehicles: number;
-  totalDistanceTraveled: number; // km
-  avgSpeed: number; // km/h
-  totalIdleTime: number; // seconds
-  avgRouteEfficiency: number; // ratio, 1.0 = perfect
-  timestamp: number;
-}
+export type { AnalyticsSummary, FleetAnalytics, AnalyticsSnapshot } from "@moveet/shared-types";
 
-export interface FleetAnalytics {
-  fleetId: string;
-  vehicleCount: number;
-  activeCount: number;
-  totalDistance: number;
-  avgSpeed: number;
-  totalIdleTime: number;
-  routeEfficiency: number;
-}
-
-export interface AnalyticsSnapshot {
-  summary: AnalyticsSummary;
-  fleets: FleetAnalytics[];
-  timestamp: number;
-}
+import type { AnalyticsSummary, FleetAnalytics, AnalyticsSnapshot } from "@moveet/shared-types";
 
 const MAX_HISTORY = 60;
 

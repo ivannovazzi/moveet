@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@kafkajs/confluent-schema-registry": "^4.0.8",
+    "@moveet/server-kit": "*",
     "@moveet/shared-types": "*",
     "compression": "^1.8.1",
     "cors": "^2.8.6",
@@ -37,6 +38,7 @@
     "mysql2": "^3.20.0",
     "pg": "^8.20.0",
     "pino": "^10.3.1",
+    "prom-client": "^15.1.3",
     "zod": "^4.3.6"
   },
   "devDependencies": {

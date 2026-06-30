@@ -1,0 +1,44 @@
+{
+  "name": "@moveet/server-kit",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Shared server runtime infrastructure for the Moveet monorepo: pino logger factory, Express correlation-id and error-handling middleware, and a retrying HTTP client (internal, not published)",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "author": "Ivan Novazzi",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ivannovazzi/moveet.git",
+    "directory": "packages/server-kit"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:ci": "vitest run --coverage",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "dependencies": {
+    "pino": "^10.3.1"
+  },
+  "peerDependencies": {
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@moveet/eslint-config": "*",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.5.0",
+    "@types/supertest": "^7.2.0",
+    "@vitest/coverage-v8": "^4.1.1",
+    "eslint": "^10.1.0",
+    "eslint-config-prettier": "^10.1.8",
+    "express": "^5.2.1",
+    "globals": "^17.4.0",
+    "supertest": "^7.2.2",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.1"
+  }
+}

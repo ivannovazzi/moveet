@@ -5,6 +5,7 @@ import type { SimulationController } from "../modules/SimulationController";
 import type { VehicleManager } from "../modules/VehicleManager";
 import type { WebSocketBroadcaster } from "../modules/WebSocketBroadcaster";
 import type { PersistenceManager } from "../modules/PersistenceManager";
+import type { RecordingManager } from "../modules/RecordingManager";
 import { generalRateLimiter, expensiveRateLimiter } from "../middleware/rateLimiter";
 import logger from "../utils/logger";
 
@@ -20,6 +21,11 @@ export interface GracefulShutdownContext {
   network: RoadNetwork;
   trafficBroadcastInterval: NodeJS.Timeout;
   analyticsBroadcastInterval: NodeJS.Timeout;
+  /** Interval that flushes accumulated per-tick vehicle DTOs to the recording layer. */
+  recordingBatchInterval?: NodeJS.Timeout;
+  /** Flushes any pending recording batch synchronously (drain before close). */
+  flushRecordingBatch?: () => void;
+  recordingManager?: RecordingManager;
   persistenceManager?: PersistenceManager;
 }
 
@@ -36,6 +42,9 @@ export function registerGracefulShutdown(ctx: GracefulShutdownContext): void {
     network,
     trafficBroadcastInterval,
     analyticsBroadcastInterval,
+    recordingBatchInterval,
+    flushRecordingBatch,
+    recordingManager,
     persistenceManager,
   } = ctx;
 
@@ -56,6 +65,21 @@ export function registerGracefulShutdown(ctx: GracefulShutdownContext): void {
     clearInterval(trafficBroadcastInterval);
     clearInterval(analyticsBroadcastInterval);
     logger.info("WebSocket broadcaster stopped");
+
+    // Drain the recording pipeline before the process exits: stop the periodic
+    // batch flush, hand the final accumulated tick window to the recording
+    // layer, then stop any active recording so its NDJSON buffer is flushed to
+    // disk (RecordingManager.stopRecording does a synchronous flush + close).
+    if (recordingBatchInterval) clearInterval(recordingBatchInterval);
+    flushRecordingBatch?.();
+    if (recordingManager?.isRecording()) {
+      try {
+        recordingManager.stopRecording();
+        logger.info("Active recording stopped and flushed");
+      } catch (error) {
+        logger.warn(`Error stopping recording during shutdown: ${error}`);
+      }
+    }
 
     // Stop accepting new connections; in-flight HTTP requests may finish
     server.close(() => {

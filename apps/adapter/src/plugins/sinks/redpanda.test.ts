@@ -722,6 +722,56 @@ describe("RedpandaSink", () => {
       expect(Buffer.isBuffer(message.value)).toBe(true);
     });
 
+    it("threads the publish correlation/trace id into the envelope metadata", async () => {
+      await sink.connect({
+        brokers: "localhost:9092",
+        format: "canonical-avro",
+        keyField: "id",
+      });
+      await sink.publishUpdates([{ id: "v1", latitude: -1.28, longitude: 36.8 }], {
+        correlationId: "req-abc-123",
+        traceId: "req-abc-123",
+      });
+
+      const envelope = mockEncode.mock.calls[0][1] as Record<string, any>;
+      expect(envelope.metadata).toEqual({
+        correlation_id: "req-abc-123",
+        causation_id: null,
+        trace_id: "req-abc-123",
+      });
+    });
+
+    it("derives trace_id from correlation_id when no trace id is supplied", async () => {
+      await sink.connect({
+        brokers: "localhost:9092",
+        format: "canonical-avro",
+        keyField: "id",
+      });
+      await sink.publishUpdates([{ id: "v1", latitude: -1.28, longitude: 36.8 }], {
+        correlationId: "req-xyz",
+      });
+
+      const envelope = mockEncode.mock.calls[0][1] as Record<string, any>;
+      expect(envelope.metadata.correlation_id).toBe("req-xyz");
+      expect(envelope.metadata.trace_id).toBe("req-xyz");
+    });
+
+    it("defaults correlation/trace id to null when no publish context is given", async () => {
+      await sink.connect({
+        brokers: "localhost:9092",
+        format: "canonical-avro",
+        keyField: "id",
+      });
+      await sink.publishUpdates([{ id: "v1", latitude: -1.28, longitude: 36.8 }]);
+
+      const envelope = mockEncode.mock.calls[0][1] as Record<string, any>;
+      expect(envelope.metadata).toEqual({
+        correlation_id: null,
+        causation_id: null,
+        trace_id: null,
+      });
+    });
+
     it("maps mobile devices to source=MOBILE", async () => {
       await sink.connect({
         brokers: "localhost:9092",
@@ -800,11 +850,14 @@ describe("RedpandaSink", () => {
       expect(mockEncode).not.toHaveBeenCalled();
     });
 
-    it("encodes lazily per chunk: a failed first chunk stops later chunks from encoding", async () => {
-      // batchSize 1 → one message per chunk; first send fails so the batch
-      // aborts before the second chunk is ever encoded. If encoding were still
-      // eager (whole batch up front), mockEncode would be called twice.
-      mockSend.mockRejectedValueOnce(new Error("broker unavailable"));
+    it("encodes per chunk and sends chunks in parallel with accurate accounting", async () => {
+      // batchSize 1 → one message per chunk. The first chunk's send fails; the
+      // chunks are sent concurrently so the second chunk is still encoded AND
+      // delivered, and the result reports the failed chunk as a drop rather than
+      // discarding the rest of the batch.
+      mockSend
+        .mockRejectedValueOnce(new Error("broker unavailable")) // chunk 0
+        .mockResolvedValueOnce(undefined); // chunk 1
       mockEncode.mockClear();
 
       await sink.connect({
@@ -814,16 +867,20 @@ describe("RedpandaSink", () => {
         batchSize: 1,
       });
 
-      await expect(
-        sink.publishUpdates([
-          { id: "v1", latitude: -1.28, longitude: 36.8 },
-          { id: "v2", latitude: -1.29, longitude: 36.81 },
-        ])
-      ).rejects.toThrow("First chunk failed to publish");
+      const result = await sink.publishUpdates([
+        { id: "v1", latitude: -1.28, longitude: 36.8 },
+        { id: "v2", latitude: -1.29, longitude: 36.81 },
+      ]);
 
-      // Only the first chunk was encoded; the second chunk's encode was skipped.
-      expect(mockEncode).toHaveBeenCalledTimes(1);
-      expect(mockSend).toHaveBeenCalledTimes(1);
+      // Both chunks were encoded and both sends attempted (parallel, no abort).
+      expect(mockEncode).toHaveBeenCalledTimes(2);
+      expect(mockSend).toHaveBeenCalledTimes(2);
+      // One chunk delivered (succeeded: 1), one failed chunk reported.
+      expect(result).toEqual({
+        attempted: 2,
+        succeeded: 1,
+        failures: [{ itemId: "chunk-0", error: "broker unavailable" }],
+      });
     });
   });
 

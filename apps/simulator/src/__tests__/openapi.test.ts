@@ -15,9 +15,10 @@ function loadSpec(): Record<string, unknown> {
 
 /**
  * Infrastructure routes served directly from index.ts that are intentionally
- * excluded from the OpenAPI spec (health check, raw spec download, Scalar UI).
+ * excluded from the OpenAPI spec (health check, raw spec download, Scalar UI,
+ * Prometheus metrics scrape endpoint).
  */
-const EXCLUDED_ROUTES = new Set(["GET /health", "GET /api-docs.yaml"]);
+const EXCLUDED_ROUTES = new Set(["GET /health", "GET /api-docs.yaml", "GET /metrics"]);
 
 /**
  * Extracts all "METHOD /path" strings from Express route handler source files.
