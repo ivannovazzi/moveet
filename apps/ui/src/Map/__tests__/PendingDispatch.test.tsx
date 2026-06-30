@@ -41,8 +41,7 @@ function getLayers(): unknown[] {
 function getLayer(id: string): { props: Record<string, unknown> } | undefined {
   const layers = getLayers();
   return layers.find((l) => (l as { props: { id: string } }).props.id === id) as
-    | { props: Record<string, unknown> }
-    | undefined;
+    { props: Record<string, unknown> } | undefined;
 }
 
 describe("PendingDispatch", () => {

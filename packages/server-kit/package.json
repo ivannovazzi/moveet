@@ -30,15 +30,15 @@
     "@eslint/js": "^10.0.1",
     "@moveet/eslint-config": "*",
     "@types/express": "^5.0.6",
-    "@types/node": "^25.5.0",
+    "@types/node": "^26.0.1",
     "@types/supertest": "^7.2.0",
-    "@vitest/coverage-v8": "^4.1.1",
-    "eslint": "^10.1.0",
+    "@vitest/coverage-v8": "^4.1.9",
+    "eslint": "^10.6.0",
     "eslint-config-prettier": "^10.1.8",
     "express": "^5.2.1",
-    "globals": "^17.4.0",
+    "globals": "^17.6.0",
     "supertest": "^7.2.2",
-    "typescript": "^6.0.2",
-    "vitest": "^4.1.1"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
   }
 }

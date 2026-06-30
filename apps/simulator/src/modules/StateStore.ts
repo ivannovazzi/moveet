@@ -218,8 +218,7 @@ export class StateStore {
     const result = this.insertSnapshotStmt.run(data);
     const id = Number(result.lastInsertRowid);
     const row = this.db.prepare("SELECT created_at FROM snapshots WHERE id = ?").get(id) as
-      | { created_at: string }
-      | undefined;
+      { created_at: string } | undefined;
     return { id, created_at: row?.created_at ?? new Date().toISOString() };
   }
 
