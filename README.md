@@ -48,6 +48,8 @@ A real-time vehicle fleet simulator that runs vehicles on actual road networks w
 | 🔍 **POI + road search**     | Typeahead combining road names and points of interest; dispatches selected vehicles to result                                                                                                                                 |
 | 🖥 **Operator UI**           | Icon-rail sidebar (Vehicles · Fleets · Incidents · Geofences · Recordings · Visibility · Speed · Adapter) + bottom dock with live and replay controls                                                                         |
 | 🔌 **Adapter plugins**       | Hot-swappable source and sink plugins; configure via env vars or REST API at runtime                                                                                                                                          |
+| 📊 **Observability**         | Simulator and adapter each expose a Prometheus `/metrics` endpoint (prom-client); an `x-request-id` correlation id flows end to end (simulator → adapter → telemetry envelope `correlation_id` / `trace_id`)                  |
+| 📈 **Optional scale-out**    | WebSocket fan-out runs in-process by default, or moves to a standalone `ws-gateway` process over a Redis pub/sub bus via `WS_TRANSPORT=redis` (compose `scale` profile, off by default)                                       |
 
 ---
 
@@ -127,8 +129,22 @@ flowchart LR
     SC --> FM[FleetManager]
     SC --> GF[GeoFenceManager<br/>enter / exit events]
     SC --> TM[TrafficManager<br/>BPR · time-of-day]
-    SC --> WS[WebSocket<br/>broadcaster]
+    SC --> WS[WebSocketBroadcaster<br/>buffer + flush]
+    WS --> TR{WS_TRANSPORT}
+    TR -- inprocess (default) --> CF[ClientFanout<br/>per-client fan-out]
+    TR -- redis --> RB[(Redis pub/sub)]
+    RB --> GW[ws-gateway<br/>standalone process]
+    GW --> CF
 ```
+
+The `WebSocketBroadcaster` keeps the de-duping buffer and 10 Hz flush timer, then delegates egress to a `BroadcastTransport`. By default (`WS_TRANSPORT=inprocess`) it fans out to clients on the simulation thread. Setting `WS_TRANSPORT=redis` publishes serialized envelopes onto a Redis bus that a standalone `ws-gateway` process consumes, running the same `ClientFanout` engine against its own WS server so client count scales independently of the simulator. See `apps/simulator/CLAUDE.md` for the transport seam details.
+
+### Shared packages
+
+Cross-app code lives in `packages/`:
+
+- **`@moveet/shared-types`**: the single source of truth for the cross-app contracts. It owns the WebSocket message union (`WsMessageMap`, the derived `WebSocketMessage`, and `WsDataMessageType`) and the REST request/response DTOs. The simulator's broadcaster is typed against the union (`broadcast<K extends WsDataMessageType>(type, data)`), so producer and consumer derive from one definition and a payload-shape change fails to compile on the other side.
+- **`@moveet/server-kit`**: shared server runtime infra used by both Node services, namely the `correlationId` and `errorHandler` Express middleware, a pino `logger` factory with secret redaction, and a retrying `httpClient`.
 
 ---
 
@@ -230,9 +246,10 @@ Regions are defined in `regions.json` (covers major cities globally). Pass `--bb
 
 ### Health
 
-| Method | Path      | Description                 |
-| ------ | --------- | --------------------------- |
-| `GET`  | `/health` | Uptime and subsystem status |
+| Method | Path       | Description                              |
+| ------ | ---------- | ---------------------------------------- |
+| `GET`  | `/health`  | Uptime and subsystem status              |
+| `GET`  | `/metrics` | Prometheus scrape endpoint (prom-client) |
 
 ### Recording & replay
 
@@ -291,6 +308,7 @@ Connect to `ws://localhost:5010`. On connect the server sends a `status` and `op
 | `GET`    | `/fleets`             | Fleets from the current source           |
 | `POST`   | `/sync`               | Push a position update through all sinks |
 | `GET`    | `/health`             | Health check                             |
+| `GET`    | `/metrics`            | Prometheus scrape endpoint (prom-client) |
 
 ### Source plugins
 
@@ -349,21 +367,23 @@ SINK_WEBHOOK_CONFIG='{"url":"https://hooks.example.com/fleet"}'
 
 ### Simulator (`apps/simulator/.env`)
 
-| Variable                | Default                  | Description                                        |
-| ----------------------- | ------------------------ | -------------------------------------------------- |
-| `PORT`                  | `5010`                   | HTTP / WebSocket port                              |
-| `GEOJSON_PATH`          | `./data/network.geojson` | Path to the road-network GeoJSON file              |
-| `VEHICLE_COUNT`         | `70`                     | Number of vehicles to spawn                        |
-| `UPDATE_INTERVAL`       | `500`                    | Position broadcast interval (ms)                   |
-| `MIN_SPEED`             | `20`                     | Minimum vehicle speed (km/h)                       |
-| `MAX_SPEED`             | `60`                     | Maximum vehicle speed (km/h)                       |
-| `ACCELERATION`          | `5`                      | Acceleration rate (km/h per tick)                  |
-| `DECELERATION`          | `7`                      | Deceleration rate (km/h per tick)                  |
-| `TURN_THRESHOLD`        | `30`                     | Bearing change (°) that triggers slowdown          |
-| `SPEED_VARIATION`       | `0.1`                    | Random speed jitter factor `[0, 1]`                |
-| `HEATZONE_SPEED_FACTOR` | `0.5`                    | Speed multiplier inside heat zones                 |
-| `ADAPTER_URL`           | _(empty)_                | Enable adapter sync (e.g. `http://localhost:5011`) |
-| `SYNC_ADAPTER_TIMEOUT`  | `5000`                   | Adapter sync timeout (ms)                          |
+| Variable                | Default                  | Description                                         |
+| ----------------------- | ------------------------ | --------------------------------------------------- |
+| `PORT`                  | `5010`                   | HTTP / WebSocket port                               |
+| `GEOJSON_PATH`          | `./data/network.geojson` | Path to the road-network GeoJSON file               |
+| `VEHICLE_COUNT`         | `70`                     | Number of vehicles to spawn                         |
+| `UPDATE_INTERVAL`       | `500`                    | Position broadcast interval (ms)                    |
+| `MIN_SPEED`             | `20`                     | Minimum vehicle speed (km/h)                        |
+| `MAX_SPEED`             | `60`                     | Maximum vehicle speed (km/h)                        |
+| `ACCELERATION`          | `5`                      | Acceleration rate (km/h per tick)                   |
+| `DECELERATION`          | `7`                      | Deceleration rate (km/h per tick)                   |
+| `TURN_THRESHOLD`        | `30`                     | Bearing change (°) that triggers slowdown           |
+| `SPEED_VARIATION`       | `0.1`                    | Random speed jitter factor `[0, 1]`                 |
+| `HEATZONE_SPEED_FACTOR` | `0.5`                    | Speed multiplier inside heat zones                  |
+| `ADAPTER_URL`           | _(empty)_                | Enable adapter sync (e.g. `http://localhost:5011`)  |
+| `SYNC_ADAPTER_TIMEOUT`  | `5000`                   | Adapter sync timeout (ms)                           |
+| `WS_TRANSPORT`          | `inprocess`              | WebSocket fan-out transport: `inprocess` or `redis` |
+| `REDIS_URL`             | _(empty)_                | Redis bus URL; required when `WS_TRANSPORT=redis`   |
 
 ### Adapter (`apps/adapter/.env`)
 
@@ -429,6 +449,12 @@ For the Flare dev environment (real fleet roster + dev Redpanda), layer the over
 docker compose -f docker-compose.yml -f docker-compose.flare-dev.yml up --build
 ```
 
+To scale the WebSocket fan-out onto a standalone `ws-gateway` process backed by Redis, enable the optional `scale` profile (off by default):
+
+```bash
+WS_TRANSPORT=redis REDIS_URL=redis://redis:6379 docker compose --profile scale up --build
+```
+
 ---
 
 ## Project Structure
@@ -439,6 +465,13 @@ docker compose -f docker-compose.yml -f docker-compose.flare-dev.yml up --build
 | **simulator** | [`apps/simulator/`](apps/simulator/) | Node.js 26 · Express 4 · ws 8 · Turf.js 7                      | 5010 |
 | **adapter**   | [`apps/adapter/`](apps/adapter/)     | Node.js 26 · Express 4                                         | 5011 |
 | **ui**        | [`apps/ui/`](apps/ui/)               | React 19 · deck.gl 9 · Vite · TypeScript 6.0 · Tailwind CSS v4 | 5012 |
+
+Shared workspace packages consumed by the apps:
+
+| Package                  | Path                                               | Role                                                                                        |
+| ------------------------ | -------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| **@moveet/shared-types** | [`packages/shared-types/`](packages/shared-types/) | Cross-app contracts: WebSocket message union + REST request/response DTOs                   |
+| **@moveet/server-kit**   | [`packages/server-kit/`](packages/server-kit/)     | Shared server runtime: correlation-id + error middleware, pino logger, retrying HTTP client |
 
 Each package has its own README with deeper architecture notes.
 

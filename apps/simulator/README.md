@@ -15,7 +15,8 @@ Vehicle location simulator for fleet management systems. Simulates multiple vehi
 - **Headless Generation**: deterministic fast-forward generation of recordings
 - **Analytics**: per-tick fleet/vehicle stats, broadcast and persisted as a time-series
 - **Persistence**: optional SQLite state snapshots + restore
-- **Real-time Transport**: WebSocket broadcasting; optional external adapter integration
+- **Real-time Transport**: WebSocket broadcasting behind a transport seam (`WS_TRANSPORT`): in-process by default, or Redis pub/sub fan-out to a standalone gateway process; optional external adapter integration
+- **Observability**: Prometheus `/metrics` endpoint (`prom-client`) and continuous correlation IDs propagated to the adapter as `x-request-id`
 - **Rate Limiting** and **Docker Support**
 
 ## Requirements
@@ -73,6 +74,10 @@ All config is parsed and validated through a single zod schema in `src/utils/con
 | `STATE_DB_PATH`         | Path to the SQLite state database                                                        | data/state.db          |
 | `ANALYTICS_INTERVAL`    | How often (ms) the analytics snapshot is broadcast and persisted                         | 5000                   |
 | `LOG_LEVEL`             | Pino log level (`fatal`/`error`/`warn`/`info`/`debug`/`trace`/`silent`)                  | info                   |
+| `WS_TRANSPORT`          | WebSocket fan-out transport: `inprocess` (default) or `redis`                            | inprocess              |
+| `REDIS_URL`             | Redis connection URL; **required when `WS_TRANSPORT=redis`** (and by the gateway)        | (empty)                |
+| `WS_PUBSUB_CHANNEL`     | Redis pub/sub channel the simulator publishes to and the gateway subscribes to           | moveet:ws:broadcast    |
+| `WS_GATEWAY_PORT`       | Port the standalone WS gateway listens on                                                | 5020                   |
 
 > Note: there is no `USE_ADAPTER` or `SYNC_ADAPTER` flag. The adapter is enabled simply by setting `ADAPTER_URL`.
 
@@ -210,6 +215,20 @@ Get current simulation options.
 
 Update simulation options.
 
+### Observability
+
+#### `GET /metrics`
+
+Prometheus text exposition of all registered collectors: default Node process metrics
+(event-loop lag, heap, GC, handles) plus simulator-specific WebSocket, adapter-sync, and
+HTTP-request metrics. Collectors live in `src/metrics.ts`; the route is in
+`src/routes/metrics.ts`. Domain modules call thin increment/observe hooks rather than
+importing `prom-client` directly, keeping all collector definitions in one place.
+
+When the adapter is enabled, the adapter HTTP client forwards the caller's correlation id
+as the `x-request-id` header (`src/modules/Adapter.ts`), so the correlation chain stays
+continuous across the simulator → adapter hop.
+
 ## WebSocket API
 
 Connect to `ws://localhost:5010` for real-time updates.
@@ -244,8 +263,29 @@ npm run dev
 ### Build
 
 ```bash
-npm run build
+npm run build         # tsc + build:worker
+npm run build:worker  # bundle the pathfinding worker only
 ```
+
+The pathfinding worker is pre-bundled with esbuild into a self-contained
+`dist/workers/pathfinding-worker.cjs` (`scripts/build-worker.mjs`). The worker imports the
+shared A\* cost/heap modules and OSM-tag parsers via extensionless ESM specifiers that plain
+Node (and tsx, whose loader does not propagate into `worker_threads`) cannot resolve
+from raw `.ts`; bundling inlines them into one dependency-free CJS file. `build:worker` is
+chained into `build`, `predev`, and `pretest`, and `PathfindingPool` always launches the
+`.cjs` (dev, vitest, and prod).
+
+### WebSocket Gateway (optional, `WS_TRANSPORT=redis`)
+
+```bash
+npm run dev:gateway    # gateway with hot-reload (tsx watch)
+npm run start:gateway  # production gateway (dist/ws-gateway.js)
+```
+
+When `WS_TRANSPORT=redis`, the simulator publishes serialized broadcast envelopes to the
+`WS_PUBSUB_CHANNEL` Redis channel, and this standalone gateway (`src/ws-gateway.ts`, listening
+on `WS_GATEWAY_PORT`, default 5020) subscribes and runs the per-client fan-out against its own
+WS server, so client count scales independently of the simulation thread. Requires `REDIS_URL`.
 
 ### Run Tests
 
@@ -284,6 +324,15 @@ This is a ~40-module, EventEmitter-based system. `src/index.ts` mounts the Expre
   StateStore + PersistenceManager (SQLite snapshots + analytics_history)
   WebSocketBroadcaster (batched vehicle updates)
 ```
+
+`RoadNetwork` is a facade over `src/modules/roadnetwork/{GraphBuilder, PathfindingEngine,
+SpatialIndex, types}`, where graph construction, main-thread A\* pathfinding, the spatial
+indexes, and the OSM-tag parsing are split into focused units behind it.
+
+`WebSocketBroadcaster` keeps the de-duping buffer and flush timer but delegates egress to a
+`BroadcastTransport` (`src/modules/ws/`): `InProcessTransport` (default) and
+`RedisPubSubTransport` both drive the shared `ClientFanout` engine, the latter from the
+standalone gateway process.
 
 See `CLAUDE.md` for a fuller module breakdown.
 
