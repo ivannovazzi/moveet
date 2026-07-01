@@ -80,7 +80,7 @@ npx tsx src/cli.ts prepare cairo --output /tmp/cairo.geojson
 The `prepare` command chains six steps. You can also run them individually:
 
 ```bash
-# 1. Download country PBF (cached by ETag)
+# 1. Download country PBF (cached by ETag, MD5-verified)
 npx tsx src/cli.ts download --region cairo
 
 # 2. Extract city bounding box
@@ -110,6 +110,10 @@ npx tsx src/cli.ts validate --input apps/simulator/data/network.geojson
 ## Caching
 
 Downloaded PBF files are stored in `apps/network/.cache/` and reused on subsequent runs (compared by ETag). Use `--force` to re-download even when a cached file exists.
+
+## Checksum verification
+
+After each download the file is verified against the MD5 checksum Geofabrik publishes next to every extract (the same URL with `.md5` appended). On a digest mismatch the suspect file is deleted and the download fails, so a corrupted or tampered artifact is never cached or reused. A missing or unreachable checksum is a soft failure: the pipeline warns and continues, so a transient network blip or a region without a published checksum does not block the run. The ETag is only recorded after verification succeeds.
 
 ## Road classes included
 

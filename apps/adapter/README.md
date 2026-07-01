@@ -124,12 +124,28 @@ cp .env.example .env
 
 **`GET /health`** -- Returns health check status for the active source and all sinks (plus a `realism` status block when the engine is active).
 
+### Observability
+
+**`GET /metrics`** -- Prometheus exposition (text format) for scraping, served via `prom-client` (`src/metrics.ts`). It uses a dedicated registry and exposes the default Node/process collectors (event-loop lag, GC, heap, etc.) alongside two custom collectors:
+
+- `adapter_sink_delivery_total{sink,outcome}` -- per-sink delivery outcome counter. `outcome` is one of `success`, `drop` (a per-item/per-chunk delivery that was attempted but not delivered, reflecting the at-most-once, no-DLQ semantics), or `failure` (a whole-sink publish error). Counts are mirrored from each publish's per-sink result.
+- `adapter_publish_duration_seconds{path,outcome}` -- a latency histogram for publish operations (e.g. the `POST /sync` handler), bucketed from a few milliseconds up to multiple seconds.
+
+`/metrics` (like `/health`) is exempt from the readiness gate that returns 503 while plugins are still initializing, so a scraper sees the service come up.
+
 ### Redpanda sink: payload formats
 
-The Redpanda sink supports two output shapes via its `format` config field:
+The Redpanda sink supports three output shapes via its `format` config field:
 
 - **`dispatch`** (default) -- moveet's native event:
   `{ eventType, eventId, occurredOn, vehicleId, vehicleType, latitude, longitude, timestamp }`.
+- **`canonical-avro`** -- the platform's canonical telemetry-ingest envelope,
+  Confluent-AVRO encoded to `telemetry.device.raw`. Its envelope carries real
+  `metadata.correlation_id` and `metadata.trace_id` sourced from the inbound
+  `x-request-id` (threaded from the request via the `correlationId` middleware),
+  rather than the hardcoded nulls used previously. When no request context is
+  threaded through (e.g. the realism async path), both fall back to `null`,
+  preserving prior behaviour. See [Canonical-AVRO schema](#canonical-avro-schema).
 - **`trajectory`** -- pure-GPS telemetry consumed by the external **trajectory-engine**:
   `{ ts, deviceId, deviceType, lat, lon, speed, heading, altitude, accuracy, ignition }`.
   `deviceId` comes from the update's `id`, and `deviceType` is sourced from
@@ -244,6 +260,40 @@ resolves every one of those device ids to that single vehicle — with no jumpin
 Both features are fully back-compatible: omit `groupBy` for one entity per item,
 omit `fanOut` for one message per update.
 
+### Chunked publishing
+
+When a publish exceeds `batchSize`, the Redpanda sink splits it into chunks and
+sends them **concurrently** (`Promise.allSettled`) rather than sequentially as it
+did before. This is safe because the message stream is keyed per-entity
+(per-vehicle/per-device) and chunking splits across keys, so two chunks never
+carry the same key -- Kafka preserves order within a key and there is no
+cross-key ordering to preserve. Parallelising lifts throughput from O(sum of
+chunk latencies) to O(max chunk latency), and a transient failure in one chunk
+no longer aborts the rest: failed chunks are reported (counts + `failures[]`) and
+dropped (at-most-once, no DLQ), while the remaining chunks still deliver. If
+**every** chunk fails (nothing delivered), the sink throws so the publisher marks
+it failed. The chunk-split and parallel fan-out machinery lives in the shared
+`src/plugins/format/chunking.ts`.
+
+### Canonical-AVRO schema
+
+The `canonical-avro` envelope's AVRO schema is no longer hardcoded inline; it is
+extracted to a versioned artifact at
+`src/plugins/sinks/schemas/canonical-telemetry.v1.avsc`, loaded at module init.
+Keeping it as a standalone `.avsc` lets it be reviewed/diffed as a contract
+artifact and round-trip tested against the real `avsc` codec (the same codec the
+Confluent Schema Registry uses) in
+`src/plugins/sinks/redpanda.avro-roundtrip.test.ts` -- encoding then decoding the
+exact envelopes the sink emits, in-process and offline, which catches
+schema/payload mismatches a mocked registry cannot. The schema is registered
+under the subject `telemetry.device.raw-telemetry.location.reported`.
+
+The Redpanda sink's reusable, transport-agnostic pieces now live under
+`src/plugins/format/`: `template.ts` (the payload-template engine), `context.ts`
+(per-message context + `fanOut` expansion), and `chunking.ts` (chunk split +
+concurrent fan-out with per-chunk accounting). They know nothing about Kafka or
+AVRO, so other sinks could reuse them; only Redpanda consumes them today.
+
 ## Telemetry realism
 
 An optional engine that degrades outgoing telemetry for **all** sinks to mimic
@@ -346,11 +396,16 @@ cd ../simulator && docker compose up
 ```
 src/
   index.ts                   # Express server, routes, plugin registration, auto-config
+  metrics.ts                 # prom-client registry + custom collectors; GET /metrics handler
   utils/config.ts            # Centralized config from env vars
   types/index.ts             # Vehicle, VehicleUpdate, and enum types
   plugins/
-    types.ts                 # DataSource, DataSink, PluginConfig interfaces
+    types.ts                 # DataSource, DataSink, PluginConfig, PublishContext interfaces
     manager.ts               # PluginManager — registry, lifecycle, fan-out
+    format/                  # Sink-generic payload helpers (extracted from redpanda)
+      template.ts            # Payload-template engine
+      context.ts             # Per-message context + fanOut expansion
+      chunking.ts            # Chunk split + concurrent fan-out with per-chunk accounting
     sources/
       graphql.ts             # GraphQL source
       rest.ts                # REST source
@@ -364,6 +419,8 @@ src/
       redis.ts               # Redis Pub/Sub sink
       webhook.ts             # Webhook sink
       console.ts             # Console/stdout sink
+      schemas/
+        canonical-telemetry.v1.avsc  # Versioned canonical telemetry AVRO schema
 ```
 
 ## License
