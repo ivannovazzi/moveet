@@ -103,8 +103,7 @@ const TRAJECTORY_TEMPLATE: PayloadTemplate = {
 
 /** kafkajs `ssl` option once resolved: either `true` (system CAs) or explicit cert material. */
 type ResolvedSsl =
-  | true
-  | { ca?: string[]; cert?: string; key?: string; rejectUnauthorized: boolean };
+  true | { ca?: string[]; cert?: string; key?: string; rejectUnauthorized: boolean };
 
 /** SASL mechanisms supported by the sink (kafkajs username/password mechanisms). */
 const SASL_MECHANISMS = ["plain", "scram-sha-256", "scram-sha-512"] as const;
