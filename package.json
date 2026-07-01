@@ -1,6 +1,6 @@
 {
   "name": "moveet",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "description": "Real-time vehicle fleet simulator on OpenStreetMap road networks",
   "author": "Ivan Novazzi",
   "license": "MIT",
@@ -36,9 +36,9 @@
   "devDependencies": {
     "@commitlint/cli": "^20.5.0",
     "@commitlint/config-conventional": "^20.5.0",
-    "@vitest/coverage-v8": "^4.1.9",
+    "@vitest/coverage-v8": "^4.1.1",
     "esbuild": "0.27.4",
-    "eslint": "^10.6.0",
+    "eslint": "^10.1.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
     "turbo": "^2.8.20"

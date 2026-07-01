@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.0.10](https://github.com/ivannovazzi/moveet/compare/v0.0.9...v0.0.10) (2026-07-01)
+
+
+### Features
+
+* enforce cross-service contract, add observability, and decouple the broadcaster ([#179](https://github.com/ivannovazzi/moveet/issues/179)) ([fb49627](https://github.com/ivannovazzi/moveet/commit/fb49627ff1bd8d7306a89321f6ea2a55568cbccb))
+
+
+### Bug Fixes
+
+* **ui:** snap vehicles to position after idle/reposition instead of gliding (fleetsim-all-bx68) ([#177](https://github.com/ivannovazzi/moveet/issues/177)) ([52b3a81](https://github.com/ivannovazzi/moveet/commit/52b3a81d9d513acb73bdc28c95ec8928e934602d))
+
 ## [0.0.9](https://github.com/ivannovazzi/moveet/compare/v0.0.8...v0.0.9) (2026-06-23)
 
 
