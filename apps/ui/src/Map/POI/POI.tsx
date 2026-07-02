@@ -40,22 +40,22 @@ const POIMarker = memo(function POIMarker({ poi, showLabel, onClick }: POIMarker
   return (
     <HTMLMarker key={poi.id} position={position} onClick={onClick}>
       {showLabel && (
-        <div className="absolute bottom-8 left-1/2 min-w-[120px] -translate-x-1/2 rounded-md border border-border bg-card/90 p-1.5 text-center text-base backdrop-blur-md">
+        <div className="absolute bottom-8 left-1/2 min-w-[120px] -translate-x-1/2 rounded-md border border-border surface-glass p-1.5 text-center text-base shadow-floating backdrop-blur-md">
           {poi.name}
         </div>
       )}
       <div
         className={cn(
-          "flex animate-in fade-in cursor-pointer items-center justify-center transition-transform duration-200 ease-out",
+          "flex animate-scale-in cursor-pointer items-center justify-center transition-transform duration-200 ease-standard",
           bus
-            ? "-ml-[7px] -mt-[7px] h-3.5 w-3.5 rounded-[5px] border border-[#333d] hover:scale-150"
-            : "-ml-[11px] -mt-[11px] h-[22px] w-[22px] rounded-full border border-[#ffffff66] hover:scale-[2]"
+            ? "-ml-[7px] -mt-[7px] h-3.5 w-3.5 rounded-[5px] border border-background/85 hover:scale-150"
+            : "-ml-[11px] -mt-[11px] h-[22px] w-[22px] rounded-full border border-foreground/40 hover:scale-[2]"
         )}
         style={{ background: getFillByType(poi.type) }}
       >
         <IconByType
           type={poi.type}
-          className={cn(bus ? "h-5 w-5 fill-[#333d]" : "h-4 w-4 fill-[#fffd]")}
+          className={cn(bus ? "h-5 w-5 fill-background/85" : "h-4 w-4 fill-foreground/90")}
         />
       </div>
     </HTMLMarker>

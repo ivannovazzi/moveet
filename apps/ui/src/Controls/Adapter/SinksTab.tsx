@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { PanelEmptyState } from "../PanelPrimitives";
 import type { HealthResponse, ConfigResponse } from "./adapterClient";
 import ConfigForm from "./ConfigForm";
 
@@ -125,11 +126,7 @@ export default function SinksTab({ health, config, loading, onAdd, onRemove }: S
           </div>
         </section>
       )}
-      {activeSinks.length === 0 && (
-        <section className="rounded-md border border-dashed border-border bg-muted/40 p-4 text-center text-sm text-muted-foreground">
-          No active sinks
-        </section>
-      )}
+      {activeSinks.length === 0 && <PanelEmptyState>No active sinks</PanelEmptyState>}
 
       {availableToAdd.length > 0 && (
         <section className="flex flex-col gap-2 rounded-md border border-border surface-raised p-3 shadow-raised">

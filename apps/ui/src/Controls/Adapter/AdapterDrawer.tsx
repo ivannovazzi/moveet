@@ -7,7 +7,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
+import { PanelBadge, PanelEmptyState } from "../PanelPrimitives";
 import type { HealthResponse, ConfigResponse } from "./adapterClient";
 import SourceTab from "./SourceTab";
 import SinksTab from "./SinksTab";
@@ -27,12 +27,6 @@ interface AdapterDrawerProps {
   onRemoveSink: (type: string) => void;
   onSetRealism: (config: Record<string, unknown>) => void;
 }
-
-const statusToneClass: Record<string, string> = {
-  Healthy: "border-status-ok/30 bg-status-ok/10 text-status-ok",
-  "Needs attention": "border-status-warn/30 bg-status-warn/10 text-status-warn",
-  neutral: "border-border bg-muted text-foreground",
-};
 
 export default function AdapterDrawer({
   isOpen,
@@ -57,10 +51,10 @@ export default function AdapterDrawer({
 
   const badgeTone =
     drawerStatus === "Healthy"
-      ? statusToneClass.Healthy
+      ? ("healthy" as const)
       : drawerStatus === "Needs attention"
-        ? statusToneClass["Needs attention"]
-        : statusToneClass.neutral;
+        ? ("warning" as const)
+        : ("neutral" as const);
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -71,14 +65,7 @@ export default function AdapterDrawer({
           </div>
           <div className="flex items-start justify-between gap-3">
             <SheetTitle className="text-lg tracking-tight">Connections</SheetTitle>
-            <span
-              className={cn(
-                "inline-flex h-5 items-center justify-center rounded-full border px-2 text-xs font-semibold shadow-raised",
-                badgeTone
-              )}
-            >
-              {drawerStatus}
-            </span>
+            <PanelBadge tone={badgeTone}>{drawerStatus}</PanelBadge>
           </div>
           <SheetDescription>Configure upstream source and downstream sinks.</SheetDescription>
         </SheetHeader>
@@ -116,9 +103,9 @@ export default function AdapterDrawer({
                 <div className="h-16 animate-pulse rounded-md bg-muted" />
               </div>
             ) : !health ? (
-              <section className="rounded-md border border-dashed border-border bg-muted/40 p-4 text-center text-sm text-muted-foreground">
+              <PanelEmptyState>
                 Adapter service is unreachable. Check the connection settings and try again.
-              </section>
+              </PanelEmptyState>
             ) : (
               <>
                 <TabsContent value="source">

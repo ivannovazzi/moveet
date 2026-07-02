@@ -7,6 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PanelEmptyState } from "../PanelPrimitives";
 import type { HealthResponse, ConfigResponse } from "./adapterClient";
 import ConfigForm from "./ConfigForm";
 
@@ -90,9 +91,7 @@ export default function SourceTab({ health, config, loading, onConnect }: Source
       )}
 
       {!plugin && (
-        <section className="rounded-md border border-dashed border-border bg-muted/40 p-4 text-center text-sm text-muted-foreground">
-          Choose a source type to view and edit its configuration.
-        </section>
+        <PanelEmptyState>Choose a source type to view and edit its configuration.</PanelEmptyState>
       )}
     </div>
   );
