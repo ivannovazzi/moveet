@@ -10,7 +10,7 @@ import {
   PanelSectionLabel,
 } from "./PanelPrimitives";
 import { Button } from "@/components/Inputs";
-import { Play, Pause, Stop } from "@/components/Icons";
+import { Play, Pause, Stop, ScenarioIcon } from "@/components/Icons";
 
 interface LogEntry {
   time: number;
@@ -193,7 +193,7 @@ export default function ScenariosPanel() {
 
             <div className="flex gap-2 py-1">
               {status.state === "idle" && (
-                <Button onClick={startScenario} aria-label="Start scenario">
+                <Button variant="default" onClick={startScenario} aria-label="Start scenario">
                   <Play className={controlIconClass} />
                   Start
                 </Button>
@@ -205,7 +205,7 @@ export default function ScenariosPanel() {
                 </Button>
               )}
               {isPaused && (
-                <Button onClick={startScenario} aria-label="Resume scenario">
+                <Button variant="default" onClick={startScenario} aria-label="Resume scenario">
                   <Play className={controlIconClass} />
                   Resume
                 </Button>
@@ -297,7 +297,7 @@ export default function ScenariosPanel() {
         {/* ── Available scenarios list ── */}
         <PanelSectionLabel>Available</PanelSectionLabel>
         {scenarios.length === 0 ? (
-          <PanelEmptyState>No scenarios found</PanelEmptyState>
+          <PanelEmptyState icon={<ScenarioIcon />}>No scenarios found</PanelEmptyState>
         ) : (
           <div className="flex flex-col gap-2">
             {scenarios.map((file) => {
@@ -307,7 +307,7 @@ export default function ScenariosPanel() {
                   key={file.fileName}
                   type="button"
                   className={cn(
-                    "flex w-full flex-wrap items-center gap-3 rounded-md border border-white/5 bg-white/[0.03] px-2.5 py-2 text-left transition-colors duration-fast ease-standard hover:border-white/10 hover:bg-white/[0.06] disabled:cursor-default disabled:opacity-60",
+                    "flex w-full flex-wrap items-center gap-3 rounded-md border border-border-soft bg-white/[0.03] px-2.5 py-2 text-left transition-colors duration-fast ease-standard hover:border-border hover:bg-white/[0.06] disabled:cursor-default disabled:opacity-60",
                     isLoading && "border-accent/25 bg-accent/10"
                   )}
                   onClick={() => loadScenario(file.fileName)}

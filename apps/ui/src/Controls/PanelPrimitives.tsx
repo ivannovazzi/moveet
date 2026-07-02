@@ -41,7 +41,10 @@ export function PanelHeader({
   const TitleTag = titleAs;
 
   return (
-    <div {...props} className={cn("flex-shrink-0 border-b border-border px-3 py-2.5", className)}>
+    <div
+      {...props}
+      className={cn("flex-shrink-0 border-b border-border-soft px-3 py-3", className)}
+    >
       {eyebrow ? (
         <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           {eyebrow}
@@ -118,18 +121,26 @@ export function PanelBadge({ children, tone = "active", className, ...props }: P
 
 interface PanelEmptyStateProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
+  /** Optional glyph shown above the message — give each panel its own
+   * identity instead of every empty state looking identical. */
+  icon?: ReactNode;
 }
 
-export function PanelEmptyState({ children, className, ...props }: PanelEmptyStateProps) {
+export function PanelEmptyState({ children, icon, className, ...props }: PanelEmptyStateProps) {
   return (
     <div
       {...props}
       className={cn(
-        "rounded-md border border-dashed border-border bg-muted/40 p-3 text-center text-xs leading-relaxed text-muted-foreground",
+        "flex flex-col items-center gap-2.5 rounded-lg border border-border-soft surface-raised px-4 py-6 text-center shadow-raised",
         className
       )}
     >
-      {children}
+      {icon ? (
+        <span className="flex size-9 items-center justify-center rounded-full bg-muted text-muted-foreground [&_svg]:size-4">
+          {icon}
+        </span>
+      ) : null}
+      <p className="text-xs leading-relaxed text-muted-foreground">{children}</p>
     </div>
   );
 }
@@ -148,7 +159,7 @@ export function PanelLoadingState({ children, className, ...props }: PanelLoadin
       role="status"
       aria-live="polite"
       className={cn(
-        "flex items-center justify-center gap-2 rounded-md border border-dashed border-border bg-muted/40 p-3 text-center text-xs leading-relaxed text-muted-foreground",
+        "flex items-center justify-center gap-2 rounded-lg border border-border-soft surface-raised p-3 text-center text-xs leading-relaxed text-muted-foreground shadow-raised",
         className
       )}
     >
@@ -172,7 +183,7 @@ export function PanelErrorState({ children, className, ...props }: PanelErrorSta
       {...props}
       role="alert"
       className={cn(
-        "rounded-md border border-dashed border-status-error/40 bg-status-error/10 p-3 text-center text-xs leading-relaxed text-status-error",
+        "rounded-lg border border-status-error/25 bg-status-error/10 p-3 text-center text-xs leading-relaxed text-status-error shadow-raised",
         className
       )}
     >
