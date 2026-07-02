@@ -7,13 +7,15 @@ import { vehicleStore } from "@/hooks/vehicleStore";
 // ---------------------------------------------------------------------------
 // Capture registered layers via useRegisterLayers mock
 // ---------------------------------------------------------------------------
-const { registeredLayers } = vi.hoisted(() => {
+const { registeredLayers, registerCallCount } = vi.hoisted(() => {
   const registeredLayers = new Map<string, unknown[]>();
-  return { registeredLayers };
+  const registerCallCount = { current: 0 };
+  return { registeredLayers, registerCallCount };
 });
 
 vi.mock("@/components/Map/hooks/useDeckLayers", () => ({
   useRegisterLayers: (id: string, layers: unknown[]) => {
+    registerCallCount.current++;
     registeredLayers.set(id, layers);
   },
   useDeckLayersContext: () => ({
@@ -104,6 +106,7 @@ beforeEach(() => {
   vehicleStore.replace([]);
   defaultProps.onClick.mockClear();
   registeredLayers.clear();
+  registerCallCount.current = 0;
 
   // Stub requestAnimationFrame/cancelAnimationFrame with timer-based versions
   vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
@@ -539,5 +542,129 @@ describe("VehiclesLayer hit testing (deck.gl)", () => {
 
     expect(vehiclesLayer.props.pickable).toBe(true);
     expect(typeof vehiclesLayer.props.onClick).toBe("function");
+  });
+});
+
+describe("VehiclesLayer publish-path efficiency (fleetsim-all-utrr)", () => {
+  // The RAF loop treats a vehicle as "animating" (still mid-lerp) for
+  // DEFAULT_LERP_MS * MAX_T = 150 * 1.15 = 172.5ms after its last update.
+  // Tests must advance past that window before treating the scene as idle,
+  // otherwise the in-progress lerp itself (correctly) keeps publishing.
+  const SETTLE_TICKS = 12; // 12 * 16ms = 192ms > 172.5ms
+
+  function advanceIdleTicks(count: number) {
+    for (let i = 0; i < count; i++) {
+      act(() => {
+        vi.advanceTimersByTime(16);
+      });
+    }
+  }
+
+  it("does not rebuild/republish vehicle data on a fully idle frame", () => {
+    // A stationary vehicle: no position/heading change, no selection/hover,
+    // no zoom/viewport/fleet change. Once settled (post-spawn snap fully
+    // elapsed), further RAF ticks should not produce a new data array.
+    vehicleStore.replace([
+      { id: "v1", name: "V1", position: [36.82, -1.29], speed: 0, heading: 0 },
+    ]);
+    renderAndTick();
+
+    // Advance past the lerp window so the vehicle is no longer "animating".
+    advanceIdleTicks(SETTLE_TICKS);
+
+    const firstData = getVehiclesLayerData();
+    expect(firstData.length).toBe(1);
+
+    const callsAfterSettling = registerCallCount.current;
+
+    // Further idle ticks (nothing changed) should not trigger any more
+    // layer registrations.
+    advanceIdleTicks(20);
+
+    // No further layer registrations means the dirty check skipped the
+    // array build + publish entirely on every idle frame.
+    expect(registerCallCount.current).toBe(callsAfterSettling);
+    expect(getVehiclesLayerData()).toEqual(firstData);
+  });
+
+  it("resumes publishing once the store changes again after an idle stretch", () => {
+    vehicleStore.replace([
+      { id: "v1", name: "V1", position: [36.82, -1.29], speed: 30, heading: 0 },
+    ]);
+    renderAndTick();
+
+    advanceIdleTicks(SETTLE_TICKS);
+
+    const idleData = getVehiclesLayerData();
+    const callsAfterSettling = registerCallCount.current;
+
+    advanceIdleTicks(20);
+    expect(registerCallCount.current).toBe(callsAfterSettling);
+
+    // A genuine move should produce fresh data again.
+    vehicleStore.replace([
+      { id: "v1", name: "V1", position: [36.83, -1.3], speed: 30, heading: 90 },
+    ]);
+    act(() => {
+      vi.advanceTimersByTime(50);
+    });
+
+    expect(registerCallCount.current).toBeGreaterThan(callsAfterSettling);
+    const movedData = getVehiclesLayerData();
+    expect(movedData).not.toEqual(idleData);
+    expect(movedData[0].id).toBe("v1");
+  });
+
+  it("resolves fleet colors from a precomputed map instead of per-frame CSS resolution", () => {
+    const getComputedStyleSpy = vi.spyOn(window, "getComputedStyle");
+    const fleetMap = makeFleetMap(["v1", { color: "#123456" }]);
+
+    vehicleStore.replace([
+      { id: "v1", name: "V1", position: [36.82, -1.29], speed: 0, heading: 0 },
+    ]);
+    renderAndTick({ vehicleFleetMap: fleetMap });
+
+    const dataAfterFirstPublish = getVehiclesLayerData();
+    expect(dataAfterFirstPublish[0].icon).toBe("car|#123456");
+
+    getComputedStyleSpy.mockClear();
+
+    // Many idle-ish frames with the SAME fleetMap identity: resolveCSSColor
+    // (which calls getComputedStyle for var(...) references) must not be
+    // invoked again per vehicle per frame — plain colors like "#123456" never
+    // call it anyway, so this also guards the var(...) path via the atlas
+    // warm-up not re-running.
+    for (let i = 0; i < 10; i++) {
+      act(() => {
+        vi.advanceTimersByTime(16);
+      });
+    }
+
+    expect(getComputedStyleSpy).not.toHaveBeenCalled();
+    getComputedStyleSpy.mockRestore();
+  });
+
+  it("rebuilds the fleet color map when the fleet map identity changes", () => {
+    const fleetMapA = makeFleetMap(["v1", { color: "#111111" }]);
+    const fleetMapB = makeFleetMap(["v1", { color: "#222222" }]);
+
+    vehicleStore.replace([
+      { id: "v1", name: "V1", position: [36.82, -1.29], speed: 0, heading: 0 },
+    ]);
+    const { rerender } = render(<VehiclesLayer {...defaultProps} vehicleFleetMap={fleetMapA} />);
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+    act(() => {
+      vi.advanceTimersByTime(50);
+    });
+    expect(getVehiclesLayerData()[0].icon).toBe("car|#111111");
+
+    rerender(<VehiclesLayer {...defaultProps} vehicleFleetMap={fleetMapB} />);
+    act(() => {
+      vi.advanceTimersByTime(50);
+    });
+
+    expect(getVehiclesLayerData()[0].icon).toBe("car|#222222");
   });
 });

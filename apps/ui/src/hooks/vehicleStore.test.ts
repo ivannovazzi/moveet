@@ -115,6 +115,46 @@ describe("vehicleStore — trail buffer", () => {
     expect(vehicleStore.getAll().get("v1")!.id).toBe("v1");
   });
 
+  it("remove() deletes both the vehicle and its trail data", () => {
+    vehicleStore.set(createVehicleDTO({ id: "v1", position: [1, 1] }));
+    vehicleStore.set(createVehicleDTO({ id: "v1", position: [2, 2] }));
+
+    expect(vehicleStore.getAll().has("v1")).toBe(true);
+    expect(vehicleStore.getTrail("v1")).toHaveLength(2);
+
+    vehicleStore.remove("v1");
+
+    expect(vehicleStore.getAll().has("v1")).toBe(false);
+    expect(vehicleStore.getTrail("v1")).toEqual([]);
+    // Internal trails map should no longer even have an entry for v1 (not just empty).
+    expect(vehicleStore.getAllTrails().has("v1")).toBe(false);
+  });
+
+  it("remove() does not affect other vehicles' trails (spawn/despawn cycle)", () => {
+    vehicleStore.set(createVehicleDTO({ id: "v1", position: [1, 1] }));
+    vehicleStore.set(createVehicleDTO({ id: "v2", position: [9, 9] }));
+    vehicleStore.set(createVehicleDTO({ id: "v2", position: [10, 10] }));
+
+    vehicleStore.remove("v1");
+
+    expect(vehicleStore.getAll().has("v1")).toBe(false);
+    expect(vehicleStore.getAllTrails().has("v1")).toBe(false);
+    expect(vehicleStore.getAll().has("v2")).toBe(true);
+    expect(vehicleStore.getTrail("v2")).toHaveLength(2);
+  });
+
+  it("repeated spawn/despawn cycles leave no residual trail entries", () => {
+    for (let i = 0; i < 20; i++) {
+      const id = `transient-${i}`;
+      vehicleStore.set(createVehicleDTO({ id, position: [i, i] }));
+      vehicleStore.set(createVehicleDTO({ id, position: [i + 1, i + 1] }));
+      vehicleStore.remove(id);
+    }
+
+    expect(vehicleStore.getAllTrails().size).toBe(0);
+    expect(vehicleStore.getAll().size).toBe(0);
+  });
+
   it("enqueued updates are applied atomically before a read", () => {
     vehicleStore.enqueue(createVehicleDTO({ id: "v1", position: [1, 1] }));
     vehicleStore.enqueue(createVehicleDTO({ id: "v2", position: [2, 2] }));

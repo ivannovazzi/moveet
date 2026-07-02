@@ -108,6 +108,29 @@ function resolveCSSColor(color: string): string {
 }
 
 /**
+ * Build a vehicleId -> resolved color lookup for every vehicle currently
+ * carrying a fleet color. Called only when `vehicleFleetMap` changes identity
+ * (fleet assignment/color edits), not per animation frame — the hot loop
+ * below does a plain Map.get() instead of resolving CSS per vehicle per tick.
+ */
+function buildFleetColorMap(fleetMap: Map<string, Fleet>): Map<string, string> {
+  const colors = new Map<string, string>();
+  for (const [vehicleId, fleet] of fleetMap) {
+    colors.set(vehicleId, resolveCSSColor(fleet.color));
+  }
+  return colors;
+}
+
+/** Resolved default (no-fleet) color per vehicle type. Static — computed once. */
+const DEFAULT_TYPE_COLORS: Record<string, string> = Object.fromEntries(
+  Object.entries(VEHICLE_TYPE_COLORS).map(([type, color]) => [type, resolveCSSColor(color)])
+);
+
+function defaultColorForType(vehicleType: string): string {
+  return DEFAULT_TYPE_COLORS[vehicleType] ?? DEFAULT_FILL;
+}
+
+/**
  * Zoom-dependent vehicle sizing. Vehicles grow when zooming in and shrink
  * when zooming out, but at a reduced rate (exponent < 1) so they remain
  * visible at overview zoom levels instead of becoming sub-pixel.
@@ -174,6 +197,15 @@ export default function VehiclesLayer({
   hoveredRef.current = hoveredId;
   const fleetMapRef = useRef(vehicleFleetMap);
   fleetMapRef.current = vehicleFleetMap;
+  // Precomputed vehicleId -> resolved color, rebuilt only when vehicleFleetMap
+  // changes identity (not per animation frame). Avoids resolveCSSColor() calls
+  // in the hot loop for the common case of unchanged fleet assignments/colors.
+  const fleetColorsRef = useRef<Map<string, string>>(new Map());
+  const fleetColorsSourceRef = useRef<Map<string, Fleet> | null>(null);
+  if (fleetColorsSourceRef.current !== vehicleFleetMap) {
+    fleetColorsSourceRef.current = vehicleFleetMap;
+    fleetColorsRef.current = buildFleetColorMap(vehicleFleetMap);
+  }
   const hiddenFleetsRef = useRef(hiddenFleetIds);
   hiddenFleetsRef.current = hiddenFleetIds;
   const hiddenTypesRef = useRef(hiddenVehicleTypes);
@@ -345,11 +377,14 @@ export default function VehiclesLayer({
         hiddenFleetsRef.current !== lastHiddenFleets ||
         hiddenTypesRef.current !== lastHiddenTypes;
 
-      // Skip the React state update when nothing visible changed: no vehicle
-      // moved (mid-lerp), none was added/removed, and zoom/viewport/selection/
-      // filters are all unchanged. WS ticks that re-send identical positions
-      // no longer cause re-renders.
-      if (!structureChanged && !animating && !zoomChanged && !visualsChanged && !boundsChanged) {
+      // Dirty check: skip building/publishing the VehicleIconDatum[] array
+      // entirely when nothing visible changed — no vehicle moved (mid-lerp),
+      // none was added/removed, and zoom/viewport/selection/filters are all
+      // unchanged. WS ticks that re-send identical positions no longer cause
+      // a fresh array allocation or a re-render.
+      const isDirty =
+        structureChanged || animating || zoomChanged || visualsChanged || boundsChanged;
+      if (!isDirty) {
         return;
       }
 
@@ -367,6 +402,7 @@ export default function VehiclesLayer({
 
       const store = vehicleStore.getAll();
       const fleetMap = fleetMapRef.current;
+      const fleetColors = fleetColorsRef.current;
       const hiddenFleets = hiddenFleetsRef.current;
       const hiddenTypes = hiddenTypesRef.current;
 
@@ -415,8 +451,8 @@ export default function VehiclesLayer({
         }
 
         const vehicleType = v.type || "car";
-        const defaultColor = VEHICLE_TYPE_COLORS[vehicleType] || DEFAULT_FILL;
-        const color = resolveCSSColor(fleet?.color ?? defaultColor);
+        // Precomputed lookups — no resolveCSSColor() call in the hot loop.
+        const color = fleetColors.get(v.id) ?? defaultColorForType(vehicleType);
 
         vehicles.push({
           id: v.id,
