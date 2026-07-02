@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { RouteManager } from "../modules/RouteManager";
+import { RouteManager, UNROUTED_LOG_SAMPLE_RATE } from "../modules/RouteManager";
 import { VehicleRegistry } from "../modules/VehicleRegistry";
 import { TrafficManager } from "../modules/TrafficManager";
 import { FleetManager } from "../modules/FleetManager";
@@ -7,6 +7,12 @@ import { RoadNetwork } from "../modules/RoadNetwork";
 import { config } from "../utils/config";
 import type { Vehicle, Route, StartOptions } from "../types";
 import path from "path";
+import logger from "../utils/logger";
+import * as metrics from "../metrics";
+
+vi.mock("../utils/logger", () => ({
+  default: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+}));
 
 const FIXTURE_PATH = path.join(__dirname, "fixtures", "test-network.geojson");
 
@@ -280,6 +286,80 @@ describe("RouteManager", () => {
     });
   });
 
+  // ─── Unrouted-vehicle metric / sampled warning ─────────────────────
+
+  describe("unrouted vehicle tracking", () => {
+    beforeEach(() => {
+      vi.mocked(logger.warn).mockClear();
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("logs a warning and records the gauge on the first unrouted retry", () => {
+      const vehicle = firstVehicle();
+      routeManager.setRandomDestination = vi.fn();
+      const gaugeSpy = vi.spyOn(metrics, "setUnroutedVehicles");
+
+      // No route set -> updateVehicle takes the "unrouted" branch immediately
+      // (lastPathfindAttempt starts empty, so the cooldown gate passes).
+      routeManager.updateVehicle(vehicle, 500, DEFAULT_OPTIONS);
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`Vehicle ${vehicle.id} still unrouted after 1 pathfind attempt`)
+      );
+      expect(gaugeSpy).toHaveBeenCalledWith(1);
+      expect(routeManager.setRandomDestination).toHaveBeenCalledWith(vehicle.id);
+    });
+
+    it("does not spam a warning on every retry, only first + every Nth", () => {
+      const vehicle = firstVehicle();
+      routeManager.setRandomDestination = vi.fn();
+
+      // Drive PATHFIND_COOLDOWN + 1 retries by advancing lastPathfindAttempt
+      // into the past before each call, bypassing real timers.
+      const cooldown = (RouteManager as any).PATHFIND_COOLDOWN as number;
+      const attempts = UNROUTED_LOG_SAMPLE_RATE + 1;
+      for (let i = 0; i < attempts; i++) {
+        (routeManager as any).lastPathfindAttempt.set(vehicle.id, Date.now() - cooldown - 1);
+        routeManager.updateVehicle(vehicle, 500, DEFAULT_OPTIONS);
+      }
+
+      // Only the 1st and the (UNROUTED_LOG_SAMPLE_RATE)th attempts should log.
+      const unroutedWarnings = vi
+        .mocked(logger.warn)
+        .mock.calls.filter((call) => String(call[0]).includes("still unrouted"));
+      expect(unroutedWarnings).toHaveLength(2);
+      expect(unroutedWarnings[0][0]).toContain("after 1 pathfind attempt");
+      expect(unroutedWarnings[1][0]).toContain(
+        `after ${UNROUTED_LOG_SAMPLE_RATE} pathfind attempt`
+      );
+    });
+
+    it("clears the unrouted count once a route is successfully assigned", async () => {
+      const vehicle = firstVehicle();
+      const gaugeSpy = vi.spyOn(metrics, "setUnroutedVehicles");
+
+      // Stub the pathfinder to resolve deterministically (avoids depending on
+      // real worker-pool timing) with a route for the vehicle's current edge.
+      const route: Route = { edges: [vehicle.currentEdge], distance: vehicle.currentEdge.distance };
+      const findRouteSpy = vi.spyOn(network, "findRouteAsync").mockResolvedValue(route);
+
+      // Trigger one failed-cooldown retry to populate unroutedAttempts and
+      // kick off setRandomDestination (which calls findRouteAsync above).
+      routeManager.updateVehicle(vehicle, 500, DEFAULT_OPTIONS);
+      expect(gaugeSpy).toHaveBeenLastCalledWith(1);
+
+      // Let the mocked pathfind promise settle.
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(findRouteSpy).toHaveBeenCalled();
+      expect(gaugeSpy).toHaveBeenLastCalledWith(0);
+    });
+  });
+
   // ─── reset ────────────────────────────────────────────────────────
 
   describe("reset", () => {
@@ -291,6 +371,18 @@ describe("RouteManager", () => {
 
       expect(routeManager.getRoute(vehicle.id)).toBeUndefined();
       expect(routeManager.getDirections()).toHaveLength(0);
+    });
+
+    it("should zero out the unrouted-vehicles gauge", () => {
+      const gaugeSpy = vi.spyOn(metrics, "setUnroutedVehicles");
+      const vehicle = firstVehicle();
+      routeManager.setRandomDestination = vi.fn();
+      routeManager.updateVehicle(vehicle, 500, DEFAULT_OPTIONS);
+      expect(gaugeSpy).toHaveBeenLastCalledWith(1);
+
+      routeManager.reset();
+
+      expect(gaugeSpy).toHaveBeenLastCalledWith(0);
     });
   });
 });

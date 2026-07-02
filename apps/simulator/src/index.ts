@@ -109,6 +109,9 @@ app.get("/health", (_req, res) => {
       roadNetwork: !!network,
       simulation: simulationController.getStatus().ready,
     },
+    // true when adapter integration is disabled, or its most recent sync
+    // attempt succeeded; false only when configured and the last attempt failed.
+    adapterConnected: vehicleManager.adapterSync.isConnected(),
   });
 });
 

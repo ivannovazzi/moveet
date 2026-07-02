@@ -415,6 +415,94 @@ describe("AdapterSyncManager", () => {
     });
   });
 
+  // ─── Health reporting (isEnabled / isConnected) ────────────────────
+
+  describe("isEnabled / isConnected", () => {
+    it("should report disabled when adapterURL is not configured", () => {
+      expect(syncManager.isEnabled()).toBe(false);
+    });
+
+    it("should report connected when adapter is not configured (nothing to be down)", () => {
+      expect(syncManager.isConnected()).toBe(true);
+    });
+
+    it("should report enabled when adapterURL is configured", () => {
+      (config as any).adapterURL = "http://localhost:5011";
+      syncManager = new AdapterSyncManager();
+      expect(syncManager.isEnabled()).toBe(true);
+    });
+
+    it("should report connected (optimistically) before any sync attempt has settled", () => {
+      (config as any).adapterURL = "http://localhost:5011";
+      syncManager = new AdapterSyncManager();
+      expect(syncManager.isConnected()).toBe(true);
+    });
+
+    it("should report connected after a successful sync", async () => {
+      (config as any).adapterURL = "http://localhost:5011";
+      syncManager = new AdapterSyncManager();
+      const adapter = (syncManager as any).adapter;
+      vi.spyOn(adapter, "sync").mockResolvedValue(undefined);
+
+      vi.useFakeTimers();
+      try {
+        syncManager.startLocationUpdates(1000, function* () {} as any);
+        await vi.advanceTimersByTimeAsync(1000);
+      } finally {
+        syncManager.stopLocationUpdates();
+        vi.useRealTimers();
+      }
+
+      expect(syncManager.isConnected()).toBe(true);
+    });
+
+    it("should report disconnected after a failed sync", async () => {
+      (config as any).adapterURL = "http://localhost:5011";
+      syncManager = new AdapterSyncManager();
+      const adapter = (syncManager as any).adapter;
+      vi.spyOn(adapter, "sync").mockRejectedValue(new Error("adapter down"));
+
+      vi.useFakeTimers();
+      try {
+        syncManager.startLocationUpdates(1000, function* () {} as any);
+        await vi.advanceTimersByTimeAsync(1000);
+      } finally {
+        syncManager.stopLocationUpdates();
+        vi.useRealTimers();
+      }
+
+      expect(syncManager.isConnected()).toBe(false);
+    });
+
+    it("should recover to connected after a subsequent successful sync", async () => {
+      (config as any).adapterURL = "http://localhost:5011";
+      syncManager = new AdapterSyncManager();
+      const adapter = (syncManager as any).adapter;
+      const syncSpy = vi
+        .spyOn(adapter, "sync")
+        .mockRejectedValueOnce(new Error("adapter down"))
+        .mockResolvedValue(undefined);
+
+      // Eliminate jitter so the backed-off retry timing is deterministic.
+      const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
+      vi.useFakeTimers();
+      try {
+        syncManager.startLocationUpdates(1000, function* () {} as any);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(syncManager.isConnected()).toBe(false);
+
+        // Next attempt (after 2x backoff, no jitter) succeeds.
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(syncSpy).toHaveBeenCalledTimes(2);
+        expect(syncManager.isConnected()).toBe(true);
+      } finally {
+        syncManager.stopLocationUpdates();
+        vi.useRealTimers();
+        randomSpy.mockRestore();
+      }
+    });
+  });
+
   // ─── Drain ────────────────────────────────────────────────────────
 
   describe("drain", () => {

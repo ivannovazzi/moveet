@@ -4,9 +4,6 @@ import Adapter from "./Adapter";
 import { recordAdapterSync } from "../metrics";
 import logger from "../utils/logger";
 
-/** Maximum backoff delay between sync attempts after consecutive failures (ms). */
-const MAX_SYNC_BACKOFF_MS = 60_000;
-
 /** Consecutive-failure count at which a persistent-failure error is logged. */
 const PERSISTENT_FAILURE_THRESHOLD = 5;
 
@@ -19,6 +16,34 @@ export class AdapterSyncManager {
   private syncTimer: NodeJS.Timeout | null = null;
   private syncSession = 0;
   private inFlightSync: Promise<void> | null = null;
+  /**
+   * Outcome of the most recently *settled* periodic sync attempt, or `null`
+   * before the first attempt has completed. Read by health reporting to
+   * answer "is the adapter currently reachable" without re-deriving it from
+   * Prometheus counters.
+   */
+  private lastSyncResult: "success" | "failure" | null = null;
+
+  /**
+   * Whether adapter integration is configured (ADAPTER_URL set). Health
+   * reporting treats an unconfigured adapter as "connected" (there is
+   * nothing to be disconnected from) rather than surfacing a false alarm.
+   */
+  isEnabled(): boolean {
+    return !!config.adapterURL;
+  }
+
+  /**
+   * Best-effort adapter connectivity signal for /health:
+   *  - not configured → true (nothing to report as down)
+   *  - configured, no sync attempted yet → true (optimistic until proven otherwise)
+   *  - configured, most recent attempt succeeded → true
+   *  - configured, most recent attempt failed → false
+   */
+  isConnected(): boolean {
+    if (!this.isEnabled()) return true;
+    return this.lastSyncResult !== "failure";
+  }
 
   /**
    * Fetches vehicles from the adapter and invokes the callback for each.
@@ -85,7 +110,7 @@ export class AdapterSyncManager {
    * Starts periodic synchronization of vehicle locations to external adapter.
    *
    * Implemented as a self-scheduling timeout chain so that consecutive sync
-   * failures back off exponentially (with jitter, capped at MAX_SYNC_BACKOFF_MS)
+   * failures back off exponentially (with jitter, capped at config.maxSyncBackoffMs)
    * instead of hammering an unhealthy adapter at the fixed cadence. The delay
    * resets to `intervalMs` on the first successful sync.
    */
@@ -123,8 +148,10 @@ export class AdapterSyncManager {
           correlationId
         );
         recordAdapterSync("success", Number(process.hrtime.bigint() - start) / 1e9);
+        this.lastSyncResult = "success";
       } catch (error) {
         recordAdapterSync("failure", Number(process.hrtime.bigint() - start) / 1e9);
+        this.lastSyncResult = "failure";
         throw error;
       }
     };
@@ -148,14 +175,14 @@ export class AdapterSyncManager {
         } catch (error) {
           failures++;
           logger.error(`Failed to sync vehicles to adapter: ${error}`);
-          // Cap the exponential backoff at MAX_SYNC_BACKOFF_MS. Using min() (not
+          // Cap the exponential backoff at config.maxSyncBackoffMs. Using min() (not
           // max()) is essential: with max(), an intervalMs above the cap would
           // make the cap == intervalMs and silently defeat the 60s ceiling.
-          const backoff = Math.min(intervalMs * 2 ** failures, MAX_SYNC_BACKOFF_MS);
+          const backoff = Math.min(intervalMs * 2 ** failures, config.maxSyncBackoffMs);
           const jitter = Math.floor(Math.random() * backoff * 0.1);
           if (failures === PERSISTENT_FAILURE_THRESHOLD) {
             logger.error(
-              `Adapter sync failing persistently (${failures} consecutive failures); backing off up to ${MAX_SYNC_BACKOFF_MS}ms between attempts`
+              `Adapter sync failing persistently (${failures} consecutive failures); backing off up to ${config.maxSyncBackoffMs}ms between attempts`
             );
           }
           scheduleNext(backoff + jitter);
