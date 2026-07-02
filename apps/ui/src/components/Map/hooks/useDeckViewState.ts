@@ -72,13 +72,25 @@ export function useDeckViewState({ data, width, height }: UseDeckViewStateOption
     []
   );
 
-  // Control methods
+  // Control methods. Zoom buttons/keyboard shortcuts ease with the same
+  // FlyToInterpolator as panTo/focusOn (200ms — short enough to feel like a
+  // direct response, long enough not to snap) instead of jumping instantly.
   const zoomIn = useCallback(() => {
-    setViewState((prev) => ({ ...prev, zoom: Math.min((prev.zoom ?? 1) + 0.5, 20) }));
+    setViewState((prev) => ({
+      ...prev,
+      zoom: Math.min((prev.zoom ?? 1) + 0.5, 20),
+      transitionDuration: 200,
+      transitionInterpolator: new FlyToInterpolator(),
+    }));
   }, []);
 
   const zoomOut = useCallback(() => {
-    setViewState((prev) => ({ ...prev, zoom: Math.max((prev.zoom ?? 1) - 0.5, 1) }));
+    setViewState((prev) => ({
+      ...prev,
+      zoom: Math.max((prev.zoom ?? 1) - 0.5, 1),
+      transitionDuration: 200,
+      transitionInterpolator: new FlyToInterpolator(),
+    }));
   }, []);
 
   const panTo = useCallback((lng: number, lat: number, options: PanToOptions) => {

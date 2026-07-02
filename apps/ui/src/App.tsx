@@ -130,6 +130,12 @@ export default function App() {
   // (which would discard deck.gl's in-flight enter/color transitions).
   const onPOIClick = useCallback((poi: POI) => setSelectedItem(poi), [setSelectedItem]);
 
+  // Canvas hover on a vehicle mirrors the sidebar list's onMouseEnter/Leave pair.
+  const onHoverMapVehicle = useCallback(
+    (id: string | undefined) => (id ? onHoverVehicle(id) : onUnhoverVehicle()),
+    [onHoverVehicle, onUnhoverVehicle]
+  );
+
   // ─── WebSocket connection / simulation status ───────────────────
   const { connected, status } = useSimulationConnection({
     setVehicles,
@@ -314,6 +320,8 @@ export default function App() {
               onMapClick={onMapClick}
               onMapContextClick={onMapContextClick}
               onPOIClick={onPOIClick}
+              onHoverVehicle={onHoverMapVehicle}
+              onEscape={resetSelection}
               vehicleFleetMap={vehicleFleetMap}
               hiddenFleetIds={hiddenFleetIds}
               hiddenVehicleTypes={hiddenVehicleTypes}

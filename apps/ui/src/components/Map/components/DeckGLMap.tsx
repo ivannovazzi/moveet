@@ -1,7 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DeckGL from "@deck.gl/react";
 import { MapView, WebMercatorViewport } from "@deck.gl/core";
-import type { Layer, MapViewState } from "@deck.gl/core";
+import type { Layer, MapViewState, PickingInfo } from "@deck.gl/core";
+
+// `TooltipContent` isn't re-exported from the @deck.gl/core package root
+// (only from its internal tooltip-widget module) — mirror deck's own type.
+type TooltipContent =
+  | null
+  | string
+  | { text?: string; html?: string; className?: string; style?: Partial<CSSStyleDeclaration> };
 import { SectionErrorFallback } from "@/components/ErrorBoundary";
 import { webgl2Adapter } from "@luma.gl/webgl";
 import { PathLayer } from "@deck.gl/layers";
@@ -31,7 +38,10 @@ interface DeckGLMapProps {
   htmlMarkers?: React.ReactNode;
   onClick?: (event: React.MouseEvent, position: Position) => void;
   onContextClick?: (event: React.MouseEvent, position: Position) => void;
+  /** Escape key — typically wired to clear the current selection. */
+  onEscape?: () => void;
   cursor?: string;
+  getTooltip?: (info: PickingInfo) => TooltipContent;
 }
 
 // Separate road features into regular roads and highways for distinct styling,
@@ -171,8 +181,10 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
   children,
   onClick,
   onContextClick,
+  onEscape,
   htmlMarkers,
   cursor = "grab",
+  getTooltip,
 }) => {
   const [containerRef, size] = useResizeObserver();
   const deckContainerRef = useRef<HTMLDivElement>(null);
@@ -277,9 +289,40 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
     [onContextClick, viewport]
   );
 
-  // Stable cursor accessor — an inline closure would be a new prop for DeckGL
-  // on every render.
-  const getCursor = useCallback(() => cursor, [cursor]);
+  // Cursor feedback: `cursor` is an explicit mode override (dispatch-flow
+  // crosshairs, geofence-draw crosshair, etc.) and always wins when set to
+  // anything but the idle default. Otherwise reflect deck.gl's own
+  // hover/drag state so pickable objects (vehicles, POIs, …) show a pointer
+  // and panning shows a grabbing hand.
+  const getCursor = useCallback(
+    ({ isDragging, isHovering }: { isDragging: boolean; isHovering: boolean }) => {
+      if (cursor !== "grab") return cursor;
+      if (isDragging) return "grabbing";
+      if (isHovering) return "pointer";
+      return cursor;
+    },
+    [cursor]
+  );
+
+  // Keyboard shortcuts, active while the pointer is over the map: Escape
+  // clears the current selection; +/- mirror the on-screen zoom buttons.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const onKeyDown = (evt: KeyboardEvent) => {
+      if (evt.key === "Escape") {
+        onEscape?.();
+      } else if (evt.key === "+" || evt.key === "=") {
+        controls.zoomIn();
+      } else if (evt.key === "-" || evt.key === "_") {
+        controls.zoomOut();
+      }
+    };
+
+    container.addEventListener("keydown", onKeyDown);
+    return () => container.removeEventListener("keydown", onKeyDown);
+  }, [containerRef, controls, onEscape]);
 
   const MAP_VIEW = useMemo(
     () =>
@@ -311,8 +354,9 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
           <DeckLayersContext.Provider value={layerContextValue}>
             <div
               ref={containerRef}
-              style={{ width: "100%", height: "100%", position: "relative" }}
+              style={{ width: "100%", height: "100%", position: "relative", outline: "none" }}
               onContextMenu={handleContextMenu}
+              tabIndex={0}
             >
               <div ref={deckContainerRef} style={{ width: "100%", height: "100%" }}>
                 {size.width > 0 && size.height > 0 && (
@@ -328,6 +372,7 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
                     controller={true}
                     style={{ position: "relative" }}
                     getCursor={getCursor}
+                    getTooltip={getTooltip}
                     deviceProps={{ adapters: [webgl2Adapter] }}
                   >
                     {/* HTML overlay — children rendered as absolute-positioned elements */}

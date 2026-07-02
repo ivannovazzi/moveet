@@ -34,6 +34,8 @@ interface VehiclesLayerProps {
   selectedId?: string;
   hoveredId?: string;
   onClick: (id: string) => void;
+  /** Canvas hover — mirrors the sidebar list's hover state (undefined = none). */
+  onHover?: (id: string | undefined) => void;
 }
 
 /** Interpolated vehicle data for the deck.gl IconLayer. */
@@ -171,6 +173,7 @@ export default function VehiclesLayer({
   selectedId,
   hoveredId,
   onClick,
+  onHover,
 }: VehiclesLayerProps) {
   const { getZoom, getBoundingBox } = useMapContext();
   const [vehicleData, setVehicleData] = useState<VehicleIconDatum[]>([]);
@@ -212,6 +215,8 @@ export default function VehiclesLayer({
   hiddenTypesRef.current = hiddenVehicleTypes;
   const onClickRef = useRef(onClick);
   onClickRef.current = onClick;
+  const onHoverRef = useRef(onHover);
+  onHoverRef.current = onHover;
   const getZoomRef = useRef(getZoom);
   getZoomRef.current = getZoom;
   const getBoundingBoxRef = useRef(getBoundingBox);
@@ -497,6 +502,12 @@ export default function VehiclesLayer({
     }
   }, []);
 
+  // Stable hover handler — mirrors sidebar list hover so mousing over a
+  // vehicle on the canvas highlights it the same way as in the list.
+  const handleHover = useCallback((info: { object?: VehicleIconDatum }) => {
+    onHoverRef.current?.(info.object?.id);
+  }, []);
+
   // Highlight rings under the selected and hovered vehicles
   const ringData = useMemo(
     () => vehicleData.filter((v) => v.isSelected || v.isHovered),
@@ -539,6 +550,7 @@ export default function VehiclesLayer({
       billboard: false,
       pickable: true,
       onClick: handleClick,
+      onHover: handleHover,
       autoHighlight: true,
       highlightColor: [251, 201, 1, 80],
       updateTriggers: {
@@ -548,7 +560,7 @@ export default function VehiclesLayer({
     });
 
     return [ringLayer, vehiclesLayer];
-  }, [vehicleData, ringData, atlas, iconSize, handleClick, selectedId, hoveredId]);
+  }, [vehicleData, ringData, atlas, iconSize, handleClick, handleHover, selectedId, hoveredId]);
 
   // Register layers with the DeckGLMap parent
   useRegisterLayers("vehicles", layers);

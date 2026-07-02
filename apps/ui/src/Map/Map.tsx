@@ -1,4 +1,5 @@
-import { lazy, Suspense, useMemo } from "react";
+import { lazy, Suspense, useCallback, useMemo } from "react";
+import type { PickingInfo } from "@deck.gl/core";
 import type {
   DispatchAssignment,
   Fleet,
@@ -39,6 +40,16 @@ import { ViewportBboxReporter } from "./ViewportBboxReporter";
 // hand child layers a new prop identity on every render.
 const NOOP = () => {};
 
+// deck.gl's getTooltip renders raw HTML outside the React tree — escape
+// vehicle/fleet names before interpolating them into the tooltip markup.
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 const Heatmap = lazy(() => import("./Heatmap"));
 const POIs = lazy(() => import("./POIs"));
 const TrafficZones = lazy(() => import("./TrafficZones"));
@@ -56,6 +67,8 @@ interface MapProps {
   onMapClick?: (event: React.MouseEvent, position: Position) => void;
   onMapContextClick: (evt: React.MouseEvent, position: Position) => void;
   onPOIClick: (poi: POI) => void;
+  onHoverVehicle?: (id: string | undefined) => void;
+  onEscape?: () => void;
   vehicleFleetMap: Map<string, Fleet>;
   hiddenFleetIds: Set<string>;
   hiddenVehicleTypes: Set<VehicleType>;
@@ -85,6 +98,8 @@ export default function Map({
   onMapClick,
   onMapContextClick,
   onPOIClick,
+  onHoverVehicle,
+  onEscape,
   vehicleFleetMap,
   hiddenFleetIds,
   hiddenVehicleTypes,
@@ -105,6 +120,27 @@ export default function Map({
 }: MapProps) {
   // Derive cursor: prefer dispatchState if provided, fall back to dispatchMode boolean
   const cursor = dispatchState ? cursorForDispatchState(dispatchState) : "grab";
+
+  // Native deck.gl tooltip for GL-picked layers (currently just vehicles —
+  // POIs/incidents render their own styled HTML markers instead). Hover is
+  // infrequent, so a linear scan over `vehicles` is fine — no need for a
+  // memoized id index.
+  const getTooltip = useCallback(
+    (info: PickingInfo) => {
+      if (info.layer?.id !== "vehicles" || !info.object) return null;
+      const vehicle = vehicles.find((v) => v.id === (info.object as { id: string }).id);
+      if (!vehicle) return null;
+      const fleet = vehicleFleetMap.get(vehicle.id);
+      return {
+        html: `<div class="rounded-md border border-border bg-card/90 px-2.5 py-1.5 text-xs shadow-elevated backdrop-blur-md">
+          <div class="font-medium text-foreground">${escapeHtml(vehicle.name)}</div>
+          <div class="text-muted-foreground">${escapeHtml(fleet?.name ?? vehicle.type)} · ${Math.round(vehicle.speed)} km/h</div>
+        </div>`,
+        style: { backgroundColor: "transparent", border: "none", padding: "0", margin: "8px" },
+      };
+    },
+    [vehicles, vehicleFleetMap]
+  );
 
   // Only rebuild the HTML marker subtree when its actual inputs change, so
   // DeckGLMap doesn't receive a new htmlMarkers element on unrelated renders.
@@ -127,8 +163,10 @@ export default function Map({
         strokeWidth={1.5}
         onClick={onMapClick}
         onContextClick={onMapContextClick}
+        onEscape={onEscape}
         cursor={cursor}
         htmlMarkers={htmlMarkers}
+        getTooltip={getTooltip}
       >
         {/* POIs & speed-limit signs — GPU-rendered via IconLayer */}
         {modifiers.showPOIs && (
@@ -174,6 +212,7 @@ export default function Map({
             selectedId={filters.selected}
             hoveredId={filters.hovered}
             onClick={onClick}
+            onHover={onHoverVehicle}
           />
         )}
         {modifiers.showHeatmap && (
