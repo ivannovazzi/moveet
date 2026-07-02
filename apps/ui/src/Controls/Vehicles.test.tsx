@@ -117,99 +117,101 @@ describe("VehicleList", () => {
     expect(screen.getByText("Route 12.4 km")).toBeInTheDocument();
   });
 
-  describe("virtualization", () => {
+  describe("virtualization (fleetsim-all-k8sz)", () => {
     function makeVehicles(count: number) {
       return Array.from({ length: count }, (_, i) =>
         createVehicle({ id: `v${i}`, name: `Vehicle ${i}`, visible: true })
       );
     }
 
-    it("renders only the first 50 vehicles when given 100+", () => {
-      const vehicles = makeVehicles(120);
+    it("only mounts the visible window of DOM rows for an 800-vehicle fleet, not all 800", () => {
+      const vehicles = makeVehicles(800);
       render(<VehicleList {...defaultProps} vehicles={vehicles} />);
 
-      // First 50 should be rendered
+      // The first vehicle is always within the visible window.
       expect(screen.getByText("Vehicle 0")).toBeInTheDocument();
-      expect(screen.getByText("Vehicle 49")).toBeInTheDocument();
 
-      // Vehicle 50 onward should NOT be rendered
-      expect(screen.queryByText("Vehicle 50")).not.toBeInTheDocument();
-      expect(screen.queryByText("Vehicle 119")).not.toBeInTheDocument();
+      // With jsdom's no-op ResizeObserver, the list falls back to a fixed
+      // measured height, giving a small, bounded visible+overscan window —
+      // nowhere near all 800 rows are mounted as real DOM nodes.
+      const renderedRows = screen.getAllByRole("button", { name: /km\/h/ });
+      expect(renderedRows.length).toBeGreaterThan(0);
+      expect(renderedRows.length).toBeLessThan(100);
+
+      // Vehicles far outside the window are not mounted at all.
+      expect(screen.queryByText("Vehicle 799")).not.toBeInTheDocument();
     });
 
-    it("shows 'Show more' button when more than 50 vehicles", () => {
-      const vehicles = makeVehicles(80);
+    it("renders every vehicle's row content correctly at the top of the list", () => {
+      const vehicles = makeVehicles(800);
       render(<VehicleList {...defaultProps} vehicles={vehicles} />);
 
-      const showMoreButton = screen.getByText(/Show more/);
-      expect(showMoreButton).toBeInTheDocument();
-      expect(showMoreButton).toHaveTextContent("Show more (30 remaining)");
-    });
-
-    it("does not show 'Show more' button when 50 or fewer vehicles", () => {
-      const vehicles = makeVehicles(50);
-      render(<VehicleList {...defaultProps} vehicles={vehicles} />);
-
-      expect(screen.queryByText(/Show more/)).not.toBeInTheDocument();
-    });
-
-    it("clicking 'Show more' renders 50 more vehicles", async () => {
-      const vehicles = makeVehicles(120);
-      const user = userEvent.setup();
-      render(<VehicleList {...defaultProps} vehicles={vehicles} />);
-
-      expect(screen.queryByText("Vehicle 50")).not.toBeInTheDocument();
-
-      await user.click(screen.getByText(/Show more/));
-
-      // Now vehicles 0–99 should be visible
-      expect(screen.getByText("Vehicle 50")).toBeInTheDocument();
-      expect(screen.getByText("Vehicle 99")).toBeInTheDocument();
-
-      // Vehicle 100+ still hidden
-      expect(screen.queryByText("Vehicle 100")).not.toBeInTheDocument();
-    });
-
-    it("'Show more' button shows remaining count", async () => {
-      const vehicles = makeVehicles(130);
-      const user = userEvent.setup();
-      render(<VehicleList {...defaultProps} vehicles={vehicles} />);
-
-      expect(screen.getByText(/Show more/)).toHaveTextContent("Show more (80 remaining)");
-
-      await user.click(screen.getByText(/Show more/));
-
-      expect(screen.getByText(/Show more/)).toHaveTextContent("Show more (30 remaining)");
-    });
-
-    it("resets visible count to 50 when filter changes", () => {
-      const vehicles = makeVehicles(120);
-      const { rerender } = render(<VehicleList {...defaultProps} vehicles={vehicles} filter="" />);
-
-      // Initially 50 visible, show more exists
-      expect(screen.queryByText("Vehicle 50")).not.toBeInTheDocument();
-
-      // Change filter — visible count resets to INITIAL_VISIBLE (50)
-      rerender(<VehicleList {...defaultProps} vehicles={vehicles} filter="Vehicle" />);
-
-      // Still only the first 50 are shown
       expect(screen.getByText("Vehicle 0")).toBeInTheDocument();
-      expect(screen.getByText("Vehicle 49")).toBeInTheDocument();
-      expect(screen.queryByText("Vehicle 50")).not.toBeInTheDocument();
+      // The panel header still reports the true total, even though only a
+      // window of rows is mounted.
+      expect(screen.getByText("800 tracked units")).toBeInTheDocument();
     });
 
-    it("hides 'Show more' button after all vehicles are loaded", async () => {
-      const vehicles = makeVehicles(60);
-      const user = userEvent.setup();
-      render(<VehicleList {...defaultProps} vehicles={vehicles} />);
+    it("scopes down to the matching subset when filtered, without a manual load-more step", () => {
+      const vehicles = makeVehicles(3);
+      render(<VehicleList {...defaultProps} filter="Vehicle 1" vehicles={vehicles} />);
 
-      expect(screen.getByText(/Show more/)).toBeInTheDocument();
+      expect(screen.getByText("Vehicle 1")).toBeInTheDocument();
+    });
+  });
 
-      await user.click(screen.getByText(/Show more/));
+  describe("row memoization (fleetsim-all-k8sz)", () => {
+    it("does not re-render unrelated rows when only one vehicle's data changes", async () => {
+      const vehicles = [
+        createVehicle({ id: "v1", name: "Vehicle A", speed: 40, visible: true }),
+        createVehicle({ id: "v2", name: "Vehicle B", speed: 40, visible: true }),
+        createVehicle({ id: "v3", name: "Vehicle C", speed: 40, visible: true }),
+      ];
 
-      // All 60 now visible, button should disappear
-      expect(screen.queryByText(/Show more/)).not.toBeInTheDocument();
-      expect(screen.getByText("Vehicle 59")).toBeInTheDocument();
+      const { rerender } = render(<VehicleList {...defaultProps} vehicles={vehicles} />);
+
+      const rowBBefore = screen.getByText("Vehicle B").closest("button");
+      const rowCBefore = screen.getByText("Vehicle C").closest("button");
+
+      // Only vehicle A's speed changes; B and C keep identical prop values.
+      const updatedVehicles = [
+        createVehicle({ id: "v1", name: "Vehicle A", speed: 55, visible: true }),
+        createVehicle({ id: "v2", name: "Vehicle B", speed: 40, visible: true }),
+        createVehicle({ id: "v3", name: "Vehicle C", speed: 40, visible: true }),
+      ];
+      rerender(<VehicleList {...defaultProps} vehicles={updatedVehicles} />);
+
+      // Vehicle A's row reflects the new speed.
+      expect(screen.getByText("55")).toBeInTheDocument();
+
+      // B and C's DOM nodes are the same element instances — React.memo
+      // bailed out of re-rendering them since their own props didn't change.
+      expect(screen.getByText("Vehicle B").closest("button")).toBe(rowBBefore);
+      expect(screen.getByText("Vehicle C").closest("button")).toBe(rowCBefore);
+    });
+
+    it("re-renders a row when its own speed changes but keeps unrelated DOM stable across repeated updates", () => {
+      const vehicles = [
+        createVehicle({ id: "v1", name: "Vehicle A", speed: 10, visible: true }),
+        createVehicle({ id: "v2", name: "Vehicle B", speed: 10, visible: true }),
+      ];
+      const { rerender } = render(<VehicleList {...defaultProps} vehicles={vehicles} />);
+
+      const rowBBefore = screen.getByText("Vehicle B").closest("button");
+
+      // Simulate several position/speed ticks on vehicle A only, as the
+      // real-time WS feed would produce.
+      for (const speed of [20, 30, 40, 50]) {
+        const updated = [
+          createVehicle({ id: "v1", name: "Vehicle A", speed, visible: true }),
+          createVehicle({ id: "v2", name: "Vehicle B", speed: 10, visible: true }),
+        ];
+        rerender(<VehicleList {...defaultProps} vehicles={updated} />);
+        expect(screen.getByText(String(speed))).toBeInTheDocument();
+      }
+
+      // Vehicle B's row was never touched across four re-renders of A.
+      expect(screen.getByText("Vehicle B").closest("button")).toBe(rowBBefore);
     });
   });
 });
