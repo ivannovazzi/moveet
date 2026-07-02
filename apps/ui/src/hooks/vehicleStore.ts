@@ -52,6 +52,13 @@ class VehicleStore {
     }
   }
 
+  /** Remove a single vehicle and its trail data (e.g. on despawn). */
+  remove(id: string): void {
+    this.vehicles.delete(id);
+    this.trails.delete(id);
+    this.version++;
+  }
+
   /** Bulk replace (e.g. on reset / initial load). */
   replace(vehicles: VehicleDTO[]): void {
     // Drop queued updates — they predate the replacement and would
