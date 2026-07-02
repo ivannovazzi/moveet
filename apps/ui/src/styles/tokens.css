@@ -31,6 +31,19 @@
   --color-vehicle-ambulance: oklch(0.63 0.19 25);
   --color-vehicle-bus: oklch(0.62 0.15 250);
 
+  /* Incident type colors — consumed by Controls/Incidents.tsx badges/markers.
+     oklch siblings of the overlay-severity family, visually close to the raw
+     hex values they replace (#f44336 / #ff9800 / #ffeb3b). */
+  --color-incident-closure: oklch(0.63 0.2 25);
+  --color-incident-accident: oklch(0.75 0.16 60);
+  --color-incident-construction: oklch(0.88 0.16 100);
+
+  /* Geofence type colors — consumed by Controls/GeofencePanel.tsx type badges.
+     Replaces raw Tailwind-palette hex (#ef4444 / #22c55e / #3b82f6). */
+  --color-geofence-restricted: oklch(0.63 0.2 25);
+  --color-geofence-delivery: oklch(0.72 0.17 150);
+  --color-geofence-monitoring: oklch(0.62 0.15 250);
+
   /* Overlay severity — shared "road danger" family for traffic congestion +
      incidents, resolved at runtime via src/lib/mapColor.ts (deck.gl layers
      need numeric [r,g,b,a], not CSS strings). Kept separate from
