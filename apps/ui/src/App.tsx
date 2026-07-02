@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import client from "./utils/client";
 import Vehicles from "./Controls/Vehicles";
 import Fleets from "./Controls/Fleets";
@@ -7,17 +7,14 @@ import Incidents from "./Controls/Incidents";
 import RecordReplay from "./Controls/RecordReplay";
 import ScenariosPanel from "./Controls/ScenariosPanel";
 import DispatchFooter from "./Controls/DispatchFooter";
-import IconRail from "./Controls/IconRail";
+import NavRail from "./Controls/NavRail";
 import BottomDock from "./Controls/BottomDock";
 import TogglesPanel from "./Controls/TogglesPanel";
-import SpeedPanel from "./Controls/SpeedPanel";
-import ClockPanel from "./Controls/ClockPanel";
 import AdapterDrawer from "./Controls/Adapter/AdapterDrawer";
 import { useAdapterConfig } from "./Controls/Adapter/useAdapterConfig";
 import useTracking from "./Controls/useTracking";
 import MapView from "./Map/Map";
 import FleetLegend from "./Map/FleetLegend";
-import TypeLegend from "./Map/TypeLegend";
 import SearchBar from "./SearchBar";
 import Zoom from "./Zoom/";
 import GeofencePanel from "./Controls/GeofencePanel";
@@ -44,6 +41,7 @@ import ConnectionStatus from "./components/ConnectionStatus";
 import { useConnectionState } from "./hooks/useConnectionState";
 import ErrorBoundary, { SectionErrorFallback } from "./components/ErrorBoundary";
 import { useAnalytics } from "./hooks/useAnalytics";
+import { useOptions } from "./hooks/useOptions";
 import { useNetwork } from "./hooks/useNetwork";
 import { useRoads } from "./hooks/useRoads";
 import { useDataReady } from "./data/useData";
@@ -173,7 +171,15 @@ export default function App() {
     [setModifiers]
   );
 
+  // Vehicles' per-row speed bar renders relative to the configured max speed.
+  // Now that SpeedPanel (the old "Speed" nav destination) is gone, this ref is
+  // synced directly from the shared options context instead.
   const maxSpeedRef = useRef(60);
+  const { options } = useOptions(300);
+  useEffect(() => {
+    maxSpeedRef.current = options.maxSpeed;
+  }, [options.maxSpeed]);
+
   useTracking(vehicles, filters.selected, status.interval);
 
   // Keyboard shortcuts while in dispatch mode: Enter dispatches, Esc exits.
@@ -185,7 +191,7 @@ export default function App() {
         className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden"
         data-ready={dataReady ? "" : undefined}
       >
-        <IconRail
+        <NavRail
           activePanel={activePanel}
           onPanelChange={setActivePanel}
           incidentCount={incidents.incidents.length}
@@ -193,7 +199,7 @@ export default function App() {
         <ErrorBoundary fallback={<SectionErrorFallback section="Controls" />}>
           <aside
             className={cn(
-              "absolute bottom-0 top-0 left-14 z-30 w-[clamp(248px,22vw,304px)] overflow-hidden",
+              "absolute bottom-0 top-0 left-60 z-30 w-[clamp(248px,22vw,304px)] overflow-hidden",
               "transition-[transform,opacity,visibility] duration-slow ease-emphasized",
               activePanel !== null
                 ? "visible translate-x-0 opacity-100 pointer-events-auto"
@@ -275,10 +281,13 @@ export default function App() {
               )}
               {activePanel === "scenarios" && <ScenariosPanel />}
               {activePanel === "toggles" && (
-                <TogglesPanel modifiers={modifiers} onChangeModifiers={onChangeModifiers} />
+                <TogglesPanel
+                  modifiers={modifiers}
+                  onChangeModifiers={onChangeModifiers}
+                  hiddenVehicleTypes={hiddenVehicleTypes}
+                  onToggleVehicleType={toggleVehicleType}
+                />
               )}
-              {activePanel === "speed" && <SpeedPanel maxSpeedRef={maxSpeedRef} />}
-              {activePanel === "clock" && <ClockPanel />}
               {activePanel === "analytics" && (
                 <AnalyticsPanel
                   summary={analytics.summary}
@@ -363,7 +372,6 @@ export default function App() {
               hiddenFleetIds={hiddenFleetIds}
               onToggle={toggleFleetVisibility}
             />
-            <TypeLegend hiddenVehicleTypes={hiddenVehicleTypes} onToggle={toggleVehicleType} />
             <BottomDock
               status={status}
               connected={connected}

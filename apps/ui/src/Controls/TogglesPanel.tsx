@@ -1,12 +1,19 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import type { Modifiers } from "@/types";
+import type { Modifiers, VehicleType } from "@/types";
 import { Switch, Range } from "@/components/Inputs";
 import { vehicleStore } from "@/hooks/vehicleStore";
 import { PanelBody, PanelHeader } from "./PanelPrimitives";
+import {
+  VEHICLE_TYPE_COLORS,
+  VEHICLE_TYPE_FULL_LABELS,
+  VEHICLE_TYPES_ORDER,
+} from "@/lib/vehicleTypeColors";
 
 interface TogglesPanelProps {
   modifiers: Modifiers;
   onChangeModifiers: <T extends keyof Modifiers>(name: T) => (value: Modifiers[T]) => void;
+  hiddenVehicleTypes: Set<VehicleType>;
+  onToggleVehicleType: (type: VehicleType) => void;
 }
 
 const toggles: { key: keyof Modifiers; label: string }[] = [
@@ -33,7 +40,12 @@ function readStoredTrailLength(): number {
   return 60;
 }
 
-export default memo(function TogglesPanel({ modifiers, onChangeModifiers }: TogglesPanelProps) {
+export default memo(function TogglesPanel({
+  modifiers,
+  onChangeModifiers,
+  hiddenVehicleTypes,
+  onToggleVehicleType,
+}: TogglesPanelProps) {
   const [trailLength, setTrailLength] = useState(() => {
     const initial = readStoredTrailLength();
     vehicleStore.setTrailCapacity(initial);
@@ -91,6 +103,35 @@ export default memo(function TogglesPanel({ modifiers, onChangeModifiers }: Togg
             />
           </label>
         ))}
+        <div className="mt-2 flex flex-col gap-0.5 border-t border-border-soft pt-2">
+          <span className="px-3 pb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            Vehicle Types
+          </span>
+          {VEHICLE_TYPES_ORDER.map((type) => {
+            const hidden = hiddenVehicleTypes.has(type as VehicleType);
+            const label = VEHICLE_TYPE_FULL_LABELS[type];
+            return (
+              <label
+                key={type}
+                className="flex cursor-pointer items-center justify-between rounded-md px-3 py-2 transition-colors duration-fast ease-standard hover:bg-accent/10"
+              >
+                <span className="flex items-center gap-2.5 text-sm text-muted-foreground">
+                  <span
+                    aria-hidden="true"
+                    className="h-2.5 w-2.5 shrink-0 rounded-sm shadow-raised"
+                    style={{ backgroundColor: VEHICLE_TYPE_COLORS[type] }}
+                  />
+                  {label}
+                </span>
+                <Switch
+                  isSelected={!hidden}
+                  onChange={() => onToggleVehicleType(type as VehicleType)}
+                  aria-label={`Toggle ${label} visibility`}
+                />
+              </label>
+            );
+          })}
+        </div>
         {modifiers.showBreadcrumbs && (
           <div className="flex items-center justify-between rounded-md px-3 py-2">
             <Range

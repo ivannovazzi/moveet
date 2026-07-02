@@ -4,6 +4,7 @@ import client from "@/utils/client";
 import type { ReplayStatus, SimulationStatus } from "@/types";
 import { Flame, Pause, Play, Record, Reset, Stop } from "@/components/Icons";
 import { useOptions } from "@/hooks/useOptions";
+import { useClock } from "@/hooks/useClock";
 import { Button, SquaredButton } from "@/components/Inputs";
 import { toast, toErrorMessage } from "@/lib/toast";
 
@@ -74,6 +75,15 @@ function useInterpolatedProgress(replayStatus: ReplayStatus) {
 }
 
 const SPEEDS = [1, 2, 4] as const;
+
+// Compact port of ClockPanel's SPEED_PRESETS button row — just the presets,
+// not the log-scale slider (that stays out of scope for the dock).
+const SIM_SPEED_PRESETS = [
+  { label: "1×", value: 1 },
+  { label: "60×", value: 60 },
+  { label: "360×", value: 360 },
+  { label: "3600×", value: 3600 },
+] as const;
 
 /* ── Replay Dock (private) ── */
 
@@ -216,8 +226,15 @@ export default function BottomDock({
   onStopRecording,
 }: BottomDockProps) {
   const { options } = useOptions(300);
+  const { clock, setSpeedMultiplier } = useClock();
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval>>(undefined);
+
+  const clockTimeStr = new Date(clock.currentTime).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
 
   const handleStart = useCallback(
     () =>
@@ -308,6 +325,20 @@ export default function BottomDock({
         />
       </div>
 
+      <div className="flex shrink-0 items-center gap-px" role="group" aria-label="Simulation speed">
+        {SIM_SPEED_PRESETS.map(({ label, value }) => (
+          <Button
+            key={value}
+            variant={clock.speedMultiplier === value ? "default" : "ghost"}
+            size="sm"
+            className="font-medium"
+            onClick={() => setSpeedMultiplier(value)}
+          >
+            {label}
+          </Button>
+        ))}
+      </div>
+
       <Button
         variant="ghost"
         size="sm"
@@ -327,6 +358,13 @@ export default function BottomDock({
           </span>
         )}
       </Button>
+
+      <span
+        className="shrink-0 whitespace-nowrap font-mono text-sm tabular-nums text-muted-foreground"
+        title="Simulation clock"
+      >
+        {clockTimeStr}
+      </span>
 
       <div className="flex items-center gap-1">
         {statusChips.map(({ key, label, active }) => (

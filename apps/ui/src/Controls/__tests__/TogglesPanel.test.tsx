@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, act } from "@testing-library/react";
-import type { Modifiers } from "@/types";
+import userEvent from "@testing-library/user-event";
+import type { Modifiers, VehicleType } from "@/types";
 import { createModifiers } from "@/test/mocks/types";
 import { createMemoryLocalStorage } from "@/test/mocks/localStorage";
 
@@ -41,9 +42,24 @@ function defaultModifiers(overrides: Partial<Modifiers> = {}): Modifiers {
   } as Modifiers;
 }
 
-function renderPanel(modifiers: Modifiers, onChangeModifiers?: ReturnType<typeof vi.fn>) {
+function renderPanel(
+  modifiers: Modifiers,
+  onChangeModifiers?: ReturnType<typeof vi.fn>,
+  options: {
+    hiddenVehicleTypes?: Set<VehicleType>;
+    onToggleVehicleType?: ReturnType<typeof vi.fn>;
+  } = {}
+) {
   const changeFn = onChangeModifiers ?? vi.fn(() => vi.fn());
-  return render(<TogglesPanel modifiers={modifiers} onChangeModifiers={changeFn} />);
+  const { hiddenVehicleTypes = new Set<VehicleType>(), onToggleVehicleType = vi.fn() } = options;
+  return render(
+    <TogglesPanel
+      modifiers={modifiers}
+      onChangeModifiers={changeFn}
+      hiddenVehicleTypes={hiddenVehicleTypes}
+      onToggleVehicleType={onToggleVehicleType}
+    />
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -116,5 +132,35 @@ describe("TogglesPanel", () => {
 
     expect(vehicleStore.setTrailCapacity).toHaveBeenCalledTimes(1);
     expect(vehicleStore.setTrailCapacity).toHaveBeenCalledWith(70);
+  });
+
+  it("renders a Vehicle Types section with all 5 types", () => {
+    renderPanel(defaultModifiers());
+
+    expect(screen.getByText("Vehicle Types")).toBeInTheDocument();
+    expect(screen.getByLabelText("Toggle Car visibility")).toBeInTheDocument();
+    expect(screen.getByLabelText("Toggle Truck visibility")).toBeInTheDocument();
+    expect(screen.getByLabelText("Toggle Moto visibility")).toBeInTheDocument();
+    expect(screen.getByLabelText("Toggle Ambulance visibility")).toBeInTheDocument();
+    expect(screen.getByLabelText("Toggle Bus visibility")).toBeInTheDocument();
+  });
+
+  it("calls onToggleVehicleType with the right type when a switch is clicked", async () => {
+    const user = userEvent.setup();
+    const onToggleVehicleType = vi.fn();
+    renderPanel(defaultModifiers(), undefined, { onToggleVehicleType });
+
+    await user.click(screen.getByLabelText("Toggle Truck visibility"));
+
+    expect(onToggleVehicleType).toHaveBeenCalledWith("truck");
+  });
+
+  it("reflects hiddenVehicleTypes in the switch state", () => {
+    renderPanel(defaultModifiers(), undefined, {
+      hiddenVehicleTypes: new Set<VehicleType>(["bus"]),
+    });
+
+    expect(screen.getByLabelText("Toggle Bus visibility")).not.toBeChecked();
+    expect(screen.getByLabelText("Toggle Car visibility")).toBeChecked();
   });
 });

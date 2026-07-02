@@ -17,8 +17,16 @@ type SquaredButtonBaseProps = Omit<
   active?: boolean;
   className?: string;
   iconClassName?: string;
-  /** Non-text adornments only (badges/indicators) — never the button's label. */
+  /**
+   * By default, non-text adornments only (badges/indicators) — never the
+   * button's label, since SquaredButton is normally icon-only and square.
+   * Pass `labeled` to opt into rendering `children` as a visible text label
+   * (e.g. a full-width nav row); in that mode `aria-label`/`aria-labelledby`
+   * are optional since the visible text supplies the accessible name.
+   */
   children?: React.ReactNode;
+  /** Render `children` as a visible text label instead of a decorative-only adornment. */
+  labeled?: boolean;
   title?: string;
   /** Standard HTML disabled attribute */
   disabled?: boolean;
@@ -27,12 +35,14 @@ type SquaredButtonBaseProps = Omit<
 };
 
 /**
- * SquaredButton is always icon-only (its `children` are decorative badges, not
- * a text label), so an accessible name is mandatory: callers must pass either
- * `aria-label` or `aria-labelledby`. The union enforces this at the type level.
+ * SquaredButton is icon-only by default (its `children` are decorative badges,
+ * not a text label), so an accessible name is mandatory: callers must pass
+ * either `aria-label` or `aria-labelledby`. The union enforces this at the
+ * type level. Passing `labeled: true` opts out, since the visible text label
+ * then supplies the accessible name itself.
  */
 type SquaredButtonProps = SquaredButtonBaseProps &
-  ({ "aria-label": string } | { "aria-labelledby": string });
+  ({ "aria-label": string } | { "aria-labelledby": string } | { labeled: true });
 
 const toneActiveClasses: Record<SquaredButtonTone, string> = {
   neutral: "bg-accent/15 border-accent/30 text-foreground",
@@ -57,11 +67,12 @@ export function SquaredButton({
   className,
   iconClassName,
   children,
+  labeled = false,
   disabled,
   isDisabled,
   ...props
 }: SquaredButtonProps) {
-  if (import.meta.env.DEV) {
+  if (import.meta.env.DEV && !labeled) {
     const hasLabel =
       typeof (props as Record<string, unknown>)["aria-label"] === "string" ||
       typeof (props as Record<string, unknown>)["aria-labelledby"] === "string";
@@ -82,11 +93,12 @@ export function SquaredButton({
     <UIButton
       type="button"
       variant={variant === "ghost" ? "ghost" : "outline"}
-      size="icon"
+      size={labeled ? undefined : "icon"}
       disabled={isDisabled ?? disabled}
       className={cn(
-        "aspect-square text-muted-foreground",
-        size === "lg" && "size-9 [&_svg:not([class*='size-'])]:size-4",
+        "text-muted-foreground",
+        !labeled && "aspect-square",
+        size === "lg" && (labeled ? "h-9" : "size-9 [&_svg:not([class*='size-'])]:size-4"),
         toneHoverClasses[tone],
         active && toneActiveClasses[tone],
         className
