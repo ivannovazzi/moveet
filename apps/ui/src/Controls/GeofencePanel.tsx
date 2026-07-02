@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { GeoFence, GeoFenceEvent } from "@moveet/shared-types";
-import { Switch, SquaredButton } from "@/components/Inputs";
+import { Button, Switch, SquaredButton } from "@/components/Inputs";
 import { cn } from "@/lib/utils";
 import { GeofenceIcon } from "@/components/Icons";
 import { PanelBadge, PanelBody, PanelEmptyState, PanelHeader } from "./PanelPrimitives";
@@ -22,11 +22,11 @@ type Tab = "zones" | "alerts";
 function typeBadgeColor(type: GeoFence["type"]): string {
   switch (type) {
     case "restricted":
-      return "#ef4444";
+      return "var(--color-geofence-restricted)";
     case "delivery":
-      return "#22c55e";
+      return "var(--color-geofence-delivery)";
     case "monitoring":
-      return "#3b82f6";
+      return "var(--color-geofence-monitoring)";
   }
 }
 
@@ -124,23 +124,24 @@ export default function GeofencePanel({
                     : `${vertexCount} points — ready to confirm`}
               </span>
               <div className="flex gap-2">
-                <button
-                  type="button"
-                  className="flex-1 rounded-md border border-accent/40 bg-accent/15 px-3 py-2 text-sm font-medium text-accent transition-colors duration-fast ease-standard hover:bg-accent/25 hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="flex-1"
                   onClick={onConfirmDrawing}
-                  disabled={!canConfirm}
+                  isDisabled={!canConfirm}
                   title="Finish drawing and name the zone"
                 >
                   Confirm
-                </button>
-                <button
-                  type="button"
-                  className="rounded-md border border-border bg-transparent px-3 py-2 text-sm text-muted-foreground transition-colors duration-fast ease-standard hover:border-status-error/30 hover:bg-status-error/10 hover:text-status-error"
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={onCancelDrawing}
                   title="Cancel drawing (Esc)"
                 >
                   Cancel
-                </button>
+                </Button>
               </div>
             </div>
           ) : (
@@ -159,11 +160,11 @@ export default function GeofencePanel({
               No zones yet. Use the &ldquo;Draw Zone&rdquo; button above to create one.
             </PanelEmptyState>
           ) : (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-0">
               {fences.map((fence) => (
                 <div
                   key={fence.id}
-                  className="flex items-center gap-2 rounded-md border border-border-soft bg-white/[0.03] px-2.5 py-2 transition-colors duration-fast ease-standard hover:border-border hover:bg-white/[0.06]"
+                  className="flex items-center gap-2 border-b border-border-soft px-2.5 py-2 transition-colors duration-fast ease-standard hover:bg-white/[0.04]"
                 >
                   <span
                     className="h-2 w-2 flex-shrink-0 rounded-full"
@@ -211,11 +212,11 @@ export default function GeofencePanel({
               No events yet. Events appear when vehicles cross zone boundaries.
             </PanelEmptyState>
           ) : (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-0">
               {alerts.map((alert, i) => (
                 <div
                   key={`${alert.fenceId}-${alert.vehicleId}-${alert.timestamp}-${i}`}
-                  className="flex items-center gap-3 rounded-md border border-border-soft bg-white/[0.03] px-2.5 py-2"
+                  className="flex items-center gap-3 border-b border-border-soft px-2.5 py-2"
                 >
                   <span
                     data-event={alert.event}
