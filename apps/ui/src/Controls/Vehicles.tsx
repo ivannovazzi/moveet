@@ -6,6 +6,7 @@ import { useDirectionContext } from "@/data/useData";
 import { PanelBadge, PanelBody, PanelEmptyState, PanelHeader } from "./PanelPrimitives";
 import { Search } from "@/components/Icons";
 import { Input } from "@/components/ui/input";
+import { VEHICLE_TYPE_LABELS } from "@/lib/vehicleTypeColors";
 
 const INITIAL_VISIBLE = 50;
 const LOAD_MORE_COUNT = 50;
@@ -43,13 +44,6 @@ interface VehicleListProps {
 function formatRouteDistance(distance?: number) {
   return distance === undefined ? "No route" : `Route ${distance.toFixed(1)} km`;
 }
-
-const VEHICLE_TYPE_LABELS: Record<string, string> = {
-  truck: "TRK",
-  motorcycle: "MC",
-  ambulance: "AMB",
-  bus: "BUS",
-};
 
 function WaypointBadge({ assignment }: { assignment: DispatchAssignment }) {
   const count = assignment.waypoints.length;
@@ -198,11 +192,9 @@ export default function VehicleList({
               <button
                 key={vehicle.id}
                 className={cn(
-                  "grid w-full flex-shrink-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 overflow-hidden rounded-md border border-border-soft bg-white/[0.03] px-2.5 pb-1.5 pt-2 text-left transition-colors duration-fast ease-standard hover:border-border hover:bg-white/[0.06] focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
-                  isSelected &&
-                    "border-accent/25 bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)]",
-                  isDispatchSelected &&
-                    "border-accent/20 bg-accent/5 shadow-[inset_3px_0_0_var(--color-accent)]"
+                  "grid w-full flex-shrink-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 overflow-hidden border-b border-border-soft px-2.5 py-2 text-left transition-colors duration-fast ease-standard hover:bg-white/[0.04] focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                  isSelected && "bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)]",
+                  isDispatchSelected && "bg-accent/5 shadow-[inset_3px_0_0_var(--color-accent)]"
                 )}
                 style={{
                   gridTemplateAreas: '"name speed" "route route" "bar bar"',
@@ -236,7 +228,12 @@ export default function VehicleList({
                     {vehicle.name}
                   </span>
                   {vehicle.type && vehicle.type !== "car" && (
-                    <span className="ml-2 flex-shrink-0 rounded-sm bg-foreground/10 px-2 py-px text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    <span className="ml-2 flex flex-shrink-0 items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      <span
+                        aria-hidden="true"
+                        className="size-1.5 rounded-full"
+                        style={{ backgroundColor: `var(--color-vehicle-${vehicle.type})` }}
+                      />
                       {VEHICLE_TYPE_LABELS[vehicle.type] ?? vehicle.type}
                     </span>
                   )}
@@ -263,7 +260,7 @@ export default function VehicleList({
                   )}
                 </span>
                 <span className="flex items-center gap-3" style={{ gridArea: "route" }}>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs tabular-nums text-muted-foreground">
                     {formatRouteDistance(routeDistance)}
                   </span>
                 </span>
