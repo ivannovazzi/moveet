@@ -55,9 +55,10 @@ export function useFleets(): UseFleets {
       fleetId: string | null;
       vehicleIds: string[];
     }) => {
+      const vehicleIdSet = new Set(vehicleIds);
       setFleets((prev) =>
         prev.map((f) => {
-          const filtered = f.vehicleIds.filter((vid) => !vehicleIds.includes(vid));
+          const filtered = f.vehicleIds.filter((vid) => !vehicleIdSet.has(vid));
           if (f.id === fleetId) {
             return { ...f, vehicleIds: [...filtered, ...vehicleIds] };
           }
