@@ -382,7 +382,8 @@ export default function VehiclesLayer({
       // none was added/removed, and zoom/viewport/selection/filters are all
       // unchanged. WS ticks that re-send identical positions no longer cause
       // a fresh array allocation or a re-render.
-      const isDirty = structureChanged || animating || zoomChanged || visualsChanged || boundsChanged;
+      const isDirty =
+        structureChanged || animating || zoomChanged || visualsChanged || boundsChanged;
       if (!isDirty) {
         return;
       }
