@@ -47,6 +47,21 @@
 
   --font-sans: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
 
+  /* ── Polish layer: type scale ──────────────────────────────────────────
+     Explicit steps so components stop choosing sizes ad hoc. Use the
+     matching Tailwind text-* utility directly (these are documentation +
+     the two non-default sizes below register their own utilities).
+       • micro-label → text-[11px] uppercase tracking-wider (group headers,
+         eyebrows) — already used ad hoc as text-[10px]/text-xs; standardize
+         on 11px going forward for NEW group-header usages (nav groups).
+       • body        → text-[13px] (existing default for list rows)
+       • emphasis     → text-sm font-medium (14px)
+       • panel-title  → text-[15px] font-semibold
+       • metric       → text-xl font-semibold (20px, stat cards)
+       • display      → text-2xl font-semibold (24px, headline counts)     */
+  --text-micro: 11px;
+  --text-panel-title: 0.9375rem;
+
   /* Motion scale — registers the `duration-fast|normal|slow` Tailwind
      transition-duration utilities (Tailwind v4 reads the
      `--transition-duration-*` namespace). Keep transitions on this scale; the
