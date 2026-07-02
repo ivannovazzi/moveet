@@ -48,15 +48,22 @@ interface DirectionProps {
 export default function DirectionMap({ selected, hovered }: DirectionProps) {
   const directions = useDirections();
 
+  // Only the selected/hovered vehicles are ever rendered (at most 2 entries).
+  // Key the memo on THEIR direction data rather than the whole `directions`
+  // Map reference — `useDirections` hands back a new Map reference on every
+  // WS update to ANY vehicle, so keying on it directly rebuilds every
+  // path/waypoint layer whenever an unrelated vehicle reroutes, even though
+  // the selected/hovered vehicle's own data didn't change.
+  const hoveredDirection = hovered ? directions.get(hovered) : undefined;
+  const selectedDirection = selected ? directions.get(selected) : undefined;
+
   const layers = useMemo(() => {
     const items: DirectionData[] = [];
-    if (hovered) {
-      const d = directions.get(hovered);
-      if (d) items.push({ id: `${hovered}--hovered`, direction: d, color: "#f93" });
+    if (hovered && hoveredDirection) {
+      items.push({ id: `${hovered}--hovered`, direction: hoveredDirection, color: "#f93" });
     }
-    if (selected) {
-      const d = directions.get(selected);
-      if (d) items.push({ id: `${selected}--selected`, direction: d, color: "#39f" });
+    if (selected && selectedDirection) {
+      items.push({ id: `${selected}--selected`, direction: selectedDirection, color: "#39f" });
     }
 
     if (items.length === 0) return [];
@@ -188,7 +195,7 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
     return [pathLayer, scatterLayer, waypointTextLayer, distanceTextLayer].filter(
       (l): l is NonNullable<typeof l> => l !== null
     );
-  }, [directions, selected, hovered]);
+  }, [hovered, hoveredDirection, selected, selectedDirection]);
 
   useRegisterLayers("directions", layers);
 
