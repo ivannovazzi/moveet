@@ -18,7 +18,7 @@ export default function FleetLegend({ fleets, hiddenFleetIds, onToggle }: FleetL
   if (fleets.length === 0) return null;
 
   return (
-    <div className="absolute bottom-3 right-3 z-10 flex flex-col gap-2 rounded-lg border border-border surface-glass p-3 shadow-elevated backdrop-blur-md">
+    <div className="absolute bottom-20 right-3 z-10 flex max-h-[40vh] flex-col gap-2 overflow-y-auto rounded-lg border border-border surface-glass p-3 shadow-elevated backdrop-blur-md">
       {fleets.map((fleet, i) => {
         const hidden = hiddenFleetIds.has(fleet.id);
         return (
@@ -38,7 +38,7 @@ export default function FleetLegend({ fleets, hiddenFleetIds, onToggle }: FleetL
           >
             <span
               aria-hidden="true"
-              className="h-2.5 w-2.5 shrink-0 rounded-full"
+              className="h-2.5 w-2.5 shrink-0 rounded-full shadow-raised"
               style={{ backgroundColor: fleet.color }}
             />
             <span className="whitespace-nowrap text-sm tracking-tight text-foreground">

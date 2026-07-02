@@ -48,6 +48,13 @@ interface VehicleIconDatum {
   icon: string;
   isSelected: boolean;
   isHovered: boolean;
+  /**
+   * Icon tint [r,g,b,a] — dimmed alpha for near-idle vehicles, full for
+   * moving ones. Built once per vehicle per publish (like `position`/`icon`
+   * below) so the IconLayer's `getColor` accessor returns a stored
+   * reference instead of allocating a new array per call.
+   */
+  iconColor: [number, number, number, number];
 }
 
 /** Per-vehicle interpolation state for smooth animation between WS updates. */
@@ -147,6 +154,13 @@ const SIZE_ZOOM_EXPONENT = 0.4;
 const BASE_SIZE_PX = 24;
 const MIN_SIZE_PX = 10;
 const MAX_SIZE_PX = 72;
+
+// Idle vs. moving tint — below this speed a vehicle reads as stopped rather
+// than just moving slowly, so it's dimmed to visually separate it from
+// actively-moving traffic without a new status enum.
+const IDLE_SPEED_KMH = 1;
+const IDLE_ICON_ALPHA = 166; // 0.65 * 255
+const MOVING_ICON_ALPHA = 255;
 
 function iconSizeForZoom(zoom: number): number {
   const size = BASE_SIZE_PX * Math.pow(2, (zoom - REFERENCE_ZOOM) * SIZE_ZOOM_EXPONENT);
@@ -467,6 +481,12 @@ export default function VehiclesLayer({
           icon: atlasManager.register(vehicleType, color),
           isSelected: v.id === currentSelectedId,
           isHovered: v.id === currentHoveredId,
+          iconColor: [
+            255,
+            255,
+            255,
+            (v.speed ?? 0) < IDLE_SPEED_KMH ? IDLE_ICON_ALPHA : MOVING_ICON_ALPHA,
+          ],
         });
       }
 
@@ -535,6 +555,13 @@ export default function VehiclesLayer({
         getFillColor: selectedId ?? hoveredId ?? "",
         getLineColor: selectedId ?? hoveredId ?? "",
       },
+      // Animate hover/select transitions instead of popping instantly between
+      // colors/radius — deck.gl interpolates internally, no extra state needed.
+      transitions: {
+        getFillColor: 200,
+        getLineColor: 200,
+        getRadius: 200,
+      },
     });
 
     const vehiclesLayer = new IconLayer<VehicleIconDatum>({
@@ -545,6 +572,11 @@ export default function VehiclesLayer({
       getPosition: (d) => d.position,
       getIcon: (d) => d.icon,
       getAngle: (d) => d.angle,
+      // Icon sprites are already tinted per-vehicle-color; this tints on top
+      // to dim idle vehicles, so full white = no change from the sprite.
+      // `d.iconColor` is a stored reference built once per vehicle per
+      // publish (see the RAF loop above), not allocated here.
+      getColor: (d) => d.iconColor,
       getSize: iconSize,
       sizeUnits: "pixels",
       billboard: false,

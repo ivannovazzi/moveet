@@ -40,7 +40,7 @@ const POIMarker = memo(function POIMarker({ poi, showLabel, onClick }: POIMarker
   return (
     <HTMLMarker key={poi.id} position={position} onClick={onClick}>
       {showLabel && (
-        <div className="absolute -left-[60px] bottom-8 -ml-[50%] min-w-[120px] rounded-md border border-border bg-card/90 p-1.5 text-center text-base backdrop-blur-md">
+        <div className="absolute bottom-8 left-1/2 min-w-[120px] -translate-x-1/2 rounded-md border border-border bg-card/90 p-1.5 text-center text-base backdrop-blur-md">
           {poi.name}
         </div>
       )}

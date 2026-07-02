@@ -3,6 +3,7 @@ import { PathLayer } from "@deck.gl/layers";
 import { useTraffic } from "@/hooks/useTraffic";
 import { useNetwork } from "@/hooks/useNetwork";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
+import { resolveMapColor } from "@/lib/mapColor";
 import type { TrafficEdge } from "@/types";
 
 const HIGHWAY_WIDTH: Record<string, number> = {
@@ -13,13 +14,16 @@ const HIGHWAY_WIDTH: Record<string, number> = {
   tertiary: 1.5,
 };
 
-// Google Maps-style: green -> yellow -> orange -> red  (RGBA)
+const CONGESTION_ALPHA = 217;
+
+// Google Maps-style: ok -> warning -> danger, resolved from the shared
+// overlay-severity tokens (tokens.css) instead of hardcoded hex.
 function congestionColorRgba(factor: number): [number, number, number, number] {
-  if (factor >= 0.85) return [34, 197, 94, 217]; // green  - free flow
-  if (factor >= 0.7) return [132, 204, 22, 217]; // lime   - light traffic
-  if (factor >= 0.55) return [234, 179, 8, 217]; // yellow - moderate
-  if (factor >= 0.4) return [249, 115, 22, 217]; // orange - heavy
-  return [239, 68, 68, 217]; // red    - jammed
+  if (factor >= 0.85) return resolveMapColor("var(--color-overlay-ok)", CONGESTION_ALPHA); // free flow
+  if (factor >= 0.7) return resolveMapColor("var(--color-overlay-ok)", CONGESTION_ALPHA); // light traffic
+  if (factor >= 0.55) return resolveMapColor("var(--color-overlay-warning)", CONGESTION_ALPHA); // moderate
+  if (factor >= 0.4) return resolveMapColor("var(--color-overlay-warning)", CONGESTION_ALPHA); // heavy
+  return resolveMapColor("var(--color-overlay-danger)", CONGESTION_ALPHA); // jammed
 }
 
 // Aggregate congestion per streetId (worst = lowest factor wins)

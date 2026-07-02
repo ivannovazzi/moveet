@@ -4,6 +4,7 @@ import type { Position } from "@/types";
 import { useDirections, type DirectionState } from "@/hooks/useDirections";
 import { invertLatLng } from "@/utils/coordinates";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
+import { resolveMapColor } from "@/lib/mapColor";
 
 /** Convert a hex color string like "#39f" or "#3399ff" to [r,g,b,a]. */
 function hexToRgba(hex: string, alpha = 255): [number, number, number, number] {
@@ -31,6 +32,8 @@ interface WaypointData {
   color: string;
   label: string;
   stopsLeftLabel?: string;
+  /** 0 (origin) → 1 (destination) — drives a size/opacity progression cue. */
+  progress: number;
 }
 
 interface LabelData {
@@ -89,6 +92,7 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
       const cwi = currentWaypointIndex ?? 0;
       const remaining = waypoints.length - cwi;
 
+      const lastWaypointIdx = waypoints.length - 1;
       for (let i = 0; i < waypoints.length; i++) {
         const wp = waypoints[i];
         const [lng, lat] = invertLatLng(wp.position as Position);
@@ -104,6 +108,7 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
             i === waypoints.length - 1 && remaining > 0
               ? `${remaining} stop${remaining === 1 ? "" : "s"} left`
               : undefined,
+          progress: lastWaypointIdx === 0 ? 1 : i / lastWaypointIdx,
         });
       }
     }
@@ -147,8 +152,12 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
             id: "direction-waypoints",
             data: waypointData,
             getPosition: (d) => d.position,
-            getRadius: (d) => (d.isCurrent ? 7 : 5),
-            getFillColor: (d) => (d.isCurrent ? hexToRgba(d.color) : [0, 0, 0, 180]),
+            // Size/opacity ramp from origin (small, dim) to destination (full
+            // size, opaque) — a lightweight "progression" cue in place of an
+            // arrowhead, which PathLayer can't render natively.
+            getRadius: (d) => (d.isCurrent ? 7 : 4 + d.progress * 2),
+            getFillColor: (d) =>
+              d.isCurrent ? hexToRgba(d.color) : [0, 0, 0, Math.round(90 + d.progress * 120)],
             getLineColor: (d) => (d.isCurrent ? [255, 255, 255, 255] : hexToRgba(d.color)),
             getLineWidth: 1.5,
             stroked: true,
@@ -187,7 +196,7 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
             getAlignmentBaseline: "center",
             sizeUnits: "pixels",
             background: true,
-            getBackgroundColor: [0, 0, 0, 190],
+            getBackgroundColor: resolveMapColor("var(--color-popover)", 190),
             backgroundPadding: [4, 2],
           })
         : null;

@@ -136,6 +136,16 @@ export default function App() {
     [onHoverVehicle, onUnhoverVehicle]
   );
 
+  // Escape-to-deselect defers entirely to dispatch mode / geofence drawing —
+  // both already own Escape via their own window-level shortcut handlers
+  // (useDispatchShortcuts, GeofenceDrawTool), which fire independently of
+  // this one; without this guard a single Escape press while the map has
+  // focus would both exit that mode AND clear the current selection.
+  const onMapEscape = useCallback(() => {
+    if (dispatch.dispatchMode || geofences.drawingActive) return;
+    resetSelection();
+  }, [dispatch.dispatchMode, geofences.drawingActive, resetSelection]);
+
   // ─── WebSocket connection / simulation status ───────────────────
   const { connected, status } = useSimulationConnection({
     setVehicles,
@@ -321,7 +331,7 @@ export default function App() {
               onMapContextClick={onMapContextClick}
               onPOIClick={onPOIClick}
               onHoverVehicle={onHoverMapVehicle}
-              onEscape={resetSelection}
+              onEscape={onMapEscape}
               vehicleFleetMap={vehicleFleetMap}
               hiddenFleetIds={hiddenFleetIds}
               hiddenVehicleTypes={hiddenVehicleTypes}

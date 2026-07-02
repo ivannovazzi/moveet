@@ -304,8 +304,10 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
     [cursor]
   );
 
-  // Keyboard shortcuts, active while the pointer is over the map: Escape
-  // clears the current selection; +/- mirror the on-screen zoom buttons.
+  // Keyboard shortcuts, active while the map container has focus (click it
+  // first, or Tab to it): Escape clears the current selection; +/- mirror
+  // the on-screen zoom buttons. `onEscape` is expected to no-op for modes
+  // that already own Escape (dispatch flow, geofence drawing) — see App.tsx.
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -355,6 +357,7 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
             <div
               ref={containerRef}
               style={{ width: "100%", height: "100%", position: "relative", outline: "none" }}
+              className="focus-visible:ring-inset focus-visible:ring-[3px] focus-visible:ring-ring/50"
               onContextMenu={handleContextMenu}
               tabIndex={0}
             >
