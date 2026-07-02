@@ -299,7 +299,7 @@ export default function ScenariosPanel() {
         {scenarios.length === 0 ? (
           <PanelEmptyState icon={<ScenarioIcon />}>No scenarios found</PanelEmptyState>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col">
             {scenarios.map((file) => {
               const isLoading = loading === file.fileName;
               return (
@@ -307,8 +307,8 @@ export default function ScenariosPanel() {
                   key={file.fileName}
                   type="button"
                   className={cn(
-                    "flex w-full flex-wrap items-center gap-3 rounded-md border border-border-soft bg-white/[0.03] px-2.5 py-2 text-left transition-colors duration-fast ease-standard hover:border-border hover:bg-white/[0.06] disabled:cursor-default disabled:opacity-60",
-                    isLoading && "border-accent/25 bg-accent/10"
+                    "flex w-full flex-wrap items-center gap-3 border-b border-border-soft px-2.5 py-2 text-left transition-colors duration-fast ease-standard hover:bg-white/[0.04] focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-default disabled:opacity-60",
+                    isLoading && "bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)]"
                   )}
                   onClick={() => loadScenario(file.fileName)}
                   disabled={isLoading || isActive}

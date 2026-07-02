@@ -18,9 +18,9 @@ interface IncidentsProps {
 }
 
 const INCIDENT_COLORS: Record<IncidentType, string> = {
-  closure: "#f44336",
-  accident: "#ff9800",
-  construction: "#ffeb3b",
+  closure: "var(--color-incident-closure)",
+  accident: "var(--color-incident-accident)",
+  construction: "var(--color-incident-construction)",
 };
 
 function formatTimeRemaining(expiresAt: number): string {
@@ -104,11 +104,11 @@ export default function Incidents({ incidents, createRandom, remove, error }: In
           <PanelEmptyState icon={<AlertIcon />}>No active incidents</PanelEmptyState>
         ) : null}
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col">
           {incidents.map((incident) => (
             <div
               key={incident.id}
-              className="flex items-center gap-3 rounded-md border border-border-soft bg-white/[0.03] px-2.5 py-2 transition-colors duration-fast ease-standard hover:bg-white/[0.06]"
+              className="flex items-center gap-3 border-b border-border-soft px-2.5 py-2 transition-colors duration-fast ease-standard hover:bg-white/[0.04]"
             >
               <span
                 className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
