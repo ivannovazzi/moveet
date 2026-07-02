@@ -261,18 +261,12 @@ export class VehicleManager extends EventEmitter {
     if (vehicleTypes) {
       this.pendingVehicleTypes = vehicleTypes;
     }
-    const prevInterval = this.options.updateInterval;
     const prevSyncInterval = this.options.adapterSyncInterval;
     this.options = { ...this.options, ...startOptions };
 
-    if (
-      startOptions.updateInterval &&
-      startOptions.updateInterval !== prevInterval &&
-      this.gameLoop.getActiveVehicles().size > 0
-    ) {
-      this.gameLoop.restartGameLoop(startOptions.updateInterval);
-    }
-
+    // setGameLoopIntervalMs restarts the running loop itself when the
+    // interval actually changes, so no separate restartGameLoop call is
+    // needed here.
     this.gameLoop.setGameLoopIntervalMs(this.options.updateInterval);
 
     // Restart the adapter-sync timer at the new cadence if it changed while a

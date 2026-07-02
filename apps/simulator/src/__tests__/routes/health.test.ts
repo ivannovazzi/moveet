@@ -14,6 +14,7 @@ vi.mock("../../utils/logger", () => ({
 function createApp(overrides?: {
   network?: unknown;
   simulationController?: { getStatus: () => { ready: boolean } };
+  vehicleManager?: { adapterSync: { isConnected: () => boolean } };
 }) {
   const app = express();
   const startTime = Date.now();
@@ -21,6 +22,9 @@ function createApp(overrides?: {
   const network = overrides?.network ?? {};
   const simulationController = overrides?.simulationController ?? {
     getStatus: vi.fn().mockReturnValue({ ready: true }),
+  };
+  const vehicleManager = overrides?.vehicleManager ?? {
+    adapterSync: { isConnected: vi.fn().mockReturnValue(true) },
   };
 
   app.get("/health", (_req, res) => {
@@ -31,6 +35,7 @@ function createApp(overrides?: {
         roadNetwork: !!network,
         simulation: simulationController.getStatus().ready,
       },
+      adapterConnected: vehicleManager.adapterSync.isConnected(),
     });
   });
 
@@ -72,5 +77,20 @@ describe("GET /health", () => {
     });
     const res = await request(app).get("/health");
     expect(res.body.subsystems.simulation).toBe(false);
+  });
+
+  it("should report adapterConnected true when adapter sync is healthy or disabled", async () => {
+    const res = await request(app).get("/health");
+    expect(res.body.adapterConnected).toBe(true);
+  });
+
+  it("should report adapterConnected false when the most recent adapter sync failed", async () => {
+    app = createApp({
+      vehicleManager: {
+        adapterSync: { isConnected: () => false },
+      },
+    });
+    const res = await request(app).get("/health");
+    expect(res.body.adapterConnected).toBe(false);
   });
 });

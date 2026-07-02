@@ -63,6 +63,15 @@ const adapterSyncDurationSeconds = new Histogram({
   registers: [registry],
 });
 
+// ─── Routing metrics ────────────────────────────────────────────────────
+
+/** Vehicles currently without an active route because pathfinding has been failing repeatedly. */
+const unroutedVehiclesGauge = new Gauge({
+  name: "moveet_unrouted_vehicles",
+  help: "Number of vehicles currently without an active route due to repeated pathfinding failures",
+  registers: [registry],
+});
+
 // ─── HTTP metrics ───────────────────────────────────────────────────────
 
 /** HTTP request duration in seconds, labelled by method/route/status. */
@@ -106,6 +115,11 @@ export function recordWsBackpressureDisconnect(): void {
 export function recordAdapterSync(result: "success" | "failure", durationSeconds: number): void {
   adapterSyncTotal.inc({ result });
   adapterSyncDurationSeconds.observe({ result }, durationSeconds);
+}
+
+/** Sets the unrouted-vehicles gauge to the current count. */
+export function setUnroutedVehicles(count: number): void {
+  unroutedVehiclesGauge.set(count);
 }
 
 /** Observes an HTTP request's duration with method/route/status labels. */

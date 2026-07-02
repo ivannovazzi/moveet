@@ -118,6 +118,20 @@ const envObjectSchema = z.object({
 
   /** Port the standalone WS gateway listens on (used by ws-gateway entrypoint). */
   WS_GATEWAY_PORT: z.coerce.number().int().min(1).max(65535).default(5020),
+
+  /**
+   * Minimum time (ms) between pathfinding retry attempts for a vehicle that
+   * currently has no route. Bounds how aggressively RouteManager re-invokes
+   * A* for a vehicle stuck without a reachable destination.
+   */
+  PATHFIND_COOLDOWN_MS: z.coerce.number().int().min(0).default(3000),
+
+  /**
+   * Maximum backoff delay (ms) between adapter sync attempts after
+   * consecutive failures. Caps the exponential backoff in
+   * AdapterSyncManager so an unhealthy adapter is still retried periodically.
+   */
+  MAX_SYNC_BACKOFF_MS: z.coerce.number().int().min(0).default(60_000),
 });
 
 export const envSchema = envObjectSchema
@@ -171,6 +185,8 @@ function buildConfig(env: EnvConfig) {
     redisUrl: env.REDIS_URL,
     wsPubSubChannel: env.WS_PUBSUB_CHANNEL,
     wsGatewayPort: env.WS_GATEWAY_PORT,
+    pathfindCooldownMs: env.PATHFIND_COOLDOWN_MS,
+    maxSyncBackoffMs: env.MAX_SYNC_BACKOFF_MS,
   } as const;
 }
 

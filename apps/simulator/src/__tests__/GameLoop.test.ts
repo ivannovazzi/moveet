@@ -113,6 +113,41 @@ describe("GameLoop", () => {
       gameLoop.startVehicleMovement("1", 1000); // different interval
       expect(gameLoop.getGameLoopIntervalRef()).not.toBe(firstInterval);
     });
+
+    it("should restart the running interval immediately when setGameLoopIntervalMs changes it, without needing a vehicle state change", () => {
+      gameLoop.startVehicleMovement("0", 500);
+      const firstInterval = gameLoop.getGameLoopIntervalRef();
+      expect(gameLoop.getGameLoopIntervalMs()).toBe(500);
+
+      gameLoop.setGameLoopIntervalMs(1000);
+
+      expect(gameLoop.getGameLoopIntervalMs()).toBe(1000);
+      // The underlying setInterval handle must be a new one — the change
+      // takes effect immediately rather than waiting for the next
+      // activation/deactivation.
+      expect(gameLoop.getGameLoopIntervalRef()).not.toBe(firstInterval);
+      expect(gameLoop.getGameLoopIntervalRef()).not.toBeNull();
+      // Active vehicles must be preserved across the restart.
+      expect(gameLoop.getActiveVehicles().has("0")).toBe(true);
+    });
+
+    it("should not restart the interval when setGameLoopIntervalMs is called with the loop stopped", () => {
+      expect(gameLoop.getGameLoopIntervalRef()).toBeNull();
+
+      gameLoop.setGameLoopIntervalMs(1000);
+
+      expect(gameLoop.getGameLoopIntervalMs()).toBe(1000);
+      expect(gameLoop.getGameLoopIntervalRef()).toBeNull();
+    });
+
+    it("should not restart the interval when setGameLoopIntervalMs is called with an unchanged value", () => {
+      gameLoop.startVehicleMovement("0", 500);
+      const firstInterval = gameLoop.getGameLoopIntervalRef();
+
+      gameLoop.setGameLoopIntervalMs(500);
+
+      expect(gameLoop.getGameLoopIntervalRef()).toBe(firstInterval);
+    });
   });
 
   // ─── gameLoopTick ─────────────────────────────────────────────────

@@ -18,6 +18,16 @@ import * as utils from "../utils/helpers";
 import { getProfile, FOLLOWING_DISTANCE_BY_SIZE } from "../utils/vehicleProfiles";
 import { rng } from "../utils/rng";
 import logger from "../utils/logger";
+import { setUnroutedVehicles } from "../metrics";
+import { config } from "../utils/config";
+
+/**
+ * After the first "vehicle still unrouted" warning is logged for a vehicle,
+ * repeat warnings are only logged every Nth retry so a vehicle stuck with no
+ * reachable destination doesn't flood the logs. Mirrors GameLoop's
+ * FAILURE_LOG_SAMPLE_RATE pattern.
+ */
+export const UNROUTED_LOG_SAMPLE_RATE = 100;
 
 /**
  * Manages route/waypoint tracking, pathfinding, and route-based movement.
@@ -27,7 +37,9 @@ export class RouteManager extends EventEmitter {
   private routes: Map<string, Route> = new Map();
   private waypointRoutes: Map<string, MultiStopRoute> = new Map();
   private lastPathfindAttempt: Map<string, number> = new Map();
-  private static readonly PATHFIND_COOLDOWN = 3000;
+  private static readonly PATHFIND_COOLDOWN = config.pathfindCooldownMs;
+  /** Consecutive pathfind-retry count per vehicle, cleared once a route is set. */
+  private unroutedAttempts: Map<string, number> = new Map();
 
   /**
    * Per-vehicle cache of the lean, serialized (non-circular) route. Built once
@@ -137,6 +149,9 @@ export class RouteManager extends EventEmitter {
         if (route) {
           this.setRouteFor(vehicleId, route);
           vehicle.edgeIndex = -1;
+          if (this.unroutedAttempts.delete(vehicleId)) {
+            setUnroutedVehicles(this.countUnroutedVehicles());
+          }
           this.emit("direction", {
             vehicleId,
             route: this.getSerializedRoute(vehicleId, route),
@@ -280,6 +295,11 @@ export class RouteManager extends EventEmitter {
     this.waypointRoutes.delete(vehicle.id);
   }
 
+  /** Current count of vehicles with at least one pending unrouted pathfind attempt. */
+  private countUnroutedVehicles(): number {
+    return this.unroutedAttempts.size;
+  }
+
   // ─── Position update core ─────────────────────────────────────────
 
   /**
@@ -358,6 +378,17 @@ export class RouteManager extends EventEmitter {
       const lastAttempt = this.lastPathfindAttempt.get(vehicle.id) ?? 0;
       if (now - lastAttempt > RouteManager.PATHFIND_COOLDOWN) {
         this.lastPathfindAttempt.set(vehicle.id, now);
+
+        const attempts = (this.unroutedAttempts.get(vehicle.id) ?? 0) + 1;
+        this.unroutedAttempts.set(vehicle.id, attempts);
+        if (attempts === 1 || attempts % UNROUTED_LOG_SAMPLE_RATE === 0) {
+          const unroutedForMs = attempts * RouteManager.PATHFIND_COOLDOWN;
+          logger.warn(
+            `Vehicle ${vehicle.id} still unrouted after ${attempts} pathfind attempt(s) (~${unroutedForMs}ms)`
+          );
+        }
+        setUnroutedVehicles(this.countUnroutedVehicles());
+
         this.setRandomDestination(vehicle.id);
       }
     } else {
@@ -702,5 +733,7 @@ export class RouteManager extends EventEmitter {
       clearTimeout(this.rerouteDrainTimer);
       this.rerouteDrainTimer = null;
     }
+    this.unroutedAttempts.clear();
+    setUnroutedVehicles(0);
   }
 }

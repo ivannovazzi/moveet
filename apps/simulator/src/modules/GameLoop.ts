@@ -176,8 +176,18 @@ export class GameLoop extends EventEmitter {
     return this.gameLoopIntervalMs;
   }
 
+  /**
+   * Updates the tick-rate. If the loop is currently running with a different
+   * interval, restarts it immediately so the change takes effect on this call
+   * rather than waiting for the next vehicle activation/deactivation (which is
+   * the only other path that calls restartGameLoop/startGameLoop).
+   */
   setGameLoopIntervalMs(intervalMs: number): void {
+    const changed = intervalMs !== this.gameLoopIntervalMs;
     this.gameLoopIntervalMs = intervalMs;
+    if (changed && this.gameLoopInterval) {
+      this.restartGameLoop(intervalMs);
+    }
   }
 
   // ─── Accessors for internals (used by setOptions) ─────────────────
