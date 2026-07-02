@@ -10,21 +10,40 @@
  * system is the oklch `@theme` block in index.css plus Tailwind utilities.
  */
 :root {
-  /* POI category fills — consumed by Map/POI/helpers.ts getFillByType() */
-  --color-poi-shop: #993300;
-  --color-poi-leisure: #339900;
-  --color-poi-craft: #333399;
-  --color-poi-office: #cc6633;
-  --color-poi-bus: #bbf;
-  --color-poi-default: #666;
+  /* POI category fills — consumed by Map/POI/helpers.ts getFillByType().
+     oklch siblings of the theme palette (index.css) instead of raw legacy
+     hex, so POI colors sit coherently next to --color-primary/--color-status-*. */
+  --color-poi-shop: oklch(0.7 0.15 55);
+  --color-poi-leisure: oklch(0.72 0.14 152);
+  --color-poi-craft: oklch(0.64 0.12 285);
+  --color-poi-office: oklch(0.7 0.12 75);
+  --color-poi-bus: oklch(0.78 0.07 250);
+  --color-poi-default: oklch(0.65 0.015 255);
 
   /* Vehicle rendering — resolved at runtime by VehiclesLayer.resolveCSSColor()
      and mirrored in the TypeLegend swatches. Per-type defaults used when a
-     vehicle has no fleet color. */
-  --color-vehicle-fill: #dcdcdc;
-  --color-vehicle-car: #dcdcdc;
-  --color-vehicle-truck: #f59e0b;
-  --color-vehicle-motorcycle: #8b5cf6;
-  --color-vehicle-ambulance: #ef4444;
-  --color-vehicle-bus: #3b82f6;
+     vehicle has no fleet color. oklch siblings of the theme's status/accent
+     hues instead of raw Tailwind-palette hex. */
+  --color-vehicle-fill: oklch(0.86 0.005 255);
+  --color-vehicle-car: oklch(0.86 0.005 255);
+  --color-vehicle-truck: oklch(0.78 0.13 80);
+  --color-vehicle-motorcycle: oklch(0.66 0.15 300);
+  --color-vehicle-ambulance: oklch(0.63 0.19 25);
+  --color-vehicle-bus: oklch(0.62 0.15 250);
+
+  /* Overlay severity — shared "road danger" family for traffic congestion +
+     incidents, resolved at runtime via src/lib/mapColor.ts (deck.gl layers
+     need numeric [r,g,b,a], not CSS strings). Kept separate from
+     --color-status-* (chrome/UI state) so map-overlay colors can be tuned
+     independently even though they start aligned. */
+  --color-overlay-danger: oklch(0.65 0.2 22);
+  --color-overlay-warning: oklch(0.8 0.14 80);
+  --color-overlay-ok: oklch(0.74 0.15 152);
+
+  /* Heatzones — vehicle-density metric, deliberately a different hue family
+     from --color-overlay-danger so stacked overlays stay visually distinct. */
+  --color-overlay-density: oklch(0.62 0.19 300);
+
+  /* Route/breadcrumb trail tint — distinct from all of the above. */
+  --color-overlay-trail: oklch(0.68 0.16 235);
 }

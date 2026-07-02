@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/Inputs";
 import { cn } from "@/lib/utils";
 import client from "@/utils/client";
+import { RecordCircleIcon } from "@/components/Icons";
 import {
   emitRecording,
   getEmitStatus,
@@ -199,7 +200,7 @@ export default function RecordReplay({
       <PanelBody className="gap-4">
         {/* ── Generate historical ── */}
         <PanelSectionLabel>Generate historical</PanelSectionLabel>
-        <div className="flex flex-col gap-3 rounded-md border border-white/5 bg-white/[0.03] p-3">
+        <div className="flex flex-col gap-3 rounded-md border border-border-soft bg-white/[0.03] p-3">
           <label className={fieldClass}>
             <span className={fieldLabelClass}>Start</span>
             <Input
@@ -265,6 +266,7 @@ export default function RecordReplay({
             </label>
           </div>
           <Button
+            variant="default"
             size="sm"
             onClick={handleGenerate}
             isDisabled={generating}
@@ -303,7 +305,7 @@ export default function RecordReplay({
         </div>
 
         {playableRecordings.length === 0 ? (
-          <PanelEmptyState>No recordings yet</PanelEmptyState>
+          <PanelEmptyState icon={<RecordCircleIcon />}>No recordings yet</PanelEmptyState>
         ) : (
           <div className="flex flex-col gap-2">
             {playableRecordings.map((file) => {
@@ -313,7 +315,7 @@ export default function RecordReplay({
                 <div
                   key={file.fileName}
                   className={cn(
-                    "flex flex-col gap-2 rounded-md border border-white/5 bg-white/[0.03] px-2.5 py-2 transition-colors duration-fast ease-standard hover:bg-white/[0.06] hover:border-white/10",
+                    "flex flex-col gap-2 rounded-md border border-border-soft bg-white/[0.03] px-2.5 py-2 transition-colors duration-fast ease-standard hover:bg-white/[0.06] hover:border-border",
                     isActive && "border-accent/25 bg-accent/10 hover:border-accent/25"
                   )}
                 >
@@ -434,6 +436,7 @@ function EmitControl({ recording }: EmitControlProps) {
         <span>Realism</span>
       </label>
       <Button
+        variant="default"
         size="sm"
         onClick={handleEmit}
         isDisabled={emitting || !canEmit}

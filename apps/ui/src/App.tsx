@@ -130,6 +130,22 @@ export default function App() {
   // (which would discard deck.gl's in-flight enter/color transitions).
   const onPOIClick = useCallback((poi: POI) => setSelectedItem(poi), [setSelectedItem]);
 
+  // Canvas hover on a vehicle mirrors the sidebar list's onMouseEnter/Leave pair.
+  const onHoverMapVehicle = useCallback(
+    (id: string | undefined) => (id ? onHoverVehicle(id) : onUnhoverVehicle()),
+    [onHoverVehicle, onUnhoverVehicle]
+  );
+
+  // Escape-to-deselect defers entirely to dispatch mode / geofence drawing —
+  // both already own Escape via their own window-level shortcut handlers
+  // (useDispatchShortcuts, GeofenceDrawTool), which fire independently of
+  // this one; without this guard a single Escape press while the map has
+  // focus would both exit that mode AND clear the current selection.
+  const onMapEscape = useCallback(() => {
+    if (dispatch.dispatchMode || geofences.drawingActive) return;
+    resetSelection();
+  }, [dispatch.dispatchMode, geofences.drawingActive, resetSelection]);
+
   // ─── WebSocket connection / simulation status ───────────────────
   const { connected, status } = useSimulationConnection({
     setVehicles,
@@ -314,6 +330,8 @@ export default function App() {
               onMapClick={onMapClick}
               onMapContextClick={onMapContextClick}
               onPOIClick={onPOIClick}
+              onHoverVehicle={onHoverMapVehicle}
+              onEscape={onMapEscape}
               vehicleFleetMap={vehicleFleetMap}
               hiddenFleetIds={hiddenFleetIds}
               hiddenVehicleTypes={hiddenVehicleTypes}

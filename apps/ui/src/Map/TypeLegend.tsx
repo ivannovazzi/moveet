@@ -37,7 +37,7 @@ export default function TypeLegend({ hiddenVehicleTypes, onToggle }: TypeLegendP
           >
             <span
               aria-hidden="true"
-              className="h-2.5 w-2.5 shrink-0 rounded-sm"
+              className="h-2.5 w-2.5 shrink-0 rounded-sm shadow-raised"
               style={{ backgroundColor: color }}
             />
             <span className="whitespace-nowrap text-sm tracking-tight text-foreground">

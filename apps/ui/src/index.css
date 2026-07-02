@@ -30,7 +30,12 @@
   --color-accent-foreground: oklch(0.99 0 0);
   --color-destructive: oklch(0.62 0.2 22);
   --color-destructive-foreground: oklch(0.99 0 0);
-  --color-border: oklch(1 0 0 / 13%);
+  --color-border: oklch(1 0 0 / 10%);
+  /* Hairline variant for internal dividers (list rows, header rules) where
+     the full-strength border would compete with content instead of quietly
+     separating it. Panel/card outer edges keep --color-border for enough
+     definition against the near-black map/background. */
+  --color-border-soft: oklch(1 0 0 / 6%);
   --color-input: oklch(1 0 0 / 16%);
   --color-ring: oklch(0.62 0.15 250);
 

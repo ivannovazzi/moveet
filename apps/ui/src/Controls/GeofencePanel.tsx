@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { GeoFence, GeoFenceEvent } from "@moveet/shared-types";
 import { Switch, SquaredButton } from "@/components/Inputs";
 import { cn } from "@/lib/utils";
+import { GeofenceIcon } from "@/components/Icons";
 import { PanelBadge, PanelBody, PanelEmptyState, PanelHeader } from "./PanelPrimitives";
 
 interface GeofencePanelProps {
@@ -145,7 +146,7 @@ export default function GeofencePanel({
           ) : (
             <button
               type="button"
-              className="w-full rounded-md border border-white/5 bg-white/[0.03] px-3 py-2 text-left text-sm font-medium text-muted-foreground transition-colors duration-fast ease-standard hover:border-accent/35 hover:bg-accent/10 hover:text-foreground"
+              className="w-full rounded-md surface-accent px-3 py-2 text-left text-sm font-medium text-primary-foreground shadow-raised transition-[transform,background-color,box-shadow,color] duration-fast ease-standard hover:shadow-glow-accent active:scale-[0.98]"
               onClick={onStartDrawing}
               title="Draw a geofence zone on the map"
             >
@@ -154,7 +155,7 @@ export default function GeofencePanel({
           )}
 
           {fences.length === 0 ? (
-            <PanelEmptyState>
+            <PanelEmptyState icon={<GeofenceIcon />}>
               No zones yet. Use the &ldquo;Draw Zone&rdquo; button above to create one.
             </PanelEmptyState>
           ) : (
@@ -162,7 +163,7 @@ export default function GeofencePanel({
               {fences.map((fence) => (
                 <div
                   key={fence.id}
-                  className="flex items-center gap-2 rounded-md border border-white/5 bg-white/[0.03] px-2.5 py-2 transition-colors duration-fast ease-standard hover:border-white/10 hover:bg-white/[0.06]"
+                  className="flex items-center gap-2 rounded-md border border-border-soft bg-white/[0.03] px-2.5 py-2 transition-colors duration-fast ease-standard hover:border-border hover:bg-white/[0.06]"
                 >
                   <span
                     className="h-2 w-2 flex-shrink-0 rounded-full"
@@ -206,7 +207,7 @@ export default function GeofencePanel({
       {tab === "alerts" && (
         <PanelBody className="gap-3">
           {alerts.length === 0 ? (
-            <PanelEmptyState>
+            <PanelEmptyState icon={<GeofenceIcon />}>
               No events yet. Events appear when vehicles cross zone boundaries.
             </PanelEmptyState>
           ) : (
@@ -214,7 +215,7 @@ export default function GeofencePanel({
               {alerts.map((alert, i) => (
                 <div
                   key={`${alert.fenceId}-${alert.vehicleId}-${alert.timestamp}-${i}`}
-                  className="flex items-center gap-3 rounded-md border border-white/5 bg-white/[0.03] px-2.5 py-2"
+                  className="flex items-center gap-3 rounded-md border border-border-soft bg-white/[0.03] px-2.5 py-2"
                 >
                   <span
                     data-event={alert.event}

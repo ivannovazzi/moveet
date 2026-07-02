@@ -2,19 +2,25 @@ import { useMemo } from "react";
 import { PolygonLayer, TextLayer } from "@deck.gl/layers";
 import type { GeoFence, GeoFenceType } from "@moveet/shared-types";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
+import { resolveMapColor } from "@/lib/mapColor";
 
 type RGBA = [number, number, number, number];
 
+/** Fade in/out duration in milliseconds, matching SpeedLimitSigns. */
+const FADE_DURATION_MS = 500;
+
+// restricted = off-limits (danger); delivery/monitoring are both
+// permitted-access zone types, so they share the "ok" hue.
 const TYPE_FILL: Record<GeoFenceType, RGBA> = {
-  restricted: [239, 68, 68, 64],
-  delivery: [34, 197, 94, 64],
-  monitoring: [59, 130, 246, 64],
+  restricted: resolveMapColor("var(--color-overlay-danger)", 64),
+  delivery: resolveMapColor("var(--color-overlay-ok)", 64),
+  monitoring: resolveMapColor("var(--color-overlay-ok)", 64),
 };
 
 const TYPE_STROKE: Record<GeoFenceType, RGBA> = {
-  restricted: [239, 68, 68, 255],
-  delivery: [34, 197, 94, 255],
-  monitoring: [59, 130, 246, 255],
+  restricted: resolveMapColor("var(--color-overlay-danger)", 255),
+  delivery: resolveMapColor("var(--color-overlay-ok)", 255),
+  monitoring: resolveMapColor("var(--color-overlay-ok)", 255),
 };
 
 function hexToRgba(hex: string, alpha: number): RGBA {
@@ -67,6 +73,16 @@ export default function GeofenceLayer({ fences, selectedFenceId }: GeofenceLayer
         filled: true,
         stroked: true,
         pickable: false,
+        transitions: {
+          getFillColor: {
+            duration: FADE_DURATION_MS,
+            enter: (value: number[]) => [value[0], value[1], value[2], 0],
+          },
+          getLineColor: {
+            duration: FADE_DURATION_MS,
+            enter: (value: number[]) => [value[0], value[1], value[2], 0],
+          },
+        },
       }),
       new TextLayer<GeoFence>({
         id: "geofence-labels",
@@ -79,6 +95,12 @@ export default function GeofenceLayer({ fences, selectedFenceId }: GeofenceLayer
         getAlignmentBaseline: "center",
         pickable: false,
         fontFamily: "system-ui",
+        transitions: {
+          getColor: {
+            duration: FADE_DURATION_MS,
+            enter: (value: number[]) => [value[0], value[1], value[2], 0],
+          },
+        },
         outlineColor: [0, 0, 0, 153],
         outlineWidth: 3,
       }),

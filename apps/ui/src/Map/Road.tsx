@@ -60,7 +60,9 @@ export default function DirectionMap({ road }: DirectionProps) {
         widthUnits: "pixels",
         jointRounded: true,
         capRounded: true,
-        pickable: false,
+        pickable: true,
+        autoHighlight: true,
+        highlightColor: [255, 255, 255, 40],
       }),
       new TextLayer({
         id: "selected-road-label",

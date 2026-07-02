@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import type { Fleet, Vehicle } from "@/types";
 import { Button, SquaredButton } from "@/components/Inputs";
 import { Input } from "@/components/ui/input";
+import { LayersIcon } from "@/components/Icons";
 import {
   PanelBadge,
   PanelBody,
@@ -86,13 +87,13 @@ export default function Fleets({
         {error ? <PanelErrorState>{error}</PanelErrorState> : null}
         {fleets.length < 10 ? (
           <div className="flex justify-end">
-            <Button size="sm" onClick={() => setIsAdding(true)} type="button">
+            <Button size="sm" variant="default" onClick={() => setIsAdding(true)} type="button">
               + New
             </Button>
           </div>
         ) : null}
         {fleets.length === 0 && !isAdding && !error ? (
-          <PanelEmptyState>No fleets defined</PanelEmptyState>
+          <PanelEmptyState icon={<LayersIcon />}>No fleets defined</PanelEmptyState>
         ) : null}
 
         <div className="flex flex-col gap-2">
@@ -109,7 +110,7 @@ export default function Fleets({
             return (
               <div
                 key={fleet.id}
-                className="flex flex-col overflow-hidden rounded-md border border-white/5 bg-white/[0.03] transition-colors duration-fast ease-standard hover:border-white/10"
+                className="flex flex-col overflow-hidden rounded-md border border-border-soft bg-white/[0.03] transition-colors duration-fast ease-standard hover:border-border"
               >
                 <button
                   type="button"

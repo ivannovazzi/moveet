@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { IncidentDTO, IncidentType } from "@/types";
 import { Switch, SquaredButton } from "@/components/Inputs";
+import { AlertIcon } from "@/components/Icons";
 import {
   PanelBadge,
   PanelBody,
@@ -90,7 +91,9 @@ export default function Incidents({ incidents, createRandom, remove, error }: In
           </label>
           <SquaredButton
             icon={<span aria-hidden="true">+</span>}
-            variant="surface"
+            variant="ghost"
+            tone="active"
+            active
             aria-label="Create incident"
             title="Create incident"
             onClick={createRandom}
@@ -98,14 +101,14 @@ export default function Incidents({ incidents, createRandom, remove, error }: In
         </div>
         {error ? <PanelErrorState>{error}</PanelErrorState> : null}
         {incidents.length === 0 && !error ? (
-          <PanelEmptyState>No active incidents</PanelEmptyState>
+          <PanelEmptyState icon={<AlertIcon />}>No active incidents</PanelEmptyState>
         ) : null}
 
         <div className="flex flex-col gap-2">
           {incidents.map((incident) => (
             <div
               key={incident.id}
-              className="flex items-center gap-3 rounded-md border border-white/5 bg-white/[0.03] px-2.5 py-2 transition-colors duration-fast ease-standard hover:bg-white/[0.06]"
+              className="flex items-center gap-3 rounded-md border border-border-soft bg-white/[0.03] px-2.5 py-2 transition-colors duration-fast ease-standard hover:bg-white/[0.06]"
             >
               <span
                 className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
