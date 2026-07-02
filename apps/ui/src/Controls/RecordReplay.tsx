@@ -200,7 +200,7 @@ export default function RecordReplay({
       <PanelBody className="gap-4">
         {/* ── Generate historical ── */}
         <PanelSectionLabel>Generate historical</PanelSectionLabel>
-        <div className="flex flex-col gap-3 rounded-md border border-border-soft bg-white/[0.03] p-3">
+        <div className="flex flex-col gap-3 rounded-md border border-border-soft surface-raised shadow-raised p-3">
           <label className={fieldClass}>
             <span className={fieldLabelClass}>Start</span>
             <Input
@@ -307,7 +307,7 @@ export default function RecordReplay({
         {playableRecordings.length === 0 ? (
           <PanelEmptyState icon={<RecordCircleIcon />}>No recordings yet</PanelEmptyState>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col">
             {playableRecordings.map((file) => {
               const isActive = isReplayMode && activeFile === file.fileName;
 
@@ -315,8 +315,8 @@ export default function RecordReplay({
                 <div
                   key={file.fileName}
                   className={cn(
-                    "flex flex-col gap-2 rounded-md border border-border-soft bg-white/[0.03] px-2.5 py-2 transition-colors duration-fast ease-standard hover:bg-white/[0.06] hover:border-border",
-                    isActive && "border-accent/25 bg-accent/10 hover:border-accent/25"
+                    "flex flex-col gap-2 border-b border-border-soft px-2.5 py-2 transition-colors duration-fast ease-standard hover:bg-white/[0.04]",
+                    isActive && "bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)]"
                   )}
                 >
                   <button
@@ -425,7 +425,7 @@ function EmitControl({ recording }: EmitControlProps) {
   const canEmit = recording.id != null;
 
   return (
-    <div className="flex w-full flex-col gap-2 border-t border-border/60 pt-2">
+    <div className="flex w-full flex-col gap-2 border-t border-border-soft pt-2">
       <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
         <Switch
           isSelected={realism}

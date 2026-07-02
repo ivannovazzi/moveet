@@ -153,31 +153,33 @@ export default function Fleets({
                 </button>
 
                 {isExpanded ? (
-                  <div className="flex flex-col gap-3 border-t border-border/60 p-3">
+                  <div className="flex flex-col gap-3 border-t border-border-soft p-3">
                     {memberVehicles.length > 0 ? (
-                      <div className="flex flex-col gap-1">
+                      <div className="flex flex-col">
                         <span className="pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                           Assigned
                         </span>
-                        {memberVehicles.map((v) => (
-                          <div
-                            key={v.id}
-                            className="flex items-center justify-between rounded-sm px-2 py-1 transition-colors duration-fast ease-standard hover:bg-white/[0.06]"
-                          >
-                            <span className="min-w-0 truncate text-[13px] text-foreground">
-                              {v.name}
-                            </span>
-                            <button
-                              type="button"
-                              className="flex size-[22px] flex-shrink-0 items-center justify-center rounded-sm border border-transparent text-muted-foreground transition-colors duration-fast ease-standard hover:border-status-error/30 hover:bg-status-error/10 hover:text-status-error"
-                              onClick={() => onUnassignVehicle(fleet.id, v.id)}
-                              aria-label={`Remove ${v.name}`}
-                              title={`Remove ${v.name} from fleet`}
+                        <div className="flex flex-col divide-y divide-border-soft">
+                          {memberVehicles.map((v) => (
+                            <div
+                              key={v.id}
+                              className="flex items-center justify-between px-2 py-1 transition-colors duration-fast ease-standard hover:bg-white/[0.04]"
                             >
-                              &minus;
-                            </button>
-                          </div>
-                        ))}
+                              <span className="min-w-0 truncate text-[13px] text-foreground">
+                                {v.name}
+                              </span>
+                              <button
+                                type="button"
+                                className="flex size-6 flex-shrink-0 items-center justify-center rounded-sm border border-transparent text-muted-foreground transition-colors duration-fast ease-standard hover:border-status-error/30 hover:bg-status-error/10 hover:text-status-error"
+                                onClick={() => onUnassignVehicle(fleet.id, v.id)}
+                                aria-label={`Remove ${v.name}`}
+                                title={`Remove ${v.name} from fleet`}
+                              >
+                                &minus;
+                              </button>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     ) : null}
 
@@ -200,18 +202,18 @@ export default function Fleets({
                           {vehicleFilter ? "No matches" : "All vehicles assigned"}
                         </span>
                       ) : (
-                        <div className="flex max-h-40 flex-col gap-1 overflow-y-auto">
+                        <div className="flex max-h-40 flex-col divide-y divide-border-soft overflow-y-auto">
                           {unassignedVehicles.map((v) => (
                             <div
                               key={v.id}
-                              className="flex items-center justify-between rounded-sm px-2 py-1 transition-colors duration-fast ease-standard hover:bg-white/[0.06]"
+                              className="flex items-center justify-between px-2 py-1 transition-colors duration-fast ease-standard hover:bg-white/[0.04]"
                             >
                               <span className="min-w-0 truncate text-[13px] text-foreground">
                                 {v.name}
                               </span>
                               <button
                                 type="button"
-                                className="flex size-[22px] flex-shrink-0 items-center justify-center rounded-sm border border-transparent text-muted-foreground transition-colors duration-fast ease-standard hover:border-status-ok/30 hover:bg-status-ok/10 hover:text-status-ok"
+                                className="flex size-6 flex-shrink-0 items-center justify-center rounded-sm border border-transparent text-muted-foreground transition-colors duration-fast ease-standard hover:border-status-ok/30 hover:bg-status-ok/10 hover:text-status-ok"
                                 onClick={() => onAssignVehicle(fleet.id, v.id)}
                                 aria-label={`Add ${v.name}`}
                                 title={`Add ${v.name} to fleet`}
