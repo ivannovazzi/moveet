@@ -55,6 +55,26 @@ describe("envSchema / parseEnv", () => {
     expect(cfg.VEHICLE_COUNT).toBe(70);
     expect(cfg.GEOJSON_PATH).toBe("./data/network.geojson");
     expect(cfg.ADAPTER_URL).toBe("");
+    expect(cfg.SECTORS_N).toBe(10);
+    expect(cfg.HEAT_ZONE_REGEN_INTERVAL_MS).toBe(5 * 60 * 1000);
+  });
+
+  it("coerces SECTORS_N and HEAT_ZONE_REGEN_INTERVAL_MS overrides", () => {
+    const cfg = parseEnv(validEnv({ SECTORS_N: "20", HEAT_ZONE_REGEN_INTERVAL_MS: "60000" }));
+    expect(cfg.SECTORS_N).toBe(20);
+    expect(cfg.HEAT_ZONE_REGEN_INTERVAL_MS).toBe(60000);
+  });
+
+  it("rejects SECTORS_N=0 (below min 1)", () => {
+    expect(() => parseEnv(validEnv({ SECTORS_N: "0" }))).toThrow(
+      /Invalid environment configuration/
+    );
+  });
+
+  it("rejects HEAT_ZONE_REGEN_INTERVAL_MS=0 (below min 1)", () => {
+    expect(() => parseEnv(validEnv({ HEAT_ZONE_REGEN_INTERVAL_MS: "0" }))).toThrow(
+      /Invalid environment configuration/
+    );
   });
 
   it("coerces string env values to numbers", () => {

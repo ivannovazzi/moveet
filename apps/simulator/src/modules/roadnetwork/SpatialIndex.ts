@@ -13,8 +13,9 @@ import type { Node, Edge, POI, BoundingBox } from "../../types";
 import * as utils from "../../utils/helpers";
 import { SPATIAL_GRID } from "../../constants";
 import { rng } from "../../utils/rng";
+import { config } from "../../utils/config";
 
-const SECTORS_N = 10;
+const SECTORS_N = config.sectorsN;
 
 export class SpatialIndex {
   private readonly nodes: Map<string, Node>;

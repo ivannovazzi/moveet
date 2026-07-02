@@ -132,6 +132,24 @@ const envObjectSchema = z.object({
    * AdapterSyncManager so an unhealthy adapter is still retried periodically.
    */
   MAX_SYNC_BACKOFF_MS: z.coerce.number().int().min(0).default(60_000),
+
+  /**
+   * Size (N x N) of the coarse sector grid SpatialIndex divides the network
+   * bbox into for geographically-uniform random spawn/destination/POI
+   * selection. Higher values give finer geographic uniformity at the cost of
+   * more (smaller) sector buckets.
+   */
+  SECTORS_N: z.coerce.number().int().min(1).default(10),
+
+  /**
+   * How often (ms) HeatZoneManager auto-regenerates heat zones. Bounds how
+   * frequently slowdown polygons shuffle without a redeploy.
+   */
+  HEAT_ZONE_REGEN_INTERVAL_MS: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .default(5 * 60 * 1000),
 });
 
 export const envSchema = envObjectSchema
@@ -187,6 +205,8 @@ function buildConfig(env: EnvConfig) {
     wsGatewayPort: env.WS_GATEWAY_PORT,
     pathfindCooldownMs: env.PATHFIND_COOLDOWN_MS,
     maxSyncBackoffMs: env.MAX_SYNC_BACKOFF_MS,
+    sectorsN: env.SECTORS_N,
+    heatZoneRegenIntervalMs: env.HEAT_ZONE_REGEN_INTERVAL_MS,
   } as const;
 }
 

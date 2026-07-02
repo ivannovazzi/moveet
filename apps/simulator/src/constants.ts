@@ -2,12 +2,6 @@
  * Application-wide constants and configuration values
  */
 
-// Time intervals (in milliseconds)
-export const TIME_INTERVALS = {
-  /** Auto heat zone regeneration interval (5 minutes) */
-  HEAT_ZONE_REGEN_INTERVAL: 5 * 60 * 1000,
-} as const;
-
 // Heat zone generation defaults
 export const HEAT_ZONE_DEFAULTS = {
   /** Default number of heat zones to generate */
