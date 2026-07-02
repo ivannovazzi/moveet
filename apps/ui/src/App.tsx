@@ -9,6 +9,7 @@ import ScenariosPanel from "./Controls/ScenariosPanel";
 import DispatchFooter from "./Controls/DispatchFooter";
 import NavRail from "./Controls/NavRail";
 import BottomDock from "./Controls/BottomDock";
+import Inspector from "./Inspector/Inspector";
 import TogglesPanel from "./Controls/TogglesPanel";
 import AdapterDrawer from "./Controls/Adapter/AdapterDrawer";
 import { useAdapterConfig } from "./Controls/Adapter/useAdapterConfig";
@@ -35,6 +36,7 @@ import { usePanelNavigation } from "./hooks/usePanelNavigation";
 import { useGeofenceManager } from "./hooks/useGeofenceManager";
 import { useSimulationConnection } from "./hooks/useSimulationConnection";
 import { useMapInteractions } from "./hooks/useMapInteractions";
+import { isPOI } from "./utils/typeGuards";
 import ContextMenu from "./components/ContextMenu";
 import MapContextMenu from "./components/MapContextMenu";
 import ConnectionStatus from "./components/ConnectionStatus";
@@ -371,6 +373,15 @@ export default function App() {
               fleets={fleets}
               hiddenFleetIds={hiddenFleetIds}
               onToggle={toggleFleetVisibility}
+            />
+            <Inspector
+              vehicle={vehicles.find((v) => v.id === filters.selected) ?? null}
+              vehicleFleet={filters.selected ? vehicleFleetMap.get(filters.selected) : undefined}
+              poi={selectedItem && isPOI(selectedItem) ? selectedItem : null}
+              onClose={() => {
+                if (filters.selected) onUnselectVehicle();
+                if (selectedItem) setSelectedItem(null);
+              }}
             />
             <BottomDock
               status={status}
