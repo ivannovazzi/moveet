@@ -162,6 +162,23 @@ const IDLE_SPEED_KMH = 1;
 const IDLE_ICON_ALPHA = 166; // 0.65 * 255
 const MOVING_ICON_ALPHA = 255;
 
+// When a vehicle is selected, all other vehicles are dimmed further so the
+// selected one reads as visually foregrounded against the rest of the fleet.
+const DIMMED_ALPHA_FACTOR = 0.5;
+
+/** Exported for direct unit testing without round-tripping the RAF loop. */
+export function computeIconAlpha(
+  speedKmh: number,
+  vehicleId: string,
+  currentSelectedId: string | undefined
+): number {
+  const base = speedKmh < IDLE_SPEED_KMH ? IDLE_ICON_ALPHA : MOVING_ICON_ALPHA;
+  if (currentSelectedId && vehicleId !== currentSelectedId) {
+    return Math.round(base * DIMMED_ALPHA_FACTOR);
+  }
+  return base;
+}
+
 function iconSizeForZoom(zoom: number): number {
   const size = BASE_SIZE_PX * Math.pow(2, (zoom - REFERENCE_ZOOM) * SIZE_ZOOM_EXPONENT);
   return Math.min(Math.max(size, MIN_SIZE_PX), MAX_SIZE_PX);
@@ -481,12 +498,7 @@ export default function VehiclesLayer({
           icon: atlasManager.register(vehicleType, color),
           isSelected: v.id === currentSelectedId,
           isHovered: v.id === currentHoveredId,
-          iconColor: [
-            255,
-            255,
-            255,
-            (v.speed ?? 0) < IDLE_SPEED_KMH ? IDLE_ICON_ALPHA : MOVING_ICON_ALPHA,
-          ],
+          iconColor: [255, 255, 255, computeIconAlpha(v.speed ?? 0, v.id, currentSelectedId)],
         });
       }
 
