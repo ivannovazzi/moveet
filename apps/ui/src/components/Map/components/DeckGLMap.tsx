@@ -326,11 +326,20 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
     return () => container.removeEventListener("keydown", onKeyDown);
   }, [containerRef, controls, onEscape]);
 
+  // Controller config lives on the view (single source of truth — do not also
+  // pass `controller` to <DeckGL>): the map is strictly 2D so rotation is
+  // disabled, smooth scroll-zoom and a short inertia make pan/zoom feel less
+  // stepped.
   const MAP_VIEW = useMemo(
     () =>
       new MapView({
         id: "main",
-        controller: true,
+        controller: {
+          dragRotate: false,
+          touchRotate: false,
+          scrollZoom: { smooth: true },
+          inertia: 250,
+        },
       }),
     []
   );
@@ -372,7 +381,7 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
                     layers={allLayers}
                     onClick={handleClick}
                     onError={handleDeckError}
-                    controller={true}
+                    pickingRadius={5}
                     style={{ position: "relative" }}
                     getCursor={getCursor}
                     getTooltip={getTooltip}

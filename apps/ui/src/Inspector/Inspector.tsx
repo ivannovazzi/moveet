@@ -37,7 +37,13 @@ export default function Inspector({ vehicle, vehicleFleet, poi, onClose }: Inspe
             <p className="mt-0.5 truncate text-xs text-muted-foreground">{vehicleFleet.name}</p>
           )}
         </div>
-        <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close inspector">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onClose}
+          title="Close"
+          aria-label="Close inspector"
+        >
           <CloseIcon className="size-4" />
         </Button>
       </div>

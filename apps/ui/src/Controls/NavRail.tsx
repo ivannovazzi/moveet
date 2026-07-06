@@ -79,6 +79,7 @@ export default function NavRail({ activePanel, onPanelChange, incidentCount }: N
       size="lg"
       variant="ghost"
       tone="active"
+      title={label}
       active={activePanel === id}
       onClick={() => onPanelChange(activePanel === id ? null : id)}
       aria-pressed={activePanel === id}
