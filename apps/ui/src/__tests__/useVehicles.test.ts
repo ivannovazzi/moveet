@@ -127,20 +127,17 @@ describe("useVehicles — store-backed state", () => {
     expect(result.current.vehicles[0].speed).toBe(99);
   });
 
-  it("selection changes are immediate (exposed via filters, not the array)", () => {
+  it("does not own vehicle selection (moved to the unified useSelection hook)", () => {
     const { result } = renderHook(() => useVehicles());
 
     act(() => {
       result.current.setVehicles([makeDTO({ id: "v1" }), makeDTO({ id: "v2", name: "V2" })]);
     });
 
-    act(() => {
-      result.current.onSelectVehicle("v1");
-    });
-
-    // Selection is a scalar on `filters` so a hover/select no longer re-maps
-    // the whole vehicle array.
-    expect(result.current.filters.selected).toBe("v1");
+    // `filters.selected` is only a derived field injected by App from
+    // useSelection — the hook itself never sets it and exposes no setter.
+    expect(result.current.filters.selected).toBeUndefined();
+    expect("onSelectVehicle" in result.current).toBe(false);
     expect(result.current.vehicles.find((v) => v.id === "v1")!.selected).toBe(false);
   });
 

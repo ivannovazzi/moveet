@@ -6,13 +6,17 @@ import { vehicleStore } from "./vehicleStore";
 export interface Filters {
   filter: string;
   visible: string[];
+  /**
+   * Selected vehicle id — NOT managed here. Vehicle selection lives in the
+   * unified selection model (useSelection); App derives this field and injects
+   * it so the map's existing prop paths (VehiclesLayer's scalar id) keep their
+   * data shape.
+   */
   selected?: string;
   hovered?: string;
 }
 
 export interface FiltersActions {
-  onSelectVehicle: (id: string) => void;
-  onUnselectVehicle: () => void;
   onHoverVehicle: (id: string) => void;
   onUnhoverVehicle: () => void;
   onFilterChange: (value: string) => void;
@@ -24,20 +28,8 @@ export function useFilters(): {
   const [filters, setFilters] = useState<Filters>({
     filter: "",
     visible: [],
-    selected: undefined,
     hovered: undefined,
   });
-
-  const onSelectVehicle = useCallback((id: string) => {
-    setFilters((prev) => ({
-      ...prev,
-      selected: prev.selected === id ? undefined : id,
-    }));
-  }, []);
-
-  const onUnselectVehicle = useCallback(() => {
-    setFilters((prev) => ({ ...prev, selected: undefined }));
-  }, []);
 
   const onHoverVehicle = useCallback((id: string) => {
     setFilters((prev) => ({ ...prev, hovered: id }));
@@ -53,8 +45,6 @@ export function useFilters(): {
 
   return {
     filters,
-    onSelectVehicle,
-    onUnselectVehicle,
     onHoverVehicle,
     onUnhoverVehicle,
     onFilterChange,
@@ -150,9 +140,10 @@ export function useVehicles(): UseVehicle {
   // selection/hover: selecting or hovering a vehicle no longer re-maps the
   // whole (~800-element) array, so it can't reallocate the list or fan
   // re-renders into Heatmap/PendingDispatch/the vehicle list. Live selection
-  // and hover are exposed as the scalar `filters.selected`/`filters.hovered`
-  // and derived per-row by the consumers that actually need them (the map
-  // reads them via refs; the list derives them inline).
+  // lives in useSelection (App injects the scalar `filters.selected`); hover
+  // is the scalar `filters.hovered` here. Both are derived per-row by the
+  // consumers that actually need them (the map reads them via refs; the list
+  // derives them inline).
   const mappedVehicles = useMemo(() => {
     const visibleSet = filters.visible.length > 0 ? new Set(filters.visible) : null;
 

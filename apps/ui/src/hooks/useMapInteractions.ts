@@ -10,44 +10,47 @@ import type { IncidentType, POI, Position, Road, Vehicle } from "@/types";
 interface UseMapInteractionsOptions {
   dispatch: DispatchFlow;
   vehicles: Vehicle[];
-  /** Currently selected vehicle id (filters.selected). */
+  /** Currently selected vehicle id (derived from useSelection). */
   selectedVehicleId?: string;
-  onUnselectVehicle: () => void;
+  /** Currently selected road/POI object (from useSelection). */
+  selectedItem: Road | POI | null;
+  /** Select a road/POI in the unified selection model (stable). */
+  selectItem: (item: Road | POI) => void;
+  /** Clear the unified selection of any kind (stable). */
+  clearSelection: () => void;
   /** Stable callback from useIncidents. */
   createIncidentAtPosition: (lat: number, lng: number, type: IncidentType) => void;
 }
 
 /**
- * Map/context-menu interaction state and callbacks: selected road/POI,
- * right-click destination, map clicks (incl. dispatch waypoint placement),
- * find-road/send-vehicle/directions actions, and incident creation.
- *
- * Extracted from App.tsx — behavior preserved verbatim.
+ * Map/context-menu interaction callbacks: right-click destination, map clicks
+ * (incl. dispatch waypoint placement), find-road/send-vehicle/directions
+ * actions, and incident creation. Selection itself lives in useSelection —
+ * this hook only routes through the shared setter/clearer.
  */
 export function useMapInteractions({
   dispatch,
   vehicles,
   selectedVehicleId,
-  onUnselectVehicle,
+  selectedItem,
+  selectItem,
+  clearSelection,
   createIncidentAtPosition,
 }: UseMapInteractionsOptions) {
   const [onContextClick, contextMenuXY, closeContextMenu] = useContextMenu();
-  const [selectedItem, setSelectedItem] = useState<Road | POI | null>(null);
   const [destination, setDestination] = useState<Position | null>(null);
 
   const clearMap = useCallback(() => {
     closeContextMenu();
     setDestination(null);
-    onUnselectVehicle();
-    setSelectedItem(null);
-  }, [closeContextMenu, onUnselectVehicle]);
+    clearSelection();
+  }, [closeContextMenu, clearSelection]);
 
   /** Clear selection state on simulation reset (does not touch the menu). */
   const resetSelection = useCallback(() => {
-    setSelectedItem(null);
     setDestination(null);
-    onUnselectVehicle();
-  }, [onUnselectVehicle]);
+    clearSelection();
+  }, [clearSelection]);
 
   const onMapClick = useCallback(
     (_event?: React.MouseEvent, position?: Position) => {
@@ -140,9 +143,9 @@ export function useMapInteractions({
 
   const onFindRoadClick = useCallback(async () => {
     const road = await client.findRoad(destination!);
-    if (road.data) setSelectedItem(road.data);
+    if (road.data) selectItem(road.data);
     closeContextMenu();
-  }, [destination, closeContextMenu]);
+  }, [destination, selectItem, closeContextMenu]);
 
   const onMapContextClick = useCallback(
     (e: React.MouseEvent, position: Position) => {
@@ -156,9 +159,6 @@ export function useMapInteractions({
     // Context menu
     contextMenuXY,
     closeContextMenu,
-    // Selection state
-    selectedItem,
-    setSelectedItem,
     // Actions
     resetSelection,
     onMapClick,

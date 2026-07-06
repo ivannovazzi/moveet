@@ -8,38 +8,14 @@ describe("useFilters", () => {
     expect(result.current.filters).toEqual({
       filter: "",
       visible: [],
-      selected: undefined,
       hovered: undefined,
     });
   });
 
-  it("selects a vehicle", () => {
+  it("does not manage vehicle selection (lives in useSelection)", () => {
     const { result } = renderHook(() => useFilters());
-    act(() => result.current.onSelectVehicle("v1"));
-    expect(result.current.filters.selected).toBe("v1");
-  });
-
-  it("toggles selection on same vehicle", () => {
-    const { result } = renderHook(() => useFilters());
-    act(() => result.current.onSelectVehicle("v1"));
-    expect(result.current.filters.selected).toBe("v1");
-    act(() => result.current.onSelectVehicle("v1"));
     expect(result.current.filters.selected).toBeUndefined();
-  });
-
-  it("switches selection to a different vehicle", () => {
-    const { result } = renderHook(() => useFilters());
-    act(() => result.current.onSelectVehicle("v1"));
-    expect(result.current.filters.selected).toBe("v1");
-    act(() => result.current.onSelectVehicle("v2"));
-    expect(result.current.filters.selected).toBe("v2");
-  });
-
-  it("unselects vehicle", () => {
-    const { result } = renderHook(() => useFilters());
-    act(() => result.current.onSelectVehicle("v1"));
-    act(() => result.current.onUnselectVehicle());
-    expect(result.current.filters.selected).toBeUndefined();
+    expect("onSelectVehicle" in result.current).toBe(false);
   });
 
   it("sets hover state", () => {
@@ -61,15 +37,13 @@ describe("useFilters", () => {
     expect(result.current.filters.filter).toBe("truck");
   });
 
-  it("preserves other state when selecting", () => {
+  it("preserves other state when hovering", () => {
     const { result } = renderHook(() => useFilters());
     act(() => result.current.onFilterChange("truck"));
     act(() => result.current.onHoverVehicle("v2"));
-    act(() => result.current.onSelectVehicle("v1"));
     expect(result.current.filters).toEqual({
       filter: "truck",
       visible: [],
-      selected: "v1",
       hovered: "v2",
     });
   });

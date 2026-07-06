@@ -24,6 +24,8 @@ import type { Fleet, Modifiers } from "./types";
 import type { BoundingBox } from "@moveet/shared-types";
 import type { POI } from "./types";
 import { useVehicles } from "./hooks/useVehicles";
+import type { Filters } from "./hooks/useVehicles";
+import { SelectionContext, useSelection } from "./hooks/useSelection";
 import { useFleets } from "./hooks/useFleets";
 import { useVehicleTypeFilter } from "./hooks/useVehicleTypeFilter";
 import { useSubscribeFilter } from "./hooks/useSubscribeFilter";
@@ -36,7 +38,6 @@ import { usePanelNavigation } from "./hooks/usePanelNavigation";
 import { useGeofenceManager } from "./hooks/useGeofenceManager";
 import { useSimulationConnection } from "./hooks/useSimulationConnection";
 import { useMapInteractions } from "./hooks/useMapInteractions";
-import { isPOI } from "./utils/typeGuards";
 import ContextMenu from "./components/ContextMenu";
 import MapContextMenu from "./components/MapContextMenu";
 import ConnectionStatus from "./components/ConnectionStatus";
@@ -63,13 +64,27 @@ export default function App() {
     modifiers,
     filters,
     setVehicles,
-    onSelectVehicle,
-    onUnselectVehicle,
     onHoverVehicle,
     onUnhoverVehicle,
     setModifiers,
     onFilterChange,
   } = useVehicles();
+
+  // ─── Unified selection (vehicle | road | poi) ───────────────────
+  // Single source of truth: selecting anything replaces the previous
+  // selection of any kind, so a vehicle and a POI can never be selected
+  // simultaneously. Provided via SelectionContext below (Inspector reads it).
+  const selectionApi = useSelection();
+  const { selection, selectedItem, select, selectItem, clear: clearSelection } = selectionApi;
+  const selectedVehicleId = selection?.kind === "vehicle" ? selection.id : undefined;
+  const onSelectVehicle = useCallback((id: string) => select("vehicle", id), [select]);
+
+  // The map's existing prop paths (VehiclesLayer, Direction, Breadcrumbs) read
+  // the scalar `filters.selected` — keep that shape by injecting the derived id.
+  const mapFilters = useMemo<Filters>(
+    () => ({ ...filters, selected: selectedVehicleId }),
+    [filters, selectedVehicleId]
+  );
 
   const {
     fleets,
@@ -107,8 +122,6 @@ export default function App() {
   const {
     contextMenuXY,
     closeContextMenu,
-    selectedItem,
-    setSelectedItem,
     resetSelection,
     onMapClick,
     onMapContextClick,
@@ -121,14 +134,16 @@ export default function App() {
   } = useMapInteractions({
     dispatch,
     vehicles,
-    selectedVehicleId: filters.selected,
-    onUnselectVehicle,
+    selectedVehicleId,
+    selectedItem,
+    selectItem,
+    clearSelection,
     createIncidentAtPosition: incidents.createAtPosition,
   });
 
   // Stable so the POI IconLayer's onClick-keyed useMemo isn't rebuilt each render
   // (which would discard deck.gl's in-flight enter/color transitions).
-  const onPOIClick = useCallback((poi: POI) => setSelectedItem(poi), [setSelectedItem]);
+  const onPOIClick = useCallback((poi: POI) => selectItem(poi), [selectItem]);
 
   // Canvas hover on a vehicle mirrors the sidebar list's onMouseEnter/Leave pair.
   const onHoverMapVehicle = useCallback(
@@ -182,241 +197,237 @@ export default function App() {
     maxSpeedRef.current = options.maxSpeed;
   }, [options.maxSpeed]);
 
-  useTracking(vehicles, filters.selected, status.interval);
+  useTracking(vehicles, selectedVehicleId, status.interval);
 
   // Keyboard shortcuts while in dispatch mode: Enter dispatches, Esc exits.
   useDispatchShortcuts(dispatch);
 
   return (
-    <div className="flex h-screen max-h-screen flex-col overflow-hidden bg-background">
-      <div
-        className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden"
-        data-ready={dataReady ? "" : undefined}
-      >
-        <NavRail
-          activePanel={activePanel}
-          onPanelChange={setActivePanel}
-          incidentCount={incidents.incidents.length}
-        />
-        <ErrorBoundary fallback={<SectionErrorFallback section="Controls" />}>
-          <aside
-            className={cn(
-              "absolute bottom-0 top-0 left-60 z-30 w-[clamp(248px,22vw,304px)] overflow-hidden",
-              "transition-[transform,opacity,visibility] duration-slow ease-emphasized",
-              activePanel !== null
-                ? "visible translate-x-0 opacity-100 pointer-events-auto"
-                : "invisible -translate-x-[calc(100%+20px)] opacity-0 pointer-events-none"
-            )}
-            aria-hidden={activePanel === null}
-          >
-            <div className="flex h-full w-full min-w-0 flex-col overflow-hidden border-r border-border surface-glass shadow-elevated backdrop-blur-2xl">
-              {activePanel === "vehicles" && (
-                <>
-                  <button
-                    type="button"
-                    className={cn(
-                      "flex w-full items-center justify-center border-b border-border px-4 py-3 text-sm font-medium tracking-wide transition-colors duration-fast ease-standard",
-                      dispatch.dispatchMode
-                        ? "surface-accent text-accent-foreground shadow-glow-accent"
-                        : "bg-foreground/5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
-                    )}
-                    onClick={dispatch.toggleDispatchMode}
-                  >
-                    {dispatch.dispatchMode ? "Exit Dispatch" : "Dispatch"}
-                  </button>
-                  <Vehicles
-                    filter={filters.filter}
-                    onFilterChange={onFilterChange}
+    <SelectionContext.Provider value={selectionApi}>
+      <div className="flex h-screen max-h-screen flex-col overflow-hidden bg-background">
+        <div
+          className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden"
+          data-ready={dataReady ? "" : undefined}
+        >
+          <NavRail
+            activePanel={activePanel}
+            onPanelChange={setActivePanel}
+            incidentCount={incidents.incidents.length}
+          />
+          <ErrorBoundary fallback={<SectionErrorFallback section="Controls" />}>
+            <aside
+              className={cn(
+                "absolute bottom-0 top-0 left-60 z-30 w-[clamp(248px,22vw,304px)] overflow-hidden",
+                "transition-[transform,opacity,visibility] duration-slow ease-emphasized",
+                activePanel !== null
+                  ? "visible translate-x-0 opacity-100 pointer-events-auto"
+                  : "invisible -translate-x-[calc(100%+20px)] opacity-0 pointer-events-none"
+              )}
+              aria-hidden={activePanel === null}
+            >
+              <div className="flex h-full w-full min-w-0 flex-col overflow-hidden border-r border-border surface-glass shadow-elevated backdrop-blur-2xl">
+                {activePanel === "vehicles" && (
+                  <>
+                    <button
+                      type="button"
+                      className={cn(
+                        "flex w-full items-center justify-center border-b border-border px-4 py-3 text-sm font-medium tracking-wide transition-colors duration-fast ease-standard",
+                        dispatch.dispatchMode
+                          ? "surface-accent text-accent-foreground shadow-glow-accent"
+                          : "bg-foreground/5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+                      )}
+                      onClick={dispatch.toggleDispatchMode}
+                    >
+                      {dispatch.dispatchMode ? "Exit Dispatch" : "Dispatch"}
+                    </button>
+                    <Vehicles
+                      filter={filters.filter}
+                      onFilterChange={onFilterChange}
+                      vehicles={vehicles}
+                      selectedId={selectedVehicleId}
+                      onSelectVehicle={onSelectVehicle}
+                      onHoverVehicle={onHoverVehicle}
+                      onUnhoverVehicle={onUnhoverVehicle}
+                      maxSpeed={maxSpeedRef.current}
+                      vehicleFleetMap={vehicleFleetMap}
+                      dispatchState={dispatch.dispatchState}
+                      selectedForDispatch={dispatch.selectedForDispatch}
+                      onToggleVehicleForDispatch={dispatch.onToggleVehicleForDispatch}
+                      assignments={dispatch.assignments}
+                      results={dispatch.results}
+                    />
+                    <DispatchFooter
+                      state={dispatch.dispatchState}
+                      selectedCount={dispatch.selectedForDispatch.length}
+                      assignments={dispatch.assignments}
+                      results={dispatch.results}
+                      onDispatch={dispatch.handleDispatch}
+                      onClear={dispatch.handleDone}
+                      onDone={dispatch.handleDone}
+                      onRetryFailed={dispatch.handleRetryFailed}
+                      dispatching={dispatch.dispatching}
+                      error={dispatch.error}
+                    />
+                  </>
+                )}
+                {activePanel === "fleets" && (
+                  <Fleets
+                    fleets={fleets}
                     vehicles={vehicles}
-                    selectedId={filters.selected}
-                    onSelectVehicle={onSelectVehicle}
-                    onHoverVehicle={onHoverVehicle}
-                    onUnhoverVehicle={onUnhoverVehicle}
-                    maxSpeed={maxSpeedRef.current}
-                    vehicleFleetMap={vehicleFleetMap}
-                    dispatchState={dispatch.dispatchState}
-                    selectedForDispatch={dispatch.selectedForDispatch}
-                    onToggleVehicleForDispatch={dispatch.onToggleVehicleForDispatch}
-                    assignments={dispatch.assignments}
-                    results={dispatch.results}
+                    onCreateFleet={createFleet}
+                    onDeleteFleet={deleteFleet}
+                    onAssignVehicle={assignVehicle}
+                    onUnassignVehicle={unassignVehicle}
+                    error={fleetsError}
                   />
-                  <DispatchFooter
-                    state={dispatch.dispatchState}
-                    selectedCount={dispatch.selectedForDispatch.length}
-                    assignments={dispatch.assignments}
-                    results={dispatch.results}
-                    onDispatch={dispatch.handleDispatch}
-                    onClear={dispatch.handleDone}
-                    onDone={dispatch.handleDone}
-                    onRetryFailed={dispatch.handleRetryFailed}
-                    dispatching={dispatch.dispatching}
-                    error={dispatch.error}
+                )}
+                {activePanel === "incidents" && (
+                  <Incidents
+                    incidents={incidents.incidents}
+                    createRandom={incidents.createRandom}
+                    remove={incidents.remove}
+                    error={incidents.error}
                   />
-                </>
-              )}
-              {activePanel === "fleets" && (
-                <Fleets
-                  fleets={fleets}
-                  vehicles={vehicles}
-                  onCreateFleet={createFleet}
-                  onDeleteFleet={deleteFleet}
-                  onAssignVehicle={assignVehicle}
-                  onUnassignVehicle={unassignVehicle}
-                  error={fleetsError}
-                />
-              )}
-              {activePanel === "incidents" && (
-                <Incidents
-                  incidents={incidents.incidents}
-                  createRandom={incidents.createRandom}
-                  remove={incidents.remove}
-                  error={incidents.error}
-                />
-              )}
-              {activePanel === "recordings" && (
-                <RecordReplay
-                  recordings={recording.recordings}
-                  replayStatus={replay.replayStatus}
-                  onStartReplay={replay.startReplay}
-                  onRefreshRecordings={recording.refreshRecordings}
-                />
-              )}
-              {activePanel === "scenarios" && <ScenariosPanel />}
-              {activePanel === "toggles" && (
-                <TogglesPanel
-                  modifiers={modifiers}
-                  onChangeModifiers={onChangeModifiers}
-                  hiddenVehicleTypes={hiddenVehicleTypes}
-                  onToggleVehicleType={toggleVehicleType}
-                />
-              )}
-              {activePanel === "analytics" && (
-                <AnalyticsPanel
-                  summary={analytics.summary}
-                  fleetHistory={analytics.fleetHistory}
-                  summaryHistory={analytics.summaryHistory}
-                />
-              )}
-              {activePanel === "geofences" && (
-                <GeofencePanel
-                  fences={geofences.fences}
-                  onFenceToggle={geofences.onFenceToggle}
-                  onFenceDelete={geofences.onFenceDelete}
-                  alerts={geofences.alerts}
-                  drawingActive={geofences.drawingActive}
-                  vertexCount={geofences.drawingVertexCount}
-                  onStartDrawing={geofences.startDrawing}
-                  onCancelDrawing={geofences.onDrawCancel}
-                  onConfirmDrawing={geofences.onConfirmDraw}
-                />
-              )}
-              {activePanel === "adapter" && (
-                <AdapterDrawer
-                  isOpen={true}
-                  health={adapter.health}
-                  config={adapter.config}
-                  loading={adapter.loading}
-                  error={adapter.error}
-                  onClose={closePanel}
-                  onSetSource={adapter.setSource}
-                  onAddSink={adapter.addSink}
-                  onRemoveSink={adapter.removeSink}
-                  onSetRealism={adapter.setRealism}
-                />
-              )}
-            </div>
-          </aside>
-        </ErrorBoundary>
-        <ErrorBoundary fallback={<SectionErrorFallback section="Map" />}>
-          <div className="relative flex min-h-0 min-w-0 flex-1">
-            <ConnectionStatus connectionInfo={connectionInfo} onRetry={client.retryConnection} />
-            <LoadingOverlay visible={mapLoading} />
-            <MapView
-              network={network}
-              vehicles={vehicles}
-              filters={filters}
-              modifiers={modifiers}
-              selectedItem={selectedItem}
-              onClick={onSelectVehicle}
-              onMapClick={onMapClick}
-              onMapContextClick={onMapContextClick}
-              onPOIClick={onPOIClick}
-              onHoverVehicle={onHoverMapVehicle}
-              onEscape={onMapEscape}
-              vehicleFleetMap={vehicleFleetMap}
-              hiddenFleetIds={hiddenFleetIds}
-              hiddenVehicleTypes={hiddenVehicleTypes}
-              dispatchState={dispatch.dispatchState}
-              assignments={dispatch.assignments}
-              selectedForDispatchCount={dispatch.selectedForDispatch.length}
-              onMoveWaypointGroup={dispatch.moveWaypointGroup}
-              onRemoveWaypointGroup={dispatch.removeWaypointGroup}
-              incidents={incidents.incidents}
-              fences={geofences.fences}
-              drawingActive={geofences.drawingActive}
-              onDrawComplete={geofences.onDrawComplete}
-              onDrawCancel={geofences.onDrawCancel}
-              onDrawVertexCountChange={geofences.setDrawingVertexCount}
-              drawConfirmId={geofences.drawConfirmId}
-              onBboxChange={onBboxChange}
-            />
-            {!mapLoading && (
-              <SearchBar
+                )}
+                {activePanel === "recordings" && (
+                  <RecordReplay
+                    recordings={recording.recordings}
+                    replayStatus={replay.replayStatus}
+                    onStartReplay={replay.startReplay}
+                    onRefreshRecordings={recording.refreshRecordings}
+                  />
+                )}
+                {activePanel === "scenarios" && <ScenariosPanel />}
+                {activePanel === "toggles" && (
+                  <TogglesPanel
+                    modifiers={modifiers}
+                    onChangeModifiers={onChangeModifiers}
+                    hiddenVehicleTypes={hiddenVehicleTypes}
+                    onToggleVehicleType={toggleVehicleType}
+                  />
+                )}
+                {activePanel === "analytics" && (
+                  <AnalyticsPanel
+                    summary={analytics.summary}
+                    fleetHistory={analytics.fleetHistory}
+                    summaryHistory={analytics.summaryHistory}
+                  />
+                )}
+                {activePanel === "geofences" && (
+                  <GeofencePanel
+                    fences={geofences.fences}
+                    onFenceToggle={geofences.onFenceToggle}
+                    onFenceDelete={geofences.onFenceDelete}
+                    alerts={geofences.alerts}
+                    drawingActive={geofences.drawingActive}
+                    vertexCount={geofences.drawingVertexCount}
+                    onStartDrawing={geofences.startDrawing}
+                    onCancelDrawing={geofences.onDrawCancel}
+                    onConfirmDrawing={geofences.onConfirmDraw}
+                  />
+                )}
+                {activePanel === "adapter" && (
+                  <AdapterDrawer
+                    isOpen={true}
+                    health={adapter.health}
+                    config={adapter.config}
+                    loading={adapter.loading}
+                    error={adapter.error}
+                    onClose={closePanel}
+                    onSetSource={adapter.setSource}
+                    onAddSink={adapter.addSink}
+                    onRemoveSink={adapter.removeSink}
+                    onSetRealism={adapter.setRealism}
+                  />
+                )}
+              </div>
+            </aside>
+          </ErrorBoundary>
+          <ErrorBoundary fallback={<SectionErrorFallback section="Map" />}>
+            <div className="relative flex min-h-0 min-w-0 flex-1">
+              <ConnectionStatus connectionInfo={connectionInfo} onRetry={client.retryConnection} />
+              <LoadingOverlay visible={mapLoading} />
+              <MapView
+                network={network}
+                vehicles={vehicles}
+                filters={mapFilters}
+                modifiers={modifiers}
                 selectedItem={selectedItem}
-                onDestinationClick={onDestinationClick}
-                onItemSelect={(item) => setSelectedItem(item)}
-                onItemUnselect={() => setSelectedItem(null)}
+                onClick={onSelectVehicle}
+                onMapClick={onMapClick}
+                onMapContextClick={onMapContextClick}
+                onPOIClick={onPOIClick}
+                onHoverVehicle={onHoverMapVehicle}
+                onEscape={onMapEscape}
+                vehicleFleetMap={vehicleFleetMap}
+                hiddenFleetIds={hiddenFleetIds}
+                hiddenVehicleTypes={hiddenVehicleTypes}
+                dispatchState={dispatch.dispatchState}
+                assignments={dispatch.assignments}
+                selectedForDispatchCount={dispatch.selectedForDispatch.length}
+                onMoveWaypointGroup={dispatch.moveWaypointGroup}
+                onRemoveWaypointGroup={dispatch.removeWaypointGroup}
+                incidents={incidents.incidents}
+                fences={geofences.fences}
+                selectedFenceId={geofences.selectedFenceId}
+                onFenceClick={geofences.selectFence}
+                drawingActive={geofences.drawingActive}
+                onDrawComplete={geofences.onDrawComplete}
+                onDrawCancel={geofences.onDrawCancel}
+                onDrawVertexCountChange={geofences.setDrawingVertexCount}
+                drawConfirmId={geofences.drawConfirmId}
+                onBboxChange={onBboxChange}
               />
-            )}
-            <Zoom />
-            <FleetLegend
-              fleets={fleets}
-              hiddenFleetIds={hiddenFleetIds}
-              onToggle={toggleFleetVisibility}
-            />
-            <Inspector
-              vehicle={vehicles.find((v) => v.id === filters.selected) ?? null}
-              vehicleFleet={filters.selected ? vehicleFleetMap.get(filters.selected) : undefined}
-              poi={selectedItem && isPOI(selectedItem) ? selectedItem : null}
-              onClose={() => {
-                if (filters.selected) onUnselectVehicle();
-                if (selectedItem) setSelectedItem(null);
-              }}
-            />
-            <BottomDock
-              status={status}
-              connected={connected}
-              replayStatus={replay.replayStatus}
-              onPauseReplay={replay.pauseReplay}
-              onResumeReplay={replay.resumeReplay}
-              onStopReplay={replay.stopReplay}
-              onSeekReplay={replay.seekReplay}
-              onSetReplaySpeed={replay.setReplaySpeed}
-              isRecording={recording.isRecording}
-              onStartRecording={recording.startRecording}
-              onStopRecording={recording.stopRecording}
-            />
-            <CreateZoneDialog
-              polygon={geofences.pendingPolygon}
-              onSubmit={geofences.onCreateZone}
-              onClose={geofences.closePendingPolygon}
-            />
-          </div>
-        </ErrorBoundary>
+              {!mapLoading && (
+                <SearchBar
+                  selectedItem={selectedItem}
+                  onDestinationClick={onDestinationClick}
+                  onItemSelect={selectItem}
+                  onItemUnselect={clearSelection}
+                />
+              )}
+              <Zoom />
+              <FleetLegend
+                fleets={fleets}
+                hiddenFleetIds={hiddenFleetIds}
+                onToggle={toggleFleetVisibility}
+              />
+              <Inspector vehicles={vehicles} vehicleFleetMap={vehicleFleetMap} />
+              <BottomDock
+                status={status}
+                connected={connected}
+                replayStatus={replay.replayStatus}
+                onPauseReplay={replay.pauseReplay}
+                onResumeReplay={replay.resumeReplay}
+                onStopReplay={replay.stopReplay}
+                onSeekReplay={replay.seekReplay}
+                onSetReplaySpeed={replay.setReplaySpeed}
+                isRecording={recording.isRecording}
+                onStartRecording={recording.startRecording}
+                onStopRecording={recording.stopRecording}
+              />
+              <CreateZoneDialog
+                polygon={geofences.pendingPolygon}
+                onSubmit={geofences.onCreateZone}
+                onClose={geofences.closePendingPolygon}
+              />
+            </div>
+          </ErrorBoundary>
+        </div>
+        <ContextMenu position={contextMenuXY} onClose={closeContextMenu}>
+          <MapContextMenu
+            state={dispatch.dispatchState}
+            onFindDirections={onPointDestinationClick}
+            onFindRoad={onFindRoadClick}
+            onSendVehicle={onPointDestinationSingleClick}
+            onAddWaypoint={onContextMenuAddWaypoint}
+            onCreateIncident={onCreateIncident}
+            hasSelectedVehicle={!!selectedVehicleId}
+            hasDispatchSelection={dispatch.selectedForDispatch.length > 0}
+          />
+        </ContextMenu>
+        <Toaster position="bottom-right" />
       </div>
-      <ContextMenu position={contextMenuXY} onClose={closeContextMenu}>
-        <MapContextMenu
-          state={dispatch.dispatchState}
-          onFindDirections={onPointDestinationClick}
-          onFindRoad={onFindRoadClick}
-          onSendVehicle={onPointDestinationSingleClick}
-          onAddWaypoint={onContextMenuAddWaypoint}
-          onCreateIncident={onCreateIncident}
-          hasSelectedVehicle={!!filters.selected}
-          hasDispatchSelection={dispatch.selectedForDispatch.length > 0}
-        />
-      </ContextMenu>
-      <Toaster position="bottom-right" />
-    </div>
+    </SelectionContext.Provider>
   );
 }

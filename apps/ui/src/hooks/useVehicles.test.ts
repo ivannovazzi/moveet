@@ -57,7 +57,7 @@ describe("useVehicles", () => {
     expect(result.current.vehicles[0].position).toEqual([36.8219, -1.2921]);
   });
 
-  it("exposes visibility on the array and selection/hover as scalar filters", () => {
+  it("exposes visibility on the array and hover as a scalar filter", () => {
     const { result } = renderHook(() => useVehicles());
     const v1 = createVehicleDTO({ id: "v1", name: "Alpha" });
     const v2 = createVehicleDTO({ id: "v2", name: "Beta" });
@@ -69,15 +69,11 @@ describe("useVehicles", () => {
     expect(result.current.vehicles[0].visible).toBe(true);
     expect(result.current.vehicles[1].visible).toBe(true);
     // Selection/hover are deliberately NOT folded into the array (perf): the
-    // per-element flags stay false and live selection lives on `filters`.
+    // per-element flags stay false. Hover lives on `filters`; vehicle
+    // selection lives in the unified useSelection hook.
     expect(result.current.vehicles[0].selected).toBe(false);
     expect(result.current.vehicles[0].hovered).toBe(false);
-
-    act(() => {
-      result.current.onSelectVehicle("v1");
-    });
-    expect(result.current.filters.selected).toBe("v1");
-    expect(result.current.vehicles[0].selected).toBe(false);
+    expect(result.current.filters.selected).toBeUndefined();
 
     act(() => {
       result.current.onHoverVehicle("v2");

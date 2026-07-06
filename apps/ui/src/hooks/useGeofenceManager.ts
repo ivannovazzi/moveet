@@ -15,6 +15,9 @@ const MAX_ALERTS = 200;
 export function useGeofenceManager() {
   const [fences, setFences] = useState<GeoFence[]>([]);
   const [alerts, setAlerts] = useState<GeoFenceEvent[]>([]);
+  // Fence selection is deliberately panel-local (NOT part of useSelection):
+  // it only drives the map outline emphasis and doesn't open the Inspector.
+  const [selectedFenceId, setSelectedFenceId] = useState<string | undefined>(undefined);
   const [drawingActive, setDrawingActive] = useState(false);
   const [drawingVertexCount, setDrawingVertexCount] = useState(0);
   const [drawConfirmId, setDrawConfirmId] = useState(0);
@@ -64,10 +67,16 @@ export function useGeofenceManager() {
     [fences]
   );
 
+  /** Toggle map-side fence selection (click the same fence again to deselect). */
+  const selectFence = useCallback((id: string) => {
+    setSelectedFenceId((prev) => (prev === id ? undefined : id));
+  }, []);
+
   const onFenceDelete = useCallback(
     async (id: string) => {
       const prev = fences;
       setFences((f) => f.filter((x) => x.id !== id));
+      setSelectedFenceId((sel) => (sel === id ? undefined : sel));
       try {
         const res = await client.deleteGeofence(id);
         if (res.error) throw new Error(res.error);
@@ -116,6 +125,8 @@ export function useGeofenceManager() {
   return {
     fences,
     alerts,
+    selectedFenceId,
+    selectFence,
     drawingActive,
     drawingVertexCount,
     setDrawingVertexCount,

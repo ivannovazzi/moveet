@@ -80,6 +80,7 @@ interface MapProps {
   incidents?: IncidentDTO[];
   fences?: GeoFence[];
   selectedFenceId?: string;
+  onFenceClick?: (id: string) => void;
   drawingActive?: boolean;
   onDrawComplete?: (polygon: [number, number][]) => void;
   onDrawCancel?: () => void;
@@ -111,6 +112,7 @@ export default function Map({
   incidents,
   fences = [],
   selectedFenceId,
+  onFenceClick,
   drawingActive = false,
   onDrawComplete,
   onDrawCancel,
@@ -180,7 +182,13 @@ export default function Map({
           </Suspense>
         )}
         {/* Geofence zones — rendered between roads and vehicles */}
-        {fences.length > 0 && <GeofenceLayer fences={fences} selectedFenceId={selectedFenceId} />}
+        {fences.length > 0 && (
+          <GeofenceLayer
+            fences={fences}
+            selectedFenceId={selectedFenceId}
+            onFenceClick={onFenceClick}
+          />
+        )}
         <Direction selected={filters.selected} hovered={filters.hovered} />
         {modifiers.showBreadcrumbs && (
           <Suspense fallback={null}>

@@ -55,9 +55,15 @@ function centroid(points: [number, number][]): [number, number] {
 interface GeofenceLayerProps {
   fences: GeoFence[];
   selectedFenceId?: string;
+  /** Map click on a fence polygon — selects it (panel-local selection). */
+  onFenceClick?: (id: string) => void;
 }
 
-export default function GeofenceLayer({ fences, selectedFenceId }: GeofenceLayerProps) {
+export default function GeofenceLayer({
+  fences,
+  selectedFenceId,
+  onFenceClick,
+}: GeofenceLayerProps) {
   const layers = useMemo(() => {
     if (fences.length === 0) return [];
 
@@ -72,7 +78,21 @@ export default function GeofenceLayer({ fences, selectedFenceId }: GeofenceLayer
         lineWidthUnits: "pixels",
         filled: true,
         stroked: true,
-        pickable: false,
+        // Fences sit near the bottom of LAYER_ORDER (geofences: 10), so
+        // vehicles (70) and POIs (45) picked on top of a fence win the pick —
+        // this onClick only fires when the fence itself is the topmost hit.
+        pickable: true,
+        onClick: (info: { object?: GeoFence }) => {
+          if (!info.object) return false;
+          onFenceClick?.(info.object.id);
+          // Mark handled so DeckGL.onClick (map-empty-click clear) doesn't fire.
+          return true;
+        },
+        updateTriggers: {
+          // Accessor identity changes don't re-evaluate attributes in deck.gl;
+          // the selected fence's thicker outline needs an explicit trigger.
+          getLineWidth: selectedFenceId,
+        },
         transitions: {
           getFillColor: {
             duration: FADE_DURATION_MS,
@@ -105,7 +125,7 @@ export default function GeofenceLayer({ fences, selectedFenceId }: GeofenceLayer
         outlineWidth: 3,
       }),
     ];
-  }, [fences, selectedFenceId]);
+  }, [fences, selectedFenceId, onFenceClick]);
 
   useRegisterLayers("geofences", layers);
 
