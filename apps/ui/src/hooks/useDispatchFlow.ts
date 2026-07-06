@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import client from "@/utils/client";
 import { toast, toErrorMessage } from "@/lib/toast";
 import { useNetworkContext } from "@/data/useData";
@@ -61,6 +61,20 @@ export interface WaypointRef {
   waypointIndex: number;
 }
 
+/**
+ * Mode wiring: dispatch no longer owns its own on/off boolean — the
+ * interaction-mode union (useInteractionMode) is the single owner. `active`
+ * is derived from it; `onEnter`/`onExit` request mode transitions.
+ */
+export interface DispatchFlowOptions {
+  /** True while the interaction mode is `dispatch`. */
+  active: boolean;
+  /** Request entering dispatch mode (refused during replay by the mode hook). */
+  onEnter: () => void;
+  /** Request exiting to browse mode. */
+  onExit: () => void;
+}
+
 export interface DispatchFlow {
   // State
   dispatchMode: boolean;
@@ -84,8 +98,7 @@ export interface DispatchFlow {
   setAssignments: React.Dispatch<React.SetStateAction<DispatchAssignment[]>>;
 }
 
-export function useDispatchFlow(): DispatchFlow {
-  const [dispatchMode, setDispatchMode] = useState(false);
+export function useDispatchFlow({ active, onEnter, onExit }: DispatchFlowOptions): DispatchFlow {
   const [assignments, setAssignments] = useState<DispatchAssignment[]>([]);
   const [dispatching, setDispatching] = useState(false);
   const [results, setResults] = useState<DirectionResult[]>([]);
@@ -96,25 +109,40 @@ export function useDispatchFlow(): DispatchFlow {
   const bounds = useMemo(() => computeNetworkBounds(network), [network]);
 
   const dispatchState = useDispatchState({
-    dispatchMode,
+    dispatchMode: active,
     selectedForDispatch,
     assignments,
     dispatching,
     results,
   });
 
+  /** Clear all flow state back to a pristine SELECT-ready slate. */
+  const resetFlow = useCallback(() => {
+    setSelectedForDispatch([]);
+    setAssignments([]);
+    setResults([]);
+    setDispatching(false);
+    setError(null);
+  }, []);
+
+  // Mode exit can also happen outside this hook (entering geofence drawing,
+  // a replay starting, …) — clear the flow on any active → inactive edge so
+  // stale assignments never survive a mode switch.
+  const wasActiveRef = useRef(active);
+  useEffect(() => {
+    if (wasActiveRef.current && !active) resetFlow();
+    wasActiveRef.current = active;
+  }, [active, resetFlow]);
+
+  const handleDone = useCallback(() => {
+    resetFlow();
+    onExit();
+  }, [resetFlow, onExit]);
+
   const toggleDispatchMode = useCallback(() => {
-    // Reset sibling state outside the updater — updaters must stay pure
-    // (StrictMode double-invokes them), so branch on the current value here.
-    if (dispatchMode) {
-      setSelectedForDispatch([]);
-      setAssignments([]);
-      setResults([]);
-      setDispatching(false);
-      setError(null);
-    }
-    setDispatchMode(!dispatchMode);
-  }, [dispatchMode]);
+    if (active) handleDone();
+    else onEnter();
+  }, [active, handleDone, onEnter]);
 
   const onAddWaypoint = useCallback((vehicleId: string, position: Position) => {
     const newWaypoint: Waypoint = { position: toLatLng(position) };
@@ -227,15 +255,6 @@ export function useDispatchFlow(): DispatchFlow {
     }
   }, [assignments, bounds]);
 
-  const handleDone = useCallback(() => {
-    setDispatchMode(false);
-    setSelectedForDispatch([]);
-    setAssignments([]);
-    setResults([]);
-    setDispatching(false);
-    setError(null);
-  }, []);
-
   const handleRetryFailed = useCallback(() => {
     const failedIds = results.filter((r) => r.status === "error").map((r) => r.vehicleId);
     setSelectedForDispatch(failedIds);
@@ -302,7 +321,7 @@ export function useDispatchFlow(): DispatchFlow {
   }, []);
 
   return {
-    dispatchMode,
+    dispatchMode: active,
     assignments,
     dispatching,
     results,

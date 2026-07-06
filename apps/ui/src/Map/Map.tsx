@@ -28,7 +28,6 @@ import VehiclesLayer from "./Vehicle/VehiclesLayer";
 import Direction from "./Direction";
 import RoadRenderer from "./Road";
 import PendingDispatch from "./PendingDispatch";
-import DispatchHint from "./DispatchHint";
 import IncidentMarkers from "./IncidentMarkers";
 import { isPOI, isRoad } from "@/utils/typeGuards";
 import POIMarker from "./POI/POI";
@@ -68,13 +67,11 @@ interface MapProps {
   onMapContextClick: (evt: React.MouseEvent, position: Position) => void;
   onPOIClick: (poi: POI) => void;
   onHoverVehicle?: (id: string | undefined) => void;
-  onEscape?: () => void;
   vehicleFleetMap: Map<string, Fleet>;
   hiddenFleetIds: Set<string>;
   hiddenVehicleTypes: Set<VehicleType>;
   dispatchState?: DispatchState;
   assignments?: DispatchAssignment[];
-  selectedForDispatchCount?: number;
   onMoveWaypointGroup?: (refs: WaypointRef[], newLat: number, newLng: number) => void;
   onRemoveWaypointGroup?: (refs: WaypointRef[]) => void;
   incidents?: IncidentDTO[];
@@ -83,7 +80,6 @@ interface MapProps {
   onFenceClick?: (id: string) => void;
   drawingActive?: boolean;
   onDrawComplete?: (polygon: [number, number][]) => void;
-  onDrawCancel?: () => void;
   onDrawVertexCountChange?: (count: number) => void;
   drawConfirmId?: number;
   onBboxChange?: (bbox: BoundingBox | null) => void;
@@ -100,13 +96,11 @@ export default function Map({
   onMapContextClick,
   onPOIClick,
   onHoverVehicle,
-  onEscape,
   vehicleFleetMap,
   hiddenFleetIds,
   hiddenVehicleTypes,
   dispatchState,
   assignments = [],
-  selectedForDispatchCount = 0,
   onMoveWaypointGroup,
   onRemoveWaypointGroup,
   incidents,
@@ -115,7 +109,6 @@ export default function Map({
   onFenceClick,
   drawingActive = false,
   onDrawComplete,
-  onDrawCancel,
   onDrawVertexCountChange,
   drawConfirmId,
   onBboxChange,
@@ -165,7 +158,6 @@ export default function Map({
         strokeWidth={1.5}
         onClick={onMapClick}
         onContextClick={onMapContextClick}
-        onEscape={onEscape}
         cursor={cursor}
         htmlMarkers={htmlMarkers}
         getTooltip={getTooltip}
@@ -238,17 +230,9 @@ export default function Map({
             onRemoveWaypointGroup={onRemoveWaypointGroup ?? NOOP}
           />
         )}
-        {dispatchState && dispatchState !== DispatchState.BROWSE && (
-          <DispatchHint
-            state={dispatchState}
-            selectedCount={selectedForDispatchCount}
-            stopCount={assignments.reduce((sum, a) => sum + a.waypoints.length, 0)}
-          />
-        )}
         <GeofenceDrawTool
           active={drawingActive}
           onComplete={onDrawComplete ?? NOOP}
-          onCancel={onDrawCancel ?? NOOP}
           onVertexCountChange={onDrawVertexCountChange}
           confirmRequestId={drawConfirmId}
         />

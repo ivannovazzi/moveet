@@ -137,12 +137,16 @@ function ReplayDock({
 
   return (
     <div className={DOCK_CLASS}>
-      <span
-        className="max-w-[140px] shrink-0 truncate text-sm text-muted-foreground"
-        title={fileName}
-      >
-        {fileName}
-      </span>
+      {/* Say what happened to the live controls — the whole dock swaps to
+          this replay UI, which otherwise looks like the sim controls vanished. */}
+      <div className="flex min-w-0 shrink-0 flex-col">
+        <span className="max-w-[180px] truncate text-sm text-foreground" title={fileName}>
+          Replaying {fileName}
+        </span>
+        <span className="whitespace-nowrap text-[10px] uppercase tracking-wider text-muted-foreground">
+          Live controls paused
+        </span>
+      </div>
 
       <div className="flex shrink-0 items-center gap-px">
         <SquaredButton

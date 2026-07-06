@@ -33,13 +33,15 @@ import { useIncidents } from "./hooks/useIncidents";
 import { useRecording } from "./hooks/useRecording";
 import { useReplay } from "./hooks/useReplay";
 import { useDispatchFlow } from "./hooks/useDispatchFlow";
-import { useDispatchShortcuts } from "./hooks/useDispatchShortcuts";
+import { DispatchState } from "./hooks/useDispatchState";
+import { useInteractionMode, useInteractionKeyboard } from "./hooks/useInteractionMode";
 import { usePanelNavigation } from "./hooks/usePanelNavigation";
 import { useGeofenceManager } from "./hooks/useGeofenceManager";
 import { useSimulationConnection } from "./hooks/useSimulationConnection";
 import { useMapInteractions } from "./hooks/useMapInteractions";
 import ContextMenu from "./components/ContextMenu";
 import MapContextMenu from "./components/MapContextMenu";
+import ModeBanner from "./components/ModeBanner";
 import ConnectionStatus from "./components/ConnectionStatus";
 import { useConnectionState } from "./hooks/useConnectionState";
 import ErrorBoundary, { SectionErrorFallback } from "./components/ErrorBoundary";
@@ -55,7 +57,20 @@ import { Toaster } from "./components/ui/sonner";
 export default function App() {
   const connectionInfo = useConnectionState();
 
-  const dispatch = useDispatchFlow();
+  // ─── Interaction mode (browse | dispatch | draw-geofence) ───────
+  // Single owner of "what does a map click mean right now". Dispatch and
+  // geofence drawing derive their active flags from it, so they are mutually
+  // exclusive by construction, and both are refused while a replay runs.
+  const replay = useReplay();
+  const interaction = useInteractionMode({
+    replayActive: replay.replayStatus.mode === "replay",
+  });
+
+  const dispatch = useDispatchFlow({
+    active: interaction.mode.kind === "dispatch",
+    onEnter: interaction.enterDispatch,
+    onExit: interaction.exitToBrowse,
+  });
   const { activePanel, setActivePanel, closePanel } = usePanelNavigation(dispatch.dispatchMode);
 
   const adapter = useAdapterConfig(activePanel === "adapter");
@@ -112,11 +127,14 @@ export default function App() {
   const dataReady = useDataReady();
   const incidents = useIncidents();
   const recording = useRecording();
-  const replay = useReplay();
   const analytics = useAnalytics();
 
   // ─── Geofencing ─────────────────────────────────────────────────
-  const geofences = useGeofenceManager();
+  const geofences = useGeofenceManager({
+    drawingActive: interaction.mode.kind === "draw-geofence",
+    onEnterDrawing: interaction.enterDrawGeofence,
+    onExitDrawing: interaction.exitToBrowse,
+  });
 
   // ─── Map / context-menu interactions ────────────────────────────
   const {
@@ -150,16 +168,6 @@ export default function App() {
     (id: string | undefined) => (id ? onHoverVehicle(id) : onUnhoverVehicle()),
     [onHoverVehicle, onUnhoverVehicle]
   );
-
-  // Escape-to-deselect defers entirely to dispatch mode / geofence drawing —
-  // both already own Escape via their own window-level shortcut handlers
-  // (useDispatchShortcuts, GeofenceDrawTool), which fire independently of
-  // this one; without this guard a single Escape press while the map has
-  // focus would both exit that mode AND clear the current selection.
-  const onMapEscape = useCallback(() => {
-    if (dispatch.dispatchMode || geofences.drawingActive) return;
-    resetSelection();
-  }, [dispatch.dispatchMode, geofences.drawingActive, resetSelection]);
 
   // ─── WebSocket connection / simulation status ───────────────────
   const { connected, status } = useSimulationConnection({
@@ -199,8 +207,41 @@ export default function App() {
 
   useTracking(vehicles, selectedVehicleId, status.interval);
 
-  // Keyboard shortcuts while in dispatch mode: Enter dispatches, Esc exits.
-  useDispatchShortcuts(dispatch);
+  // The single window-level keyboard dispatcher. Escape priority: cancel
+  // geofence draw → exit dispatch → clear selection (closes the inspector) →
+  // close the active panel. Enter closes the draw polygon / submits dispatch.
+  // (Destructured so the useCallbacks below depend on the stable functions,
+  // not on the per-render `dispatch`/`geofences` object literals.)
+  const { handleDispatch, handleDone } = dispatch;
+  const { onDrawCancel, onConfirmDraw } = geofences;
+  const submitDispatch = useCallback(() => {
+    void handleDispatch();
+  }, [handleDispatch]);
+  useInteractionKeyboard(
+    {
+      modeKind: interaction.mode.kind,
+      canConfirmDraw: geofences.drawingVertexCount >= 3,
+      canSubmitDispatch:
+        dispatch.dispatchState === DispatchState.ROUTE && dispatch.assignments.length > 0,
+      hasSelection: selection !== null,
+      panelOpen: activePanel !== null,
+    },
+    {
+      onCancelDraw: onDrawCancel,
+      onConfirmDraw: onConfirmDraw,
+      onExitDispatch: handleDone,
+      onSubmitDispatch: submitDispatch,
+      onClearSelection: resetSelection,
+      onClosePanel: closePanel,
+    }
+  );
+
+  // ModeBanner's Exit routes to the active mode's own exit path so its
+  // cleanup semantics stay identical to Escape.
+  const exitActiveMode = useCallback(() => {
+    if (interaction.mode.kind === "draw-geofence") onDrawCancel();
+    else if (interaction.mode.kind === "dispatch") handleDone();
+  }, [interaction.mode.kind, onDrawCancel, handleDone]);
 
   return (
     <SelectionContext.Provider value={selectionApi}>
@@ -358,13 +399,11 @@ export default function App() {
                 onMapContextClick={onMapContextClick}
                 onPOIClick={onPOIClick}
                 onHoverVehicle={onHoverMapVehicle}
-                onEscape={onMapEscape}
                 vehicleFleetMap={vehicleFleetMap}
                 hiddenFleetIds={hiddenFleetIds}
                 hiddenVehicleTypes={hiddenVehicleTypes}
                 dispatchState={dispatch.dispatchState}
                 assignments={dispatch.assignments}
-                selectedForDispatchCount={dispatch.selectedForDispatch.length}
                 onMoveWaypointGroup={dispatch.moveWaypointGroup}
                 onRemoveWaypointGroup={dispatch.removeWaypointGroup}
                 incidents={incidents.incidents}
@@ -373,12 +412,14 @@ export default function App() {
                 onFenceClick={geofences.selectFence}
                 drawingActive={geofences.drawingActive}
                 onDrawComplete={geofences.onDrawComplete}
-                onDrawCancel={geofences.onDrawCancel}
                 onDrawVertexCountChange={geofences.setDrawingVertexCount}
                 drawConfirmId={geofences.drawConfirmId}
                 onBboxChange={onBboxChange}
               />
-              {!mapLoading && (
+              {/* The search bar and the mode banner share the top-center slot:
+                  while a mode is active the banner replaces the search bar
+                  (mode clicks and search-driven selection would conflict). */}
+              {!mapLoading && interaction.mode.kind === "browse" && (
                 <SearchBar
                   selectedItem={selectedItem}
                   onDestinationClick={onDestinationClick}
@@ -386,6 +427,14 @@ export default function App() {
                   onItemUnselect={clearSelection}
                 />
               )}
+              <ModeBanner
+                mode={interaction.mode}
+                dispatchState={dispatch.dispatchState}
+                selectedCount={dispatch.selectedForDispatch.length}
+                stopCount={dispatch.assignments.reduce((sum, a) => sum + a.waypoints.length, 0)}
+                drawVertexCount={geofences.drawingVertexCount}
+                onExit={exitActiveMode}
+              />
               <Zoom />
               <FleetLegend
                 fleets={fleets}
