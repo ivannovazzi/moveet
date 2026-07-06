@@ -20,6 +20,8 @@ export interface MapControlsContextValue {
   zoomOut: () => void;
   panTo: (lng: number, lat: number, options: PanToOptions) => void;
   setZoom: (zoom: number) => void;
+  /** Current map zoom — for callers outside the map providers (e.g. useTracking). */
+  getZoom: () => number;
   setBounds: (bounds: [Position, Position]) => void;
   focusOn: (lng: number, lat: number, zoom: number, options: PanToOptions) => void;
 }

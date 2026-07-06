@@ -6,10 +6,12 @@ import type { PanToOptions, DeckViewStateControls } from "../providers/types";
 
 export type { DeckViewStateControls };
 
+const DEFAULT_ZOOM = 12;
+
 const DEFAULT_VIEW_STATE: MapViewState = {
   longitude: 36.82,
   latitude: -1.29,
-  zoom: 12,
+  zoom: DEFAULT_ZOOM,
   pitch: 0,
   bearing: 0,
   minZoom: 1,
@@ -25,6 +27,13 @@ interface UseDeckViewStateOptions {
 export function useDeckViewState({ data, width, height }: UseDeckViewStateOptions) {
   const [viewState, setViewState] = useState<MapViewState>(DEFAULT_VIEW_STATE);
   const initializedRef = useRef(false);
+
+  // Live view-state ref so stable callbacks (getZoom) can read the current
+  // value without re-creating on every pan/zoom.
+  const viewStateRef = useRef(viewState);
+  useEffect(() => {
+    viewStateRef.current = viewState;
+  }, [viewState]);
 
   // Fit to data bounds on first load
   useEffect(() => {
@@ -107,6 +116,8 @@ export function useDeckViewState({ data, width, height }: UseDeckViewStateOption
     setViewState((prev) => ({ ...prev, zoom }));
   }, []);
 
+  const getZoom = useCallback(() => viewStateRef.current.zoom ?? DEFAULT_ZOOM, []);
+
   const setBounds = useCallback(
     (bounds: [Position, Position]) => {
       if (!width || !height) return;
@@ -145,6 +156,7 @@ export function useDeckViewState({ data, width, height }: UseDeckViewStateOption
     zoomOut,
     panTo,
     setZoom,
+    getZoom,
     setBounds,
     focusOn,
   };
