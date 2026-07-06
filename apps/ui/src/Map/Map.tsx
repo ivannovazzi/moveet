@@ -73,6 +73,8 @@ interface MapProps {
   fences?: GeoFence[];
   selectedFenceId?: string;
   onFenceClick?: (id: string) => void;
+  /** Whether fence polygons respond to map clicks (browse mode only). */
+  fencesSelectable?: boolean;
   drawingActive?: boolean;
   onDrawComplete?: (polygon: [number, number][]) => void;
   onDrawVertexCountChange?: (count: number) => void;
@@ -98,6 +100,7 @@ export default function Map({
   fences = [],
   selectedFenceId,
   onFenceClick,
+  fencesSelectable = true,
   drawingActive = false,
   onDrawComplete,
   onDrawVertexCountChange,
@@ -108,7 +111,10 @@ export default function Map({
   // state) come from DispatchContext instead of prop-drilling through App.
   const { dispatchState, assignments, moveWaypointGroup, removeWaypointGroup } =
     useDispatchContext();
-  const cursor = cursorForDispatchState(dispatchState);
+  // Geofence drawing places vertices click-by-click, so it wants the same
+  // crosshair as dispatch ROUTE; otherwise the cursor follows the dispatch
+  // sub-state (grab / crosshair / wait).
+  const cursor = drawingActive ? "crosshair" : cursorForDispatchState(dispatchState);
 
   // Native deck.gl tooltip for GL-picked layers (currently just vehicles —
   // POIs/incidents render their own styled HTML markers instead). Hover is
@@ -173,6 +179,7 @@ export default function Map({
             fences={fences}
             selectedFenceId={selectedFenceId}
             onFenceClick={onFenceClick}
+            selectable={fencesSelectable}
           />
         )}
         <Direction selected={filters.selected} hovered={filters.hovered} />

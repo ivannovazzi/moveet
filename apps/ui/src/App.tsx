@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import client from "./utils/client";
 import Vehicles from "./Controls/Vehicles";
 import Fleets from "./Controls/Fleets";
@@ -198,14 +198,10 @@ export default function App() {
     [setModifiers]
   );
 
-  // Vehicles' per-row speed bar renders relative to the configured max speed.
-  // Now that SpeedPanel (the old "Speed" nav destination) is gone, this ref is
-  // synced directly from the shared options context instead.
-  const maxSpeedRef = useRef(60);
+  // Vehicles' per-row speed bar renders relative to the configured max speed,
+  // read straight from the shared options context so the panel never renders a
+  // stale max (a post-commit ref sync lagged the real value by a frame).
   const { options } = useOptions(300);
-  useEffect(() => {
-    maxSpeedRef.current = options.maxSpeed;
-  }, [options.maxSpeed]);
 
   useTracking(vehicles, selectedVehicleId, status.interval);
 
@@ -227,6 +223,9 @@ export default function App() {
         dispatch.dispatchState === DispatchState.ROUTE && dispatch.assignments.length > 0,
       hasSelection: selection !== null,
       panelOpen: activePanel !== null,
+      // The map context menu or the CreateZoneDialog is open — those Radix
+      // overlays own Escape/Enter, so the global dispatcher stands down.
+      overlayOpen: contextMenuXY !== null || geofences.pendingPolygon !== null,
     },
     {
       onCancelDraw: onDrawCancel,
@@ -261,7 +260,7 @@ export default function App() {
               onSelectVehicle={onSelectVehicle}
               onHoverVehicle={onHoverVehicle}
               onUnhoverVehicle={onUnhoverVehicle}
-              maxSpeed={maxSpeedRef.current}
+              maxSpeed={options.maxSpeed}
               vehicleFleetMap={vehicleFleetMap}
             />
             <DispatchFooter />
@@ -345,6 +344,12 @@ export default function App() {
             onSetRealism={adapter.setRealism}
           />
         );
+      default: {
+        // Compile-time exhaustiveness: adding a PanelId without a render case
+        // here becomes a type error instead of silently rendering an empty aside.
+        const _exhaustive: never = panel;
+        return _exhaustive;
+      }
     }
   }
 
@@ -402,6 +407,7 @@ export default function App() {
                   fences={geofences.fences}
                   selectedFenceId={geofences.selectedFenceId}
                   onFenceClick={geofences.selectFence}
+                  fencesSelectable={interaction.mode.kind === "browse"}
                   drawingActive={geofences.drawingActive}
                   onDrawComplete={geofences.onDrawComplete}
                   onDrawVertexCountChange={geofences.setDrawingVertexCount}

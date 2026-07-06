@@ -16,6 +16,13 @@ export interface DeckMapContextValue {
 }
 
 export interface MapControlsContextValue {
+  /**
+   * False for the module-level stub (all controls are no-ops until the lazy
+   * DeckGLMap / its controls provider mounts). Consumers that fire a one-shot
+   * camera move (e.g. useTracking's fly-to) must wait for this before acting,
+   * or the move is consumed by a no-op and never happens.
+   */
+  ready: boolean;
   zoomIn: () => void;
   zoomOut: () => void;
   panTo: (lng: number, lat: number, options: PanToOptions) => void;

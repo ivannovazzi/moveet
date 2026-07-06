@@ -12,10 +12,9 @@ vi.mock("@/components/Map/hooks", () => ({
 const focusOn = vi.fn();
 const getZoom = vi.fn();
 
-beforeEach(() => {
-  vi.clearAllMocks();
-  getZoom.mockReturnValue(12);
+function mockControls(ready = true) {
   vi.mocked(useMapControls).mockReturnValue({
+    ready,
     zoomIn: vi.fn(),
     zoomOut: vi.fn(),
     panTo: vi.fn(),
@@ -24,6 +23,12 @@ beforeEach(() => {
     setBounds: vi.fn(),
     focusOn,
   });
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  getZoom.mockReturnValue(12);
+  mockControls(true);
 });
 
 function renderTracking(vehicles: Vehicle[], selected: string | undefined) {
@@ -95,6 +100,23 @@ describe("useTracking", () => {
     rerender({ vehicles: [vehicle], selected: "v1" });
 
     expect(focusOn).toHaveBeenCalledTimes(2);
+  });
+
+  it("defers the fly-to while controls are not ready, then flies once they are", () => {
+    // A vehicle is selected before the lazy map (and its real controls) mounts.
+    mockControls(false);
+    const vehicle = createVehicle({ id: "v1", position: [36.82, -1.29] });
+    const { rerender } = renderTracking([vehicle], "v1");
+
+    // Not ready → the one-shot must NOT be consumed by the no-op stub.
+    expect(focusOn).not.toHaveBeenCalled();
+
+    // Controls mount; a subsequent render (e.g. a vehicle tick) now flies once.
+    mockControls(true);
+    rerender({ vehicles: [createVehicle({ id: "v1", position: [36.82, -1.29] })], selected: "v1" });
+
+    expect(focusOn).toHaveBeenCalledTimes(1);
+    expect(focusOn).toHaveBeenCalledWith(36.82, -1.29, MIN_FOCUS_ZOOM, { duration: 0 });
   });
 
   it("flies once the selected vehicle's position becomes available", () => {

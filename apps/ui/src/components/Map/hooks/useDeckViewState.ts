@@ -29,11 +29,21 @@ export function useDeckViewState({ data, width, height }: UseDeckViewStateOption
   const initializedRef = useRef(false);
 
   // Live view-state ref so stable callbacks (getZoom) can read the current
-  // value without re-creating on every pan/zoom.
+  // value without re-creating on every pan/zoom. Kept in sync synchronously via
+  // applyViewState below — a per-frame `useEffect([viewState])` copy would run
+  // on every pan/zoom frame just to mirror state and would be one frame stale.
   const viewStateRef = useRef(viewState);
-  useEffect(() => {
-    viewStateRef.current = viewState;
-  }, [viewState]);
+
+  // The single writer for view state: updates React state AND the live ref in
+  // lockstep so ref readers (getZoom) never lag, including programmatic camera
+  // moves that don't round-trip through DeckGL's onViewStateChange.
+  const applyViewState = useCallback((update: (prev: MapViewState) => MapViewState) => {
+    setViewState((prev) => {
+      const next = update(prev);
+      viewStateRef.current = next;
+      return next;
+    });
+  }, []);
 
   // Fit to data bounds on first load
   useEffect(() => {
@@ -65,56 +75,62 @@ export function useDeckViewState({ data, width, height }: UseDeckViewStateOption
       { padding: 40 }
     );
 
-    setViewState((prev) => ({
+    applyViewState((prev) => ({
       ...prev,
       longitude: fitted.longitude,
       latitude: fitted.latitude,
       zoom: fitted.zoom,
     }));
     initializedRef.current = true;
-  }, [data, width, height]);
+  }, [data, width, height, applyViewState]);
 
   const onViewStateChange = useCallback(
     ({ viewState: newViewState }: { viewState: MapViewState }) => {
-      setViewState(newViewState);
+      applyViewState(() => newViewState);
     },
-    []
+    [applyViewState]
   );
 
   // Control methods. Zoom buttons/keyboard shortcuts ease with the same
   // FlyToInterpolator as panTo/focusOn (200ms — short enough to feel like a
   // direct response, long enough not to snap) instead of jumping instantly.
   const zoomIn = useCallback(() => {
-    setViewState((prev) => ({
+    applyViewState((prev) => ({
       ...prev,
       zoom: Math.min((prev.zoom ?? 1) + 0.5, 20),
       transitionDuration: 200,
       transitionInterpolator: new FlyToInterpolator(),
     }));
-  }, []);
+  }, [applyViewState]);
 
   const zoomOut = useCallback(() => {
-    setViewState((prev) => ({
+    applyViewState((prev) => ({
       ...prev,
       zoom: Math.max((prev.zoom ?? 1) - 0.5, 1),
       transitionDuration: 200,
       transitionInterpolator: new FlyToInterpolator(),
     }));
-  }, []);
+  }, [applyViewState]);
 
-  const panTo = useCallback((lng: number, lat: number, options: PanToOptions) => {
-    setViewState((prev) => ({
-      ...prev,
-      longitude: lng,
-      latitude: lat,
-      transitionDuration: options?.duration ?? 300,
-      transitionInterpolator: new FlyToInterpolator(),
-    }));
-  }, []);
+  const panTo = useCallback(
+    (lng: number, lat: number, options: PanToOptions) => {
+      applyViewState((prev) => ({
+        ...prev,
+        longitude: lng,
+        latitude: lat,
+        transitionDuration: options?.duration ?? 300,
+        transitionInterpolator: new FlyToInterpolator(),
+      }));
+    },
+    [applyViewState]
+  );
 
-  const setZoom = useCallback((zoom: number) => {
-    setViewState((prev) => ({ ...prev, zoom }));
-  }, []);
+  const setZoom = useCallback(
+    (zoom: number) => {
+      applyViewState((prev) => ({ ...prev, zoom }));
+    },
+    [applyViewState]
+  );
 
   const getZoom = useCallback(() => viewStateRef.current.zoom ?? DEFAULT_ZOOM, []);
 
@@ -130,28 +146,34 @@ export function useDeckViewState({ data, width, height }: UseDeckViewStateOption
         ],
         { padding: 40 }
       );
-      setViewState((prev) => ({
+      applyViewState((prev) => ({
         ...prev,
         longitude: fitted.longitude,
         latitude: fitted.latitude,
         zoom: fitted.zoom,
       }));
     },
-    [width, height]
+    [width, height, applyViewState]
   );
 
-  const focusOn = useCallback((lng: number, lat: number, zoom: number, options: PanToOptions) => {
-    setViewState((prev) => ({
-      ...prev,
-      longitude: lng,
-      latitude: lat,
-      zoom,
-      transitionDuration: options?.duration ?? 500,
-      transitionInterpolator: new FlyToInterpolator(),
-    }));
-  }, []);
+  const focusOn = useCallback(
+    (lng: number, lat: number, zoom: number, options: PanToOptions) => {
+      applyViewState((prev) => ({
+        ...prev,
+        longitude: lng,
+        latitude: lat,
+        zoom,
+        transitionDuration: options?.duration ?? 500,
+        transitionInterpolator: new FlyToInterpolator(),
+      }));
+    },
+    [applyViewState]
+  );
 
   const controls: DeckViewStateControls = {
+    // Real controls are always ready; the module stub reports false until this
+    // provider mounts (see providers/controls.ts).
+    ready: true,
     zoomIn,
     zoomOut,
     panTo,

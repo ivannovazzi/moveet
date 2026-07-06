@@ -22,6 +22,7 @@ export const DeckOverlayContext = createContext<DeckOverlayContextValue>({
 });
 
 export const MapControlsContext = createContext<MapControlsContextValue>({
+  ready: false,
   zoomIn: () => {},
   zoomOut: () => {},
   panTo: () => {},

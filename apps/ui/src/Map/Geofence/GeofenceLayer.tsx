@@ -57,12 +57,20 @@ interface GeofenceLayerProps {
   selectedFenceId?: string;
   /** Map click on a fence polygon — selects it (panel-local selection). */
   onFenceClick?: (id: string) => void;
+  /**
+   * Whether fence polygons respond to map clicks. Only true in browse mode —
+   * while dispatch or geofence-draw is active a click means "place a waypoint /
+   * vertex", so the fence must NOT pick (which would return true from onClick
+   * and suppress DeckGL's map-level onClick). Defaults to true.
+   */
+  selectable?: boolean;
 }
 
 export default function GeofenceLayer({
   fences,
   selectedFenceId,
   onFenceClick,
+  selectable = true,
 }: GeofenceLayerProps) {
   const layers = useMemo(() => {
     if (fences.length === 0) return [];
@@ -81,9 +89,12 @@ export default function GeofenceLayer({
         // Fences sit near the bottom of LAYER_ORDER (geofences: 10), so
         // vehicles (70) and POIs (45) picked on top of a fence win the pick —
         // this onClick only fires when the fence itself is the topmost hit.
-        pickable: true,
+        // Only pickable in browse mode: while dispatch/draw is active a fence
+        // pick would return true and swallow the map-level click that places
+        // waypoints/vertices.
+        pickable: selectable,
         onClick: (info: { object?: GeoFence }) => {
-          if (!info.object) return false;
+          if (!selectable || !info.object) return false;
           onFenceClick?.(info.object.id);
           // Mark handled so DeckGL.onClick (map-empty-click clear) doesn't fire.
           return true;
@@ -125,7 +136,7 @@ export default function GeofenceLayer({
         outlineWidth: 3,
       }),
     ];
-  }, [fences, selectedFenceId, onFenceClick]);
+  }, [fences, selectedFenceId, onFenceClick, selectable]);
 
   useRegisterLayers("geofences", layers);
 

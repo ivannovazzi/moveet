@@ -20,7 +20,7 @@ export default function useTracking(
   selected: string | undefined,
   duration: number = 0
 ) {
-  const { focusOn, getZoom } = useMapControls();
+  const { focusOn, getZoom, ready } = useMapControls();
   const vehicle = vehicles.find((v) => v.id === selected);
   const [lng, lat] = vehicle?.position || [null, null];
 
@@ -33,9 +33,15 @@ export default function useTracking(
       flownToRef.current = undefined;
       return;
     }
+    // The controls may still be the no-op module stub if a vehicle was selected
+    // before the lazy DeckGLMap mounted — don't consume the one-shot on it, or
+    // the map never flies until the vehicle is re-selected. Defer until ready;
+    // `ready` is in the deps so this re-runs (a vehicle tick or the readiness
+    // flip re-renders App) and flies once the real controls are in place.
+    if (!ready) return;
     if (flownToRef.current === selected) return;
     if (lng == null || lat == null) return;
     flownToRef.current = selected;
     focusOn(lng, lat, Math.max(getZoom(), MIN_FOCUS_ZOOM), { duration });
-  }, [selected, lng, lat, duration, focusOn, getZoom]);
+  }, [selected, lng, lat, duration, focusOn, getZoom, ready]);
 }

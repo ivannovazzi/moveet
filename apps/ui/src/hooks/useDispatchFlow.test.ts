@@ -326,6 +326,56 @@ describe("useDispatchFlow", () => {
     consoleSpy.mockRestore();
   });
 
+  it("drops an in-flight dispatch result if the user exits before it resolves", async () => {
+    // A batchDirection that resolves only when we tell it to, so we can exit
+    // dispatch while the request is still pending.
+    let resolve!: (value: {
+      data: { status: string; results: { vehicleId: string; status: "ok" }[] };
+    }) => void;
+    vi.mocked(client.batchDirection).mockReturnValue(
+      new Promise((r) => {
+        resolve = r;
+      })
+    );
+
+    const { result } = renderHook(() => useDispatchFlowHarness());
+
+    act(() => {
+      result.current.toggleDispatchMode();
+    });
+    act(() => {
+      result.current.onToggleVehicleForDispatch("v1");
+    });
+    act(() => {
+      result.current.setAssignments([
+        { vehicleId: "v1", vehicleName: "Truck", waypoints: [{ position: [-1.29, 36.82] }] },
+      ]);
+    });
+
+    // Fire the dispatch (do not await — leave it pending).
+    let dispatchPromise!: Promise<void>;
+    act(() => {
+      dispatchPromise = result.current.handleDispatch();
+    });
+    expect(result.current.dispatching).toBe(true);
+
+    // User exits dispatch (Escape → handleDone) while the request is in flight.
+    act(() => {
+      result.current.handleDone();
+    });
+    expect(result.current.dispatchState).toBe(DispatchState.BROWSE);
+
+    // Now the stale request resolves — it must NOT resurrect the results.
+    await act(async () => {
+      resolve({ data: { status: "ok", results: [{ vehicleId: "v1", status: "ok" }] } });
+      await dispatchPromise;
+    });
+
+    expect(result.current.results).toEqual([]);
+    expect(result.current.dispatching).toBe(false);
+    expect(result.current.dispatchState).toBe(DispatchState.BROWSE);
+  });
+
   it("handleDone resets all dispatch state", () => {
     const { result } = renderHook(() => useDispatchFlowHarness());
 

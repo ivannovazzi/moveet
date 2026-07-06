@@ -286,11 +286,12 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
     [onContextClick, viewport]
   );
 
-  // Cursor feedback: `cursor` is an explicit mode override (dispatch-flow
-  // crosshairs, geofence-draw crosshair, etc.) and always wins when set to
-  // anything but the idle default. Otherwise reflect deck.gl's own
-  // hover/drag state so pickable objects (vehicles, POIs, …) show a pointer
-  // and panning shows a grabbing hand.
+  // Cursor feedback: the `cursor` prop is an explicit mode override supplied by
+  // Map.tsx (crosshair for dispatch ROUTE and for geofence drawing, "wait"
+  // while dispatching) and always wins when set to anything but the idle
+  // "grab". Otherwise reflect deck.gl's own hover/drag state so pickable
+  // objects (vehicles, POIs, …) show a pointer and panning shows a grabbing
+  // hand.
   const getCursor = useCallback(
     ({ isDragging, isHovering }: { isDragging: boolean; isHovering: boolean }) => {
       if (cursor !== "grab") return cursor;

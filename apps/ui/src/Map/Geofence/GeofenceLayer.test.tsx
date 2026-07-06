@@ -99,6 +99,19 @@ describe("GeofenceLayer", () => {
     expect(getLayer("geofences").props.onClick!({ object: fence })).toBe(true);
   });
 
+  it("is not pickable and lets clicks fall through when selectable is false", () => {
+    // In dispatch/draw mode the map click means "place a waypoint/vertex" — a
+    // fence must not pick (returning true) and swallow DeckGL's map-level onClick.
+    const onFenceClick = vi.fn();
+    const fence = makeFence();
+    render(<GeofenceLayer fences={[fence]} onFenceClick={onFenceClick} selectable={false} />);
+
+    const layer = getLayer("geofences");
+    expect(layer.props.pickable).toBe(false);
+    expect(layer.props.onClick!({ object: fence })).toBe(false);
+    expect(onFenceClick).not.toHaveBeenCalled();
+  });
+
   it("draws the selected fence with a thicker outline and pins it via updateTriggers", () => {
     const fence = makeFence();
     const other = makeFence({ id: "fence-2", name: "Other" });

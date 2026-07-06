@@ -85,6 +85,12 @@ export interface GlobalKeyContext {
   canSubmitDispatch: boolean;
   hasSelection: boolean;
   panelOpen: boolean;
+  /**
+   * A Radix overlay (map context menu / CreateZoneDialog) is open. Those own
+   * Escape/Enter themselves; the global dispatcher must stand down so dismissing
+   * a menu doesn't also clear the selection or exit the mode underneath it.
+   */
+  overlayOpen: boolean;
 }
 
 /**
@@ -95,6 +101,9 @@ export interface GlobalKeyContext {
  * mode: close the draw polygon, or submit the pending dispatch.
  */
 export function keyActionFor(key: string, ctx: GlobalKeyContext): GlobalKeyAction {
+  // While an overlay (context menu / dialog) is open, it owns the keyboard —
+  // the app-level actions stand down entirely.
+  if (ctx.overlayOpen) return "none";
   if (key === "Escape") {
     if (ctx.modeKind === "draw-geofence") return "cancel-draw";
     if (ctx.modeKind === "dispatch") return "exit-dispatch";
@@ -134,6 +143,11 @@ export function useInteractionKeyboard(ctx: GlobalKeyContext, handlers: GlobalKe
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      // A Radix overlay (context menu / dialog) that already consumed this key
+      // marks it handled — never double-fire an app action on top of it. This
+      // backs up the overlayOpen context flag below since window-vs-document
+      // listener ordering with Radix isn't guaranteed.
+      if (e.defaultPrevented) return;
       // Don't intercept while typing in inputs/textareas.
       const target = e.target as HTMLElement | null;
       if (

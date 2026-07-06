@@ -3,6 +3,7 @@ import type { GeoFence, GeoFenceEvent } from "@moveet/shared-types";
 import { Button, Switch } from "@/components/Inputs";
 import { cn } from "@/lib/utils";
 import { GeofenceIcon } from "@/components/Icons";
+import { MIN_GEOFENCE_VERTICES, drawProgressHint } from "@/lib/geofenceHints";
 import {
   PanelBadge,
   PanelBody,
@@ -63,7 +64,7 @@ export default function GeofencePanel({
 }: GeofencePanelProps) {
   const [tab, setTab] = useState<Tab>("zones");
 
-  const canConfirm = vertexCount >= 3;
+  const canConfirm = vertexCount >= MIN_GEOFENCE_VERTICES;
 
   return (
     <>
@@ -124,11 +125,7 @@ export default function GeofencePanel({
           {drawingActive ? (
             <div className="flex flex-col gap-2 rounded-md border border-accent/30 bg-accent/10 p-3">
               <span className="text-xs leading-snug text-muted-foreground">
-                {vertexCount === 0
-                  ? "Click on the map to add points"
-                  : vertexCount < 3
-                    ? `${vertexCount} point${vertexCount === 1 ? "" : "s"} — need at least 3`
-                    : `${vertexCount} points — ready to confirm`}
+                {drawProgressHint(vertexCount) ?? `${vertexCount} points — ready to confirm`}
               </span>
               <div className="flex gap-2">
                 <Button

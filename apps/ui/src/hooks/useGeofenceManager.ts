@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import client from "@/utils/client";
 import { toast } from "@/lib/toast";
+import { useFallingEdge } from "./useFallingEdge";
 import type { GeoFence, GeoFenceEvent, CreateGeoFenceRequest } from "@moveet/shared-types";
 
 /** Cap on retained geofence alert events (newest first). */
@@ -123,12 +124,8 @@ export function useGeofenceManager({
 
   // Draw mode can also end outside this hook (entering dispatch, a replay
   // starting, …) — GeofenceDrawTool discards its vertices when `active`
-  // drops, so mirror that by zeroing the reported count.
-  const wasDrawingRef = useRef(drawingActive);
-  useEffect(() => {
-    if (wasDrawingRef.current && !drawingActive) setDrawingVertexCount(0);
-    wasDrawingRef.current = drawingActive;
-  }, [drawingActive]);
+  // drops, so mirror that by zeroing the reported count on the falling edge.
+  useFallingEdge(drawingActive, () => setDrawingVertexCount(0));
 
   const onConfirmDraw = useCallback(() => {
     setDrawConfirmId((n) => n + 1);

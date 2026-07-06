@@ -2,6 +2,7 @@ import { cn } from "@/lib/utils";
 import { Directions, GeofenceIcon } from "@/components/Icons";
 import { DispatchState } from "@/hooks/useDispatchState";
 import type { InteractionMode } from "@/hooks/useInteractionMode";
+import { drawProgressHint } from "@/lib/geofenceHints";
 
 interface ModeBannerProps {
   mode: InteractionMode;
@@ -46,10 +47,12 @@ function dispatchHint(
 }
 
 function drawHint(vertexCount: number): string {
-  if (vertexCount === 0) return "Click the map to place points — at least 3";
-  if (vertexCount < 3)
-    return `${vertexCount} point${vertexCount === 1 ? "" : "s"} — add ${3 - vertexCount} more`;
-  return "Click the first point or press Enter to finish • drag to move • click an edge to insert • right-click to delete";
+  // Shared count-progress copy while the polygon is short; once it can close,
+  // the banner shows its own map-action instructions.
+  return (
+    drawProgressHint(vertexCount) ??
+    "Click the first point or press Enter to finish • drag to move • click an edge to insert • right-click to delete"
+  );
 }
 
 /**

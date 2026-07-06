@@ -79,6 +79,7 @@ describe("keyActionFor", () => {
     canSubmitDispatch: false,
     hasSelection: false,
     panelOpen: false,
+    overlayOpen: false,
     ...overrides,
   });
 
@@ -122,6 +123,19 @@ describe("keyActionFor", () => {
     expect(keyActionFor("a", ctx({ modeKind: "dispatch", hasSelection: true }))).toBe("none");
     expect(keyActionFor("Tab", ctx({ modeKind: "draw-geofence" }))).toBe("none");
   });
+
+  it("stands down entirely while an overlay is open (menu/dialog owns the keys)", () => {
+    // Escape would otherwise clear the selection / exit the mode; Enter would
+    // otherwise submit dispatch. With an overlay open, both no-op.
+    expect(keyActionFor("Escape", ctx({ hasSelection: true, overlayOpen: true }))).toBe("none");
+    expect(keyActionFor("Escape", ctx({ modeKind: "dispatch", overlayOpen: true }))).toBe("none");
+    expect(
+      keyActionFor(
+        "Enter",
+        ctx({ modeKind: "dispatch", canSubmitDispatch: true, overlayOpen: true })
+      )
+    ).toBe("none");
+  });
 });
 
 describe("useInteractionKeyboard", () => {
@@ -140,6 +154,7 @@ describe("useInteractionKeyboard", () => {
     canSubmitDispatch: false,
     hasSelection: false,
     panelOpen: false,
+    overlayOpen: false,
   };
 
   it("fires the routed handler on a window-level keydown", () => {
@@ -165,6 +180,42 @@ describe("useInteractionKeyboard", () => {
 
     expect(handlers.onCancelDraw).toHaveBeenCalledOnce();
     expect(handlers.onExitDispatch).not.toHaveBeenCalled();
+  });
+
+  it("does not clear the selection when Escape dismisses an open overlay", () => {
+    const handlers = makeHandlers();
+    // Selection is present and no mode is active — Escape would normally clear it.
+    const overlayCtx: GlobalKeyContext = {
+      ...baseCtx,
+      modeKind: "browse",
+      hasSelection: true,
+      overlayOpen: true,
+    };
+    renderHook(() => useInteractionKeyboard(overlayCtx, handlers));
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(handlers.onClearSelection).not.toHaveBeenCalled();
+    expect(handlers.onExitDispatch).not.toHaveBeenCalled();
+  });
+
+  it("ignores a keydown already handled (defaultPrevented) by a Radix overlay", () => {
+    const handlers = makeHandlers();
+    const ctxWithSelection: GlobalKeyContext = {
+      ...baseCtx,
+      modeKind: "browse",
+      hasSelection: true,
+    };
+    renderHook(() => useInteractionKeyboard(ctxWithSelection, handlers));
+
+    // Simulate an overlay consuming the event first: a capture-phase listener
+    // runs before the hook's bubble-phase listener and marks it handled.
+    const consume = (e: KeyboardEvent) => e.preventDefault();
+    window.addEventListener("keydown", consume, { capture: true });
+    fireEvent.keyDown(window, { key: "Escape" });
+    window.removeEventListener("keydown", consume, { capture: true });
+
+    expect(handlers.onClearSelection).not.toHaveBeenCalled();
   });
 
   it("does not intercept keys typed into form fields", () => {
