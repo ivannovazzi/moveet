@@ -8,6 +8,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { DispatchState } from "@/hooks/useDispatchState";
+import { useDispatchContext } from "@/hooks/useDispatchFlow";
 import {
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -18,14 +19,12 @@ import {
 import type { IncidentType } from "@/types";
 
 interface MapContextMenuProps {
-  state: DispatchState;
   onFindDirections: () => void;
   onFindRoad: () => void;
   onSendVehicle: () => void;
   onAddWaypoint: () => void;
   onCreateIncident?: (type: IncidentType) => void;
   hasSelectedVehicle: boolean;
-  hasDispatchSelection: boolean;
 }
 
 /** Identify-closest-road is available in every dispatch state. */
@@ -39,15 +38,16 @@ function IdentifyRoadItem({ onFindRoad }: { onFindRoad: () => void }) {
 }
 
 export default function MapContextMenu({
-  state,
   onFindDirections,
   onFindRoad,
   onSendVehicle,
   onAddWaypoint,
   onCreateIncident,
   hasSelectedVehicle,
-  hasDispatchSelection,
 }: MapContextMenuProps) {
+  const { dispatchState: state, selectedForDispatch } = useDispatchContext();
+  const hasDispatchSelection = selectedForDispatch.length > 0;
+
   switch (state) {
     case DispatchState.BROWSE:
       return (

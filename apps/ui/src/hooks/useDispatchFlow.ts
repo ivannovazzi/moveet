@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import client from "@/utils/client";
 import { toast, toErrorMessage } from "@/lib/toast";
 import { useNetworkContext } from "@/data/useData";
@@ -320,23 +328,61 @@ export function useDispatchFlow({ active, onEnter, onExit }: DispatchFlowOptions
     );
   }, []);
 
-  return {
-    dispatchMode: active,
-    assignments,
-    dispatching,
-    results,
-    selectedForDispatch,
-    dispatchState,
-    error,
-    toggleDispatchMode,
-    handleDispatch,
-    handleDone,
-    handleRetryFailed,
-    onToggleVehicleForDispatch,
-    onAddWaypoint,
-    addWaypointForSelected,
-    moveWaypointGroup,
-    removeWaypointGroup,
-    setAssignments,
-  };
+  // Memoized so the flow can be provided through DispatchContext without
+  // re-rendering every consumer on unrelated App renders.
+  return useMemo(
+    () => ({
+      dispatchMode: active,
+      assignments,
+      dispatching,
+      results,
+      selectedForDispatch,
+      dispatchState,
+      error,
+      toggleDispatchMode,
+      handleDispatch,
+      handleDone,
+      handleRetryFailed,
+      onToggleVehicleForDispatch,
+      onAddWaypoint,
+      addWaypointForSelected,
+      moveWaypointGroup,
+      removeWaypointGroup,
+      setAssignments,
+    }),
+    [
+      active,
+      assignments,
+      dispatching,
+      results,
+      selectedForDispatch,
+      dispatchState,
+      error,
+      toggleDispatchMode,
+      handleDispatch,
+      handleDone,
+      handleRetryFailed,
+      onToggleVehicleForDispatch,
+      onAddWaypoint,
+      addWaypointForSelected,
+      moveWaypointGroup,
+      removeWaypointGroup,
+    ]
+  );
+}
+
+// ─── Context ─────────────────────────────────────────────────────────
+// App owns the flow (it also feeds it into sibling hooks like
+// useMapInteractions) and provides it here so the dispatch UI — Vehicles,
+// DispatchFooter, MapContextMenu, the map's dispatch overlay — reads the
+// flow directly instead of App unpacking it field-by-field into props.
+
+export const DispatchContext = createContext<DispatchFlow | null>(null);
+
+export function useDispatchContext(): DispatchFlow {
+  const ctx = useContext(DispatchContext);
+  if (!ctx) {
+    throw new Error("useDispatchContext must be used within a DispatchContext.Provider");
+  }
+  return ctx;
 }

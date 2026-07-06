@@ -1,7 +1,6 @@
 import { lazy, Suspense, useCallback, useMemo } from "react";
 import type { PickingInfo } from "@deck.gl/core";
 import type {
-  DispatchAssignment,
   Fleet,
   IncidentDTO,
   Modifiers,
@@ -15,7 +14,7 @@ import type {
 import type { BoundingBox, GeoFence } from "@moveet/shared-types";
 import type { Filters } from "@/hooks/useVehicles";
 import { DispatchState, cursorForDispatchState } from "@/hooks/useDispatchState";
-import type { WaypointRef } from "@/hooks/useDispatchFlow";
+import { useDispatchContext } from "@/hooks/useDispatchFlow";
 
 // Lazily load the WebGL canvas so the app shell + control panels can paint
 // before the deck.gl/luma.gl stack (its own `deckgl` vendor chunk) is fetched
@@ -70,10 +69,6 @@ interface MapProps {
   vehicleFleetMap: Map<string, Fleet>;
   hiddenFleetIds: Set<string>;
   hiddenVehicleTypes: Set<VehicleType>;
-  dispatchState?: DispatchState;
-  assignments?: DispatchAssignment[];
-  onMoveWaypointGroup?: (refs: WaypointRef[], newLat: number, newLng: number) => void;
-  onRemoveWaypointGroup?: (refs: WaypointRef[]) => void;
   incidents?: IncidentDTO[];
   fences?: GeoFence[];
   selectedFenceId?: string;
@@ -99,10 +94,6 @@ export default function Map({
   vehicleFleetMap,
   hiddenFleetIds,
   hiddenVehicleTypes,
-  dispatchState,
-  assignments = [],
-  onMoveWaypointGroup,
-  onRemoveWaypointGroup,
   incidents,
   fences = [],
   selectedFenceId,
@@ -113,8 +104,11 @@ export default function Map({
   drawConfirmId,
   onBboxChange,
 }: MapProps) {
-  // Derive cursor: prefer dispatchState if provided, fall back to dispatchMode boolean
-  const cursor = dispatchState ? cursorForDispatchState(dispatchState) : "grab";
+  // Dispatch overlay inputs (pending assignments, waypoint editing, cursor
+  // state) come from DispatchContext instead of prop-drilling through App.
+  const { dispatchState, assignments, moveWaypointGroup, removeWaypointGroup } =
+    useDispatchContext();
+  const cursor = cursorForDispatchState(dispatchState);
 
   // Native deck.gl tooltip for GL-picked layers (currently just vehicles —
   // POIs/incidents render their own styled HTML markers instead). Hover is
@@ -226,8 +220,8 @@ export default function Map({
             assignments={assignments}
             vehicles={vehicles}
             editable={dispatchState === DispatchState.ROUTE}
-            onMoveWaypointGroup={onMoveWaypointGroup ?? NOOP}
-            onRemoveWaypointGroup={onRemoveWaypointGroup ?? NOOP}
+            onMoveWaypointGroup={moveWaypointGroup}
+            onRemoveWaypointGroup={removeWaypointGroup}
           />
         )}
         <GeofenceDrawTool

@@ -1,19 +1,6 @@
-import type { DispatchAssignment, DirectionResult } from "@/types";
 import { DispatchState } from "@/hooks/useDispatchState";
+import { useDispatchContext } from "@/hooks/useDispatchFlow";
 import { Button } from "@/components/Inputs";
-
-interface DispatchFooterProps {
-  state: DispatchState;
-  selectedCount: number;
-  assignments: DispatchAssignment[];
-  results: DirectionResult[];
-  onDispatch: () => void;
-  onClear: () => void;
-  onDone: () => void;
-  onRetryFailed: () => void;
-  dispatching: boolean;
-  error?: string | null;
-}
 
 const footerClass =
   "sticky bottom-0 flex items-center justify-between p-3 surface-glass backdrop-blur-md border-t border-border";
@@ -21,18 +8,20 @@ const textClass = "flex items-center gap-3 text-sm text-muted-foreground";
 const buttonsClass = "flex items-center gap-2";
 const errorClass = "mt-1 text-xs leading-tight text-status-error";
 
-export default function DispatchFooter({
-  state,
-  selectedCount,
-  assignments,
-  results,
-  onDispatch,
-  onClear,
-  onDone,
-  onRetryFailed,
-  dispatching: _dispatching,
-  error,
-}: DispatchFooterProps) {
+/** Sticky action footer for the dispatch flow — reads the flow from DispatchContext. */
+export default function DispatchFooter() {
+  const {
+    dispatchState: state,
+    selectedForDispatch,
+    assignments,
+    results,
+    handleDispatch,
+    handleDone,
+    handleRetryFailed,
+    error,
+  } = useDispatchContext();
+  const selectedCount = selectedForDispatch.length;
+
   if (state === DispatchState.BROWSE) return null;
 
   if (state === DispatchState.SELECT) {
@@ -44,7 +33,7 @@ export default function DispatchFooter({
             : "Select vehicles to dispatch"}
         </span>
         <div className={buttonsClass}>
-          <Button variant="outline" size="sm" onClick={onClear}>
+          <Button variant="outline" size="sm" onClick={handleDone}>
             Exit
           </Button>
         </div>
@@ -66,13 +55,13 @@ export default function DispatchFooter({
           {error && <p className={errorClass}>{error}</p>}
         </div>
         <div className={buttonsClass}>
-          <Button variant="outline" size="sm" onClick={onClear}>
+          <Button variant="outline" size="sm" onClick={handleDone}>
             Clear
           </Button>
           <Button
             variant="default"
             size="sm"
-            onClick={onDispatch}
+            onClick={() => void handleDispatch()}
             isDisabled={assignments.length === 0}
           >
             Dispatch
@@ -118,11 +107,11 @@ export default function DispatchFooter({
         </div>
         <div className={buttonsClass}>
           {failures > 0 && (
-            <Button variant="outline" size="sm" onClick={onRetryFailed}>
+            <Button variant="outline" size="sm" onClick={handleRetryFailed}>
               Retry Failed
             </Button>
           )}
-          <Button variant="default" size="sm" onClick={onDone}>
+          <Button variant="default" size="sm" onClick={handleDone}>
             Done
           </Button>
         </div>

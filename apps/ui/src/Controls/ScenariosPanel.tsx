@@ -7,6 +7,7 @@ import {
   PanelBody,
   PanelEmptyState,
   PanelHeader,
+  PanelRow,
   PanelSectionLabel,
 } from "./PanelPrimitives";
 import { Button } from "@/components/Inputs";
@@ -303,13 +304,11 @@ export default function ScenariosPanel() {
             {scenarios.map((file) => {
               const isLoading = loading === file.fileName;
               return (
-                <button
+                <PanelRow
                   key={file.fileName}
-                  type="button"
-                  className={cn(
-                    "flex w-full flex-wrap items-center gap-3 border-b border-border-soft px-2.5 py-2 text-left transition-colors duration-fast ease-standard hover:bg-white/[0.04] focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-default disabled:opacity-60",
-                    isLoading && "bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)]"
-                  )}
+                  as="button"
+                  selected={isLoading}
+                  className="flex flex-wrap items-center gap-3 disabled:opacity-60"
                   onClick={() => loadScenario(file.fileName)}
                   disabled={isLoading || isActive}
                   aria-label={`Load scenario ${file.fileName}`}
@@ -323,7 +322,7 @@ export default function ScenariosPanel() {
                       <span>{formatDate(file.modifiedAt)}</span>
                     </div>
                   </div>
-                </button>
+                </PanelRow>
               );
             })}
           </div>

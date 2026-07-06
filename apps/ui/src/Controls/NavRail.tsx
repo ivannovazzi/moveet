@@ -1,27 +1,6 @@
 import { SquaredButton } from "@/components/Inputs";
 import { cn } from "@/lib/utils";
-import {
-  CarIcon,
-  LayersIcon,
-  AlertIcon,
-  RecordCircleIcon,
-  EyeIcon,
-  Gear,
-  ChartIcon,
-  GeofenceIcon,
-  ScenarioIcon,
-} from "@/components/Icons";
-
-export type PanelId =
-  | "vehicles"
-  | "fleets"
-  | "incidents"
-  | "recordings"
-  | "scenarios"
-  | "toggles"
-  | "analytics"
-  | "adapter"
-  | "geofences";
+import { BOTTOM_PANEL_IDS, PANEL_GROUPS, PANELS, type PanelId } from "./panels";
 
 interface NavRailProps {
   activePanel: PanelId | null;
@@ -29,69 +8,33 @@ interface NavRailProps {
   incidentCount?: number;
 }
 
-interface NavItem {
-  id: PanelId;
-  Icon: React.FC<React.SVGProps<SVGSVGElement>>;
-  label: string;
-}
-
-interface NavGroup {
-  label: string;
-  items: NavItem[];
-}
-
-const GROUPS: NavGroup[] = [
-  {
-    label: "Fleet",
-    items: [
-      { id: "vehicles", Icon: CarIcon, label: "Vehicles" },
-      { id: "fleets", Icon: LayersIcon, label: "Fleets" },
-    ],
-  },
-  {
-    label: "Operations",
-    items: [
-      { id: "incidents", Icon: AlertIcon, label: "Incidents" },
-      { id: "geofences", Icon: GeofenceIcon, label: "Geofences" },
-      { id: "recordings", Icon: RecordCircleIcon, label: "Recordings" },
-      { id: "scenarios", Icon: ScenarioIcon, label: "Scenarios" },
-    ],
-  },
-  {
-    label: "Monitor",
-    items: [
-      { id: "toggles", Icon: EyeIcon, label: "Visibility" },
-      { id: "analytics", Icon: ChartIcon, label: "Analytics" },
-    ],
-  },
-];
-
-const bottomItem: NavItem = { id: "adapter", Icon: Gear, label: "Adapter" };
-
 export default function NavRail({ activePanel, onPanelChange, incidentCount }: NavRailProps) {
-  const renderButton = ({ id, Icon, label }: NavItem) => (
-    <SquaredButton
-      key={id}
-      labeled
-      className="relative w-full justify-start gap-2.5 px-3 aria-pressed:before:absolute aria-pressed:before:left-0 aria-pressed:before:top-1.5 aria-pressed:before:bottom-1.5 aria-pressed:before:w-0.5 aria-pressed:before:rounded-full aria-pressed:before:bg-accent aria-pressed:before:content-['']"
-      icon={<Icon />}
-      iconClassName="size-4"
-      size="lg"
-      variant="ghost"
-      tone="active"
-      title={label}
-      active={activePanel === id}
-      onClick={() => onPanelChange(activePanel === id ? null : id)}
-      aria-pressed={activePanel === id}
-    >
-      <span className="flex-1 text-left text-sm">{label}</span>
-      {id === "incidents" && incidentCount != null && incidentCount > 0 && (
-        <span className="flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-status-error px-[3px] text-[9px] font-semibold leading-none text-white">
-          {incidentCount > 9 ? "9+" : incidentCount}
-        </span>
-      )}
-    </SquaredButton>
-  );
+  const renderButton = (id: PanelId) => {
+    const { icon: Icon, label } = PANELS[id];
+    return (
+      <SquaredButton
+        key={id}
+        labeled
+        className="relative w-full justify-start gap-2.5 px-3 aria-pressed:before:absolute aria-pressed:before:left-0 aria-pressed:before:top-1.5 aria-pressed:before:bottom-1.5 aria-pressed:before:w-0.5 aria-pressed:before:rounded-full aria-pressed:before:bg-accent aria-pressed:before:content-['']"
+        icon={<Icon />}
+        iconClassName="size-4"
+        size="lg"
+        variant="ghost"
+        tone="active"
+        title={label}
+        active={activePanel === id}
+        onClick={() => onPanelChange(activePanel === id ? null : id)}
+        aria-pressed={activePanel === id}
+      >
+        <span className="flex-1 text-left text-sm">{label}</span>
+        {id === "incidents" && incidentCount != null && incidentCount > 0 && (
+          <span className="flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-status-error px-[3px] text-[9px] font-semibold leading-none text-white">
+            {incidentCount > 9 ? "9+" : incidentCount}
+          </span>
+        )}
+      </SquaredButton>
+    );
+  };
 
   return (
     <nav
@@ -103,16 +46,16 @@ export default function NavRail({ activePanel, onPanelChange, incidentCount }: N
       )}
       aria-label="Sidebar navigation"
     >
-      {GROUPS.map((group) => (
+      {PANEL_GROUPS.map((group) => (
         <div key={group.label} className="flex flex-col gap-0.5 pb-2">
           <span className="px-3 pb-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
             {group.label}
           </span>
-          {group.items.map(renderButton)}
+          {group.ids.map(renderButton)}
         </div>
       ))}
       <div className="flex-1" />
-      {renderButton(bottomItem)}
+      {BOTTOM_PANEL_IDS.map(renderButton)}
     </nav>
   );
 }

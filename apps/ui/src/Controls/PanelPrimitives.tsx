@@ -1,23 +1,89 @@
-import type { HTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { SquaredButton } from "@/components/Inputs";
 
 interface PanelShellProps extends HTMLAttributes<HTMLElement> {
   children: ReactNode;
 }
 
-// Card-shaped surface (mirrors @/components/ui/card tokens) sized to fill its
-// container as a vertical flex panel.
+// The sliding aside's glass surface: panels render PanelHeader/PanelBody
+// fragments inside it, so the surface (border, blur, scroll containment)
+// lives here instead of in App's wrapper markup.
 export function PanelShell({ children, className, ...props }: PanelShellProps) {
   return (
     <section
       {...props}
       className={cn(
-        "flex h-full w-full min-w-0 flex-col overflow-hidden rounded-lg border border-border surface-raised text-card-foreground shadow-elevated",
+        "flex h-full w-full min-w-0 flex-col overflow-hidden border-r border-border surface-glass shadow-elevated backdrop-blur-2xl",
         className
       )}
     >
       {children}
     </section>
+  );
+}
+
+interface PanelRowProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  /** Force the element; defaults to a <button> when `onClick` is set, else a <div>. */
+  as?: "button" | "div";
+  /** Accent-selected state: tinted background + inset accent bar. */
+  selected?: boolean;
+  /** Hover tint (on by default; turn off for purely informational rows). */
+  hoverable?: boolean;
+}
+
+/**
+ * Shared list-row shell for the side panels: hairline divider, row padding,
+ * hover tone, optional selected treatment, and (for interactive rows) the
+ * focus-visible ring. Layout (flex/grid, gaps) stays with the caller via
+ * `className`; trailing actions are just trailing children (see
+ * RowDeleteButton for the shared danger action).
+ */
+export function PanelRow({
+  as,
+  selected = false,
+  hoverable = true,
+  className,
+  type,
+  ...props
+}: PanelRowProps) {
+  const Tag = (as ?? (props.onClick ? "button" : "div")) as "button";
+  const isButton = Tag === "button";
+  return (
+    <Tag
+      type={isButton ? (type ?? "button") : undefined}
+      {...props}
+      className={cn(
+        "border-b border-border-soft px-2.5 py-2 transition-colors duration-fast ease-standard",
+        hoverable && "hover:bg-white/[0.04]",
+        isButton &&
+          "w-full cursor-pointer text-left focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-default",
+        selected && "bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)]",
+        className
+      )}
+    />
+  );
+}
+
+interface RowDeleteButtonProps {
+  /** Accessible name + tooltip, e.g. "Delete fleet". */
+  label: string;
+  onClick: React.MouseEventHandler<HTMLButtonElement>;
+  className?: string;
+}
+
+/** The shared trailing danger action for panel rows (delete/remove ×). */
+export function RowDeleteButton({ label, onClick, className }: RowDeleteButtonProps) {
+  return (
+    <SquaredButton
+      className={cn("flex-shrink-0", className)}
+      icon={<span aria-hidden="true">×</span>}
+      variant="ghost"
+      tone="danger"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+    />
   );
 }
 

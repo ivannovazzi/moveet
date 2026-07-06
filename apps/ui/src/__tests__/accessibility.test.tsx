@@ -7,7 +7,9 @@ import ContextMenu from "@/components/ContextMenu";
 import MapContextMenu from "@/components/MapContextMenu";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { DispatchState } from "@/hooks/useDispatchState";
+import { DispatchContext, type DispatchFlow } from "@/hooks/useDispatchFlow";
 import { createVehicle } from "@/test/mocks/types";
+import { createDispatchFlow } from "@/test/mocks/dispatchFlow";
 
 // ---------------------------------------------------------------------------
 // Mock useRegisterLayers for VehiclesLayer (deck.gl)
@@ -97,8 +99,20 @@ describe("VehicleList accessibility", () => {
     onUnhoverVehicle: vi.fn(),
   };
 
+  // VehicleList reads the dispatch flow from DispatchContext.
+  function renderList(
+    props: Partial<React.ComponentProps<typeof VehicleList>> = {},
+    flow: DispatchFlow = createDispatchFlow()
+  ) {
+    return render(
+      <DispatchContext.Provider value={flow}>
+        <VehicleList {...defaultProps} {...props} />
+      </DispatchContext.Provider>
+    );
+  }
+
   it("each vehicle button has a descriptive aria-label", () => {
-    render(<VehicleList {...defaultProps} />);
+    renderList();
 
     const buttons = screen.getAllByRole("button", { pressed: false });
     // Filter out the clear-search button if present
@@ -117,14 +131,13 @@ describe("VehicleList accessibility", () => {
       createVehicle({ id: "v2", name: "Van Beta", visible: true }),
     ];
 
-    render(
-      <VehicleList
-        {...defaultProps}
-        vehicles={vehicles}
-        dispatchState={DispatchState.SELECT}
-        selectedForDispatch={["v1"]}
-        onToggleVehicleForDispatch={vi.fn()}
-      />
+    renderList(
+      { vehicles },
+      createDispatchFlow({
+        dispatchMode: true,
+        dispatchState: DispatchState.SELECT,
+        selectedForDispatch: ["v1"],
+      })
     );
 
     const checkboxes = screen.getAllByRole("checkbox");
@@ -140,7 +153,7 @@ describe("VehicleList accessibility", () => {
   });
 
   it("checkbox spans are NOT rendered in browse mode", () => {
-    render(<VehicleList {...defaultProps} />);
+    renderList();
     expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
   });
 });
@@ -197,19 +210,19 @@ describe("ContextMenu accessibility", () => {
 describe("MapContextMenu accessibility", () => {
   function renderMenu(state: DispatchState) {
     return render(
-      <DropdownMenu open modal={false}>
-        <DropdownMenuContent>
-          <MapContextMenu
-            state={state}
-            onFindDirections={vi.fn()}
-            onFindRoad={vi.fn()}
-            onSendVehicle={vi.fn()}
-            onAddWaypoint={vi.fn()}
-            hasSelectedVehicle={false}
-            hasDispatchSelection={false}
-          />
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <DispatchContext.Provider value={createDispatchFlow({ dispatchState: state })}>
+        <DropdownMenu open modal={false}>
+          <DropdownMenuContent>
+            <MapContextMenu
+              onFindDirections={vi.fn()}
+              onFindRoad={vi.fn()}
+              onSendVehicle={vi.fn()}
+              onAddWaypoint={vi.fn()}
+              hasSelectedVehicle={false}
+            />
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </DispatchContext.Provider>
     );
   }
 

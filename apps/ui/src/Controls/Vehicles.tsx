@@ -2,8 +2,9 @@ import { cn } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
 import type { Fleet, Vehicle, DispatchAssignment, DirectionResult } from "@/types";
 import { DispatchState } from "@/hooks/useDispatchState";
+import { useDispatchContext } from "@/hooks/useDispatchFlow";
 import { useDirectionContext } from "@/data/useData";
-import { PanelBadge, PanelBody, PanelEmptyState, PanelHeader } from "./PanelPrimitives";
+import { PanelBadge, PanelBody, PanelEmptyState, PanelHeader, PanelRow } from "./PanelPrimitives";
 import { Search } from "@/components/Icons";
 import { Input } from "@/components/ui/input";
 import { VEHICLE_TYPE_LABELS } from "@/lib/vehicleTypeColors";
@@ -34,11 +35,6 @@ interface VehicleListProps {
   onUnhoverVehicle: () => void;
   /** id → Fleet map (built once in App.tsx) — O(1) per-row fleet lookup. */
   vehicleFleetMap: Map<string, Fleet>;
-  dispatchState?: DispatchState;
-  selectedForDispatch?: string[];
-  onToggleVehicleForDispatch?: (id: string) => void;
-  assignments?: DispatchAssignment[];
-  results?: DirectionResult[];
 }
 
 function formatRouteDistance(distance?: number) {
@@ -97,20 +93,21 @@ export default function VehicleList({
   onHoverVehicle,
   onUnhoverVehicle,
   vehicleFleetMap,
-  dispatchState,
-  selectedForDispatch,
-  onToggleVehicleForDispatch,
-  assignments,
-  results,
 }: VehicleListProps) {
+  const {
+    dispatchMode,
+    toggleDispatchMode,
+    dispatchState,
+    selectedForDispatch,
+    onToggleVehicleForDispatch,
+    assignments,
+    results,
+  } = useDispatchContext();
   const { directions } = useDirectionContext();
   const visibleVehicles = vehicles.filter((v) => v.visible);
 
   // O(1) membership test per row instead of array.includes() per row.
-  const selectedForDispatchSet = useMemo(
-    () => new Set(selectedForDispatch ?? []),
-    [selectedForDispatch]
-  );
+  const selectedForDispatchSet = useMemo(() => new Set(selectedForDispatch), [selectedForDispatch]);
 
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
   useEffect(() => {
@@ -127,6 +124,20 @@ export default function VehicleList({
 
   return (
     <>
+      {/* Dispatch mode toggle — lives with the panel so navigating panels
+          can't orphan it (mode entry/exit is guarded by useInteractionMode). */}
+      <button
+        type="button"
+        className={cn(
+          "flex w-full items-center justify-center border-b border-border px-4 py-3 text-sm font-medium tracking-wide transition-colors duration-fast ease-standard",
+          dispatchMode
+            ? "surface-accent text-accent-foreground shadow-glow-accent"
+            : "bg-foreground/5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+        )}
+        onClick={toggleDispatchMode}
+      >
+        {dispatchMode ? "Exit Dispatch" : "Dispatch"}
+      </button>
       <PanelHeader
         title="Vehicles"
         subtitle={
@@ -174,14 +185,14 @@ export default function VehicleList({
             const routeDistance = directions.get(vehicle.id)?.route.distance;
             const vehicleFleet = vehicleFleetMap.get(vehicle.id);
             const isChecked = selectedForDispatchSet.has(vehicle.id);
-            const assignment = assignments?.find((a) => a.vehicleId === vehicle.id);
-            const result = results?.find((r) => r.vehicleId === vehicle.id);
+            const assignment = assignments.find((a) => a.vehicleId === vehicle.id);
+            const result = results.find((r) => r.vehicleId === vehicle.id);
             const isRowSelected = selectedId === vehicle.id;
             const isSelected = !showCheckbox && !isResults && isRowSelected;
             const isDispatchSelected = showCheckbox && isChecked;
 
             const handleClick = () => {
-              if (showCheckbox && onToggleVehicleForDispatch) {
+              if (showCheckbox) {
                 onToggleVehicleForDispatch(vehicle.id);
               } else if (!isDispatch) {
                 onSelectVehicle(vehicle.id);
@@ -189,17 +200,17 @@ export default function VehicleList({
             };
 
             return (
-              <button
+              <PanelRow
                 key={vehicle.id}
+                as="button"
+                selected={isSelected}
                 className={cn(
-                  "grid w-full flex-shrink-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 overflow-hidden border-b border-border-soft px-2.5 py-2 text-left transition-colors duration-fast ease-standard hover:bg-white/[0.04] focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
-                  isSelected && "bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)]",
+                  "grid flex-shrink-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 overflow-hidden",
                   isDispatchSelected && "bg-accent/5 shadow-[inset_3px_0_0_var(--color-accent)]"
                 )}
                 style={{
                   gridTemplateAreas: '"name speed" "route route" "bar bar"',
                 }}
-                type="button"
                 onClick={handleClick}
                 onMouseEnter={() => onHoverVehicle(vehicle.id)}
                 onMouseLeave={() => onUnhoverVehicle()}
@@ -265,7 +276,7 @@ export default function VehicleList({
                   </span>
                 </span>
                 <SpeedBar speed={vehicle.speed} maxSpeed={maxSpeed} />
-              </button>
+              </PanelRow>
             );
           })
         )}

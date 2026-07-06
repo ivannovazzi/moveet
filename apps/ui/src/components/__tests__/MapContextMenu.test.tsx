@@ -2,31 +2,37 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import MapContextMenu from "../MapContextMenu";
 import { DropdownMenu, DropdownMenuContent } from "@/components/ui/dropdown-menu";
+import { DispatchContext, type DispatchFlow } from "@/hooks/useDispatchFlow";
 import { DispatchState } from "@/hooks/useDispatchState";
+import { createDispatchFlow } from "@/test/mocks/dispatchFlow";
 
 function defaultProps(
   overrides: Partial<React.ComponentProps<typeof MapContextMenu>> = {}
 ): React.ComponentProps<typeof MapContextMenu> {
   return {
-    state: DispatchState.BROWSE,
     onFindDirections: vi.fn(),
     onFindRoad: vi.fn(),
     onSendVehicle: vi.fn(),
     onAddWaypoint: vi.fn(),
     hasSelectedVehicle: false,
-    hasDispatchSelection: false,
     ...overrides,
   };
 }
 
-// MapContextMenu emits Radix menu items, which require a DropdownMenu context.
-function renderMenu(overrides: Partial<React.ComponentProps<typeof MapContextMenu>> = {}) {
+// MapContextMenu emits Radix menu items (which require a DropdownMenu context)
+// and reads the dispatch state from DispatchContext.
+function renderMenu(
+  overrides: Partial<React.ComponentProps<typeof MapContextMenu>> = {},
+  flowOverrides: Partial<DispatchFlow> = {}
+) {
   return render(
-    <DropdownMenu open modal={false}>
-      <DropdownMenuContent>
-        <MapContextMenu {...defaultProps(overrides)} />
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <DispatchContext.Provider value={createDispatchFlow(flowOverrides)}>
+      <DropdownMenu open modal={false}>
+        <DropdownMenuContent>
+          <MapContextMenu {...defaultProps(overrides)} />
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </DispatchContext.Provider>
   );
 }
 
@@ -53,7 +59,7 @@ describe("MapContextMenu", () => {
   });
 
   it("SELECT: shows only identify-road", () => {
-    renderMenu({ state: DispatchState.SELECT });
+    renderMenu({}, { dispatchState: DispatchState.SELECT });
     expect(screen.getByText("Identify closest road")).toBeInTheDocument();
     expect(screen.queryByText("Find directions to here")).not.toBeInTheDocument();
     expect(screen.queryByText("Send selected vehicle here")).not.toBeInTheDocument();
@@ -61,26 +67,26 @@ describe("MapContextMenu", () => {
   });
 
   it("ROUTE with dispatch selection: add-waypoint is enabled", () => {
-    renderMenu({ state: DispatchState.ROUTE, hasDispatchSelection: true });
+    renderMenu({}, { dispatchState: DispatchState.ROUTE, selectedForDispatch: ["v1"] });
     expect(screen.getByText("Identify closest road")).toBeInTheDocument();
     expect(itemFor("Add waypoint here")).not.toHaveAttribute("data-disabled");
   });
 
   it("ROUTE without dispatch selection: add-waypoint is shown but disabled", () => {
-    renderMenu({ state: DispatchState.ROUTE, hasDispatchSelection: false });
+    renderMenu({}, { dispatchState: DispatchState.ROUTE });
     expect(screen.getByText("Identify closest road")).toBeInTheDocument();
     expect(itemFor("Add waypoint here")).toHaveAttribute("data-disabled");
   });
 
   it("DISPATCH: shows only identify-road", () => {
-    renderMenu({ state: DispatchState.DISPATCH });
+    renderMenu({}, { dispatchState: DispatchState.DISPATCH });
     expect(screen.getByText("Identify closest road")).toBeInTheDocument();
     expect(screen.queryByText("Find directions to here")).not.toBeInTheDocument();
     expect(screen.queryByText("Add waypoint here")).not.toBeInTheDocument();
   });
 
   it("RESULTS: shows only identify-road", () => {
-    renderMenu({ state: DispatchState.RESULTS });
+    renderMenu({}, { dispatchState: DispatchState.RESULTS });
     expect(screen.getByText("Identify closest road")).toBeInTheDocument();
     expect(screen.queryByText("Find directions to here")).not.toBeInTheDocument();
     expect(screen.queryByText("Add waypoint here")).not.toBeInTheDocument();

@@ -2,39 +2,38 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import DispatchFooter from "../DispatchFooter";
+import { DispatchContext, type DispatchFlow } from "@/hooks/useDispatchFlow";
 import { DispatchState } from "@/hooks/useDispatchState";
+import { createDispatchFlow } from "@/test/mocks/dispatchFlow";
 import type { DispatchAssignment, DirectionResult } from "@/types";
 
-function defaultProps(
-  overrides: Partial<React.ComponentProps<typeof DispatchFooter>> = {}
-): React.ComponentProps<typeof DispatchFooter> {
-  return {
-    state: DispatchState.BROWSE,
-    selectedCount: 0,
-    assignments: [] as DispatchAssignment[],
-    results: [] as DirectionResult[],
-    onDispatch: vi.fn(),
-    onClear: vi.fn(),
-    onDone: vi.fn(),
-    onRetryFailed: vi.fn(),
-    dispatching: false,
-    ...overrides,
-  };
+// DispatchFooter reads the whole flow from DispatchContext.
+function renderFooter(overrides: Partial<DispatchFlow> = {}) {
+  const flow = createDispatchFlow(overrides);
+  const result = render(
+    <DispatchContext.Provider value={flow}>
+      <DispatchFooter />
+    </DispatchContext.Provider>
+  );
+  return { flow, ...result };
 }
 
 describe("DispatchFooter", () => {
   it("returns null for BROWSE state", () => {
-    const { container } = render(<DispatchFooter {...defaultProps()} />);
+    const { container } = renderFooter();
     expect(container.innerHTML).toBe("");
   });
 
   it('shows "Select vehicles to dispatch" for SELECT with 0 selected', () => {
-    render(<DispatchFooter {...defaultProps({ state: DispatchState.SELECT, selectedCount: 0 })} />);
+    renderFooter({ dispatchState: DispatchState.SELECT });
     expect(screen.getByText("Select vehicles to dispatch")).toBeInTheDocument();
   });
 
-  it('shows "3 selected" text for SELECT with selectedCount=3', () => {
-    render(<DispatchFooter {...defaultProps({ state: DispatchState.SELECT, selectedCount: 3 })} />);
+  it('shows "3 selected" text for SELECT with three selected vehicles', () => {
+    renderFooter({
+      dispatchState: DispatchState.SELECT,
+      selectedForDispatch: ["v1", "v2", "v3"],
+    });
     expect(screen.getByText(/3 selected/)).toBeInTheDocument();
   });
 
@@ -51,7 +50,7 @@ describe("DispatchFooter", () => {
         waypoints: [{ position: [-1.31, 36.84] }],
       },
     ];
-    render(<DispatchFooter {...defaultProps({ state: DispatchState.ROUTE, assignments })} />);
+    renderFooter({ dispatchState: DispatchState.ROUTE, assignments });
     expect(screen.getByText("2 vehicles, 3 stops")).toBeInTheDocument();
   });
 
@@ -63,7 +62,7 @@ describe("DispatchFooter", () => {
         waypoints: [{ position: [-1.29, 36.82] }],
       },
     ];
-    render(<DispatchFooter {...defaultProps({ state: DispatchState.ROUTE, assignments })} />);
+    renderFooter({ dispatchState: DispatchState.ROUTE, assignments });
     const dispatchBtn = screen.getByRole("button", { name: "Dispatch" });
     const clearBtn = screen.getByRole("button", { name: "Clear" });
     expect(dispatchBtn).toBeEnabled();
@@ -71,9 +70,7 @@ describe("DispatchFooter", () => {
   });
 
   it('shows "Dispatching..." with spinner for DISPATCH state', () => {
-    render(
-      <DispatchFooter {...defaultProps({ state: DispatchState.DISPATCH, dispatching: true })} />
-    );
+    renderFooter({ dispatchState: DispatchState.DISPATCH, dispatching: true });
     expect(screen.getByText(/Dispatching\.\.\./)).toBeInTheDocument();
   });
 
@@ -83,7 +80,7 @@ describe("DispatchFooter", () => {
       { vehicleId: "v2", status: "ok" },
       { vehicleId: "v3", status: "error", error: "no route" },
     ];
-    render(<DispatchFooter {...defaultProps({ state: DispatchState.RESULTS, results })} />);
+    renderFooter({ dispatchState: DispatchState.RESULTS, results });
     expect(screen.getByText("2 dispatched, 1 failed")).toBeInTheDocument();
   });
 
@@ -92,7 +89,7 @@ describe("DispatchFooter", () => {
       { vehicleId: "v1", status: "ok" },
       { vehicleId: "v2", status: "error", error: "no route" },
     ];
-    render(<DispatchFooter {...defaultProps({ state: DispatchState.RESULTS, results })} />);
+    renderFooter({ dispatchState: DispatchState.RESULTS, results });
     expect(screen.getByRole("button", { name: "Retry Failed" })).toBeInTheDocument();
   });
 
@@ -101,14 +98,14 @@ describe("DispatchFooter", () => {
       { vehicleId: "v1", status: "ok" },
       { vehicleId: "v2", status: "ok" },
     ];
-    render(<DispatchFooter {...defaultProps({ state: DispatchState.RESULTS, results })} />);
+    renderFooter({ dispatchState: DispatchState.RESULTS, results });
     expect(screen.queryByRole("button", { name: "Retry Failed" })).not.toBeInTheDocument();
     expect(screen.getByText("2 dispatched")).toBeInTheDocument();
   });
 
-  it("calls onDispatch when Dispatch button clicked", async () => {
+  it("calls handleDispatch when Dispatch button clicked", async () => {
     const user = userEvent.setup();
-    const onDispatch = vi.fn();
+    const handleDispatch = vi.fn().mockResolvedValue(undefined);
     const assignments: DispatchAssignment[] = [
       {
         vehicleId: "v1",
@@ -116,38 +113,34 @@ describe("DispatchFooter", () => {
         waypoints: [{ position: [-1.29, 36.82] }],
       },
     ];
-    render(
-      <DispatchFooter {...defaultProps({ state: DispatchState.ROUTE, assignments, onDispatch })} />
-    );
+    renderFooter({ dispatchState: DispatchState.ROUTE, assignments, handleDispatch });
     await user.click(screen.getByRole("button", { name: "Dispatch" }));
-    expect(onDispatch).toHaveBeenCalledTimes(1);
+    expect(handleDispatch).toHaveBeenCalledTimes(1);
   });
 
-  it("calls onClear when Clear/Exit button clicked", async () => {
+  it("calls handleDone when the Exit button clicked in SELECT", async () => {
     const user = userEvent.setup();
-    const onClear = vi.fn();
-    render(<DispatchFooter {...defaultProps({ state: DispatchState.SELECT, onClear })} />);
+    const handleDone = vi.fn();
+    renderFooter({ dispatchState: DispatchState.SELECT, handleDone });
     await user.click(screen.getByRole("button", { name: "Exit" }));
-    expect(onClear).toHaveBeenCalledTimes(1);
+    expect(handleDone).toHaveBeenCalledTimes(1);
   });
 
-  it("calls onDone when Done button clicked", async () => {
+  it("calls handleDone when Done button clicked in RESULTS", async () => {
     const user = userEvent.setup();
-    const onDone = vi.fn();
+    const handleDone = vi.fn();
     const results: DirectionResult[] = [{ vehicleId: "v1", status: "ok" }];
-    render(<DispatchFooter {...defaultProps({ state: DispatchState.RESULTS, results, onDone })} />);
+    renderFooter({ dispatchState: DispatchState.RESULTS, results, handleDone });
     await user.click(screen.getByRole("button", { name: "Done" }));
-    expect(onDone).toHaveBeenCalledTimes(1);
+    expect(handleDone).toHaveBeenCalledTimes(1);
   });
 
-  it("calls onRetryFailed when Retry Failed button clicked", async () => {
+  it("calls handleRetryFailed when Retry Failed button clicked", async () => {
     const user = userEvent.setup();
-    const onRetryFailed = vi.fn();
+    const handleRetryFailed = vi.fn();
     const results: DirectionResult[] = [{ vehicleId: "v1", status: "error", error: "no route" }];
-    render(
-      <DispatchFooter {...defaultProps({ state: DispatchState.RESULTS, results, onRetryFailed })} />
-    );
+    renderFooter({ dispatchState: DispatchState.RESULTS, results, handleRetryFailed });
     await user.click(screen.getByRole("button", { name: "Retry Failed" }));
-    expect(onRetryFailed).toHaveBeenCalledTimes(1);
+    expect(handleRetryFailed).toHaveBeenCalledTimes(1);
   });
 });

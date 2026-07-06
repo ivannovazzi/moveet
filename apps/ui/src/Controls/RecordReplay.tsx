@@ -5,12 +5,12 @@ import {
   PanelBody,
   PanelEmptyState,
   PanelHeader,
+  PanelRow,
   PanelSectionLabel,
 } from "./PanelPrimitives";
 import { Button } from "@/components/Inputs";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/Inputs";
-import { cn } from "@/lib/utils";
 import client from "@/utils/client";
 import { RecordCircleIcon } from "@/components/Icons";
 import {
@@ -312,13 +312,7 @@ export default function RecordReplay({
               const isActive = isReplayMode && activeFile === file.fileName;
 
               return (
-                <div
-                  key={file.fileName}
-                  className={cn(
-                    "flex flex-col gap-2 border-b border-border-soft px-2.5 py-2 transition-colors duration-fast ease-standard hover:bg-white/[0.04]",
-                    isActive && "bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)]"
-                  )}
-                >
+                <PanelRow key={file.fileName} selected={isActive} className="flex flex-col gap-2">
                   <button
                     type="button"
                     className="flex w-full items-center gap-3 text-left disabled:cursor-default"
@@ -344,7 +338,7 @@ export default function RecordReplay({
                     </div>
                   </button>
                   <EmitControl recording={file} />
-                </div>
+                </PanelRow>
               );
             })}
           </div>

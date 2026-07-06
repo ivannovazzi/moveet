@@ -1,9 +1,16 @@
 import { useState } from "react";
 import type { GeoFence, GeoFenceEvent } from "@moveet/shared-types";
-import { Button, Switch, SquaredButton } from "@/components/Inputs";
+import { Button, Switch } from "@/components/Inputs";
 import { cn } from "@/lib/utils";
 import { GeofenceIcon } from "@/components/Icons";
-import { PanelBadge, PanelBody, PanelEmptyState, PanelHeader } from "./PanelPrimitives";
+import {
+  PanelBadge,
+  PanelBody,
+  PanelEmptyState,
+  PanelHeader,
+  PanelRow,
+  RowDeleteButton,
+} from "./PanelPrimitives";
 
 interface GeofencePanelProps {
   fences: GeoFence[];
@@ -162,10 +169,7 @@ export default function GeofencePanel({
           ) : (
             <div className="flex flex-col gap-0">
               {fences.map((fence) => (
-                <div
-                  key={fence.id}
-                  className="flex items-center gap-2 border-b border-border-soft px-2.5 py-2 transition-colors duration-fast ease-standard hover:bg-white/[0.04]"
-                >
+                <PanelRow key={fence.id} className="flex items-center gap-2">
                   <span
                     className="h-2 w-2 flex-shrink-0 rounded-full"
                     style={{
@@ -189,16 +193,12 @@ export default function GeofencePanel({
                         fence.active ? `Deactivate ${fence.name}` : `Activate ${fence.name}`
                       }
                     />
-                    <SquaredButton
-                      icon={<span aria-hidden="true">×</span>}
-                      variant="ghost"
-                      tone="danger"
-                      aria-label={`Delete ${fence.name}`}
-                      title={`Delete ${fence.name}`}
+                    <RowDeleteButton
+                      label={`Delete ${fence.name}`}
                       onClick={() => onFenceDelete(fence.id)}
                     />
                   </div>
-                </div>
+                </PanelRow>
               ))}
             </div>
           )}
@@ -214,9 +214,10 @@ export default function GeofencePanel({
           ) : (
             <div className="flex flex-col gap-0">
               {alerts.map((alert, i) => (
-                <div
+                <PanelRow
                   key={`${alert.fenceId}-${alert.vehicleId}-${alert.timestamp}-${i}`}
-                  className="flex items-center gap-3 border-b border-border-soft px-2.5 py-2"
+                  hoverable={false}
+                  className="flex items-center gap-3"
                 >
                   <span
                     data-event={alert.event}
@@ -240,7 +241,7 @@ export default function GeofencePanel({
                   <span className="flex-shrink-0 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
                     {formatTimestamp(alert.timestamp)}
                   </span>
-                </div>
+                </PanelRow>
               ))}
             </div>
           )}

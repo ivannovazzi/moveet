@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import type { Fleet, Vehicle } from "@/types";
-import { Button, SquaredButton } from "@/components/Inputs";
+import { Button } from "@/components/Inputs";
 import { Input } from "@/components/ui/input";
 import { LayersIcon } from "@/components/Icons";
 import {
@@ -10,6 +10,8 @@ import {
   PanelEmptyState,
   PanelErrorState,
   PanelHeader,
+  PanelRow,
+  RowDeleteButton,
 } from "./PanelPrimitives";
 
 interface FleetsProps {
@@ -112,10 +114,10 @@ export default function Fleets({
                 key={fleet.id}
                 className="flex flex-col overflow-hidden rounded-md border border-border-soft bg-white/[0.03] transition-colors duration-fast ease-standard hover:border-border"
               >
-                <button
-                  type="button"
+                <PanelRow
+                  as="button"
                   className={cn(
-                    "flex w-full items-center gap-3 px-2.5 py-2 text-left transition-colors duration-fast ease-standard hover:bg-white/[0.06]",
+                    "flex items-center gap-3 border-b-0 hover:bg-white/[0.06]",
                     isExpanded && "bg-white/[0.06]"
                   )}
                   onClick={() => toggleExpanded(fleet.id)}
@@ -137,20 +139,15 @@ export default function Fleets({
                       ext
                     </PanelBadge>
                   ) : (
-                    <SquaredButton
-                      className="flex-shrink-0"
-                      icon={<span aria-hidden="true">&times;</span>}
-                      variant="ghost"
-                      tone="danger"
-                      aria-label="Delete fleet"
-                      title="Delete fleet"
+                    <RowDeleteButton
+                      label="Delete fleet"
                       onClick={(e) => {
                         e.stopPropagation();
                         onDeleteFleet(fleet.id);
                       }}
                     />
                   )}
-                </button>
+                </PanelRow>
 
                 {isExpanded ? (
                   <div className="flex flex-col gap-3 border-t border-border-soft p-3">
@@ -161,9 +158,9 @@ export default function Fleets({
                         </span>
                         <div className="flex flex-col divide-y divide-border-soft">
                           {memberVehicles.map((v) => (
-                            <div
+                            <PanelRow
                               key={v.id}
-                              className="flex items-center justify-between px-2 py-1 transition-colors duration-fast ease-standard hover:bg-white/[0.04]"
+                              className="flex items-center justify-between border-b-0 px-2 py-1"
                             >
                               <span className="min-w-0 truncate text-[13px] text-foreground">
                                 {v.name}
@@ -177,7 +174,7 @@ export default function Fleets({
                               >
                                 &minus;
                               </button>
-                            </div>
+                            </PanelRow>
                           ))}
                         </div>
                       </div>
@@ -204,9 +201,9 @@ export default function Fleets({
                       ) : (
                         <div className="flex max-h-40 flex-col divide-y divide-border-soft overflow-y-auto">
                           {unassignedVehicles.map((v) => (
-                            <div
+                            <PanelRow
                               key={v.id}
-                              className="flex items-center justify-between px-2 py-1 transition-colors duration-fast ease-standard hover:bg-white/[0.04]"
+                              className="flex items-center justify-between border-b-0 px-2 py-1"
                             >
                               <span className="min-w-0 truncate text-[13px] text-foreground">
                                 {v.name}
@@ -220,7 +217,7 @@ export default function Fleets({
                               >
                                 +
                               </button>
-                            </div>
+                            </PanelRow>
                           ))}
                         </div>
                       )}

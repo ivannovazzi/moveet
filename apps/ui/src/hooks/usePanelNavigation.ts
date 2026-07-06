@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { PanelId } from "@/Controls/NavRail";
+import type { PanelId } from "@/Controls/panels";
 
 export interface PanelNavigation {
   activePanel: PanelId | null;

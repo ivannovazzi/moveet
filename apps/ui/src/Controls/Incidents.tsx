@@ -8,6 +8,8 @@ import {
   PanelEmptyState,
   PanelErrorState,
   PanelHeader,
+  PanelRow,
+  RowDeleteButton,
 } from "./PanelPrimitives";
 
 interface IncidentsProps {
@@ -106,10 +108,7 @@ export default function Incidents({ incidents, createRandom, remove, error }: In
 
         <div className="flex flex-col">
           {incidents.map((incident) => (
-            <div
-              key={incident.id}
-              className="flex items-center gap-3 border-b border-border-soft px-2.5 py-2 transition-colors duration-fast ease-standard hover:bg-white/[0.04]"
-            >
+            <PanelRow key={incident.id} className="flex items-center gap-3">
               <span
                 className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
                 style={{ backgroundColor: INCIDENT_COLORS[incident.type] }}
@@ -131,16 +130,8 @@ export default function Incidents({ incidents, createRandom, remove, error }: In
                   </span>
                 </div>
               </div>
-              <SquaredButton
-                className="flex-shrink-0"
-                icon={<span aria-hidden="true">×</span>}
-                variant="ghost"
-                tone="danger"
-                aria-label="Remove incident"
-                title="Remove incident"
-                onClick={() => remove(incident.id)}
-              />
-            </div>
+              <RowDeleteButton label="Remove incident" onClick={() => remove(incident.id)} />
+            </PanelRow>
           ))}
         </div>
       </PanelBody>
