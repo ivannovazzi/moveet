@@ -3,7 +3,10 @@
  * canvas so deck.gl's IconLayer can instance them on the GPU.
  */
 
-const ICON_SIZE = 44;
+// Cell size includes an internal margin (PAD) so each marker's drop shadow and
+// white halo ring stay within their own atlas cell and don't bleed into the neighbour.
+const ICON_SIZE = 48;
+const ICON_PAD = 5;
 
 // ─── POI type → background colour ──────────────────────────────────
 const POI_COLORS: Record<string, string> = {
@@ -58,22 +61,34 @@ function renderSVGToCanvas(
   iconColor: string,
   viewBox: string
 ) {
-  // Draw background circle
-  const r = size / 2;
+  const cx = x + size / 2;
+  const cy = y + size / 2;
+  const r = size / 2 - ICON_PAD;
+
+  // Filled circle with a soft drop shadow so the marker separates from the map.
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.55)";
+  ctx.shadowBlur = 3;
+  ctx.shadowOffsetY = 1;
   ctx.beginPath();
-  ctx.arc(x + r, y + r, r - 1, 0, Math.PI * 2);
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.fillStyle = bgColor;
   ctx.fill();
-  ctx.strokeStyle = "rgba(255,255,255,0.4)";
-  ctx.lineWidth = 1;
+  ctx.restore();
+
+  // Crisp white halo ring (no shadow) — the main contrast boost.
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.strokeStyle = "rgba(255,255,255,0.95)";
+  ctx.lineWidth = 2.5;
   ctx.stroke();
 
-  // Draw SVG icon using Path2D
+  // Draw SVG icon using Path2D, sized relative to the circle (not the padded cell).
   const [, , vw, vh] = viewBox.split(" ").map(Number);
-  const iconSize = size * 0.6;
+  const iconSize = r * 2 * 0.58;
   const scale = iconSize / Math.max(vw, vh);
-  const offsetX = x + (size - vw * scale) / 2;
-  const offsetY = y + (size - vh * scale) / 2;
+  const offsetX = cx - (vw * scale) / 2;
+  const offsetY = cy - (vh * scale) / 2;
 
   ctx.save();
   ctx.translate(offsetX, offsetY);
@@ -104,7 +119,7 @@ export function createPOIIconAtlas(): {
     const x = i * ICON_SIZE;
     const bgColor = POI_COLORS[type] ?? POI_COLORS.unknown;
     // Bus stops use dark icon on light bg; others use white icon
-    const iconColor = type === "bus_stop" ? "rgba(51,51,51,0.87)" : "rgba(255,255,255,0.87)";
+    const iconColor = type === "bus_stop" ? "rgba(40,40,40,0.95)" : "rgba(255,255,255,0.98)";
     const { d, viewBox } = POI_PATHS[type];
     renderSVGToCanvas(ctx, d, x, 0, ICON_SIZE, bgColor, iconColor, viewBox);
     iconMapping[type] = { x, y: 0, width: ICON_SIZE, height: ICON_SIZE, mask: false };

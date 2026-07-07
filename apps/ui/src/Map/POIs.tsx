@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { IconLayer } from "@deck.gl/layers";
+import { IconLayer, TextLayer } from "@deck.gl/layers";
 import { CollisionFilterExtension, type CollisionFilterExtensionProps } from "@deck.gl/extensions";
 import { useMapContext } from "@/components/Map/hooks";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
@@ -27,6 +27,9 @@ const ZOOM_TIERS: Record<string, number> = {
   bus_stop: 9,
 };
 const MIN_ZOOM = 7;
+
+/** Zoom at which persistent name labels appear beneath the markers. */
+const LABEL_ZOOM = 15;
 
 /** POI collision priority — higher values win when icons overlap. */
 const TYPE_PRIORITY: Record<string, number> = {
@@ -65,6 +68,7 @@ export default function POIs({ visible, onClick }: POIMarkerProps) {
 
   const { settledZoom, isZooming } = useSettledZoom(zoom);
   const showData = visible && settledZoom >= MIN_ZOOM - 1;
+  const showLabels = showData && !isZooming && settledZoom >= LABEL_ZOOM;
 
   // Data is emptied while zooming so items disappear instantly.
   // When isZooming flips false the array repopulates and deck.gl's
@@ -87,7 +91,7 @@ export default function POIs({ visible, onClick }: POIMarkerProps) {
         },
         getPosition: (d) => [d.coordinates[1], d.coordinates[0]],
         getIcon: (d) => (d.type && d.type in iconMapping ? d.type : "unknown"),
-        getSize: (d) => (isBusStop(d) ? 14 : 22),
+        getSize: (d) => (isBusStop(d) ? 16 : 26),
         getColor: (d) => {
           const tier = ZOOM_TIERS[d.type ?? "unknown"] ?? MIN_ZOOM;
           const alpha = settledZoom >= tier ? 255 : 0;
@@ -106,8 +110,8 @@ export default function POIs({ visible, onClick }: POIMarkerProps) {
           return false;
         },
         sizeUnits: "pixels",
-        sizeMinPixels: 8,
-        sizeMaxPixels: 36,
+        sizeMinPixels: 10,
+        sizeMaxPixels: 40,
         transitions: {
           getColor: {
             duration: FADE_DURATION_MS,
@@ -125,8 +129,28 @@ export default function POIs({ visible, onClick }: POIMarkerProps) {
           },
         } as Record<string, unknown>),
       }),
+      // Persistent name labels below each marker. Decluttered purely by the
+      // LABEL_ZOOM gate: they only appear once you've zoomed into a
+      // neighbourhood, so overlap stays manageable. (CollisionFilterExtension
+      // is deliberately NOT used here — on TextLayer it culls every label.)
+      new TextLayer<POI>({
+        id: "poi-labels",
+        data: showLabels ? visiblePois : [],
+        getPosition: (d) => [d.coordinates[1], d.coordinates[0]],
+        getText: (d) => d.name ?? "",
+        getColor: [236, 239, 241, 255],
+        getSize: 12,
+        getTextAnchor: "middle",
+        getAlignmentBaseline: "top",
+        getPixelOffset: [0, 17],
+        fontFamily: "inherit",
+        fontWeight: "600",
+        outlineWidth: 2,
+        outlineColor: [8, 10, 12, 235],
+        pickable: false,
+      }),
     ],
-    [visiblePois, onClick, settledZoom]
+    [visiblePois, showLabels, onClick, settledZoom]
   );
 
   useRegisterLayers("pois", layers, 45);
