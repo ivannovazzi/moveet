@@ -2,7 +2,7 @@ import { memo, useEffect } from "react";
 import type { StartOptions } from "@/types";
 import { Range } from "@/components/Inputs";
 import { useOptions } from "@/hooks/useOptions";
-import { PanelBody, PanelHeader } from "./PanelPrimitives";
+import { PanelBody, PanelHeader } from "@/Controls/PanelPrimitives";
 
 const sliders: {
   key: keyof StartOptions;
@@ -18,11 +18,18 @@ const sliders: {
   { key: "adapterSyncInterval", label: "Publish Interval", min: 50, max: 10000, step: 50 },
 ];
 
-interface SpeedPanelProps {
+export interface AdvancedTuningTabProps {
   maxSpeedRef: React.MutableRefObject<number>;
 }
 
-export default memo(function SpeedPanel({ maxSpeedRef }: SpeedPanelProps) {
+/**
+ * Vehicle-physics + engine-cadence tuning, ported as-is from the old
+ * `Controls/SpeedPanel.tsx`. Per the design doc's "Tempo / event-density
+ * mechanics" section, these are real-time tuning knobs (not the Tempo
+ * cluster's sim-time scrubber) and are demoted to a tab inside the Monitor
+ * drawer (`MonitorDrawer.tsx`). No behavior change from `SpeedPanel`.
+ */
+export default memo(function AdvancedTuningTab({ maxSpeedRef }: AdvancedTuningTabProps) {
   const { options, updateOption } = useOptions(300);
 
   useEffect(() => {
@@ -36,8 +43,8 @@ export default memo(function SpeedPanel({ maxSpeedRef }: SpeedPanelProps) {
   return (
     <>
       <PanelHeader
-        title="Speed"
-        subtitle="Adjust runtime speed, acceleration, and update cadence."
+        title="Advanced"
+        subtitle="Vehicle physics and update/publish cadence — real-time tuning, not simulated tempo."
       />
       <PanelBody className="gap-4">
         {sliders.map(({ key, label, min, max, step }) => (

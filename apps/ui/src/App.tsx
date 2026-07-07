@@ -1,26 +1,12 @@
-import { cn } from "@/lib/utils";
 import { useCallback, useMemo, useRef, useState } from "react";
 import client from "./utils/client";
-import Vehicles from "./Controls/Vehicles";
-import Fleets from "./Controls/Fleets";
-import Incidents from "./Controls/Incidents";
-import RecordReplay from "./Controls/RecordReplay";
-import ScenariosPanel from "./Controls/ScenariosPanel";
-import DispatchFooter from "./Controls/DispatchFooter";
-import IconRail from "./Controls/IconRail";
-import BottomDock from "./Controls/BottomDock";
-import TogglesPanel from "./Controls/TogglesPanel";
-import SpeedPanel from "./Controls/SpeedPanel";
-import ClockPanel from "./Controls/ClockPanel";
-import AdapterDrawer from "./Controls/Adapter/AdapterDrawer";
-import { useAdapterConfig } from "./Controls/Adapter/useAdapterConfig";
+import Dock from "./Dock/Dock";
 import useTracking from "./Controls/useTracking";
 import MapView from "./Map/Map";
 import FleetLegend from "./Map/FleetLegend";
 import TypeLegend from "./Map/TypeLegend";
 import SearchBar from "./SearchBar";
 import Zoom from "./Zoom/";
-import GeofencePanel from "./Controls/GeofencePanel";
 import CreateZoneDialog from "./Map/Geofence/CreateZoneDialog";
 import type { Fleet, Modifiers } from "./types";
 import type { BoundingBox } from "@moveet/shared-types";
@@ -34,7 +20,6 @@ import { useRecording } from "./hooks/useRecording";
 import { useReplay } from "./hooks/useReplay";
 import { useDispatchFlow } from "./hooks/useDispatchFlow";
 import { useDispatchShortcuts } from "./hooks/useDispatchShortcuts";
-import { usePanelNavigation } from "./hooks/usePanelNavigation";
 import { useGeofenceManager } from "./hooks/useGeofenceManager";
 import { useSimulationConnection } from "./hooks/useSimulationConnection";
 import { useMapInteractions } from "./hooks/useMapInteractions";
@@ -47,7 +32,6 @@ import { useAnalytics } from "./hooks/useAnalytics";
 import { useNetwork } from "./hooks/useNetwork";
 import { useRoads } from "./hooks/useRoads";
 import { useDataReady } from "./data/useData";
-import AnalyticsPanel from "./Controls/AnalyticsPanel";
 import LoadingOverlay from "./components/LoadingOverlay";
 import { Toaster } from "./components/ui/sonner";
 
@@ -55,9 +39,7 @@ export default function App() {
   const connectionInfo = useConnectionState();
 
   const dispatch = useDispatchFlow();
-  const { activePanel, setActivePanel, closePanel } = usePanelNavigation(dispatch.dispatchMode);
 
-  const adapter = useAdapterConfig(activePanel === "adapter");
   const {
     vehicles,
     modifiers,
@@ -185,137 +167,6 @@ export default function App() {
         className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden"
         data-ready={dataReady ? "" : undefined}
       >
-        <IconRail
-          activePanel={activePanel}
-          onPanelChange={setActivePanel}
-          incidentCount={incidents.incidents.length}
-        />
-        <ErrorBoundary fallback={<SectionErrorFallback section="Controls" />}>
-          <aside
-            className={cn(
-              "absolute bottom-0 top-0 left-14 z-30 w-[clamp(248px,22vw,304px)] overflow-hidden",
-              "transition-[transform,opacity,visibility] duration-slow ease-emphasized",
-              activePanel !== null
-                ? "visible translate-x-0 opacity-100 pointer-events-auto"
-                : "invisible -translate-x-[calc(100%+20px)] opacity-0 pointer-events-none"
-            )}
-            aria-hidden={activePanel === null}
-          >
-            <div className="flex h-full w-full min-w-0 flex-col overflow-hidden border-r border-border surface-glass shadow-elevated backdrop-blur-2xl">
-              {activePanel === "vehicles" && (
-                <>
-                  <button
-                    type="button"
-                    className={cn(
-                      "flex w-full items-center justify-center border-b border-border px-4 py-3 text-sm font-medium tracking-wide transition-colors duration-fast ease-standard",
-                      dispatch.dispatchMode
-                        ? "surface-accent text-accent-foreground shadow-glow-accent"
-                        : "bg-foreground/5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
-                    )}
-                    onClick={dispatch.toggleDispatchMode}
-                  >
-                    {dispatch.dispatchMode ? "Exit Dispatch" : "Dispatch"}
-                  </button>
-                  <Vehicles
-                    filter={filters.filter}
-                    onFilterChange={onFilterChange}
-                    vehicles={vehicles}
-                    selectedId={filters.selected}
-                    onSelectVehicle={onSelectVehicle}
-                    onHoverVehicle={onHoverVehicle}
-                    onUnhoverVehicle={onUnhoverVehicle}
-                    maxSpeed={maxSpeedRef.current}
-                    vehicleFleetMap={vehicleFleetMap}
-                    dispatchState={dispatch.dispatchState}
-                    selectedForDispatch={dispatch.selectedForDispatch}
-                    onToggleVehicleForDispatch={dispatch.onToggleVehicleForDispatch}
-                    assignments={dispatch.assignments}
-                    results={dispatch.results}
-                  />
-                  <DispatchFooter
-                    state={dispatch.dispatchState}
-                    selectedCount={dispatch.selectedForDispatch.length}
-                    assignments={dispatch.assignments}
-                    results={dispatch.results}
-                    onDispatch={dispatch.handleDispatch}
-                    onClear={dispatch.handleDone}
-                    onDone={dispatch.handleDone}
-                    onRetryFailed={dispatch.handleRetryFailed}
-                    dispatching={dispatch.dispatching}
-                    error={dispatch.error}
-                  />
-                </>
-              )}
-              {activePanel === "fleets" && (
-                <Fleets
-                  fleets={fleets}
-                  vehicles={vehicles}
-                  onCreateFleet={createFleet}
-                  onDeleteFleet={deleteFleet}
-                  onAssignVehicle={assignVehicle}
-                  onUnassignVehicle={unassignVehicle}
-                  error={fleetsError}
-                />
-              )}
-              {activePanel === "incidents" && (
-                <Incidents
-                  incidents={incidents.incidents}
-                  createRandom={incidents.createRandom}
-                  remove={incidents.remove}
-                  error={incidents.error}
-                />
-              )}
-              {activePanel === "recordings" && (
-                <RecordReplay
-                  recordings={recording.recordings}
-                  replayStatus={replay.replayStatus}
-                  onStartReplay={replay.startReplay}
-                  onRefreshRecordings={recording.refreshRecordings}
-                />
-              )}
-              {activePanel === "scenarios" && <ScenariosPanel />}
-              {activePanel === "toggles" && (
-                <TogglesPanel modifiers={modifiers} onChangeModifiers={onChangeModifiers} />
-              )}
-              {activePanel === "speed" && <SpeedPanel maxSpeedRef={maxSpeedRef} />}
-              {activePanel === "clock" && <ClockPanel />}
-              {activePanel === "analytics" && (
-                <AnalyticsPanel
-                  summary={analytics.summary}
-                  fleetHistory={analytics.fleetHistory}
-                  summaryHistory={analytics.summaryHistory}
-                />
-              )}
-              {activePanel === "geofences" && (
-                <GeofencePanel
-                  fences={geofences.fences}
-                  onFenceToggle={geofences.onFenceToggle}
-                  onFenceDelete={geofences.onFenceDelete}
-                  alerts={geofences.alerts}
-                  drawingActive={geofences.drawingActive}
-                  vertexCount={geofences.drawingVertexCount}
-                  onStartDrawing={geofences.startDrawing}
-                  onCancelDrawing={geofences.onDrawCancel}
-                  onConfirmDrawing={geofences.onConfirmDraw}
-                />
-              )}
-              {activePanel === "adapter" && (
-                <AdapterDrawer
-                  isOpen={true}
-                  health={adapter.health}
-                  config={adapter.config}
-                  loading={adapter.loading}
-                  error={adapter.error}
-                  onClose={closePanel}
-                  onSetSource={adapter.setSource}
-                  onAddSink={adapter.addSink}
-                  onRemoveSink={adapter.removeSink}
-                  onSetRealism={adapter.setRealism}
-                />
-              )}
-            </div>
-          </aside>
-        </ErrorBoundary>
         <ErrorBoundary fallback={<SectionErrorFallback section="Map" />}>
           <div className="relative flex min-h-0 min-w-0 flex-1">
             <ConnectionStatus connectionInfo={connectionInfo} onRetry={client.retryConnection} />
@@ -364,18 +215,64 @@ export default function App() {
               onToggle={toggleFleetVisibility}
             />
             <TypeLegend hiddenVehicleTypes={hiddenVehicleTypes} onToggle={toggleVehicleType} />
-            <BottomDock
+            <Dock
               status={status}
               connected={connected}
+              isRecording={recording.isRecording}
+              onStartRecording={recording.startRecording}
+              onStopRecording={recording.stopRecording}
               replayStatus={replay.replayStatus}
               onPauseReplay={replay.pauseReplay}
               onResumeReplay={replay.resumeReplay}
               onStopReplay={replay.stopReplay}
               onSeekReplay={replay.seekReplay}
               onSetReplaySpeed={replay.setReplaySpeed}
-              isRecording={recording.isRecording}
-              onStartRecording={recording.startRecording}
-              onStopRecording={recording.stopRecording}
+              vehicles={vehicles}
+              filter={filters.filter}
+              onFilterChange={onFilterChange}
+              selectedId={filters.selected}
+              onSelectVehicle={onSelectVehicle}
+              onHoverVehicle={onHoverVehicle}
+              onUnhoverVehicle={onUnhoverVehicle}
+              maxSpeed={maxSpeedRef.current}
+              vehicleFleetMap={vehicleFleetMap}
+              fleets={fleets}
+              onCreateFleet={createFleet}
+              onDeleteFleet={deleteFleet}
+              onAssignVehicle={assignVehicle}
+              onUnassignVehicle={unassignVehicle}
+              fleetsError={fleetsError}
+              dispatch={dispatch}
+              incidents={{
+                incidents: incidents.incidents,
+                createRandom: incidents.createRandom,
+                remove: incidents.remove,
+                error: incidents.error,
+              }}
+              geofences={{
+                fences: geofences.fences,
+                onFenceToggle: geofences.onFenceToggle,
+                onFenceDelete: geofences.onFenceDelete,
+                alerts: geofences.alerts,
+                drawingActive: geofences.drawingActive,
+                vertexCount: geofences.drawingVertexCount,
+                onStartDrawing: geofences.startDrawing,
+                onCancelDrawing: geofences.onDrawCancel,
+                onConfirmDrawing: geofences.onConfirmDraw,
+              }}
+              analytics={{
+                summary: analytics.summary,
+                fleetHistory: analytics.fleetHistory,
+                summaryHistory: analytics.summaryHistory,
+              }}
+              toggles={{ modifiers, onChangeModifiers }}
+              recordings={{
+                recordings: recording.recordings,
+                replayStatus: replay.replayStatus,
+                onStartReplay: replay.startReplay,
+                onRefreshRecordings: recording.refreshRecordings,
+              }}
+              advanced={{ maxSpeedRef }}
             />
             <CreateZoneDialog
               polygon={geofences.pendingPolygon}
