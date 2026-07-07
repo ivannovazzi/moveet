@@ -28,7 +28,7 @@ function SpeedBar({ speed, maxSpeed }: { speed: number; maxSpeed: number }) {
 
   return (
     <div
-      className="col-span-full h-[3px] rounded-r-full bg-gradient-to-r from-orange-500/60 via-yellow-400/65 to-status-ok/70 transition-[width] duration-normal"
+      className="col-span-full h-[3px] rounded-full bg-accent/60 transition-[width] duration-normal"
       style={{ width: `${width}%`, gridArea: "bar" }}
     />
   );
@@ -58,10 +58,10 @@ function formatRouteDistance(distance?: number) {
 }
 
 const VEHICLE_TYPE_LABELS: Record<string, string> = {
-  truck: "Truck",
-  motorcycle: "Moto",
-  ambulance: "Ambulance",
-  bus: "Bus",
+  truck: "TRK",
+  motorcycle: "MC",
+  ambulance: "AMB",
+  bus: "BUS",
 };
 
 function WaypointBadge({ assignment }: { assignment: DispatchAssignment }) {
@@ -173,7 +173,7 @@ const VehicleRow = memo(function VehicleRow({
     <div style={style} className="px-px">
       <button
         className={cn(
-          "grid h-full w-full flex-shrink-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 overflow-hidden rounded-md border border-white/5 bg-white/[0.03] px-2.5 pb-1.5 pt-2 text-left transition-colors duration-fast ease-standard hover:border-white/10 hover:bg-white/[0.06] focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+          "grid h-full w-full flex-shrink-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 overflow-hidden rounded-md border border-border-soft bg-white/[0.03] px-2.5 pb-1.5 pt-2 text-left transition-colors duration-fast ease-standard hover:border-border hover:bg-white/[0.06] focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
           isSelected && "border-accent/25 bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)]",
           isDispatchSelected &&
             "border-accent/20 bg-accent/5 shadow-[inset_3px_0_0_var(--color-accent)]"
@@ -206,7 +206,7 @@ const VehicleRow = memo(function VehicleRow({
               style={{ backgroundColor: fleetColor ?? "transparent" }}
             />
           )}
-          <span className="min-w-0 self-center truncate text-[13px] font-medium text-foreground">
+          <span className="min-w-0 flex-1 self-center truncate text-[13px] font-medium text-foreground">
             {name}
           </span>
           {type && type !== "car" && (
