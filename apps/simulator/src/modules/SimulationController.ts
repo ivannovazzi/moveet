@@ -15,7 +15,6 @@ import type {
   TrafficProfile,
   VehicleDTO,
 } from "../types";
-import { TIME_INTERVALS } from "../constants";
 import { config } from "../utils/config";
 import EventEmitter from "events";
 
@@ -198,7 +197,7 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
       this.incidentManager.on("incident:cleared", this._onIncidentCleared);
     }
 
-    // Automatically regenerate heat zones every 5 minutes.
+    // Automatically regenerate heat zones (config.heatZoneRegenIntervalMs, default 5 minutes).
     // Always clear any timer left over from a previous start() so repeated
     // starts never accumulate intervals.
     if (this.autoHeatZoneInterval) {
@@ -209,7 +208,7 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
     this.autoHeatZoneInterval = setInterval(() => {
       // Generate new heat zones
       this.vehicleManager.getNetwork().generateHeatedZones();
-    }, TIME_INTERVALS.HEAT_ZONE_REGEN_INTERVAL);
+    }, config.heatZoneRegenIntervalMs);
 
     // Wire clock hour:changed to broadcast clock events. Only emit when the
     // clock state is actually present so consumers never receive an undefined

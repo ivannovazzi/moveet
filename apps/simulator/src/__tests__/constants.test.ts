@@ -2,11 +2,11 @@ import { describe, it, expect } from "vitest";
 import {
   WS_BROADCASTER,
   SPATIAL_GRID,
-  TIME_INTERVALS,
   HEAT_ZONE_DEFAULTS,
   VEHICLE_CONSTANTS,
   FLEET_COLORS,
 } from "../constants";
+import { config } from "../utils/config";
 
 describe("constants", () => {
   describe("WS_BROADCASTER", () => {
@@ -62,9 +62,9 @@ describe("constants", () => {
     });
   });
 
-  describe("TIME_INTERVALS", () => {
-    it("should define HEAT_ZONE_REGEN_INTERVAL as 5 minutes in ms", () => {
-      expect(TIME_INTERVALS.HEAT_ZONE_REGEN_INTERVAL).toBe(5 * 60 * 1000);
+  describe("config.heatZoneRegenIntervalMs", () => {
+    it("should default to 5 minutes in ms (migrated from TIME_INTERVALS)", () => {
+      expect(config.heatZoneRegenIntervalMs).toBe(5 * 60 * 1000);
     });
   });
 
