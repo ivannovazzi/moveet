@@ -6,7 +6,7 @@ import { useDockNavigation, type DockClusterId } from "@/hooks/useDockNavigation
 import { useClock } from "@/hooks/useClock";
 import { useAdapterConfig } from "@/Controls/Adapter/useAdapterConfig";
 import { DispatchState } from "@/hooks/useDispatchState";
-import { CarIcon, Gear, ChartIcon } from "@/components/Icons";
+import { CarIcon, Gear, ChartIcon, GaugeIcon } from "@/components/Icons";
 import DockCluster from "./DockCluster";
 import DockPanel from "./DockPanel";
 import PlaybackCluster from "./PlaybackCluster";
@@ -17,6 +17,7 @@ import FleetPanel from "./FleetPanel";
 import TempoPanel from "./TempoPanel";
 import SinksPanel from "./SinksPanel";
 import MonitorPanel from "./MonitorPanel";
+import SettingsPanel from "./SettingsPanel";
 import type { StatusTone } from "./DockPanelKit";
 import type Incidents from "@/Controls/Incidents";
 import type GeofencePanel from "@/Controls/GeofencePanel";
@@ -41,6 +42,7 @@ const PANEL_CLUSTERS = new Set<DockClusterId>([
   "fleet-dispatch",
   "sinks-source",
   "monitor",
+  "settings",
 ]);
 
 const PANEL_LABEL: Record<string, string> = {
@@ -48,6 +50,7 @@ const PANEL_LABEL: Record<string, string> = {
   "fleet-dispatch": "Fleet & Dispatch",
   "sinks-source": "Sinks & Source",
   monitor: "Monitor",
+  settings: "Settings",
 };
 
 export interface DockProps {
@@ -224,14 +227,10 @@ export default function Dock({
         )}
         {openCluster === "sinks-source" && <SinksPanel adapter={adapter} />}
         {openCluster === "monitor" && (
-          <MonitorPanel
-            incidents={incidents}
-            geofences={geofences}
-            analytics={analytics}
-            toggles={toggles}
-            recordings={recordings}
-            advanced={advanced}
-          />
+          <MonitorPanel incidents={incidents} analytics={analytics} geofences={geofences} />
+        )}
+        {openCluster === "settings" && (
+          <SettingsPanel toggles={toggles} recordings={recordings} advanced={advanced} />
         )}
       </DockPanel>
 
@@ -285,6 +284,13 @@ export default function Dock({
             badge={countBadge(incidentCount, "err")}
             aria-label="Monitor"
             onClick={() => toggle("monitor")}
+          />
+          <DockCluster
+            icon={<GaugeIcon />}
+            label="Settings"
+            active={isOpen("settings")}
+            aria-label="Settings"
+            onClick={() => toggle("settings")}
           />
         </div>
 

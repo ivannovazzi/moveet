@@ -1,12 +1,14 @@
 import { useCallback, useState } from "react";
 
 /**
- * Identifiers for the five dock clusters (see
+ * Identifiers for the dock clusters (see
  * `docs/plans/2026-07-07-dock-ui-redesign-design.md`). Owned here (rather
- * than by a UI component, as `PanelId` is by `IconRail`) so any cluster or
- * drawer component can depend on the id union without importing `Dock.tsx`.
+ * than by a UI component) so any cluster or panel component can depend on the
+ * id union without importing `Dock.tsx`. `monitor` is observe-only (incidents,
+ * analytics, geofences); `settings` holds view filters, session, and tuning.
  */
-export type DockClusterId = "playback" | "tempo" | "fleet-dispatch" | "sinks-source" | "monitor";
+export type DockClusterId =
+  "playback" | "tempo" | "fleet-dispatch" | "sinks-source" | "monitor" | "settings";
 
 export interface DockNavigation {
   /** The single cluster whose drawer is currently open, or `null`. */

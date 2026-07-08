@@ -174,6 +174,64 @@ export function PanelScroll({
   return <div className={cn("max-h-[min(52vh,420px)] overflow-y-auto", className)}>{children}</div>;
 }
 
+export interface PanelTab<T extends string> {
+  id: T;
+  label: string;
+  /** Optional count rendered as a small mono error-tone badge (e.g. incidents). */
+  badge?: number;
+}
+
+/**
+ * A quiet, horizontally-scrollable tab strip for panels with many sections
+ * (Monitor, Settings). Unlike `SegTabs` it doesn't stretch tabs to equal
+ * width — it scrolls, so a panel can carry 4-7 tabs without cramping.
+ */
+export function PanelTabStrip<T extends string>({
+  tabs,
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  tabs: PanelTab<T>[];
+  value: T;
+  onChange: (v: T) => void;
+  ariaLabel?: string;
+}) {
+  return (
+    <div
+      role="tablist"
+      aria-label={ariaLabel}
+      className="flex gap-0.5 overflow-x-auto border-b border-border-soft px-2.5 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
+      {tabs.map(({ id, label, badge }) => {
+        const selected = id === value;
+        return (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            onClick={() => onChange(id)}
+            className={cn(
+              "flex-shrink-0 whitespace-nowrap rounded-md px-2 py-1 text-[10.5px] font-medium",
+              "transition-[color,background-color] duration-fast ease-standard",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
+              selected
+                ? "bg-foreground/[0.06] text-foreground"
+                : "text-muted-foreground hover:bg-foreground/[0.035] hover:text-foreground"
+            )}
+          >
+            {label}
+            {badge != null && badge > 0 && (
+              <span className={cn(mono, "ml-1 text-[9px] text-status-error")}>{badge}</span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── shared list-row language (mockup `.list`/`.lrow`/`.tag`) ─────────────────
 // The canonical dense row used across Sinks, Monitor, and Incidents. Lives here
 // (not in a panel) so every panel renders the exact same stripe/label/meta
