@@ -1,8 +1,10 @@
 import { useEffect } from "react";
 import { cn } from "@/lib/utils";
-import type { Fleet, POI, Position, Route, Vehicle } from "@/types";
+import type { Fleet, POI, Position, Vehicle } from "@/types";
 import { CloseIcon } from "@/components/Icons";
+import { invertLatLng } from "@/utils/coordinates";
 import { Eyebrow, Hairline, PanelHead, StatusDot, Tag, mono } from "@/Dock/DockPanelKit";
+import VehicleDirections from "./VehicleDirections";
 
 /**
  * On-demand right-side detail panel for the currently selected vehicle or POI.
@@ -19,8 +21,6 @@ export interface InspectorProps {
   poi?: POI;
   /** Resolved fleet for the selected vehicle (App resolves it from `fleetId`). */
   fleet?: Fleet;
-  /** Active route for the selected vehicle (App reads it from the directions map). */
-  route?: Route;
   /** Close the inspector (clears selection upstream). */
   onClose: () => void;
 }
@@ -40,7 +40,7 @@ function formatCoords([lng, lat]: Position): string {
   return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 }
 
-export default function Inspector({ vehicle, poi, fleet, route, onClose }: InspectorProps) {
+export default function Inspector({ vehicle, poi, fleet, onClose }: InspectorProps) {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -60,7 +60,7 @@ export default function Inspector({ vehicle, poi, fleet, route, onClose }: Inspe
       role="region"
       aria-label="Inspector"
       className={cn(
-        "absolute right-4 top-4 z-40 w-80 max-w-[calc(100vw-2rem)] origin-top-right",
+        "absolute right-4 top-4 z-40 flex max-h-[calc(100vh-2rem)] w-80 max-w-[calc(100vw-2rem)] flex-col origin-top-right",
         "overflow-hidden rounded-[10px] border border-border surface-glass-strong shadow-floating backdrop-blur-2xl backdrop-saturate-150",
         "animate-scale-in"
       )}
@@ -88,7 +88,7 @@ export default function Inspector({ vehicle, poi, fleet, route, onClose }: Inspe
       <Hairline />
 
       {vehicle && (
-        <div className="flex flex-col pb-1">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pb-1">
           <Field label="ID">
             <span className={mono}>{vehicle.id}</span>
           </Field>
@@ -108,14 +108,12 @@ export default function Inspector({ vehicle, poi, fleet, route, onClose }: Inspe
             <span className={mono}>{Math.round(vehicle.heading)}°</span>
           </Field>
           <Field label="Fleet">{fleet?.name ?? vehicle.fleetId ?? "—"}</Field>
-          {route && (
-            <Field label="Route">
-              <span className={mono}>{route.distance.toFixed(1)} km</span>
-            </Field>
-          )}
           <Field label="Coordinates">
             <span className={mono}>{formatCoords(vehicle.position)}</span>
           </Field>
+          {/* Vehicle positions are [lng, lat] here; edge coords are [lat, lng].
+              Invert so the active-step lookup compares matching axes. */}
+          <VehicleDirections vehicleId={vehicle.id} position={invertLatLng(vehicle.position)} />
         </div>
       )}
 
