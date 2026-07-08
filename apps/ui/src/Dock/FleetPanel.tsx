@@ -219,11 +219,12 @@ function DispatchStatusBar({ dispatch }: { dispatch: DispatchFlow }) {
  * controls (the vehicle search box, fleet CRUD) stay intact.
  *
  * The "Dispatch" segment mirrors `dispatch.dispatchMode`: selecting it enters
- * dispatch mode, selecting List/Groups exits it. An explicit Dispatch / Exit
- * Dispatch toggle button is kept above the vehicle list. When the dispatch
- * state machine moves past `BROWSE`, the ported `DispatchStatusBar` renders as
- * the panel footer. The state machine (`useDispatchState`/`useDispatchFlow`)
- * is unchanged — only its surrounding chrome lives here.
+ * dispatch mode, selecting List/Groups exits it — the segment is the sole entry
+ * point (no redundant toggle bar). When the dispatch state machine moves past
+ * `BROWSE`, the ported `DispatchStatusBar` renders as the panel footer (and its
+ * Exit/Done/Clear actions also unwind dispatch mode). The state machine
+ * (`useDispatchState`/`useDispatchFlow`) is unchanged — only its surrounding
+ * chrome lives here.
  */
 export default function FleetPanel({
   vehicles,
@@ -315,39 +316,24 @@ export default function FleetPanel({
         // Bounded height so the virtualized vehicle list measures a real
         // window (PanelScroll's auto-height would starve react-window).
         <div className="flex h-[min(50vh,400px)] min-h-0 flex-col">
-          <button
-            type="button"
-            onClick={dispatch.toggleDispatchMode}
-            className={cn(
-              "flex w-full flex-shrink-0 items-center justify-center border-b border-border-soft px-4 py-2 text-[10px] font-bold uppercase tracking-[0.14em]",
-              "transition-colors duration-fast ease-standard",
-              inDispatch
-                ? "bg-accent/15 text-accent"
-                : "text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground"
-            )}
-          >
-            {inDispatch ? "Exit Dispatch" : "Dispatch"}
-          </button>
-          <div className="flex min-h-0 flex-1 flex-col">
-            <SuppressPanelHeader>
-              <Vehicles
-                filter={filter}
-                onFilterChange={onFilterChange}
-                vehicles={vehicles}
-                selectedId={selectedId}
-                onSelectVehicle={onSelectVehicle}
-                onHoverVehicle={onHoverVehicle}
-                onUnhoverVehicle={onUnhoverVehicle}
-                maxSpeed={maxSpeed}
-                vehicleFleetMap={vehicleFleetMap}
-                dispatchState={dispatch.dispatchState}
-                selectedForDispatch={dispatch.selectedForDispatch}
-                onToggleVehicleForDispatch={dispatch.onToggleVehicleForDispatch}
-                assignments={dispatch.assignments}
-                results={dispatch.results}
-              />
-            </SuppressPanelHeader>
-          </div>
+          <SuppressPanelHeader>
+            <Vehicles
+              filter={filter}
+              onFilterChange={onFilterChange}
+              vehicles={vehicles}
+              selectedId={selectedId}
+              onSelectVehicle={onSelectVehicle}
+              onHoverVehicle={onHoverVehicle}
+              onUnhoverVehicle={onUnhoverVehicle}
+              maxSpeed={maxSpeed}
+              vehicleFleetMap={vehicleFleetMap}
+              dispatchState={dispatch.dispatchState}
+              selectedForDispatch={dispatch.selectedForDispatch}
+              onToggleVehicleForDispatch={dispatch.onToggleVehicleForDispatch}
+              assignments={dispatch.assignments}
+              results={dispatch.results}
+            />
+          </SuppressPanelHeader>
         </div>
       )}
 

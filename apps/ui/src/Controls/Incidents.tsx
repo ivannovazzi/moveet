@@ -3,6 +3,7 @@ import type { IncidentDTO } from "@/types";
 import { Switch, SquaredButton } from "@/components/Inputs";
 import { cn } from "@/lib/utils";
 import { AlertIcon } from "@/components/Icons";
+import { LList, LRow, Tag, mono, type SevTone } from "@/Dock/DockPanelKit";
 import {
   PanelBadge,
   PanelBody,
@@ -18,15 +19,21 @@ interface IncidentsProps {
   error?: string | null;
 }
 
-/** Left severity stripe tone — red for high-severity, amber otherwise. */
-type SeverityTone = "error" | "warn";
-function severityTone(severity: number): SeverityTone {
-  return (severity ?? 0) >= 0.6 ? "error" : "warn";
+/**
+ * Bucket the 0–1 severity float into a three-tier stripe/tag tone so the row
+ * carries more than a binary error/warn signal: critical (red), elevated
+ * (amber), minor (idle grey). The exact float is still surfaced numerically.
+ */
+function severityTone(severity: number): SevTone {
+  const s = severity ?? 0;
+  if (s >= 0.66) return "error";
+  if (s >= 0.33) return "warn";
+  return "idle";
 }
-const STRIPE_BG: Record<SeverityTone, string> = {
-  error: "bg-status-error",
-  warn: "bg-status-warn",
-};
+
+function formatSeverity(severity: number): string {
+  return `${Math.round((severity ?? 0) * 100)}%`;
+}
 
 function formatTimeRemaining(expiresAt: number): string {
   if (!Number.isFinite(expiresAt)) return "—";
@@ -109,45 +116,38 @@ export default function Incidents({ incidents, createRandom, remove, error }: In
           <PanelEmptyState icon={<AlertIcon />}>No active incidents</PanelEmptyState>
         ) : null}
 
-        <div className="flex flex-col">
+        <LList className="px-0 pb-0 pt-0">
           {incidents.map((incident) => {
             const tone = severityTone(incident.severity);
             return (
-              <div
+              <LRow
                 key={incident.id}
-                className="grid grid-cols-[3px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md border-t border-border-soft px-2 py-2 transition-colors duration-fast ease-standard first:border-t-0 hover:bg-foreground/[0.035]"
-              >
-                <span
-                  data-testid="severity-stripe"
-                  data-tone={tone}
-                  className={cn("h-[26px] w-[3px] rounded-[2px]", STRIPE_BG[tone])}
-                />
-                <div className="min-w-0">
-                  <div className="truncate text-[12px] font-medium capitalize text-foreground">
-                    {incident.type}
-                  </div>
-                  <div className="mt-0.5 truncate font-mono text-[10.5px] tabular-nums text-muted-foreground/70">
-                    {incident.position[0].toFixed(4)}, {incident.position[1].toFixed(4)}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="whitespace-nowrap font-mono text-[11px] tabular-nums text-muted-foreground">
-                    {formatTimeRemaining(incident.expiresAt)}
-                  </span>
-                  <SquaredButton
-                    className="flex-shrink-0"
-                    icon={<span aria-hidden="true">×</span>}
-                    variant="ghost"
-                    tone="danger"
-                    aria-label="Remove incident"
-                    title="Remove incident"
-                    onClick={() => remove(incident.id)}
-                  />
-                </div>
-              </div>
+                tone={tone}
+                primary={<span className="capitalize">{incident.type}</span>}
+                secondary={`${incident.position[0].toFixed(4)}, ${incident.position[1].toFixed(4)}`}
+                meta={
+                  <>
+                    <Tag tone={tone}>{formatSeverity(incident.severity)}</Tag>
+                    <span
+                      className={cn(mono, "whitespace-nowrap text-[11px] text-muted-foreground")}
+                    >
+                      {formatTimeRemaining(incident.expiresAt)}
+                    </span>
+                    <SquaredButton
+                      className="flex-shrink-0"
+                      icon={<span aria-hidden="true">×</span>}
+                      variant="ghost"
+                      tone="danger"
+                      aria-label="Remove incident"
+                      title="Remove incident"
+                      onClick={() => remove(incident.id)}
+                    />
+                  </>
+                }
+              />
             );
           })}
-        </div>
+        </LList>
       </PanelBody>
     </>
   );

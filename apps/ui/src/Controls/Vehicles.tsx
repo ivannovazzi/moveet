@@ -12,10 +12,10 @@ import { Input } from "@/components/ui/input";
 
 // Row height (px) for the virtualized list — must match the rendered row's
 // real height since FixedSizeList positions rows by index * ROW_HEIGHT. The
-// tight-technical redesign uses a single-line ~30px row (mockup `.trow`)
+// tight-technical redesign uses a single-line 30px row (mockup `.trow`)
 // separated by hairlines rather than gapped cards, so there is no inter-row
 // gap to synthesize (ROW_GAP is 0 and the inset is a no-op).
-const ROW_HEIGHT = 32;
+const ROW_HEIGHT = 30;
 const ROW_GAP = 0;
 
 // Shared grid template for the header row and every data row so their columns
@@ -446,7 +446,7 @@ export default function VehicleList({
             <button
               type="button"
               onClick={() => onFilterChange("")}
-              className="absolute right-2 flex size-6 items-center justify-center rounded-md border border-transparent bg-accent/50 text-base leading-none text-muted-foreground transition-colors duration-fast ease-standard hover:border-border hover:bg-accent hover:text-foreground"
+              className="absolute right-2 flex size-6 items-center justify-center rounded-md border border-transparent bg-accent/50 text-base leading-none text-muted-foreground transition-colors duration-fast ease-standard hover:border-border hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
               aria-label="Clear search"
             >
               ×

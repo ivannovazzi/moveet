@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { Modifiers } from "@/types";
 import { Switch, Range } from "@/components/Inputs";
 import { vehicleStore } from "@/hooks/vehicleStore";
+import { cn } from "@/lib/utils";
 import { PanelBody, PanelHeader } from "./PanelPrimitives";
 
 interface TogglesPanelProps {
@@ -77,22 +78,32 @@ export default memo(function TogglesPanel({ modifiers, onChangeModifiers }: Togg
         title="Visibility"
         subtitle="Toggle map layers and overlays without leaving the panel."
       />
-      <PanelBody className="gap-1">
-        {toggles.map(({ key, label }) => (
-          <label
-            key={key}
-            className="flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 transition-colors duration-fast ease-standard hover:bg-accent/10"
-          >
-            <span className="text-[12px] text-muted-foreground">{label}</span>
-            <Switch
-              isSelected={modifiers[key]}
-              onChange={onChangeModifiers(key)}
-              aria-label={label}
-            />
-          </label>
-        ))}
+      <PanelBody className="gap-0">
+        {toggles.map(({ key, label }) => {
+          const on = modifiers[key];
+          return (
+            <label
+              key={key}
+              className="grid cursor-pointer grid-cols-[3px_1fr_auto] items-center gap-2.5 border-t border-border-soft px-2 py-[9px] transition-colors duration-fast ease-standard first:border-t-0 hover:bg-foreground/[0.035]"
+            >
+              <span
+                className={cn("h-[26px] w-[3px] rounded-[2px]", on ? "bg-accent" : "bg-border")}
+              />
+              <span
+                className={cn(
+                  "truncate text-[12px] font-medium",
+                  on ? "text-foreground" : "text-muted-foreground"
+                )}
+              >
+                {label}
+              </span>
+              <Switch isSelected={on} onChange={onChangeModifiers(key)} aria-label={label} />
+            </label>
+          );
+        })}
         {modifiers.showBreadcrumbs && (
-          <div className="flex items-center justify-between rounded-md px-2 py-1.5">
+          <div className="grid grid-cols-[3px_1fr] items-center gap-2.5 border-t border-border-soft px-2 py-[9px]">
+            <span className="h-[26px] w-[3px] rounded-[2px] bg-accent" />
             <Range
               label="Trail Length"
               value={trailLength}

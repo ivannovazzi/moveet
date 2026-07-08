@@ -4,6 +4,7 @@ import { Switch, SquaredButton } from "@/components/Inputs";
 import { cn } from "@/lib/utils";
 import { GeofenceIcon } from "@/components/Icons";
 import { PanelBadge, PanelBody, PanelEmptyState, PanelHeader } from "./PanelPrimitives";
+import { LRow, LList, Tag, mono, type SevTone } from "@/Dock/DockPanelKit";
 
 interface GeofencePanelProps {
   fences: GeoFence[];
@@ -19,14 +20,19 @@ interface GeofencePanelProps {
 
 type Tab = "zones" | "alerts";
 
-function typeBadgeColor(type: GeoFence["type"]): string {
+/**
+ * Map a zone type to a semantic tone (replaces the old hardcoded hex badge:
+ * restricted→error, delivery→ok, monitoring→accent). Drives the row stripe +
+ * the `Tag`, so all colour flows through design tokens.
+ */
+function typeTone(type: GeoFence["type"]): SevTone {
   switch (type) {
     case "restricted":
-      return "#ef4444";
+      return "error";
     case "delivery":
-      return "#22c55e";
+      return "ok";
     case "monitoring":
-      return "#3b82f6";
+      return "accent";
   }
 }
 
@@ -85,7 +91,7 @@ export default function GeofencePanel({
           role="tab"
           aria-selected={tab === "zones"}
           className={cn(
-            "-mb-px inline-flex flex-1 items-center justify-center gap-2 border-b-2 border-transparent px-3 py-2 text-[12px] font-medium text-muted-foreground transition-colors duration-fast ease-standard hover:text-foreground",
+            "-mb-px inline-flex flex-1 items-center justify-center gap-2 border-b-2 border-transparent px-3 py-2 text-[12px] font-medium text-muted-foreground transition-colors duration-fast ease-standard hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
             tab === "zones" && "border-accent text-foreground"
           )}
           onClick={() => setTab("zones")}
@@ -97,7 +103,7 @@ export default function GeofencePanel({
           role="tab"
           aria-selected={tab === "alerts"}
           className={cn(
-            "-mb-px inline-flex flex-1 items-center justify-center gap-2 border-b-2 border-transparent px-3 py-2 text-[12px] font-medium text-muted-foreground transition-colors duration-fast ease-standard hover:text-foreground",
+            "-mb-px inline-flex flex-1 items-center justify-center gap-2 border-b-2 border-transparent px-3 py-2 text-[12px] font-medium text-muted-foreground transition-colors duration-fast ease-standard hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
             tab === "alerts" && "border-accent text-foreground"
           )}
           onClick={() => setTab("alerts")}
@@ -126,7 +132,7 @@ export default function GeofencePanel({
               <div className="flex gap-2">
                 <button
                   type="button"
-                  className="flex-1 rounded-md border border-accent/40 bg-accent/15 px-3 py-2 text-sm font-medium text-accent transition-colors duration-fast ease-standard hover:bg-accent/25 hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                  className="flex-1 rounded-md border border-accent/40 bg-accent/15 px-3 py-2 text-sm font-medium text-accent transition-colors duration-fast ease-standard hover:bg-accent/25 hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent disabled:cursor-not-allowed disabled:opacity-40"
                   onClick={onConfirmDrawing}
                   disabled={!canConfirm}
                   title="Finish drawing and name the zone"
@@ -135,7 +141,7 @@ export default function GeofencePanel({
                 </button>
                 <button
                   type="button"
-                  className="rounded-md border border-border bg-transparent px-3 py-2 text-sm text-muted-foreground transition-colors duration-fast ease-standard hover:border-status-error/30 hover:bg-status-error/10 hover:text-status-error"
+                  className="rounded-md border border-border bg-transparent px-3 py-2 text-sm text-muted-foreground transition-colors duration-fast ease-standard hover:border-status-error/30 hover:bg-status-error/10 hover:text-status-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
                   onClick={onCancelDrawing}
                   title="Cancel drawing (Esc)"
                 >
@@ -146,7 +152,7 @@ export default function GeofencePanel({
           ) : (
             <button
               type="button"
-              className="w-full rounded-md surface-accent px-3 py-2 text-left text-sm font-medium text-primary-foreground shadow-raised transition-[transform,background-color,box-shadow,color] duration-fast ease-standard hover:shadow-glow-accent active:scale-[0.98]"
+              className="w-full rounded-md surface-accent px-3 py-2 text-left text-sm font-medium text-primary-foreground shadow-raised transition-[transform,background-color,box-shadow,color] duration-fast ease-standard hover:shadow-glow-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent active:scale-[0.98]"
               onClick={onStartDrawing}
               title="Draw a geofence zone on the map"
             >
@@ -159,47 +165,36 @@ export default function GeofencePanel({
               No zones yet. Use the &ldquo;Draw Zone&rdquo; button above to create one.
             </PanelEmptyState>
           ) : (
-            <div className="flex flex-col gap-2">
+            <LList>
               {fences.map((fence) => (
-                <div
+                <LRow
                   key={fence.id}
-                  className="flex items-center gap-2 rounded-md border border-border-soft bg-white/[0.03] px-2.5 py-2 transition-colors duration-fast ease-standard hover:border-border hover:bg-white/[0.06]"
-                >
-                  <span
-                    className="h-2 w-2 flex-shrink-0 rounded-full"
-                    style={{
-                      backgroundColor: fence.color ?? typeBadgeColor(fence.type),
-                    }}
-                  />
-                  <span
-                    className="min-w-[72px] flex-shrink-0 text-xs font-medium capitalize tracking-wide"
-                    style={{ color: fence.color ?? typeBadgeColor(fence.type) }}
-                  >
-                    {fence.type}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">
-                    {fence.name}
-                  </span>
-                  <div className="flex flex-shrink-0 items-center gap-2">
-                    <Switch
-                      isSelected={fence.active}
-                      onChange={() => onFenceToggle(fence.id)}
-                      aria-label={
-                        fence.active ? `Deactivate ${fence.name}` : `Activate ${fence.name}`
-                      }
-                    />
-                    <SquaredButton
-                      icon={<span aria-hidden="true">×</span>}
-                      variant="ghost"
-                      tone="danger"
-                      aria-label={`Delete ${fence.name}`}
-                      title={`Delete ${fence.name}`}
-                      onClick={() => onFenceDelete(fence.id)}
-                    />
-                  </div>
-                </div>
+                  tone={fence.active ? typeTone(fence.type) : "idle"}
+                  primary={fence.name}
+                  secondary={`${fence.polygon.length} vertices · ${fence.active ? "active" : "inactive"}`}
+                  meta={
+                    <>
+                      <Tag tone={typeTone(fence.type)}>{fence.type}</Tag>
+                      <Switch
+                        isSelected={fence.active}
+                        onChange={() => onFenceToggle(fence.id)}
+                        aria-label={
+                          fence.active ? `Deactivate ${fence.name}` : `Activate ${fence.name}`
+                        }
+                      />
+                      <SquaredButton
+                        icon={<span aria-hidden="true">×</span>}
+                        variant="ghost"
+                        tone="danger"
+                        aria-label={`Delete ${fence.name}`}
+                        title={`Delete ${fence.name}`}
+                        onClick={() => onFenceDelete(fence.id)}
+                      />
+                    </>
+                  }
+                />
               ))}
-            </div>
+            </LList>
           )}
         </PanelBody>
       )}
@@ -211,37 +206,32 @@ export default function GeofencePanel({
               No events yet. Events appear when vehicles cross zone boundaries.
             </PanelEmptyState>
           ) : (
-            <div className="flex flex-col gap-2">
-              {alerts.map((alert, i) => (
-                <div
-                  key={`${alert.fenceId}-${alert.vehicleId}-${alert.timestamp}-${i}`}
-                  className="flex items-center gap-3 rounded-md border border-border-soft bg-white/[0.03] px-2.5 py-2"
-                >
-                  <span
-                    data-event={alert.event}
-                    className={cn(
-                      "flex-shrink-0 rounded-sm border px-2 py-px text-xs font-semibold uppercase tracking-wide",
-                      alert.event === "enter"
-                        ? "border-status-ok/20 bg-status-ok/15 text-status-ok"
-                        : "border-status-error/20 bg-status-error/15 text-status-error"
-                    )}
-                  >
-                    {alert.event}
-                  </span>
-                  <div className="flex min-w-0 flex-1 flex-col gap-px">
-                    <span className="truncate text-[13px] text-foreground">
-                      {alert.vehicleName}
-                    </span>
-                    <span className="truncate text-xs text-muted-foreground">
-                      {alert.fenceName}
-                    </span>
-                  </div>
-                  <span className="flex-shrink-0 whitespace-nowrap font-mono text-[11px] tabular-nums text-muted-foreground">
-                    {formatTimestamp(alert.timestamp)}
-                  </span>
-                </div>
-              ))}
-            </div>
+            <LList>
+              {alerts.map((alert, i) => {
+                const tone: SevTone = alert.event === "enter" ? "ok" : "error";
+                return (
+                  <LRow
+                    key={`${alert.fenceId}-${alert.vehicleId}-${alert.timestamp}-${i}`}
+                    tone={tone}
+                    primary={alert.vehicleName}
+                    secondary={alert.fenceName}
+                    meta={
+                      <>
+                        <Tag tone={tone}>{alert.event}</Tag>
+                        <span
+                          className={cn(
+                            mono,
+                            "whitespace-nowrap text-[10.5px] text-muted-foreground"
+                          )}
+                        >
+                          {formatTimestamp(alert.timestamp)}
+                        </span>
+                      </>
+                    }
+                  />
+                );
+              })}
+            </LList>
           )}
         </PanelBody>
       )}

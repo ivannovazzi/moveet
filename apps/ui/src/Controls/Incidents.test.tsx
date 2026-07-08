@@ -43,18 +43,31 @@ describe("Incidents", () => {
     expect(screen.getByText("construction")).toBeInTheDocument();
   });
 
-  it("tones the severity stripe by severity", () => {
+  it("surfaces severity as a percentage", () => {
+    render(
+      <Incidents incidents={[mockIncident({ severity: 0.7 })]} createRandom={noop} remove={noop} />
+    );
+    expect(screen.getByText("70%")).toBeInTheDocument();
+  });
+
+  it("tones the severity tag by threshold", () => {
     const { rerender } = render(
       <Incidents incidents={[mockIncident({ severity: 0.5 })]} createRandom={noop} remove={noop} />
     );
-    // Below the 0.6 threshold → amber (warn) stripe.
-    expect(screen.getByTestId("severity-stripe")).toHaveAttribute("data-tone", "warn");
+    // 0.33–0.66 → amber (warn).
+    expect(screen.getByText("50%").className).toContain("status-warn");
 
-    // At/above the threshold → red (error) stripe.
+    // ≥ 0.66 → red (error).
     rerender(
       <Incidents incidents={[mockIncident({ severity: 0.8 })]} createRandom={noop} remove={noop} />
     );
-    expect(screen.getByTestId("severity-stripe")).toHaveAttribute("data-tone", "error");
+    expect(screen.getByText("80%").className).toContain("status-error");
+
+    // < 0.33 → minor (idle grey, no status colour).
+    rerender(
+      <Incidents incidents={[mockIncident({ severity: 0.1 })]} createRandom={noop} remove={noop} />
+    );
+    expect(screen.getByText("10%").className).not.toContain("status-");
   });
 
   it("calls createRandom when create button clicked", async () => {
