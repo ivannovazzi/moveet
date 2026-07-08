@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowUp,
@@ -21,6 +21,13 @@ import {
   totalDistanceKm,
   type Maneuver,
 } from "@/utils/directionSteps";
+import {
+  clearDirectionHighlight,
+  sameStep,
+  setHoveredStep,
+  togglePinnedStep,
+  useDirectionHighlight,
+} from "@/hooks/directionHighlightStore";
 import { Eyebrow, Hairline, mono } from "@/Dock/DockPanelKit";
 
 /**
@@ -84,6 +91,12 @@ export default function VehicleDirections({ vehicleId, position }: VehicleDirect
     return stepIndexForEdge(steps, edgeIndex);
   }, [direction, steps, position]);
 
+  const { hovered, pinned } = useDirectionHighlight();
+
+  // Clear the map highlight when the panel unmounts or the vehicle changes, so
+  // a stale segment never lingers after switching / closing the inspector.
+  useEffect(() => clearDirectionHighlight, [vehicleId]);
+
   if (!direction || steps.length === 0) return null;
 
   const total = totalDistanceKm(direction.route);
@@ -112,49 +125,75 @@ export default function VehicleDirections({ vehicleId, position }: VehicleDirect
         </div>
       </div>
 
-      <ol className="px-[15px] pb-2" aria-label="Turn-by-turn directions">
+      <ol className="pb-2" aria-label="Turn-by-turn directions">
         {steps.map((step, i) => {
           const Icon = MANEUVER_ICON[step.maneuver];
           const isActive = i === activeStep;
           const isDone = activeStep >= 0 && i < activeStep;
           const isTerminal = step.maneuver === "arrive";
           const dist = formatDistance(step.distanceKm);
+          // Only steps with a real edge span can be drawn on the map.
+          const ref = { vehicleId, start: step.edgeStart, end: step.edgeEnd };
+          const canHighlight = step.edgeEnd > step.edgeStart;
+          const isPinned = canHighlight && sameStep(pinned, ref);
+          const isHovered = canHighlight && sameStep(hovered, ref);
           return (
             <li
               key={`${step.edgeStart}-${step.maneuver}-${i}`}
-              className={cn(
-                "flex items-start gap-2.5 border-t border-border-soft py-2 first:border-t-0",
-                isDone && "opacity-45"
-              )}
               aria-current={isActive ? "step" : undefined}
             >
-              <span
+              <button
+                type="button"
+                disabled={!canHighlight}
+                aria-pressed={canHighlight ? isPinned : undefined}
+                onMouseEnter={canHighlight ? () => setHoveredStep(ref) : undefined}
+                onMouseLeave={canHighlight ? () => setHoveredStep(null) : undefined}
+                onFocus={canHighlight ? () => setHoveredStep(ref) : undefined}
+                onBlur={canHighlight ? () => setHoveredStep(null) : undefined}
+                onClick={canHighlight ? () => togglePinnedStep(ref) : undefined}
                 className={cn(
-                  "mt-px flex size-[22px] shrink-0 items-center justify-center rounded-full border",
-                  isActive
-                    ? "border-primary/50 bg-primary/15 text-primary"
-                    : isTerminal
-                      ? "border-status-ok/40 bg-status-ok/10 text-status-ok"
-                      : "border-border bg-muted text-muted-foreground"
+                  "relative flex w-full items-start gap-2.5 border-t border-border-soft px-[15px] py-2 text-left transition-colors duration-fast",
+                  "first:border-t-0 disabled:cursor-default",
+                  canHighlight &&
+                    "hover:bg-accent/60 focus-visible:outline-none focus-visible:bg-accent/60",
+                  (isPinned || isHovered) && "bg-primary/10",
+                  isDone && !isPinned && !isHovered && "opacity-45"
                 )}
               >
-                <Icon className="size-3.5" strokeWidth={2.25} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div
+                {isPinned && (
+                  <span
+                    className="absolute inset-y-1 left-0 w-[2px] rounded-r bg-primary"
+                    aria-hidden
+                  />
+                )}
+                <span
                   className={cn(
-                    "text-[12px] leading-snug",
-                    isActive ? "font-medium text-foreground" : "text-foreground/90"
+                    "mt-px flex size-[22px] shrink-0 items-center justify-center rounded-full border",
+                    isActive
+                      ? "border-primary/50 bg-primary/15 text-primary"
+                      : isTerminal
+                        ? "border-status-ok/40 bg-status-ok/10 text-status-ok"
+                        : "border-border bg-muted text-muted-foreground"
                   )}
                 >
-                  {step.instruction}
-                </div>
-                {dist && (
-                  <div className={cn(mono, "mt-0.5 text-[10px] text-muted-foreground/70")}>
-                    {dist}
-                  </div>
-                )}
-              </div>
+                  <Icon className="size-3.5" strokeWidth={2.25} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span
+                    className={cn(
+                      "block text-[12px] leading-snug",
+                      isActive || isPinned ? "font-medium text-foreground" : "text-foreground/90"
+                    )}
+                  >
+                    {step.instruction}
+                  </span>
+                  {dist && (
+                    <span className={cn(mono, "mt-0.5 block text-[10px] text-muted-foreground/70")}>
+                      {dist}
+                    </span>
+                  )}
+                </span>
+              </button>
             </li>
           );
         })}

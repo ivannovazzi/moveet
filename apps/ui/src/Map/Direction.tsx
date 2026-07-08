@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { PathLayer, ScatterplotLayer, TextLayer } from "@deck.gl/layers";
 import type { Position } from "@/types";
 import { useDirections, type DirectionState } from "@/hooks/useDirections";
+import { useDirectionHighlight } from "@/hooks/directionHighlightStore";
 import { invertLatLng } from "@/utils/coordinates";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 import { resolveMapColor } from "@/lib/mapColor";
@@ -207,6 +208,80 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
   }, [hovered, hoveredDirection, selected, selectedDirection]);
 
   useRegisterLayers("directions", layers);
+
+  // ─── Step highlight ────────────────────────────────────────────────
+  // When a turn-by-turn step is hovered/pinned in the inspector, overlay the
+  // matching sub-path (and a dot at the maneuver point) for the SELECTED
+  // vehicle. Kept in its own memo + layer group so hovering a row only rebuilds
+  // this cheap slice, not the base route path (which can span 800+ edges).
+  const { hovered: hoveredStep, pinned: pinnedStep } = useDirectionHighlight();
+  const step = hoveredStep ?? pinnedStep;
+
+  const highlightLayers = useMemo(() => {
+    if (!step || step.vehicleId !== selected || !selectedDirection) return [];
+    const edges = selectedDirection.route.edges;
+    const start = Math.max(0, step.start);
+    const end = Math.min(edges.length, step.end);
+    if (end <= start) return [];
+
+    const path: [number, number][] = [];
+    for (let i = start; i < end; i++) {
+      path.push(invertLatLng(edges[i].start.coordinates as Position) as [number, number]);
+    }
+    path.push(invertLatLng(edges[end - 1].end.coordinates as Position) as [number, number]);
+
+    const core: [number, number, number, number] = [255, 255, 255, 255];
+    const halo: [number, number, number, number] = [255, 255, 255, 70];
+    // depth test always passes so the overlay paints over the coincident base
+    // route path (same z-plane) instead of z-fighting with it. (luma.gl v9 uses
+    // `depthCompare`, not the old `depthTest` flag.)
+    const noDepth = { depthCompare: "always" as const };
+    return [
+      // Soft glow beneath the core so the highlight reads over both the blue
+      // route line and warm traffic colouring.
+      new PathLayer<{ path: [number, number][] }>({
+        id: "direction-step-highlight-halo",
+        data: [{ path }],
+        getPath: (d) => d.path,
+        getColor: halo,
+        getWidth: 12,
+        widthUnits: "pixels",
+        widthMinPixels: 9,
+        jointRounded: true,
+        capRounded: true,
+        parameters: noDepth,
+      }),
+      new PathLayer<{ path: [number, number][] }>({
+        id: "direction-step-highlight-path",
+        data: [{ path }],
+        getPath: (d) => d.path,
+        getColor: core,
+        getWidth: 6,
+        widthUnits: "pixels",
+        widthMinPixels: 4,
+        jointRounded: true,
+        capRounded: true,
+        parameters: noDepth,
+      }),
+      new ScatterplotLayer<{ position: [number, number] }>({
+        id: "direction-step-highlight-start",
+        data: [{ position: path[0] }],
+        getPosition: (d) => d.position,
+        getRadius: 6,
+        radiusUnits: "pixels",
+        radiusMinPixels: 5,
+        getFillColor: hexToRgba("#39f"),
+        getLineColor: core,
+        getLineWidth: 2,
+        stroked: true,
+        lineWidthUnits: "pixels",
+        parameters: noDepth,
+      }),
+    ];
+  }, [step, selected, selectedDirection]);
+
+  // Sits just above the base "directions" group (50) but below vehicles (70).
+  useRegisterLayers("direction-highlight", highlightLayers, 52);
 
   return null;
 }

@@ -1,9 +1,13 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import VehicleDirections from "./VehicleDirections";
 import { DirectionContext, type DirectionMap } from "@/data/context";
 import type { DirectionState } from "@/hooks/useDirections";
+import { clearDirectionHighlight } from "@/hooks/directionHighlightStore";
 import type { Edge, Node, Position } from "@/types";
+
+beforeEach(() => clearDirectionHighlight());
 
 function node(coordinates: Position): Node {
   return { id: `n${coordinates.join(",")}`, coordinates, connections: [] };
@@ -95,5 +99,32 @@ describe("VehicleDirections", () => {
     const current = document.querySelector('[aria-current="step"]');
     expect(current).not.toBeNull();
     expect(current).toHaveTextContent("Turn right onto Second St");
+  });
+
+  it("pins a step on click and toggles it off on a second click", async () => {
+    renderWithDirection("v1", {
+      route: {
+        edges: [
+          edge({ name: "First St", bearing: 0, distance: 1 }),
+          edge({ name: "Second St", bearing: 90, distance: 1 }),
+        ],
+        distance: 2,
+      },
+    });
+
+    const turn = screen.getByRole("button", { name: /Turn right onto Second St/ });
+    expect(turn).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(turn);
+    expect(turn).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(turn);
+    expect(turn).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("makes the terminal arrival step non-interactive", () => {
+    renderWithDirection("v1", {
+      route: { edges: [edge({ name: "Only St", bearing: 0, distance: 1 })], distance: 1 },
+    });
+    const arrive = screen.getByRole("button", { name: /Arrive at your destination/ });
+    expect(arrive).toBeDisabled();
   });
 });
