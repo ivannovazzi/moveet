@@ -8,6 +8,13 @@ export type { DeckViewStateControls };
 
 const DEFAULT_ZOOM = 12;
 
+/**
+ * How many zoom levels one button press / keyboard shortcut moves. A full level
+ * per press (matching Google Maps / Mapbox) — the previous 0.5 barely changed
+ * the view and read as an unresponsive control.
+ */
+const ZOOM_STEP = 1;
+
 const DEFAULT_VIEW_STATE: MapViewState = {
   longitude: 36.82,
   latitude: -1.29,
@@ -87,7 +94,7 @@ export function useDeckViewState({ data, width, height }: UseDeckViewStateOption
   const zoomIn = useCallback(() => {
     setViewState((prev) => ({
       ...prev,
-      zoom: Math.min((prev.zoom ?? 1) + 0.5, 20),
+      zoom: Math.min((prev.zoom ?? 1) + ZOOM_STEP, prev.maxZoom ?? 20),
       transitionDuration: 200,
       transitionInterpolator: new FlyToInterpolator(),
     }));
@@ -96,7 +103,7 @@ export function useDeckViewState({ data, width, height }: UseDeckViewStateOption
   const zoomOut = useCallback(() => {
     setViewState((prev) => ({
       ...prev,
-      zoom: Math.max((prev.zoom ?? 1) - 0.5, 1),
+      zoom: Math.max((prev.zoom ?? 1) - ZOOM_STEP, prev.minZoom ?? 1),
       transitionDuration: 200,
       transitionInterpolator: new FlyToInterpolator(),
     }));
