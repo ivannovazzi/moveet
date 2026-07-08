@@ -26,6 +26,7 @@ export const MapControlsContext = createContext<MapControlsContextValue>({
   zoomOut: () => {},
   panTo: () => {},
   setZoom: () => {},
+  getZoom: () => 0,
   setBounds: () => {},
   focusOn: () => {},
 });

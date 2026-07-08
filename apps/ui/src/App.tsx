@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import client from "./utils/client";
 import Dock from "./Dock/Dock";
+import Inspector from "./Inspector/Inspector";
 import useTracking from "./Controls/useTracking";
 import MapView from "./Map/Map";
 import FleetLegend from "./Map/FleetLegend";
@@ -11,6 +12,7 @@ import CreateZoneDialog from "./Map/Geofence/CreateZoneDialog";
 import type { Fleet, Modifiers } from "./types";
 import type { BoundingBox } from "@moveet/shared-types";
 import type { POI } from "./types";
+import { isRoad } from "./utils/typeGuards";
 import { useVehicles } from "./hooks/useVehicles";
 import { useFleets } from "./hooks/useFleets";
 import { useVehicleTypeFilter } from "./hooks/useVehicleTypeFilter";
@@ -155,6 +157,19 @@ export default function App() {
     [setModifiers]
   );
 
+  // ─── Inspector selection ────────────────────────────────────────
+  // Resolve the selected vehicle / POI objects from the existing selection
+  // state (no new selection source) to feed the on-demand Inspector panel.
+  const selectedVehicle = useMemo(
+    () => (filters.selected ? vehicles.find((v) => v.id === filters.selected) : undefined),
+    [filters.selected, vehicles]
+  );
+  const selectedPoi = selectedItem && !isRoad(selectedItem) ? selectedItem : undefined;
+  const closeInspector = useCallback(() => {
+    onUnselectVehicle();
+    setSelectedItem(null);
+  }, [onUnselectVehicle, setSelectedItem]);
+
   const maxSpeedRef = useRef(60);
   useTracking(vehicles, filters.selected, status.interval);
 
@@ -193,6 +208,8 @@ export default function App() {
               onRemoveWaypointGroup={dispatch.removeWaypointGroup}
               incidents={incidents.incidents}
               fences={geofences.fences}
+              selectedFenceId={geofences.selectedFenceId}
+              onSelectFence={geofences.onSelectFence}
               drawingActive={geofences.drawingActive}
               onDrawComplete={geofences.onDrawComplete}
               onDrawCancel={geofences.onDrawCancel}
@@ -273,6 +290,12 @@ export default function App() {
                 onRefreshRecordings: recording.refreshRecordings,
               }}
               advanced={{ maxSpeedRef }}
+            />
+            <Inspector
+              vehicle={selectedVehicle}
+              poi={selectedPoi ?? undefined}
+              fleet={selectedVehicle ? vehicleFleetMap.get(selectedVehicle.id) : undefined}
+              onClose={closeInspector}
             />
             <CreateZoneDialog
               polygon={geofences.pendingPolygon}

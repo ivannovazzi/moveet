@@ -15,6 +15,9 @@ const MAX_ALERTS = 200;
 export function useGeofenceManager() {
   const [fences, setFences] = useState<GeoFence[]>([]);
   const [alerts, setAlerts] = useState<GeoFenceEvent[]>([]);
+  // Fence selection is deliberately panel-local (NOT part of vehicle/POI
+  // selection): it only drives the map outline emphasis.
+  const [selectedFenceId, setSelectedFenceId] = useState<string | undefined>(undefined);
   const [drawingActive, setDrawingActive] = useState(false);
   const [drawingVertexCount, setDrawingVertexCount] = useState(0);
   const [drawConfirmId, setDrawConfirmId] = useState(0);
@@ -68,6 +71,7 @@ export function useGeofenceManager() {
     async (id: string) => {
       const prev = fences;
       setFences((f) => f.filter((x) => x.id !== id));
+      setSelectedFenceId((sel) => (sel === id ? undefined : sel));
       try {
         const res = await client.deleteGeofence(id);
         if (res.error) throw new Error(res.error);
@@ -79,6 +83,12 @@ export function useGeofenceManager() {
     },
     [fences]
   );
+
+  // ─── Selection ────────────────────────────────────────────────────
+  /** Toggle map-side fence selection (click the same fence again to clear). */
+  const onSelectFence = useCallback((id: string) => {
+    setSelectedFenceId((prev) => (prev === id ? undefined : id));
+  }, []);
 
   // ─── Drawing ──────────────────────────────────────────────────────
   const startDrawing = useCallback(() => setDrawingActive(true), []);
@@ -116,6 +126,8 @@ export function useGeofenceManager() {
   return {
     fences,
     alerts,
+    selectedFenceId,
+    onSelectFence,
     drawingActive,
     drawingVertexCount,
     setDrawingVertexCount,

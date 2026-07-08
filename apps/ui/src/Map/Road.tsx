@@ -60,9 +60,10 @@ export default function DirectionMap({ road }: DirectionProps) {
         widthUnits: "pixels",
         jointRounded: true,
         capRounded: true,
-        pickable: true,
-        autoHighlight: true,
-        highlightColor: [255, 255, 255, 40],
+        // Not pickable: the path has no click handler, so a hover highlight
+        // would imply interactivity it doesn't have (a click falls through
+        // to the map and clears the selection).
+        pickable: false,
       }),
       new TextLayer({
         id: "selected-road-label",

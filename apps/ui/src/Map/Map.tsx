@@ -80,6 +80,7 @@ interface MapProps {
   incidents?: IncidentDTO[];
   fences?: GeoFence[];
   selectedFenceId?: string;
+  onSelectFence?: (id: string) => void;
   drawingActive?: boolean;
   onDrawComplete?: (polygon: [number, number][]) => void;
   onDrawCancel?: () => void;
@@ -111,6 +112,7 @@ export default function Map({
   incidents,
   fences = [],
   selectedFenceId,
+  onSelectFence,
   drawingActive = false,
   onDrawComplete,
   onDrawCancel,
@@ -179,8 +181,19 @@ export default function Map({
             <SpeedLimitSigns visible={modifiers.showSpeedLimits} />
           </Suspense>
         )}
-        {/* Geofence zones — rendered between roads and vehicles */}
-        {fences.length > 0 && <GeofenceLayer fences={fences} selectedFenceId={selectedFenceId} />}
+        {/* Geofence zones — rendered between roads and vehicles. Fence clicks
+            select/deselect; disabled while drawing or dispatching so those
+            interactions own the map click. */}
+        {fences.length > 0 && (
+          <GeofenceLayer
+            fences={fences}
+            selectedFenceId={selectedFenceId}
+            onSelectFence={onSelectFence}
+            selectable={
+              !drawingActive && (!dispatchState || dispatchState === DispatchState.BROWSE)
+            }
+          />
+        )}
         <Direction selected={filters.selected} hovered={filters.hovered} />
         {modifiers.showBreadcrumbs && (
           <Suspense fallback={null}>

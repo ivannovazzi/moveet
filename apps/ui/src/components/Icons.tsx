@@ -34,6 +34,7 @@ import {
   Hexagon as HexagonBase,
   ClipboardList as ClipboardListBase,
   Clock as ClockBase,
+  X as XBase,
   type LucideIcon,
   type LucideProps,
 } from "lucide-react";
@@ -88,3 +89,4 @@ export const ChartIcon = aliasIcon(ChartLineBase);
 export const GeofenceIcon = aliasIcon(HexagonBase);
 export const ScenarioIcon = aliasIcon(ClipboardListBase);
 export const ClockIcon = aliasIcon(ClockBase);
+export const CloseIcon = aliasIcon(XBase);

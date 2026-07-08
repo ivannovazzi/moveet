@@ -5,6 +5,7 @@ export let controlsRef: MapControlsContextValue = {
   zoomOut: () => {},
   panTo: () => {},
   setZoom: () => {},
+  getZoom: () => 0,
   setBounds: () => {},
   focusOn: () => {},
 };

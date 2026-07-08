@@ -582,9 +582,9 @@ export default function VehiclesLayer({
       billboard: false,
       pickable: true,
       onClick: handleClick,
+      // Hover feedback is the React-driven ring above (via onHover →
+      // hoveredId) — no autoHighlight, which would stack a second treatment.
       onHover: handleHover,
-      autoHighlight: true,
-      highlightColor: [251, 201, 1, 80],
       updateTriggers: {
         // Icons only change when the atlas rebuilds (new type/color combo).
         getIcon: atlas,

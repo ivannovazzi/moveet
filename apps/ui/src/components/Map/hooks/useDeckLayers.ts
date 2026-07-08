@@ -38,7 +38,6 @@ const LAYER_ORDER: Record<string, number> = {
   "selected-road": 55,
   "pending-dispatch": 60,
   vehicles: 70,
-  "vehicle-selection-ring": 65,
   "geofence-draw": 80,
 };
 

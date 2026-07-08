@@ -538,10 +538,19 @@ describe("VehiclesLayer hit testing (deck.gl)", () => {
     const layers = registeredLayers.get("vehicles")!;
     const vehiclesLayer = layers.find(
       (l) => (l as { props: { id: string } }).props.id === "vehicles"
-    ) as { props: { pickable: boolean; onClick: (info: { object?: unknown }) => void } };
+    ) as {
+      props: {
+        pickable: boolean;
+        autoHighlight: boolean;
+        onClick: (info: { object?: unknown }) => void;
+      };
+    };
 
     expect(vehiclesLayer.props.pickable).toBe(true);
     expect(typeof vehiclesLayer.props.onClick).toBe("function");
+    // Hover feedback is the React-driven ring only — autoHighlight would
+    // stack a second, GL-side hover treatment on top of it.
+    expect(vehiclesLayer.props.autoHighlight).toBe(false);
   });
 });
 
