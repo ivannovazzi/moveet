@@ -52,12 +52,31 @@ function centroid(points: [number, number][]): [number, number] {
   return [x, y];
 }
 
+// INTEGRATION: Map.tsx must pass `selectedFenceId` + `onSelectFence` from
+// useGeofenceManager() so a fence click selects/deselects it. Optionally pass
+// `selectable={false}` while another map interaction owns the click (e.g.
+// dispatch/geofence-draw), otherwise a fence pick returns true and swallows
+// DeckGL's map-level onClick. The pointer-on-hover cursor is automatic:
+// DeckGL's getCursor already returns "pointer" for any hovered pickable layer.
 interface GeofenceLayerProps {
   fences: GeoFence[];
   selectedFenceId?: string;
+  /** Map click on a fence polygon selects it (panel-local selection). */
+  onSelectFence?: (id: string) => void;
+  /**
+   * Whether fence polygons respond to map clicks. Defaults to true. Set false
+   * when another interaction owns map clicks so a fence must NOT pick (which
+   * would return true from onClick and suppress DeckGL's map-level onClick).
+   */
+  selectable?: boolean;
 }
 
-export default function GeofenceLayer({ fences, selectedFenceId }: GeofenceLayerProps) {
+export default function GeofenceLayer({
+  fences,
+  selectedFenceId,
+  onSelectFence,
+  selectable = true,
+}: GeofenceLayerProps) {
   const layers = useMemo(() => {
     if (fences.length === 0) return [];
 
@@ -72,7 +91,21 @@ export default function GeofenceLayer({ fences, selectedFenceId }: GeofenceLayer
         lineWidthUnits: "pixels",
         filled: true,
         stroked: true,
-        pickable: false,
+        // Only pickable in browse mode: while another interaction owns map
+        // clicks, a fence pick would return true and swallow the map-level
+        // click. When pickable, DeckGL's getCursor shows a pointer on hover.
+        pickable: selectable,
+        onClick: (info: { object?: GeoFence }) => {
+          if (!selectable || !info.object) return false;
+          onSelectFence?.(info.object.id);
+          // Mark handled so DeckGL.onClick (map-empty-click clear) doesn't fire.
+          return true;
+        },
+        updateTriggers: {
+          // Accessor identity changes don't re-evaluate attributes in deck.gl;
+          // the selected fence's thicker outline needs an explicit trigger.
+          getLineWidth: selectedFenceId,
+        },
         transitions: {
           getFillColor: {
             duration: FADE_DURATION_MS,
@@ -105,7 +138,7 @@ export default function GeofenceLayer({ fences, selectedFenceId }: GeofenceLayer
         outlineWidth: 3,
       }),
     ];
-  }, [fences, selectedFenceId]);
+  }, [fences, selectedFenceId, onSelectFence, selectable]);
 
   useRegisterLayers("geofences", layers);
 

@@ -28,12 +28,15 @@ export function useDispatchState(signals: DispatchSignals): DispatchState {
   return deriveDispatchState(signals);
 }
 
+// "grab" is the idle map cursor — DeckGLMap's getCursor only applies its
+// hover/drag feedback (pointer/grabbing) when the explicit cursor is "grab",
+// so non-override states must map to "grab", not "default".
 const CURSOR_BY_STATE: Record<DispatchState, string> = {
-  [DispatchState.BROWSE]: "default",
-  [DispatchState.SELECT]: "default",
+  [DispatchState.BROWSE]: "grab",
+  [DispatchState.SELECT]: "grab",
   [DispatchState.ROUTE]: "crosshair",
   [DispatchState.DISPATCH]: "wait",
-  [DispatchState.RESULTS]: "default",
+  [DispatchState.RESULTS]: "grab",
 };
 
 export function cursorForDispatchState(state: DispatchState | undefined): string {

@@ -95,16 +95,18 @@ describe("cursorForDispatchState", () => {
     expect(cursorForDispatchState(DispatchState.DISPATCH)).toBe("wait");
   });
 
-  it('returns "default" for BROWSE', () => {
-    expect(cursorForDispatchState(DispatchState.BROWSE)).toBe("default");
+  // Non-override states must return "grab": DeckGLMap's getCursor only falls
+  // through to hover/drag feedback (pointer/grabbing) when the cursor is "grab".
+  it('returns "grab" for BROWSE', () => {
+    expect(cursorForDispatchState(DispatchState.BROWSE)).toBe("grab");
   });
 
-  it('returns "default" for SELECT', () => {
-    expect(cursorForDispatchState(DispatchState.SELECT)).toBe("default");
+  it('returns "grab" for SELECT', () => {
+    expect(cursorForDispatchState(DispatchState.SELECT)).toBe("grab");
   });
 
-  it('returns "default" for RESULTS', () => {
-    expect(cursorForDispatchState(DispatchState.RESULTS)).toBe("default");
+  it('returns "grab" for RESULTS', () => {
+    expect(cursorForDispatchState(DispatchState.RESULTS)).toBe("grab");
   });
 
   it('returns "grab" for undefined', () => {

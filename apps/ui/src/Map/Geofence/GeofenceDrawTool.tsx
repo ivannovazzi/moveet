@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { PolygonLayer, ScatterplotLayer, PathLayer } from "@deck.gl/layers";
 import { useMapContext, useOverlay } from "@/components/Map/hooks";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
+import { drawProgressHint } from "@/lib/geofenceHints";
 
 interface GeofenceDrawToolProps {
   active: boolean;
@@ -476,12 +477,11 @@ export default function GeofenceDrawTool({
   // Hint overlay rendered over the map, outside the side panel.
   if (!active || !mapHTMLElement) return null;
 
+  // Vertex-count phase copy comes from the shared helper; once the polygon has
+  // enough vertices (helper returns null) show the ready-state instructions.
   const hint =
-    vertices.length === 0
-      ? "Click the map to place points — at least 3 — Esc to cancel"
-      : vertices.length < 3
-        ? `${vertices.length} point${vertices.length === 1 ? "" : "s"} — add ${3 - vertices.length} more`
-        : "Click the first point or press Enter to finish • drag to move • click an edge to insert • right-click to delete";
+    drawProgressHint(vertices.length) ??
+    "Click the first point or press Enter to finish • drag to move • click an edge to insert • right-click to delete";
 
   return createPortal(
     <div
