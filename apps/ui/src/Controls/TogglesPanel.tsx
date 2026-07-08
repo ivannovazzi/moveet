@@ -81,9 +81,9 @@ export default memo(function TogglesPanel({ modifiers, onChangeModifiers }: Togg
         {toggles.map(({ key, label }) => (
           <label
             key={key}
-            className="flex cursor-pointer items-center justify-between rounded-md px-3 py-2 transition-colors duration-fast ease-standard hover:bg-accent/10"
+            className="flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 transition-colors duration-fast ease-standard hover:bg-accent/10"
           >
-            <span className="text-sm text-muted-foreground">{label}</span>
+            <span className="text-[12px] text-muted-foreground">{label}</span>
             <Switch
               isSelected={modifiers[key]}
               onChange={onChangeModifiers(key)}
@@ -92,7 +92,7 @@ export default memo(function TogglesPanel({ modifiers, onChangeModifiers }: Togg
           </label>
         ))}
         {modifiers.showBreadcrumbs && (
-          <div className="flex items-center justify-between rounded-md px-3 py-2">
+          <div className="flex items-center justify-between rounded-md px-2 py-1.5">
             <Range
               label="Trail Length"
               value={trailLength}

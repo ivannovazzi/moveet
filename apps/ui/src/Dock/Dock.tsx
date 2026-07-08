@@ -1,44 +1,62 @@
+import { useRef, type ComponentProps } from "react";
 import { cn } from "@/lib/utils";
-import { useDockNavigation } from "@/hooks/useDockNavigation";
-import type { ComponentProps } from "react";
 import type { Fleet, ReplayStatus, SimulationStatus, Vehicle } from "@/types";
 import type { DispatchFlow } from "@/hooks/useDispatchFlow";
-import StatusChips from "./StatusChips";
+import { useDockNavigation, type DockClusterId } from "@/hooks/useDockNavigation";
+import { useClock } from "@/hooks/useClock";
+import { useAdapterConfig } from "@/Controls/Adapter/useAdapterConfig";
+import { DispatchState } from "@/hooks/useDispatchState";
+import { CarIcon, Gear, ChartIcon } from "@/components/Icons";
+import DockCluster from "./DockCluster";
+import DockPanel from "./DockPanel";
 import PlaybackCluster from "./PlaybackCluster";
-import TempoCluster from "./TempoCluster";
-import FleetDispatchDrawer from "./FleetDispatchDrawer";
-import SinksSourceDrawer from "./SinksSourceDrawer";
-import MonitorDrawer from "./MonitorDrawer";
+import TempoInline from "./TempoInline";
+import StatusChips from "./StatusChips";
 import ReplayDock from "./ReplayDock";
-import type AdvancedTuningTab from "./AdvancedTuningTab";
+import FleetPanel from "./FleetPanel";
+import TempoPanel from "./TempoPanel";
+import SinksPanel from "./SinksPanel";
+import MonitorPanel from "./MonitorPanel";
+import { StatusDot, type StatusTone } from "./DockPanelKit";
 import type Incidents from "@/Controls/Incidents";
 import type GeofencePanel from "@/Controls/GeofencePanel";
 import type AnalyticsPanel from "@/Controls/AnalyticsPanel";
 import type TogglesPanel from "@/Controls/TogglesPanel";
 import type RecordReplay from "@/Controls/RecordReplay";
+import type AdvancedTuningTab from "./AdvancedTuningTab";
 
-/* ── Dock container styling (glass overlay floating over the map) ──
-   Same glass/blur/shadow treatment as the old `Controls/BottomDock.tsx`'s
-   `DOCK_CLASS`, widened to fit five clusters plus the status chips. */
+/* ── Dock bar container (glass overlay floating over the map) ── */
 const DOCK_CLASS = cn(
-  "absolute bottom-5 left-1/2 z-40 flex h-16 -translate-x-1/2 translate-y-3.5 items-center gap-2 px-4",
-  "rounded-lg border border-border surface-glass shadow-elevated backdrop-blur-md",
+  "absolute bottom-5 left-1/2 z-50 flex h-[54px] -translate-x-1/2 translate-y-3.5 items-stretch p-1.5",
+  "rounded-[13px] border border-border surface-glass shadow-elevated backdrop-blur-xl",
   "pointer-events-none opacity-0 transition-[opacity,transform] duration-700 ease-emphasized",
   "[[data-ready]_&]:pointer-events-auto [[data-ready]_&]:translate-y-0 [[data-ready]_&]:opacity-100"
 );
 
+const Divider = () => <div className="mx-0.5 my-2 w-px self-stretch bg-border-soft" />;
+
+/** Cluster ids that own a panel (playback is one-click-only, no panel). */
+const PANEL_CLUSTERS = new Set<DockClusterId>([
+  "tempo",
+  "fleet-dispatch",
+  "sinks-source",
+  "monitor",
+]);
+
+const PANEL_LABEL: Record<string, string> = {
+  tempo: "Tempo",
+  "fleet-dispatch": "Fleet & Dispatch",
+  "sinks-source": "Sinks & Source",
+  monitor: "Monitor",
+};
+
 export interface DockProps {
-  /** WebSocket connection state, surfaced via the pinned status chips. */
   connected: boolean;
-  /** Simulation running/interval status. */
   status: SimulationStatus;
-  /** Recording state, owned by a single `useRecording()` call in `App.tsx`. */
   isRecording: boolean;
   onStartRecording: () => Promise<void>;
   onStopRecording: () => Promise<unknown>;
 
-  /** Replay transport — when `replayStatus.mode === "replay"` the whole dock
-   * swaps to `ReplayDock`, matching the old `BottomDock` swap behavior. */
   replayStatus: ReplayStatus;
   onPauseReplay: () => Promise<void>;
   onResumeReplay: () => Promise<void>;
@@ -46,7 +64,7 @@ export interface DockProps {
   onSeekReplay: (timestamp: number) => Promise<void>;
   onSetReplaySpeed: (speed: number) => Promise<void>;
 
-  // ── Fleet & Dispatch cluster ──
+  // Fleet & Dispatch
   vehicles: Vehicle[];
   filter: string;
   onFilterChange: (value: string) => void;
@@ -64,7 +82,7 @@ export interface DockProps {
   fleetsError?: string | null;
   dispatch: DispatchFlow;
 
-  // ── Monitor cluster (each bag matches its panel's own prop type) ──
+  // Monitor
   incidents: ComponentProps<typeof Incidents>;
   geofences: ComponentProps<typeof GeofencePanel>;
   analytics: ComponentProps<typeof AnalyticsPanel>;
@@ -75,12 +93,21 @@ export interface DockProps {
   className?: string;
 }
 
+/** Coarse, user-facing health tone for the Sinks cluster dot (same derivation
+ * as the old adapter drawer's four-state readout, collapsed to a tone). */
+function adapterTone(health: ReturnType<typeof useAdapterConfig>["health"]): StatusTone {
+  if (!health) return "idle";
+  if (!health.source && health.sinks.length === 0) return "idle";
+  const healthy = health.source?.healthy !== false && health.sinks.every((s) => s.healthy);
+  return healthy ? "ok" : "warn";
+}
+
 /**
- * Root persistent transport-bar dock (see the design doc's "Dock anatomy"
- * section). Owns the single `useDockNavigation()` instance and threads its
- * `isOpen`/`toggle`/`close` down to each cluster so only one drawer is ever
- * open at a time. Swaps entirely to `ReplayDock` while a recording is being
- * replayed.
+ * Root dock: one persistent transport bar plus a single morphing panel that
+ * opens in a fixed spot above it (see the approved mockup). Owns the shared
+ * `useDockNavigation`, `useClock`, and `useAdapterConfig` state so the inline
+ * tempo scrubber / details panel stay in sync and the adapter health dot keeps
+ * polling while its panel is closed. Swaps to `ReplayDock` during replay.
  */
 export default function Dock({
   connected,
@@ -118,7 +145,11 @@ export default function Dock({
   advanced,
   className,
 }: DockProps) {
-  const { toggle, close, isOpen } = useDockNavigation();
+  const { openCluster, toggle, close, isOpen } = useDockNavigation();
+  const { clock, setSpeedMultiplier } = useClock();
+  const adapter = useAdapterConfig(openCluster === "sinks-source");
+  const dockRef = useRef<HTMLDivElement>(null);
+  const tempoBtnRef = useRef<HTMLButtonElement>(null);
 
   if (replayStatus.mode === "replay") {
     return (
@@ -133,65 +164,128 @@ export default function Dock({
     );
   }
 
+  const dispatchCount =
+    dispatch.dispatchState !== DispatchState.BROWSE ? dispatch.selectedForDispatch.length : 0;
+  const incidentCount = incidents.incidents.length;
+  const panelOpen = openCluster != null && PANEL_CLUSTERS.has(openCluster);
+
+  const countBadge = (count: number, tone: "accent" | "err") =>
+    count > 0 ? (
+      <span
+        className={cn(
+          "flex h-[15px] min-w-[15px] items-center justify-center rounded-full border-[1.5px] border-[oklch(0.2_0.009_255)] px-[3px]",
+          "font-mono text-[9px] font-bold leading-none text-white tabular-nums",
+          tone === "accent" ? "bg-accent" : "bg-status-error"
+        )}
+      >
+        {count > 9 ? "9+" : count}
+      </span>
+    ) : undefined;
+
   return (
-    <div className={cn(DOCK_CLASS, className)}>
-      <div className="flex items-center gap-1">
+    <>
+      <DockPanel
+        open={panelOpen}
+        onClose={close}
+        dockRef={dockRef}
+        contentKey={openCluster ?? "none"}
+        aria-label={openCluster ? PANEL_LABEL[openCluster] : undefined}
+      >
+        {openCluster === "fleet-dispatch" && (
+          <FleetPanel
+            vehicles={vehicles}
+            filter={filter}
+            onFilterChange={onFilterChange}
+            selectedId={selectedId}
+            onSelectVehicle={onSelectVehicle}
+            onHoverVehicle={onHoverVehicle}
+            onUnhoverVehicle={onUnhoverVehicle}
+            maxSpeed={maxSpeed}
+            vehicleFleetMap={vehicleFleetMap}
+            fleets={fleets}
+            onCreateFleet={onCreateFleet}
+            onDeleteFleet={onDeleteFleet}
+            onAssignVehicle={onAssignVehicle}
+            onUnassignVehicle={onUnassignVehicle}
+            fleetsError={fleetsError}
+            dispatch={dispatch}
+          />
+        )}
+        {openCluster === "tempo" && (
+          <TempoPanel clock={clock} onSetMultiplier={setSpeedMultiplier} />
+        )}
+        {openCluster === "sinks-source" && <SinksPanel adapter={adapter} />}
+        {openCluster === "monitor" && (
+          <MonitorPanel
+            incidents={incidents}
+            geofences={geofences}
+            analytics={analytics}
+            toggles={toggles}
+            recordings={recordings}
+            advanced={advanced}
+          />
+        )}
+      </DockPanel>
+
+      <div ref={dockRef} className={cn(DOCK_CLASS, className)}>
         <PlaybackCluster
-          isOpen={isOpen("playback")}
-          onToggle={() => toggle("playback")}
-          onClose={close}
           isRecording={isRecording}
           onStartRecording={onStartRecording}
           onStopRecording={onStopRecording}
         />
-        <TempoCluster isOpen={isOpen("tempo")} onToggle={() => toggle("tempo")} onClose={close} />
-        <FleetDispatchDrawer
-          isOpen={isOpen("fleet-dispatch")}
-          onToggle={() => toggle("fleet-dispatch")}
-          onClose={close}
-          vehicles={vehicles}
-          filter={filter}
-          onFilterChange={onFilterChange}
-          selectedId={selectedId}
-          onSelectVehicle={onSelectVehicle}
-          onHoverVehicle={onHoverVehicle}
-          onUnhoverVehicle={onUnhoverVehicle}
-          maxSpeed={maxSpeed}
-          vehicleFleetMap={vehicleFleetMap}
-          fleets={fleets}
-          onCreateFleet={onCreateFleet}
-          onDeleteFleet={onDeleteFleet}
-          onAssignVehicle={onAssignVehicle}
-          onUnassignVehicle={onUnassignVehicle}
-          fleetsError={fleetsError}
-          dispatch={dispatch}
+
+        <Divider />
+
+        <TempoInline
+          clock={clock}
+          onSetMultiplier={setSpeedMultiplier}
+          detailsOpen={isOpen("tempo")}
+          onToggleDetails={() => toggle("tempo")}
+          buttonRef={tempoBtnRef}
         />
-        <SinksSourceDrawer
-          isOpen={isOpen("sinks-source")}
-          onToggle={() => toggle("sinks-source")}
-          onClose={close}
-        />
-        <MonitorDrawer
-          isOpen={isOpen("monitor")}
-          onToggle={() => toggle("monitor")}
-          onClose={close}
-          incidents={incidents}
-          geofences={geofences}
-          analytics={analytics}
-          toggles={toggles}
-          recordings={recordings}
-          advanced={advanced}
+
+        <Divider />
+
+        <div className="flex items-center gap-1 px-2">
+          <DockCluster
+            icon={<CarIcon />}
+            label="Fleet"
+            active={isOpen("fleet-dispatch")}
+            badge={countBadge(dispatchCount, "accent")}
+            aria-label="Fleet & Dispatch"
+            onClick={() => toggle("fleet-dispatch")}
+          />
+          <DockCluster
+            icon={<Gear />}
+            label="Sinks"
+            active={isOpen("sinks-source")}
+            badge={
+              <span className="block rounded-full border-[1.5px] border-[oklch(0.2_0.009_255)]">
+                <StatusDot tone={adapterTone(adapter.health)} />
+              </span>
+            }
+            aria-label="Sinks & Source"
+            onClick={() => toggle("sinks-source")}
+          />
+          <DockCluster
+            icon={<ChartIcon />}
+            label="Monitor"
+            active={isOpen("monitor")}
+            badge={countBadge(incidentCount, "err")}
+            aria-label="Monitor"
+            onClick={() => toggle("monitor")}
+          />
+        </div>
+
+        <Divider />
+
+        <StatusChips
+          chips={[
+            { key: "ws", label: "WS", active: connected },
+            { key: "sim", label: "SIM", active: status.running },
+          ]}
         />
       </div>
-
-      <div className="flex-1" />
-
-      <StatusChips
-        chips={[
-          { key: "ws", label: "WS", active: connected },
-          { key: "sim", label: "SIM", active: status.running },
-        ]}
-      />
-    </div>
+    </>
   );
 }

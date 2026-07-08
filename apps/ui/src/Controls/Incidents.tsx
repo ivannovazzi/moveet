@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { IncidentDTO, IncidentType } from "@/types";
+import type { IncidentDTO } from "@/types";
 import { Switch, SquaredButton } from "@/components/Inputs";
+import { cn } from "@/lib/utils";
 import { AlertIcon } from "@/components/Icons";
 import {
   PanelBadge,
@@ -17,10 +18,14 @@ interface IncidentsProps {
   error?: string | null;
 }
 
-const INCIDENT_COLORS: Record<IncidentType, string> = {
-  closure: "#f44336",
-  accident: "#ff9800",
-  construction: "#ffeb3b",
+/** Left severity stripe tone — red for high-severity, amber otherwise. */
+type SeverityTone = "error" | "warn";
+function severityTone(severity: number): SeverityTone {
+  return (severity ?? 0) >= 0.6 ? "error" : "warn";
+}
+const STRIPE_BG: Record<SeverityTone, string> = {
+  error: "bg-status-error",
+  warn: "bg-status-warn",
 };
 
 function formatTimeRemaining(expiresAt: number): string {
@@ -104,44 +109,44 @@ export default function Incidents({ incidents, createRandom, remove, error }: In
           <PanelEmptyState icon={<AlertIcon />}>No active incidents</PanelEmptyState>
         ) : null}
 
-        <div className="flex flex-col gap-2">
-          {incidents.map((incident) => (
-            <div
-              key={incident.id}
-              className="flex items-center gap-3 rounded-md border border-border-soft bg-white/[0.03] px-2.5 py-2 transition-colors duration-fast ease-standard hover:bg-white/[0.06]"
-            >
-              <span
-                className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
-                style={{ backgroundColor: INCIDENT_COLORS[incident.type] }}
-              />
-              <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="text-[13px] capitalize text-foreground">{incident.type}</span>
-                <div className="flex items-center gap-3">
-                  <div className="h-1 w-12 flex-shrink-0 overflow-hidden rounded-sm bg-muted">
-                    <div
-                      className="h-full rounded-sm transition-[width] duration-normal ease-standard"
-                      style={{
-                        width: `${(incident.severity ?? 0) * 100}%`,
-                        backgroundColor: INCIDENT_COLORS[incident.type],
-                      }}
-                    />
+        <div className="flex flex-col">
+          {incidents.map((incident) => {
+            const tone = severityTone(incident.severity);
+            return (
+              <div
+                key={incident.id}
+                className="grid grid-cols-[3px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md border-t border-border-soft px-2 py-2 transition-colors duration-fast ease-standard first:border-t-0 hover:bg-foreground/[0.035]"
+              >
+                <span
+                  data-testid="severity-stripe"
+                  data-tone={tone}
+                  className={cn("h-[26px] w-[3px] rounded-[2px]", STRIPE_BG[tone])}
+                />
+                <div className="min-w-0">
+                  <div className="truncate text-[12px] font-medium capitalize text-foreground">
+                    {incident.type}
                   </div>
-                  <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
+                  <div className="mt-0.5 truncate font-mono text-[10.5px] tabular-nums text-muted-foreground/70">
+                    {incident.position[0].toFixed(4)}, {incident.position[1].toFixed(4)}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="whitespace-nowrap font-mono text-[11px] tabular-nums text-muted-foreground">
                     {formatTimeRemaining(incident.expiresAt)}
                   </span>
+                  <SquaredButton
+                    className="flex-shrink-0"
+                    icon={<span aria-hidden="true">×</span>}
+                    variant="ghost"
+                    tone="danger"
+                    aria-label="Remove incident"
+                    title="Remove incident"
+                    onClick={() => remove(incident.id)}
+                  />
                 </div>
               </div>
-              <SquaredButton
-                className="flex-shrink-0"
-                icon={<span aria-hidden="true">×</span>}
-                variant="ghost"
-                tone="danger"
-                aria-label="Remove incident"
-                title="Remove incident"
-                onClick={() => remove(incident.id)}
-              />
-            </div>
-          ))}
+            );
+          })}
         </div>
       </PanelBody>
     </>

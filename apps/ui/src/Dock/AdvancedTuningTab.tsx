@@ -46,7 +46,7 @@ export default memo(function AdvancedTuningTab({ maxSpeedRef }: AdvancedTuningTa
         title="Advanced"
         subtitle="Vehicle physics and update/publish cadence — real-time tuning, not simulated tempo."
       />
-      <PanelBody className="gap-4">
+      <PanelBody className="gap-3">
         {sliders.map(({ key, label, min, max, step }) => (
           <Range
             key={key}

@@ -43,16 +43,18 @@ describe("Incidents", () => {
     expect(screen.getByText("construction")).toBeInTheDocument();
   });
 
-  it("shows severity bar with correct width", () => {
-    const incident = mockIncident({ severity: 0.5 });
-    render(<Incidents incidents={[incident]} createRandom={noop} remove={noop} />);
-    // The severityFill div has an inline style with width based on severity
-    const typeLabel = screen.getByText("accident");
-    // Navigate up to the .incident container, then find the severity fill
-    const incidentRow = typeLabel.closest("[class]")!.parentElement!;
-    const severityFill = incidentRow.querySelector("[style*='width']");
-    expect(severityFill).not.toBeNull();
-    expect(severityFill).toHaveStyle({ width: "50%" });
+  it("tones the severity stripe by severity", () => {
+    const { rerender } = render(
+      <Incidents incidents={[mockIncident({ severity: 0.5 })]} createRandom={noop} remove={noop} />
+    );
+    // Below the 0.6 threshold → amber (warn) stripe.
+    expect(screen.getByTestId("severity-stripe")).toHaveAttribute("data-tone", "warn");
+
+    // At/above the threshold → red (error) stripe.
+    rerender(
+      <Incidents incidents={[mockIncident({ severity: 0.8 })]} createRandom={noop} remove={noop} />
+    );
+    expect(screen.getByTestId("severity-stripe")).toHaveAttribute("data-tone", "error");
   });
 
   it("calls createRandom when create button clicked", async () => {

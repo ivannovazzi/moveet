@@ -87,11 +87,11 @@ interface KpiCardProps {
 
 function KpiCard({ label, value, total, unit }: KpiCardProps) {
   return (
-    <div className="flex flex-col gap-1 rounded-md border border-border surface-raised p-4 shadow-raised transition-colors duration-fast ease-standard hover:bg-accent/10">
-      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+    <div className="flex flex-col gap-1 rounded-md border border-border surface-raised p-3 shadow-raised transition-colors duration-fast ease-standard hover:bg-accent/10">
+      <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </span>
-      <span className="text-xl font-semibold tabular-nums text-foreground">
+      <span className="font-mono text-lg font-semibold tabular-nums text-foreground">
         {value}
         {total != null && (
           <span className="text-sm font-normal text-muted-foreground"> / {total}</span>
@@ -116,14 +116,14 @@ function FleetCard({ fleetId, history }: FleetCardProps) {
   if (!latest) return null;
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-border surface-raised p-4 shadow-raised transition-colors duration-fast ease-standard hover:bg-accent/10">
+    <div className="flex flex-col gap-3 rounded-md border border-border surface-raised p-3 shadow-raised transition-colors duration-fast ease-standard hover:bg-accent/10">
       <div className="flex items-center gap-3">
         <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: "#4f9" }} />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">
           {fleetId}
         </span>
       </div>
-      <div className="flex gap-4 text-sm tabular-nums text-muted-foreground">
+      <div className="flex gap-4 font-mono text-[13px] tabular-nums text-muted-foreground">
         <span className="flex items-baseline gap-0.5">
           <span className="font-medium text-foreground">{latest.vehicleCount}</span>
           <span className="text-xs text-muted-foreground"> vehicles</span>

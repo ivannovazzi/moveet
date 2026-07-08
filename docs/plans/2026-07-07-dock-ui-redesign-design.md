@@ -84,3 +84,26 @@ Dark-only professional palette stays as-is (`src/index.css` oklch `@theme` block
 - Do not change simulator core logic. `SimulationClock.speedMultiplier` already fully covers the tempo requirement; no new backend config/interval is needed.
 - Do not change the color palette, Inspector, SearchBar, or map layers.
 - Do not implement code as part of this document — design only.
+
+## Revision — 2026-07-08 (single morphing panel + tight-technical density)
+
+After the first implementation, the per-cluster anchored-drawer model was reworked
+(user feedback: navigation felt scattered, styling too generic). Two changes,
+validated against an interactive mockup before coding:
+
+- **One morphing panel.** Every cluster now opens the _same_ fixed-width panel
+  (`Dock/DockPanel.tsx`) centered above the dock, tied to it by a down-notch; only
+  the contents change, so the surface never jumps position or width. Replaces the
+  five independently-anchored `DockDrawer`s. `useClock` and `useAdapterConfig` are
+  lifted into `Dock.tsx` (the inline tempo scrubber + Tempo panel must share clock
+  state; the Sinks health dot must keep polling while its panel is closed).
+- **Tight-technical density.** A shared `Dock/DockPanelKit.tsx` (PanelHead, Eyebrow,
+  Hairline, SegTabs, HealthChip, StatusDot, PanelScroll, `mono`) encodes the density
+  in one place; every panel composes it. Monospace tabular numerics, hairline rows
+  (no cards), 9px uppercase eyebrows. Leaf panels suppress their own titles via a new
+  `SuppressPanelHeader` context in `PanelPrimitives.tsx`. The virtualized vehicle list
+  keeps `react-window` (row height 62→32).
+
+New files: `DockPanel.tsx`, `DockPanelKit.tsx`, `TempoInline.tsx`, `TempoPanel.tsx`,
+`FleetPanel.tsx`, `SinksPanel.tsx`, `MonitorPanel.tsx`, `tempoScale.ts`. The v1
+`*Drawer.tsx`/`TempoCluster.tsx` files were removed.

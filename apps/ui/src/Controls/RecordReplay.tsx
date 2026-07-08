@@ -277,7 +277,7 @@ export default function RecordReplay({
 
           {generating && (
             <div className="flex flex-col gap-1">
-              <div className="flex justify-between text-xs tabular-nums text-muted-foreground">
+              <div className="flex justify-between font-mono text-xs tabular-nums text-muted-foreground">
                 <span>
                   {progress ? `Step ${progress.step} / ${progress.totalSteps}` : "Starting…"}
                 </span>
@@ -447,7 +447,7 @@ function EmitControl({ recording }: EmitControlProps) {
 
       {emitting && (
         <div className="flex flex-col gap-1">
-          <div className="flex justify-between text-xs tabular-nums text-muted-foreground">
+          <div className="flex justify-between font-mono text-xs tabular-nums text-muted-foreground">
             <span>
               {status?.total != null
                 ? `${status.emitted} / ${status.total}`

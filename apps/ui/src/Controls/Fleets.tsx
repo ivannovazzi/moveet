@@ -11,6 +11,7 @@ import {
   PanelErrorState,
   PanelHeader,
 } from "./PanelPrimitives";
+import { mono } from "@/Dock/DockPanelKit";
 
 interface FleetsProps {
   fleets: Fleet[];
@@ -96,7 +97,7 @@ export default function Fleets({
           <PanelEmptyState icon={<LayersIcon />}>No fleets defined</PanelEmptyState>
         ) : null}
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col overflow-hidden rounded-md border border-border-soft">
           {fleets.map((fleet) => {
             const isExpanded = expandedFleetId === fleet.id;
             const memberVehicles = vehicles.filter((v) => fleet.vehicleIds.includes(v.id));
@@ -110,26 +111,26 @@ export default function Fleets({
             return (
               <div
                 key={fleet.id}
-                className="flex flex-col overflow-hidden rounded-md border border-border-soft bg-white/[0.03] transition-colors duration-fast ease-standard hover:border-border"
+                className="flex flex-col border-t border-border-soft first:border-t-0"
               >
                 <button
                   type="button"
                   className={cn(
-                    "flex w-full items-center gap-3 px-2.5 py-2 text-left transition-colors duration-fast ease-standard hover:bg-white/[0.06]",
-                    isExpanded && "bg-white/[0.06]"
+                    "flex w-full items-center gap-2.5 px-2.5 py-2 text-left transition-colors duration-fast ease-standard hover:bg-foreground/[0.035]",
+                    isExpanded && "bg-foreground/[0.05]"
                   )}
                   onClick={() => toggleExpanded(fleet.id)}
                   aria-expanded={isExpanded}
                   aria-label={`${fleet.name}, ${fleet.vehicleIds.length} vehicles`}
                 >
                   <span
-                    className="size-2.5 flex-shrink-0 rounded-full"
+                    className="size-2 flex-shrink-0 rounded-full"
                     style={{ backgroundColor: fleet.color }}
                   />
-                  <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">
+                  <span className="min-w-0 flex-1 truncate text-[12px] text-foreground">
                     {fleet.name}
                   </span>
-                  <span className="text-xs tabular-nums text-muted-foreground">
+                  <span className={cn(mono, "text-[11px] text-muted-foreground")}>
                     {fleet.vehicleIds.length}
                   </span>
                   {fleet.source === "external" ? (

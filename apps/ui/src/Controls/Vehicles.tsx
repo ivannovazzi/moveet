@@ -6,33 +6,27 @@ import { DispatchState } from "@/hooks/useDispatchState";
 import { useDirectionContext } from "@/data/useData";
 import { useResizeObserver } from "@/hooks/useResizeObserver";
 import { PanelBadge, PanelBody, PanelEmptyState, PanelHeader } from "./PanelPrimitives";
+import { StatusDot, mono } from "@/Dock/DockPanelKit";
 import { Search } from "@/components/Icons";
 import { Input } from "@/components/ui/input";
 
 // Row height (px) for the virtualized list — must match the rendered row's
-// real height (border + padding + content) since FixedSizeList positions
-// rows by index * ROW_HEIGHT. Includes the row's own bottom margin, which
-// replaces the flex `gap` react-window can't apply between absolutely
-// positioned items.
-const ROW_HEIGHT = 62;
-const ROW_GAP = 6;
+// real height since FixedSizeList positions rows by index * ROW_HEIGHT. The
+// tight-technical redesign uses a single-line ~30px row (mockup `.trow`)
+// separated by hairlines rather than gapped cards, so there is no inter-row
+// gap to synthesize (ROW_GAP is 0 and the inset is a no-op).
+const ROW_HEIGHT = 32;
+const ROW_GAP = 0;
+
+// Shared grid template for the header row and every data row so their columns
+// stay pixel-aligned: Unit (flex) · Status · km/h · Route.
+const ROW_GRID = "grid grid-cols-[minmax(0,1fr)_auto_2.5rem_auto] items-center gap-x-2.5";
 
 // jsdom's ResizeObserver polyfill (src/test/setup.ts) never invokes its
 // callback, so useResizeObserver's measured height stays 0 in tests. Fall
 // back to a fixed height so the list still renders a real virtualized
 // window (and is testable) before a real ResizeObserver fires in the browser.
 const FALLBACK_LIST_HEIGHT = 400;
-
-function SpeedBar({ speed, maxSpeed }: { speed: number; maxSpeed: number }) {
-  const width = maxSpeed > 0 ? Math.min((speed / maxSpeed) * 100, 100) : 0;
-
-  return (
-    <div
-      className="col-span-full h-[3px] rounded-full bg-accent/60 transition-[width] duration-normal"
-      style={{ width: `${width}%`, gridArea: "bar" }}
-    />
-  );
-}
 
 interface VehicleListProps {
   filter: string;
@@ -118,7 +112,6 @@ interface VehicleRowProps {
   name: string;
   type: string;
   speed: number;
-  maxSpeed: number;
   routeDistance: number | undefined;
   fleetColor: string | undefined;
   isChecked: boolean;
@@ -141,7 +134,6 @@ const VehicleRow = memo(function VehicleRow({
   name,
   type,
   speed,
-  maxSpeed,
   routeDistance,
   fleetColor,
   isChecked,
@@ -160,6 +152,7 @@ const VehicleRow = memo(function VehicleRow({
 }: VehicleRowProps) {
   const isSelected = !showCheckbox && !isResults && isRowSelected;
   const isDispatchSelected = showCheckbox && isChecked;
+  const moving = speed > 0;
 
   const handleClick = () => {
     if (showCheckbox && onToggleForDispatch) {
@@ -169,18 +162,37 @@ const VehicleRow = memo(function VehicleRow({
     }
   };
 
+  // Right-hand column: dispatch state takes precedence (stops/result), else
+  // the route distance (kept as the full "Route x km" string the tests and
+  // tooltip rely on).
+  const trailing =
+    isResults && result ? (
+      <ResultBadge result={result} />
+    ) : isRouteState && assignment ? (
+      <WaypointBadge assignment={assignment} />
+    ) : (
+      <span
+        className={cn(
+          mono,
+          "text-[11px]",
+          routeDistance !== undefined ? "text-muted-foreground/70" : "text-muted-foreground/40"
+        )}
+      >
+        {routeDistance !== undefined ? formatRouteDistance(routeDistance) : "—"}
+      </span>
+    );
+
   return (
-    <div style={style} className="px-px">
+    <div style={style} className="px-1.5">
       <button
         className={cn(
-          "grid h-full w-full flex-shrink-0 cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 overflow-hidden rounded-md border border-border-soft bg-white/[0.03] px-2.5 pb-1.5 pt-2 text-left transition-colors duration-fast ease-standard hover:border-border hover:bg-white/[0.06] focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
-          isSelected && "border-accent/25 bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)]",
-          isDispatchSelected &&
-            "border-accent/20 bg-accent/5 shadow-[inset_3px_0_0_var(--color-accent)]"
+          ROW_GRID,
+          "h-full w-full cursor-pointer border-t border-border-soft px-2 text-left",
+          "transition-colors duration-fast ease-standard hover:bg-foreground/[0.035]",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50",
+          isSelected && "bg-accent/10 shadow-[inset_2px_0_0_var(--color-accent)]",
+          isDispatchSelected && "bg-accent/5 shadow-[inset_3px_0_0_var(--color-accent)]"
         )}
-        style={{
-          gridTemplateAreas: '"name speed" "route route" "bar bar"',
-        }}
         type="button"
         onClick={handleClick}
         onMouseEnter={() => onHover(id)}
@@ -189,57 +201,53 @@ const VehicleRow = memo(function VehicleRow({
         aria-label={`${name}, ${Math.round(speed)} km/h, ${formatRouteDistance(routeDistance)}`}
         title={`${name} · ${Math.round(speed)} km/h · ${formatRouteDistance(routeDistance)}`}
       >
-        <span className="flex min-w-0 items-center gap-2" style={{ gridArea: "name" }}>
+        {/* Unit: indicator (fleet dot / dispatch checkbox) + monospace id */}
+        <span className="flex min-w-0 items-center gap-2">
           {showCheckbox ? (
             <span
               role="checkbox"
               aria-checked={isChecked}
               aria-label={`Select ${name}`}
               className={cn(
-                "size-3.5 flex-shrink-0 rounded-sm border border-foreground/25 transition-colors duration-fast ease-standard",
+                "size-3 flex-shrink-0 rounded-[3px] border border-foreground/25 transition-colors duration-fast ease-standard",
                 isChecked && "border-accent bg-accent"
               )}
             />
           ) : (
             <span
-              className="size-2 flex-shrink-0 rounded-full"
+              className="size-1.5 flex-shrink-0 rounded-full"
               style={{ backgroundColor: fleetColor ?? "transparent" }}
             />
           )}
-          <span className="min-w-0 flex-1 self-center truncate text-[13px] font-medium text-foreground">
+          <span className={cn(mono, "min-w-0 flex-1 truncate text-[11.5px] text-foreground")}>
             {name}
           </span>
           {type && type !== "car" && (
-            <span className="ml-2 rounded-sm bg-foreground/10 px-2 py-px text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <span className="flex-shrink-0 rounded-sm bg-foreground/10 px-1 py-px text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
               {VEHICLE_TYPE_LABELS[type] ?? type}
             </span>
           )}
         </span>
+
+        {/* Status: dot + label */}
+        <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <StatusDot tone={moving ? "ok" : "idle"} />
+          {moving ? "enroute" : "idle"}
+        </span>
+
+        {/* km/h (unit lives in the header) */}
         <span
-          className="flex flex-shrink-0 items-baseline gap-1 justify-self-end text-[13px] font-medium tabular-nums text-foreground"
-          style={{ gridArea: "speed" }}
+          className={cn(
+            mono,
+            "justify-self-end text-[11.5px]",
+            moving ? "text-foreground" : "text-muted-foreground/50"
+          )}
         >
           {Math.round(speed)}
-          <span className="text-xs uppercase tracking-wide text-muted-foreground">km/h</span>
-          {isRouteState && assignment && (
-            <>
-              {" "}
-              <WaypointBadge assignment={assignment} />
-            </>
-          )}
-          {isResults && result && (
-            <>
-              {" "}
-              <ResultBadge result={result} />
-            </>
-          )}
         </span>
-        <span className="flex items-center gap-3" style={{ gridArea: "route" }}>
-          <span className="text-xs text-muted-foreground">
-            {formatRouteDistance(routeDistance)}
-          </span>
-        </span>
-        <SpeedBar speed={speed} maxSpeed={maxSpeed} />
+
+        {/* Route / dispatch trailing */}
+        <span className="flex items-center justify-self-end whitespace-nowrap">{trailing}</span>
       </button>
     </div>
   );
@@ -278,7 +286,6 @@ function Row({ index, style, data }: ListChildComponentProps<RowData>) {
     assignments,
     results,
     selectedId,
-    maxSpeed,
     showCheckbox,
     isDispatch,
     isResults,
@@ -310,7 +317,6 @@ function Row({ index, style, data }: ListChildComponentProps<RowData>) {
       name={vehicle.name}
       type={vehicle.type}
       speed={vehicle.speed}
-      maxSpeed={maxSpeed}
       routeDistance={routeDistance}
       fleetColor={vehicleFleet?.color}
       isChecked={isChecked}
@@ -452,19 +458,36 @@ export default function VehicleList({
             {filter ? `No vehicles match "${filter}"` : "No vehicles"}
           </PanelEmptyState>
         ) : (
-          <div ref={listRef} className="min-h-0 flex-1">
-            <FixedSizeList
-              height={listHeight}
-              width="100%"
-              itemCount={visibleVehicles.length}
-              itemSize={ROW_HEIGHT}
-              itemKey={itemKey}
-              itemData={itemData}
-              overscanCount={6}
-            >
-              {Row}
-            </FixedSizeList>
-          </div>
+          <>
+            {/* Sticky column header — aligned to the row grid, scrolls with
+                neither rows nor the list (mockup `.thead`). */}
+            <div className="px-1.5" aria-hidden="true">
+              <div
+                className={cn(
+                  ROW_GRID,
+                  "h-6 px-2 text-[9px] font-bold uppercase tracking-[0.12em] text-muted-foreground/75"
+                )}
+              >
+                <span>Unit</span>
+                <span>Status</span>
+                <span className="justify-self-end">km/h</span>
+                <span className="justify-self-end">Route</span>
+              </div>
+            </div>
+            <div ref={listRef} className="min-h-0 flex-1">
+              <FixedSizeList
+                height={listHeight}
+                width="100%"
+                itemCount={visibleVehicles.length}
+                itemSize={ROW_HEIGHT}
+                itemKey={itemKey}
+                itemData={itemData}
+                overscanCount={6}
+              >
+                {Row}
+              </FixedSizeList>
+            </div>
+          </>
         )}
       </PanelBody>
     </>

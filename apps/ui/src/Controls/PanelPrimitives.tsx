@@ -1,5 +1,22 @@
-import type { HTMLAttributes, ReactNode } from "react";
+import { createContext, useContext, type HTMLAttributes, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
+
+/**
+ * When a panel is hosted inside chrome that already renders its own title
+ * (e.g. the Monitor dock panel, which shows an eyebrow/title + a mini tab
+ * strip), that chrome wraps the leaf in `<SuppressPanelHeader>` so the leaf's
+ * own `PanelHeader` collapses to nothing instead of stacking a duplicate
+ * title. Defaults to `false`, so every standalone usage is unaffected.
+ */
+const SuppressPanelHeaderContext = createContext(false);
+
+export function SuppressPanelHeader({ children }: { children: ReactNode }) {
+  return (
+    <SuppressPanelHeaderContext.Provider value={true}>
+      {children}
+    </SuppressPanelHeaderContext.Provider>
+  );
+}
 
 interface PanelShellProps extends HTMLAttributes<HTMLElement> {
   children: ReactNode;
@@ -39,6 +56,11 @@ export function PanelHeader({
   ...props
 }: PanelHeaderProps) {
   const TitleTag = titleAs;
+  const suppressed = useContext(SuppressPanelHeaderContext);
+
+  // Hosted inside chrome that already owns the title — render nothing so we
+  // don't stack a second header (in-body controls live outside PanelHeader).
+  if (suppressed) return null;
 
   return (
     <div

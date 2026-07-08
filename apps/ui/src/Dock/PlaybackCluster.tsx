@@ -4,13 +4,11 @@ import client from "@/utils/client";
 import type { SimulationStatus } from "@/types";
 import { Flame, Pause, Play, Record, Reset } from "@/components/Icons";
 import { useOptions } from "@/hooks/useOptions";
-import { Button, SquaredButton } from "@/components/Inputs";
 import { toast, toErrorMessage } from "@/lib/toast";
-import DockCluster from "./DockCluster";
 
 /**
  * Await an `ApiResponse`-returning client call and surface the outcome as a
- * toast. Ported verbatim from `Controls/BottomDock.tsx`.
+ * toast. Ported verbatim from the old `Controls/BottomDock.tsx`.
  */
 async function runWithToast(
   action: () => Promise<{ error?: string } | unknown>,
@@ -28,52 +26,47 @@ async function runWithToast(
   }
 }
 
-/** `mm:ss` formatting for the recording elapsed-time readout. */
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
+/** A 36×42 dock icon button (mockup `.ibtn`). */
+function IconBtn({ children, className, ...rest }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "flex h-[42px] w-9 items-center justify-center rounded-lg text-muted-foreground",
+        "transition-[color,background-color] duration-fast ease-standard",
+        "hover:bg-foreground/[0.035] hover:text-foreground",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
+        "[&_svg]:size-[17px]",
+        className
+      )}
+      {...rest}
+    >
+      {children}
+    </button>
+  );
+}
+
 export interface PlaybackClusterProps {
-  /**
-   * Whether this cluster's drawer is open. Accepted for interface parity
-   * with the other dock clusters — `Dock.tsx` threads the same
-   * `useDockNavigation` `{ isOpen, toggle, close }` triple down to every
-   * cluster uniformly. Playback has no secondary content that needs a
-   * drawer: reset and record are already single-click actions today (see
-   * `Controls/BottomDock.tsx`), so per the design doc ("Always one click
-   * away, no drawer needed for the common case") this cluster renders no
-   * `DockDrawer` and this prop is unused.
-   */
-  isOpen: boolean;
-  /** Unused — see `isOpen`. */
-  onToggle: () => void;
-  /** Unused — see `isOpen`. */
-  onClose: () => void;
-  /** Recording state, lifted from `App.tsx`'s single `useRecording()` call — the
-   * Monitor drawer's Recordings tab reads the same hook instance, so calling it
-   * again here would desync the two `isRecording` flags. */
+  /** Recording state, owned by a single `useRecording()` call in `App.tsx`. */
   isRecording: boolean;
   onStartRecording: () => Promise<void>;
   onStopRecording: () => Promise<unknown>;
 }
 
 /**
- * Playback dock cluster: play/pause, reset, record, make-zones. Ported from
- * `Controls/BottomDock.tsx`'s always-visible button row (the replay-mode
- * dock is handled separately by `Dock.tsx`/`ReplayDock.tsx`).
- *
- * Self-contained: tracks the simulation's `running` flag itself via
- * `client.onStatus` — the same multi-subscriber event
- * `useSimulationConnection` (owned by `App.tsx`) also listens to — rather
- * than duplicating that hook's `connectWebSocket`/`disconnect` WS-lifecycle
- * ownership, which must stay singular.
+ * The leftmost dock group: play/pause, reset, generate-heat-zones, record.
+ * No panel — these are one-click transport actions (mockup Playback group).
+ * Tracks the sim's `running` flag via `client.onStatus` (a multi-subscriber
+ * event) rather than owning the WS lifecycle, which `useSimulationConnection`
+ * keeps singular.
  */
 export default function PlaybackCluster({
-  isOpen: _isOpen,
-  onToggle: _onToggle,
-  onClose: _onClose,
   isRecording,
   onStartRecording,
   onStopRecording,
@@ -140,47 +133,38 @@ export default function PlaybackCluster({
   }, [isRecording]);
 
   return (
-    <div className="relative flex items-center gap-1">
-      <DockCluster
-        icon={running ? <Pause /> : <Play />}
-        label="Playback"
-        active={running}
-        aria-label={running ? "Pause simulation" : "Start simulation"}
+    <div className="flex items-center gap-[3px] px-2">
+      <IconBtn
         onClick={handlePlayPause}
-      />
-      <SquaredButton
-        icon={<Reset />}
-        size="lg"
-        variant="surface"
-        onClick={handleReset}
-        aria-label="Reset"
-      />
-      <SquaredButton
-        icon={<Flame />}
-        size="lg"
-        variant="surface"
+        className={running ? "text-status-ok" : "text-status-ok/90"}
+        aria-label={running ? "Pause simulation" : "Start simulation"}
+        title={running ? "Pause simulation" : "Start simulation"}
+      >
+        {running ? <Pause /> : <Play />}
+      </IconBtn>
+      <IconBtn onClick={handleReset} aria-label="Reset" title="Reset">
+        <Reset />
+      </IconBtn>
+      <IconBtn
         onClick={handleMakeZones}
-        aria-label="Make zones"
-      />
-      <Button
-        variant="ghost"
-        size="sm"
+        aria-label="Generate heat zones"
+        title="Generate heat zones"
+      >
+        <Flame />
+      </IconBtn>
+      <IconBtn
         onClick={isRecording ? onStopRecording : onStartRecording}
         aria-label={isRecording ? "Stop recording" : "Start recording"}
-        className={cn("gap-2", isRecording && "bg-status-error/15 hover:bg-status-error/25")}
+        title={isRecording ? "Stop recording" : "Start recording"}
+        className={cn("w-auto gap-1.5 px-2", isRecording && "text-status-error")}
       >
-        <Record
-          className={cn(
-            "size-4",
-            isRecording ? "fill-status-error animate-pulse" : "fill-muted-foreground"
-          )}
-        />
+        <Record className={cn("fill-current", isRecording && "animate-pulse")} />
         {isRecording && (
-          <span className="whitespace-nowrap text-xs tabular-nums text-status-error">
+          <span className="whitespace-nowrap font-mono text-[11px] tabular-nums text-status-error">
             {formatTime(elapsed)}
           </span>
         )}
-      </Button>
+      </IconBtn>
     </div>
   );
 }

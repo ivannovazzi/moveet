@@ -85,7 +85,7 @@ export default function GeofencePanel({
           role="tab"
           aria-selected={tab === "zones"}
           className={cn(
-            "-mb-px inline-flex flex-1 items-center justify-center gap-2 border-b-2 border-transparent px-4 py-3 text-sm font-medium text-muted-foreground transition-colors duration-fast ease-standard hover:text-foreground",
+            "-mb-px inline-flex flex-1 items-center justify-center gap-2 border-b-2 border-transparent px-3 py-2 text-[12px] font-medium text-muted-foreground transition-colors duration-fast ease-standard hover:text-foreground",
             tab === "zones" && "border-accent text-foreground"
           )}
           onClick={() => setTab("zones")}
@@ -97,7 +97,7 @@ export default function GeofencePanel({
           role="tab"
           aria-selected={tab === "alerts"}
           className={cn(
-            "-mb-px inline-flex flex-1 items-center justify-center gap-2 border-b-2 border-transparent px-4 py-3 text-sm font-medium text-muted-foreground transition-colors duration-fast ease-standard hover:text-foreground",
+            "-mb-px inline-flex flex-1 items-center justify-center gap-2 border-b-2 border-transparent px-3 py-2 text-[12px] font-medium text-muted-foreground transition-colors duration-fast ease-standard hover:text-foreground",
             tab === "alerts" && "border-accent text-foreground"
           )}
           onClick={() => setTab("alerts")}
@@ -236,7 +236,7 @@ export default function GeofencePanel({
                       {alert.fenceName}
                     </span>
                   </div>
-                  <span className="flex-shrink-0 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
+                  <span className="flex-shrink-0 whitespace-nowrap font-mono text-[11px] tabular-nums text-muted-foreground">
                     {formatTimestamp(alert.timestamp)}
                   </span>
                 </div>

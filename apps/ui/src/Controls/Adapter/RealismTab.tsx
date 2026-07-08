@@ -1,3 +1,5 @@
+import { Eyebrow } from "@/Dock/DockPanelKit";
+import { LList, LRow, Tag } from "@/Dock/SinksPanel";
 import type { ConfigResponse } from "./adapterClient";
 import ConfigForm from "./ConfigForm";
 
@@ -11,13 +13,12 @@ export default function RealismTab({ config, loading, onSetRealism }: RealismTab
   const realism = config?.realism;
   if (!realism) {
     return (
-      <div className="flex flex-col gap-3">
-        <section className="rounded-md border border-dashed border-border bg-muted/40 p-4 text-center text-sm text-muted-foreground">
-          Realism unavailable
-        </section>
-      </div>
+      <LList>
+        <LRow tone="idle" primary="Realism unavailable" secondary="not reported by adapter" />
+      </LList>
     );
   }
+
   const s = realism.status;
   const rows: Array<[string, number]> = [
     ["devices", s.devices],
@@ -26,31 +27,30 @@ export default function RealismTab({ config, loading, onSetRealism }: RealismTab
     ["disconnected", s.disconnected],
     ["buffered", s.buffered],
   ];
+
   return (
-    <div className="flex flex-col gap-3">
-      <section className="flex flex-col gap-2 rounded-md border border-border surface-raised p-3 shadow-raised">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-            Live status
-          </span>
-          <span className="text-sm text-muted-foreground">{s.enabled ? "Active" : "Off"}</span>
-        </div>
-        <dl className="flex flex-col gap-1 text-sm">
-          {rows.map(([key, value]) => (
-            <div key={key} className="flex items-center justify-between gap-2">
-              <dt className="text-muted-foreground">{key}</dt>
-              <dd className="text-foreground tabular-nums">{value}</dd>
-            </div>
-          ))}
-        </dl>
-      </section>
-      <section className="flex flex-col gap-2 rounded-md border border-border surface-raised p-3 shadow-raised">
-        <div className="flex flex-col gap-1">
-          <span className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-            Configuration
-          </span>
-          <span className="text-xs text-muted-foreground">Applied live to all sinks.</span>
-        </div>
+    <div>
+      <LList>
+        <LRow
+          tone={s.enabled ? "accent" : "idle"}
+          primary="Device realism"
+          secondary={`${s.devices} devices · ${s.connected} connected · ${s.buffered} buffered`}
+          meta={<Tag tone={s.enabled ? "ok" : "idle"}>{s.enabled ? "On" : "Off"}</Tag>}
+        />
+        {rows.map(([key, value]) => (
+          <LRow
+            key={key}
+            tone={s.enabled ? "ok" : "idle"}
+            primary={key}
+            meta={
+              <span className="font-mono text-[11px] tabular-nums text-foreground">{value}</span>
+            }
+          />
+        ))}
+      </LList>
+
+      <div className="flex flex-col gap-2 px-[15px] pb-4 pt-1">
+        <Eyebrow>Configuration · applied live to all sinks</Eyebrow>
         <ConfigForm
           key="realism"
           fields={realism.schema}
@@ -59,7 +59,7 @@ export default function RealismTab({ config, loading, onSetRealism }: RealismTab
           loading={loading}
           onSubmit={(values) => onSetRealism(values)}
         />
-      </section>
+      </div>
     </div>
   );
 }

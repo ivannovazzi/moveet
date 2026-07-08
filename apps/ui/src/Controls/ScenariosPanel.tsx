@@ -225,7 +225,7 @@ export default function ScenariosPanel() {
             {/* ── Progress bar ── */}
             {isActive && (
               <div className="flex flex-col gap-2">
-                <div className="flex justify-between text-xs tabular-nums text-muted-foreground">
+                <div className="flex justify-between font-mono text-xs tabular-nums text-muted-foreground">
                   <span>
                     {formatSeconds(status.elapsed)} / {formatSeconds(duration)}
                   </span>
@@ -256,7 +256,7 @@ export default function ScenariosPanel() {
                       key={i}
                       className="flex items-center gap-3 rounded-sm px-2 py-1 text-xs text-muted-foreground"
                     >
-                      <span className="min-w-10 tabular-nums text-muted-foreground">
+                      <span className="min-w-10 font-mono tabular-nums text-muted-foreground">
                         {formatSeconds(ev.at)}
                       </span>
                       <span className="text-foreground">{ev.type}</span>
@@ -279,7 +279,7 @@ export default function ScenariosPanel() {
                       key={i}
                       className="flex items-baseline gap-3 rounded-sm bg-muted/30 px-2 py-1 text-xs"
                     >
-                      <span className="min-w-10 tabular-nums text-muted-foreground">
+                      <span className="min-w-10 font-mono tabular-nums text-muted-foreground">
                         {formatSeconds(entry.time)}
                       </span>
                       <span className="text-muted-foreground">
