@@ -103,9 +103,13 @@
   --animate-fade-in-fast: fade-in-fast var(--transition-duration-fast) var(--ease-emphasized) both;
 
   /* Bottom stop of the `surface-glass` gradient, promoted to a token so the
-     dock panel's notch and the cluster badge rings reference one value
-     instead of re-inlining the oklch literal. */
+     cluster badge rings reference one value instead of re-inlining the oklch
+     literal. */
   --color-glass-bot: oklch(0.2 0.009 255 / 0.82);
+  /* Bottom stop of the more-transparent `surface-glass-strong` — used by the
+     floating dock panel and its notch so it reads as frosted glass, not a
+     flat slab, at panel size. */
+  --color-glass-strong-bot: oklch(0.2 0.009 255 / 0.6);
 }
 
 /* ── Polish layer: whisper-soft surface gradients ────────────────────────
@@ -121,6 +125,17 @@
     180deg,
     oklch(0.232 0.01 255 / 0.82),
     oklch(0.2 0.009 255 / 0.78)
+  );
+}
+/* A markedly more transparent glass for large floating surfaces (the dock
+   panel). At the panel's size the ~80% `surface-glass` reads as a flat slab;
+   dropping to ~60% + a heavier blur/saturation lets the map frost through so
+   it actually looks like glass. Pair with `backdrop-blur-2xl backdrop-saturate-150`. */
+@utility surface-glass-strong {
+  background-image: linear-gradient(
+    180deg,
+    oklch(0.235 0.01 255 / 0.66),
+    oklch(0.2 0.009 255 / 0.6)
   );
 }
 @utility surface-raised {

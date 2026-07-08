@@ -63,7 +63,7 @@ export default function DockPanel({
       aria-hidden={!open}
       className={cn(
         "absolute bottom-[86px] left-1/2 z-40 w-96 max-w-[calc(100vw-2rem)] -translate-x-1/2 origin-bottom",
-        "overflow-hidden rounded-[10px] border border-border surface-glass shadow-floating backdrop-blur-xl",
+        "overflow-hidden rounded-[10px] border border-border surface-glass-strong shadow-floating backdrop-blur-2xl backdrop-saturate-150",
         "transition-[opacity,transform] duration-normal ease-emphasized",
         open
           ? "pointer-events-auto animate-scale-in opacity-100"
@@ -79,7 +79,7 @@ export default function DockPanel({
           matches the surface's bottom stop exactly) */}
       <div
         aria-hidden
-        className="absolute -bottom-[5px] left-1/2 size-3 -translate-x-1/2 rotate-45 border-b border-r border-border bg-glass-bot"
+        className="absolute -bottom-[5px] left-1/2 size-3 -translate-x-1/2 rotate-45 border-b border-r border-border bg-glass-strong-bot backdrop-blur-2xl"
       />
     </div>
   );
