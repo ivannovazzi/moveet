@@ -24,7 +24,7 @@ export default function StatusChips({ chips, className }: StatusChipsProps) {
         <span
           key={key}
           className={cn(
-            "inline-flex items-center gap-2 px-2 text-xs",
+            "inline-flex items-center gap-1.5 px-1 text-[10.5px] font-semibold uppercase tracking-[0.1em]",
             active ? "text-foreground" : "text-muted-foreground"
           )}
         >
@@ -32,13 +32,11 @@ export default function StatusChips({ chips, className }: StatusChipsProps) {
             className={cn(
               "size-1.5 shrink-0 rounded-full",
               active
-                ? "bg-status-ok shadow-[0_0_4px_var(--color-status-ok)]"
+                ? "bg-status-ok shadow-[0_0_6px_var(--color-status-ok)]"
                 : "bg-muted-foreground"
             )}
           />
-          <span className={cn("uppercase tracking-wider", active ? "opacity-85" : "opacity-55")}>
-            {label}
-          </span>
+          <span className={active ? "opacity-85" : "opacity-55"}>{label}</span>
         </span>
       ))}
     </div>

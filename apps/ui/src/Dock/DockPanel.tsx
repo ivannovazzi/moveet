@@ -58,7 +58,7 @@ export default function DockPanel({
   return (
     <div
       ref={panelRef}
-      role="dialog"
+      role="region"
       aria-label={rest["aria-label"]}
       aria-hidden={!open}
       className={cn(
@@ -70,15 +70,16 @@ export default function DockPanel({
           : "pointer-events-none translate-y-1.5 scale-[0.97] opacity-0"
       )}
     >
-      {/* content wrapper keyed by cluster so switching clusters re-triggers the
-          fade-in without re-animating the surface itself */}
-      <div key={contentKey} className="animate-fade-up [--tw-duration:200ms]">
+      {/* content wrapper keyed by cluster so switching clusters re-triggers a
+          fast crossfade without re-animating the surface itself */}
+      <div key={contentKey} className="animate-fade-in-fast">
         {children}
       </div>
-      {/* down-notch tying the panel to the dock below it */}
+      {/* down-notch tying the panel to the dock below it (glass-bot token so it
+          matches the surface's bottom stop exactly) */}
       <div
         aria-hidden
-        className="absolute -bottom-[5px] left-1/2 size-3 -translate-x-1/2 rotate-45 border-b border-r border-border bg-[oklch(0.2_0.009_255/0.82)]"
+        className="absolute -bottom-[5px] left-1/2 size-3 -translate-x-1/2 rotate-45 border-b border-r border-border bg-glass-bot"
       />
     </div>
   );

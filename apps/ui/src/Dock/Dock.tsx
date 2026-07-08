@@ -17,7 +17,7 @@ import FleetPanel from "./FleetPanel";
 import TempoPanel from "./TempoPanel";
 import SinksPanel from "./SinksPanel";
 import MonitorPanel from "./MonitorPanel";
-import { StatusDot, type StatusTone } from "./DockPanelKit";
+import type { StatusTone } from "./DockPanelKit";
 import type Incidents from "@/Controls/Incidents";
 import type GeofencePanel from "@/Controls/GeofencePanel";
 import type AnalyticsPanel from "@/Controls/AnalyticsPanel";
@@ -27,7 +27,7 @@ import type AdvancedTuningTab from "./AdvancedTuningTab";
 
 /* ── Dock bar container (glass overlay floating over the map) ── */
 const DOCK_CLASS = cn(
-  "absolute bottom-5 left-1/2 z-50 flex h-[54px] -translate-x-1/2 translate-y-3.5 items-stretch p-1.5",
+  "absolute bottom-5 left-1/2 z-50 flex h-[54px] max-w-[calc(100vw-1rem)] -translate-x-1/2 translate-y-3.5 items-stretch p-1.5",
   "rounded-[13px] border border-border surface-glass shadow-elevated backdrop-blur-xl",
   "pointer-events-none opacity-0 transition-[opacity,transform] duration-700 ease-emphasized",
   "[[data-ready]_&]:pointer-events-auto [[data-ready]_&]:translate-y-0 [[data-ready]_&]:opacity-100"
@@ -173,7 +173,7 @@ export default function Dock({
     count > 0 ? (
       <span
         className={cn(
-          "flex h-[15px] min-w-[15px] items-center justify-center rounded-full border-[1.5px] border-[oklch(0.2_0.009_255)] px-[3px]",
+          "flex h-[15px] min-w-[15px] items-center justify-center rounded-full border-[1.5px] border-glass-bot px-[3px]",
           "font-mono text-[9px] font-bold leading-none text-white tabular-nums",
           tone === "accent" ? "bg-accent" : "bg-status-error"
         )}
@@ -181,6 +181,14 @@ export default function Dock({
         {count > 9 ? "9+" : count}
       </span>
     ) : undefined;
+
+  const HEALTH_DOT_BG: Record<StatusTone, string> = {
+    ok: "bg-status-ok",
+    warn: "bg-status-warn",
+    error: "bg-status-error",
+    idle: "bg-status-idle",
+    accent: "bg-accent",
+  };
 
   return (
     <>
@@ -260,9 +268,12 @@ export default function Dock({
             label="Sinks"
             active={isOpen("sinks-source")}
             badge={
-              <span className="block rounded-full border-[1.5px] border-[oklch(0.2_0.009_255)]">
-                <StatusDot tone={adapterTone(adapter.health)} />
-              </span>
+              <span
+                className={cn(
+                  "block size-2 rounded-full border-[1.5px] border-glass-bot",
+                  HEALTH_DOT_BG[adapterTone(adapter.health)]
+                )}
+              />
             }
             aria-label="Sinks & Source"
             onClick={() => toggle("sinks-source")}
@@ -277,14 +288,17 @@ export default function Dock({
           />
         </div>
 
-        <Divider />
-
-        <StatusChips
-          chips={[
-            { key: "ws", label: "WS", active: connected },
-            { key: "sim", label: "SIM", active: status.running },
-          ]}
-        />
+        {/* Status chips are the first thing to drop on a narrow viewport —
+            they're glanceable, not interactive, so the dock stays usable. */}
+        <div className="hidden items-stretch sm:flex">
+          <Divider />
+          <StatusChips
+            chips={[
+              { key: "ws", label: "WS", active: connected },
+              { key: "sim", label: "SIM", active: status.running },
+            ]}
+          />
+        </div>
       </div>
     </>
   );

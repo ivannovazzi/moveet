@@ -173,3 +173,84 @@ export function PanelScroll({
 }) {
   return <div className={cn("max-h-[min(52vh,420px)] overflow-y-auto", className)}>{children}</div>;
 }
+
+// ── shared list-row language (mockup `.list`/`.lrow`/`.tag`) ─────────────────
+// The canonical dense row used across Sinks, Monitor, and Incidents. Lives here
+// (not in a panel) so every panel renders the exact same stripe/label/meta
+// rhythm instead of re-deriving it. `SevTone` is an alias of `StatusTone`.
+
+export type SevTone = StatusTone;
+
+const SEV_BAR: Record<SevTone, string> = {
+  ok: "bg-status-ok",
+  warn: "bg-status-warn",
+  error: "bg-status-error",
+  idle: "bg-border",
+  accent: "bg-accent",
+};
+
+const TAG_TONE: Record<SevTone, string> = {
+  ok: "text-status-ok bg-status-ok/12",
+  warn: "text-status-warn bg-status-warn/12",
+  error: "text-status-error bg-status-error/12",
+  idle: "text-muted-foreground bg-muted",
+  accent: "text-accent bg-accent/12",
+};
+
+/** A right-aligned uppercase state pill (mockup `.tag.ok`/`.tag.warn`). */
+export function Tag({ tone, children }: { tone: SevTone; children: React.ReactNode }) {
+  return (
+    <span
+      className={cn(
+        "inline-block rounded-[4px] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]",
+        TAG_TONE[tone]
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** Column wrapper for a run of `LRow`s: tight padding, first row un-ruled. */
+export function LList({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <div className={cn("flex flex-col px-2 pb-2.5 pt-1", className)}>{children}</div>;
+}
+
+/**
+ * A dense connection/status row: left severity stripe, a primary label over a
+ * monospace secondary line, and a right-aligned meta slot (a `Tag`, digits, or
+ * inline controls). The one row spec for every panel list.
+ */
+export function LRow({
+  tone,
+  primary,
+  secondary,
+  meta,
+  className,
+}: {
+  tone: SevTone;
+  primary: React.ReactNode;
+  secondary?: React.ReactNode;
+  meta?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "grid grid-cols-[3px_1fr_auto] items-center gap-2.5 border-t border-border-soft px-2 py-[9px] first:border-t-0",
+        className
+      )}
+    >
+      <span className={cn("h-[26px] w-[3px] rounded-[2px]", SEV_BAR[tone])} />
+      <div className="min-w-0">
+        <div className="truncate text-[12px] font-medium text-foreground">{primary}</div>
+        {secondary != null && (
+          <div className={cn(mono, "mt-0.5 truncate text-[10.5px] text-muted-foreground/60")}>
+            {secondary}
+          </div>
+        )}
+      </div>
+      <div className="flex items-center justify-self-end gap-1 text-right">{meta}</div>
+    </div>
+  );
+}
