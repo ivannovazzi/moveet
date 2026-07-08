@@ -97,6 +97,19 @@
   --animate-fade-up: fade-up var(--transition-duration-slow) var(--ease-emphasized) both;
   --animate-scale-in: scale-in var(--transition-duration-normal) var(--ease-emphasized) both;
   --animate-sheen: sheen 1.8s var(--ease-standard) infinite;
+  /* Fast opacity-only fade for the dock panel's content-morph (cluster swap):
+     a plain crossfade at the mockup's 200ms, distinct from the entrance
+     `fade-up` (which also translates and runs at the slow 400ms scale). */
+  --animate-fade-in-fast: fade-in-fast var(--transition-duration-fast) var(--ease-emphasized) both;
+
+  /* Bottom stop of the `surface-glass` gradient, promoted to a token so the
+     cluster badge rings reference one value instead of re-inlining the oklch
+     literal. */
+  --color-glass-bot: oklch(0.2 0.009 255 / 0.82);
+  /* Bottom stop of the more-transparent `surface-glass-strong` — used by the
+     floating dock panel and its notch so it reads as frosted glass, not a
+     flat slab, at panel size. */
+  --color-glass-strong-bot: oklch(0.2 0.009 255 / 0.6);
 }
 
 /* ── Polish layer: whisper-soft surface gradients ────────────────────────
@@ -112,6 +125,17 @@
     180deg,
     oklch(0.232 0.01 255 / 0.82),
     oklch(0.2 0.009 255 / 0.78)
+  );
+}
+/* A markedly more transparent glass for large floating surfaces (the dock
+   panel). At the panel's size the ~80% `surface-glass` reads as a flat slab;
+   dropping to ~60% + a heavier blur/saturation lets the map frost through so
+   it actually looks like glass. Pair with `backdrop-blur-2xl backdrop-saturate-150`. */
+@utility surface-glass-strong {
+  background-image: linear-gradient(
+    180deg,
+    oklch(0.235 0.01 255 / 0.66),
+    oklch(0.2 0.009 255 / 0.6)
   );
 }
 @utility surface-raised {
@@ -140,6 +164,15 @@
   to {
     opacity: 1;
     transform: scale(1);
+  }
+}
+
+@keyframes fade-in-fast {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 

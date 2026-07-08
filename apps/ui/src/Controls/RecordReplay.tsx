@@ -13,6 +13,7 @@ import { Switch } from "@/components/Inputs";
 import { cn } from "@/lib/utils";
 import client from "@/utils/client";
 import { RecordCircleIcon } from "@/components/Icons";
+import { LList, Tag, mono } from "@/Dock/DockPanelKit";
 import {
   emitRecording,
   getEmitStatus,
@@ -277,7 +278,7 @@ export default function RecordReplay({
 
           {generating && (
             <div className="flex flex-col gap-1">
-              <div className="flex justify-between text-xs tabular-nums text-muted-foreground">
+              <div className="flex justify-between font-mono text-xs tabular-nums text-muted-foreground">
                 <span>
                   {progress ? `Step ${progress.step} / ${progress.totalSteps}` : "Starting…"}
                 </span>
@@ -307,7 +308,7 @@ export default function RecordReplay({
         {playableRecordings.length === 0 ? (
           <PanelEmptyState icon={<RecordCircleIcon />}>No recordings yet</PanelEmptyState>
         ) : (
-          <div className="flex flex-col gap-2">
+          <LList>
             {playableRecordings.map((file) => {
               const isActive = isReplayMode && activeFile === file.fileName;
 
@@ -315,39 +316,51 @@ export default function RecordReplay({
                 <div
                   key={file.fileName}
                   className={cn(
-                    "flex flex-col gap-2 rounded-md border border-border-soft bg-white/[0.03] px-2.5 py-2 transition-colors duration-fast ease-standard hover:bg-white/[0.06] hover:border-border",
-                    isActive && "border-accent/25 bg-accent/10 hover:border-accent/25"
+                    "flex flex-col gap-2 border-t border-border-soft px-2 py-[9px] first:border-t-0",
+                    isActive && "bg-accent/[0.06]"
                   )}
                 >
                   <button
                     type="button"
-                    className="flex w-full items-center gap-3 text-left disabled:cursor-default"
+                    className="grid w-full grid-cols-[3px_1fr_auto] items-center gap-2.5 rounded-[2px] text-left transition-colors duration-fast ease-standard hover:bg-foreground/[0.035] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent disabled:cursor-default"
                     onClick={() => !isActive && onStartReplay(file.fileName, 1)}
                     disabled={isActive}
                     aria-label={`Play recording ${formatLabel(file)}`}
                   >
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[13px] text-foreground" title={file.fileName}>
+                    <span
+                      className={cn(
+                        "h-[26px] w-[3px] rounded-[2px]",
+                        isActive ? "bg-accent" : "bg-border"
+                      )}
+                    />
+                    <div className="min-w-0">
+                      <div
+                        className="truncate text-[12px] font-medium text-foreground"
+                        title={file.fileName}
+                      >
                         {formatLabel(file)}
                       </div>
-                      <div className="mt-1 flex gap-3 text-xs text-muted-foreground">
-                        <span>{formatFileSize(file.fileSize)}</span>
-                        {file.generated && (
-                          <span className="uppercase tracking-wide text-accent">generated</span>
+                      <div
+                        className={cn(
+                          mono,
+                          "mt-0.5 truncate text-[10.5px] text-muted-foreground/70"
                         )}
-                        {isActive && (
-                          <span className="font-medium text-accent">
-                            {isPaused ? "Paused" : "Playing"}
-                          </span>
-                        )}
+                      >
+                        {formatFileSize(file.fileSize)}
                       </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {file.generated && <Tag tone="accent">Gen</Tag>}
+                      {isActive && (
+                        <Tag tone={isPaused ? "warn" : "ok"}>{isPaused ? "Paused" : "Playing"}</Tag>
+                      )}
                     </div>
                   </button>
                   <EmitControl recording={file} />
                 </div>
               );
             })}
-          </div>
+          </LList>
         )}
       </PanelBody>
     </>
@@ -447,7 +460,7 @@ function EmitControl({ recording }: EmitControlProps) {
 
       {emitting && (
         <div className="flex flex-col gap-1">
-          <div className="flex justify-between text-xs tabular-nums text-muted-foreground">
+          <div className="flex justify-between font-mono text-xs tabular-nums text-muted-foreground">
             <span>
               {status?.total != null
                 ? `${status.emitted} / ${status.total}`

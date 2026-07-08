@@ -11,6 +11,7 @@ import {
 } from "./PanelPrimitives";
 import { Button } from "@/components/Inputs";
 import { Play, Pause, Stop, ScenarioIcon } from "@/components/Icons";
+import { LList, Tag, mono } from "@/Dock/DockPanelKit";
 
 interface LogEntry {
   time: number;
@@ -225,7 +226,7 @@ export default function ScenariosPanel() {
             {/* ── Progress bar ── */}
             {isActive && (
               <div className="flex flex-col gap-2">
-                <div className="flex justify-between text-xs tabular-nums text-muted-foreground">
+                <div className="flex justify-between font-mono text-xs tabular-nums text-muted-foreground">
                   <span>
                     {formatSeconds(status.elapsed)} / {formatSeconds(duration)}
                   </span>
@@ -256,7 +257,7 @@ export default function ScenariosPanel() {
                       key={i}
                       className="flex items-center gap-3 rounded-sm px-2 py-1 text-xs text-muted-foreground"
                     >
-                      <span className="min-w-10 tabular-nums text-muted-foreground">
+                      <span className="min-w-10 font-mono tabular-nums text-muted-foreground">
                         {formatSeconds(ev.at)}
                       </span>
                       <span className="text-foreground">{ev.type}</span>
@@ -279,7 +280,7 @@ export default function ScenariosPanel() {
                       key={i}
                       className="flex items-baseline gap-3 rounded-sm bg-muted/30 px-2 py-1 text-xs"
                     >
-                      <span className="min-w-10 tabular-nums text-muted-foreground">
+                      <span className="min-w-10 font-mono tabular-nums text-muted-foreground">
                         {formatSeconds(entry.time)}
                       </span>
                       <span className="text-muted-foreground">
@@ -299,7 +300,7 @@ export default function ScenariosPanel() {
         {scenarios.length === 0 ? (
           <PanelEmptyState icon={<ScenarioIcon />}>No scenarios found</PanelEmptyState>
         ) : (
-          <div className="flex flex-col gap-2">
+          <LList>
             {scenarios.map((file) => {
               const isLoading = loading === file.fileName;
               return (
@@ -307,26 +308,41 @@ export default function ScenariosPanel() {
                   key={file.fileName}
                   type="button"
                   className={cn(
-                    "flex w-full flex-wrap items-center gap-3 rounded-md border border-border-soft bg-white/[0.03] px-2.5 py-2 text-left transition-colors duration-fast ease-standard hover:border-border hover:bg-white/[0.06] disabled:cursor-default disabled:opacity-60",
-                    isLoading && "border-accent/25 bg-accent/10"
+                    "grid w-full grid-cols-[3px_1fr_auto] items-center gap-2.5 border-t border-border-soft px-2 py-[9px] text-left transition-colors duration-fast ease-standard first:border-t-0 hover:bg-foreground/[0.035] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent disabled:cursor-default disabled:opacity-60",
+                    isLoading && "bg-accent/10"
                   )}
                   onClick={() => loadScenario(file.fileName)}
                   disabled={isLoading || isActive}
                   aria-label={`Load scenario ${file.fileName}`}
                 >
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13px] text-foreground" title={file.fileName}>
+                  <span
+                    className={cn(
+                      "h-[26px] w-[3px] rounded-[2px]",
+                      isLoading ? "bg-accent" : "bg-border"
+                    )}
+                  />
+                  <div className="min-w-0">
+                    <div
+                      className="truncate text-[12px] font-medium text-foreground"
+                      title={file.fileName}
+                    >
                       {file.fileName.replace(/\.json$/, "")}
                     </div>
-                    <div className="mt-1 flex gap-3 text-xs text-muted-foreground">
+                    <div
+                      className={cn(
+                        mono,
+                        "mt-0.5 flex gap-2 truncate text-[10.5px] text-muted-foreground/70"
+                      )}
+                    >
                       <span>{formatFileSize(file.fileSize)}</span>
                       <span>{formatDate(file.modifiedAt)}</span>
                     </div>
                   </div>
+                  {isLoading && <Tag tone="accent">Loading</Tag>}
                 </button>
               );
             })}
-          </div>
+          </LList>
         )}
       </PanelBody>
     </>

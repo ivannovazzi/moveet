@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -7,7 +7,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+import { Eyebrow } from "@/Dock/DockPanelKit";
+import { LList, LRow, Tag } from "@/Dock/SinksPanel";
 import type { HealthResponse, ConfigResponse } from "./adapterClient";
 import ConfigForm from "./ConfigForm";
 
@@ -26,8 +27,17 @@ function formatConfigValue(value: unknown): string {
   return String(value);
 }
 
+/** One-line monospace digest of a sink's config for the row's secondary line. */
+function summarize(current: Record<string, unknown> | undefined): string {
+  if (!current) return "no config";
+  const entries = Object.entries(current);
+  if (entries.length === 0) return "no config";
+  return entries.map(([k, v]) => `${k}=${formatConfigValue(v)}`).join(" · ");
+}
+
 export default function SinksTab({ health, config, loading, onAdd, onRemove }: SinksTabProps) {
   const [addingType, setAddingType] = useState("");
+  const [showAdd, setShowAdd] = useState(false);
   const [editingType, setEditingType] = useState<string | null>(null);
 
   const activeSinks = health.sinks;
@@ -37,110 +47,101 @@ export default function SinksTab({ health, config, loading, onAdd, onRemove }: S
   const addPlugin = health.availableSinks.find((s) => s.type === addingType);
 
   return (
-    <div className="flex flex-col gap-3">
-      {activeSinks.length > 0 && (
-        <section className="flex flex-col gap-2 rounded-md border border-border surface-raised p-3 shadow-raised">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-              Active sinks
-            </span>
-            <span className="text-sm text-muted-foreground">{activeSinks.length} connected</span>
-          </div>
-          <div className="flex flex-col gap-2">
-            {activeSinks.map((sink) => {
-              const schema =
-                health.availableSinks.find((s) => s.type === sink.type)?.configSchema ?? [];
-              const current = config?.sinkConfig[sink.type];
-              const entries = current ? Object.entries(current) : [];
-              const isEditing = editingType === sink.type;
-              return (
-                <div
-                  key={sink.type}
-                  className="flex flex-col gap-2 rounded-md border border-border bg-background/40 p-2"
-                >
-                  <div className="flex items-center gap-2">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span
-                        className={cn(
-                          "inline-block size-2.5 shrink-0 rounded-full",
-                          sink.healthy ? "bg-status-ok" : "bg-status-error"
-                        )}
-                      />
-                      <span className="truncate text-sm font-medium text-foreground">
-                        {sink.type}
-                      </span>
-                    </div>
-                    <span className="ml-auto text-sm text-muted-foreground">
-                      {sink.healthy ? "Healthy" : "Unhealthy"}
-                    </span>
-                    <div className="flex items-center gap-1">
-                      {schema.length > 0 && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setEditingType(isEditing ? null : sink.type)}
-                          aria-label={`${isEditing ? "Cancel editing" : "Edit"} ${sink.type}`}
-                        >
-                          {isEditing ? "Cancel" : "Edit"}
-                        </Button>
-                      )}
+    <div>
+      <LList>
+        {activeSinks.length === 0 && (
+          <LRow
+            tone="idle"
+            primary="No active sinks"
+            secondary="attach a downstream target below"
+          />
+        )}
+
+        {activeSinks.map((sink) => {
+          const schema =
+            health.availableSinks.find((s) => s.type === sink.type)?.configSchema ?? [];
+          const current = config?.sinkConfig[sink.type];
+          const isEditing = editingType === sink.type;
+          const tone = sink.healthy ? "ok" : "error";
+          return (
+            <Fragment key={sink.type}>
+              <LRow
+                tone={tone}
+                primary={sink.type}
+                secondary={summarize(current)}
+                meta={
+                  <>
+                    <Tag tone={tone}>{sink.healthy ? "OK" : "Down"}</Tag>
+                    {schema.length > 0 && (
                       <Button
                         variant="ghost"
-                        size="icon-sm"
-                        onClick={() => onRemove(sink.type)}
-                        aria-label={`Remove ${sink.type}`}
+                        size="xs"
+                        onClick={() => setEditingType(isEditing ? null : sink.type)}
+                        aria-label={`${isEditing ? "Cancel editing" : "Edit"} ${sink.type}`}
                       >
-                        &times;
+                        {isEditing ? "Cancel" : "Edit"}
                       </Button>
-                    </div>
-                  </div>
-
-                  {!isEditing && entries.length > 0 && (
-                    <dl className="flex flex-col gap-1 text-sm">
-                      {entries.map(([key, value]) => (
-                        <div key={key} className="flex items-center justify-between gap-2">
-                          <dt className="text-muted-foreground">{key}</dt>
-                          <dd className="truncate text-foreground">{formatConfigValue(value)}</dd>
-                        </div>
-                      ))}
-                    </dl>
-                  )}
-
-                  {isEditing && schema.length > 0 && (
-                    <ConfigForm
-                      key={`edit-${sink.type}`}
-                      fields={schema}
-                      initial={current}
-                      submitLabel="Save"
-                      loading={loading}
-                      onSubmit={(values) => {
-                        onAdd(sink.type, values);
-                        setEditingType(null);
-                      }}
-                    />
-                  )}
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => onRemove(sink.type)}
+                      aria-label={`Remove ${sink.type}`}
+                    >
+                      &times;
+                    </Button>
+                  </>
+                }
+              />
+              {isEditing && schema.length > 0 && (
+                <div className="px-2 pb-2.5 pl-[calc(3px+0.625rem)]">
+                  <ConfigForm
+                    key={`edit-${sink.type}`}
+                    fields={schema}
+                    initial={current}
+                    submitLabel="Save"
+                    loading={loading}
+                    onSubmit={(values) => {
+                      onAdd(sink.type, values);
+                      setEditingType(null);
+                    }}
+                  />
                 </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
-      {activeSinks.length === 0 && (
-        <section className="rounded-md border border-dashed border-border bg-muted/40 p-4 text-center text-sm text-muted-foreground">
-          No active sinks
-        </section>
-      )}
+              )}
+            </Fragment>
+          );
+        })}
 
-      {availableToAdd.length > 0 && (
-        <section className="flex flex-col gap-2 rounded-md border border-border surface-raised p-3 shadow-raised">
-          <div className="flex flex-col gap-1">
-            <span className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-              Add sink
-            </span>
-            <span className="text-xs text-muted-foreground">Attach another downstream target.</span>
+        {availableToAdd.length > 0 &&
+          (showAdd ? null : (
+            <button
+              type="button"
+              onClick={() => setShowAdd(true)}
+              className="grid grid-cols-[3px_1fr] items-center gap-2.5 border-t border-border-soft px-2 py-[9px] text-left opacity-70 transition-opacity hover:opacity-100"
+            >
+              <span className="h-[26px] w-[3px] rounded-[2px] bg-border" />
+              <span className="text-[12px] font-medium text-muted-foreground">+ Add sink…</span>
+            </button>
+          ))}
+      </LList>
+
+      {availableToAdd.length > 0 && showAdd && (
+        <div className="flex flex-col gap-2.5 px-[15px] pb-4 pt-1">
+          <div className="flex items-center justify-between">
+            <Eyebrow>Add sink</Eyebrow>
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => {
+                setShowAdd(false);
+                setAddingType("");
+              }}
+            >
+              Cancel
+            </Button>
           </div>
           <Select value={addingType} onValueChange={(key) => setAddingType(String(key))}>
-            <SelectTrigger className="w-full" aria-label="Sink Type">
+            <SelectTrigger className="h-8 w-full" aria-label="Sink Type">
               <SelectValue placeholder="-- select type --" />
             </SelectTrigger>
             <SelectContent>
@@ -153,41 +154,34 @@ export default function SinksTab({ health, config, loading, onAdd, onRemove }: S
           </Select>
 
           {addPlugin && addPlugin.configSchema.length > 0 && (
-            <>
-              <div className="flex flex-col gap-1">
-                <span className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-                  Configuration
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  Enter the sink connection details.
-                </span>
-              </div>
-              <ConfigForm
-                key={addingType}
-                fields={addPlugin.configSchema}
-                initial={config?.sinkConfig[addingType]}
-                submitLabel="Add"
-                loading={loading}
-                onSubmit={(values) => {
-                  onAdd(addingType, values);
-                  setAddingType("");
-                }}
-              />
-            </>
+            <ConfigForm
+              key={addingType}
+              fields={addPlugin.configSchema}
+              initial={config?.sinkConfig[addingType]}
+              submitLabel="Add"
+              loading={loading}
+              onSubmit={(values) => {
+                onAdd(addingType, values);
+                setAddingType("");
+                setShowAdd(false);
+              }}
+            />
           )}
 
           {addPlugin && addPlugin.configSchema.length === 0 && (
             <Button
+              size="sm"
               disabled={loading}
               onClick={() => {
                 onAdd(addingType);
                 setAddingType("");
+                setShowAdd(false);
               }}
             >
-              {loading ? "Adding..." : "Add sink"}
+              {loading ? "Adding…" : "Add sink"}
             </Button>
           )}
-        </section>
+        </div>
       )}
     </div>
   );

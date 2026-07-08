@@ -7,6 +7,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Eyebrow } from "@/Dock/DockPanelKit";
+import { LList, LRow, Tag } from "@/Dock/SinksPanel";
 import type { HealthResponse, ConfigResponse } from "./adapterClient";
 import ConfigForm from "./ConfigForm";
 
@@ -24,28 +26,25 @@ export default function SourceTab({ health, config, loading, onConnect }: Source
   const currentConfig =
     config && selectedType === config.activeSource ? config.sourceConfig[selectedType] : undefined;
 
-  return (
-    <div className="flex flex-col gap-3">
-      <section className="flex flex-col gap-2 rounded-md border border-border surface-raised p-3 shadow-raised">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-            Active source
-          </span>
-          <span className="text-sm text-muted-foreground">
-            {health.source?.healthy ? "Healthy" : health.source ? "Unhealthy" : "Not configured"}
-          </span>
-        </div>
-        <div className="text-sm text-foreground">
-          {health.source?.type ?? "No source connected"}
-        </div>
-      </section>
+  const sourceTone = !health.source ? "idle" : health.source.healthy ? "ok" : "error";
+  const sourceTag = !health.source ? "None" : health.source.healthy ? "Live" : "Down";
 
-      <section className="flex flex-col gap-2 rounded-md border border-border surface-raised p-3 shadow-raised">
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-foreground">Source Type</span>
-          <span className="text-xs text-muted-foreground">Select the upstream vehicle feed.</span>
+  return (
+    <div>
+      <LList>
+        <LRow
+          tone={sourceTone}
+          primary={health.source?.type ?? "No source connected"}
+          secondary={`${health.availableSources.length} available · upstream feed`}
+          meta={<Tag tone={sourceTone}>{sourceTag}</Tag>}
+        />
+      </LList>
+
+      <div className="flex flex-col gap-2.5 px-[15px] pb-4 pt-1">
+        <label className="flex flex-col gap-1.5">
+          <Eyebrow>Source type</Eyebrow>
           <Select value={selectedType} onValueChange={(key) => setSelectedType(String(key))}>
-            <SelectTrigger className="w-full" aria-label="Source Type">
+            <SelectTrigger className="h-8 w-full" aria-label="Source Type">
               <SelectValue placeholder="-- select --" />
             </SelectTrigger>
             <SelectContent>
@@ -58,18 +57,8 @@ export default function SourceTab({ health, config, loading, onConnect }: Source
             </SelectContent>
           </Select>
         </label>
-      </section>
 
-      {plugin && plugin.configSchema.length > 0 && (
-        <section className="flex flex-col gap-2 rounded-md border border-border surface-raised p-3 shadow-raised">
-          <div className="flex flex-col gap-1">
-            <span className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-              Configuration
-            </span>
-            <span className="text-xs text-muted-foreground">
-              Review and save the source settings.
-            </span>
-          </div>
+        {plugin && plugin.configSchema.length > 0 && (
           <ConfigForm
             key={selectedType}
             fields={plugin.configSchema}
@@ -78,22 +67,24 @@ export default function SourceTab({ health, config, loading, onConnect }: Source
             loading={loading}
             onSubmit={(values) => onConnect(selectedType, values)}
           />
-        </section>
-      )}
+        )}
 
-      {plugin && plugin.configSchema.length === 0 && (
-        <section className="flex flex-col gap-2 rounded-md border border-border surface-raised p-3 shadow-raised">
-          <Button disabled={loading || !selectedType} onClick={() => onConnect(selectedType)}>
-            {loading ? "Connecting..." : "Connect source"}
+        {plugin && plugin.configSchema.length === 0 && (
+          <Button
+            size="sm"
+            disabled={loading || !selectedType}
+            onClick={() => onConnect(selectedType)}
+          >
+            {loading ? "Connecting…" : "Connect source"}
           </Button>
-        </section>
-      )}
+        )}
 
-      {!plugin && (
-        <section className="rounded-md border border-dashed border-border bg-muted/40 p-4 text-center text-sm text-muted-foreground">
-          Choose a source type to view and edit its configuration.
-        </section>
-      )}
+        {!plugin && (
+          <p className="text-[11px] text-muted-foreground/60">
+            Choose a source type to view its configuration.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

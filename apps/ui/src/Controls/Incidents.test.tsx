@@ -43,16 +43,31 @@ describe("Incidents", () => {
     expect(screen.getByText("construction")).toBeInTheDocument();
   });
 
-  it("shows severity bar with correct width", () => {
-    const incident = mockIncident({ severity: 0.5 });
-    render(<Incidents incidents={[incident]} createRandom={noop} remove={noop} />);
-    // The severityFill div has an inline style with width based on severity
-    const typeLabel = screen.getByText("accident");
-    // Navigate up to the .incident container, then find the severity fill
-    const incidentRow = typeLabel.closest("[class]")!.parentElement!;
-    const severityFill = incidentRow.querySelector("[style*='width']");
-    expect(severityFill).not.toBeNull();
-    expect(severityFill).toHaveStyle({ width: "50%" });
+  it("surfaces severity as a percentage", () => {
+    render(
+      <Incidents incidents={[mockIncident({ severity: 0.7 })]} createRandom={noop} remove={noop} />
+    );
+    expect(screen.getByText("70%")).toBeInTheDocument();
+  });
+
+  it("tones the severity tag by threshold", () => {
+    const { rerender } = render(
+      <Incidents incidents={[mockIncident({ severity: 0.5 })]} createRandom={noop} remove={noop} />
+    );
+    // 0.33–0.66 → amber (warn).
+    expect(screen.getByText("50%").className).toContain("status-warn");
+
+    // ≥ 0.66 → red (error).
+    rerender(
+      <Incidents incidents={[mockIncident({ severity: 0.8 })]} createRandom={noop} remove={noop} />
+    );
+    expect(screen.getByText("80%").className).toContain("status-error");
+
+    // < 0.33 → minor (idle grey, no status colour).
+    rerender(
+      <Incidents incidents={[mockIncident({ severity: 0.1 })]} createRandom={noop} remove={noop} />
+    );
+    expect(screen.getByText("10%").className).not.toContain("status-");
   });
 
   it("calls createRandom when create button clicked", async () => {
