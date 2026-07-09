@@ -15,13 +15,23 @@ const DEFAULT_ZOOM = 12;
  */
 const ZOOM_STEP = 1;
 
+/**
+ * How far past the full-network fit the user may zoom out (levels). The floor is
+ * derived from the fitted zoom on load so it tracks the actual network + the
+ * current viewport; this margin just grants a little breathing room around it.
+ * Prevents zooming out to empty ocean/continent around a single city.
+ */
+const MIN_ZOOM_MARGIN = 1;
+
 const DEFAULT_VIEW_STATE: MapViewState = {
   longitude: 36.82,
   latitude: -1.29,
   zoom: DEFAULT_ZOOM,
   pitch: 0,
   bearing: 0,
-  minZoom: 1,
+  // Conservative floor until the network loads and we derive a tighter one from
+  // its fitted bounds (see the fit-to-bounds effect).
+  minZoom: 8,
   maxZoom: 20,
 };
 
@@ -77,6 +87,9 @@ export function useDeckViewState({ data, width, height }: UseDeckViewStateOption
       longitude: fitted.longitude,
       latitude: fitted.latitude,
       zoom: fitted.zoom,
+      // Floor the zoom-out at (fit − margin) so the network always roughly
+      // fills the viewport and you can't zoom out into empty space around it.
+      minZoom: fitted.zoom - MIN_ZOOM_MARGIN,
     }));
     initializedRef.current = true;
   }, [data, width, height]);
