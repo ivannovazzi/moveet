@@ -88,6 +88,11 @@ function up(x: number, y: number) {
     new MouseEvent("mouseup", { clientX: x, clientY: y, button: 0, bubbles: true })
   );
 }
+function clickAt(x: number, y: number) {
+  mapEl.dispatchEvent(
+    new MouseEvent("click", { clientX: x, clientY: y, button: 0, bubbles: true })
+  );
+}
 
 beforeEach(() => {
   registeredLayers.clear();
@@ -115,15 +120,20 @@ describe("Heatzones display layer", () => {
 });
 
 describe("Heatzones vertex handles", () => {
-  it("renders draggable handles for the selected zone", () => {
+  it("renders vertex handles plus a center move handle for the selected zone", () => {
     heatzones = [ZONE];
     editor = makeEditor({ mode: "selected", selectedId: "hz-1" });
     render(<Heatzones visible />);
-    const handles = registeredLayers.get("heatzone-handles")!;
-    expect(handles.length).toBe(1);
-    const layer = handles[0] as { props: { data: unknown[]; pickable: boolean } };
+    const handles = registeredLayers.get("heatzone-handles")! as {
+      props: { id: string; data: unknown[]; pickable: boolean };
+    }[];
+    expect(handles.length).toBe(2);
+    const vertexLayer = handles.find((l) => l.props.id === "heatzone-handles")!;
+    const moveLayer = handles.find((l) => l.props.id === "heatzone-move-handle")!;
     // one handle per unique vertex of the selected ring
-    expect(layer.props.data.length).toBe(ZONE.geometry.coordinates.length);
+    expect(vertexLayer.props.data.length).toBe(ZONE.geometry.coordinates.length);
+    // a single center move handle
+    expect(moveLayer.props.data.length).toBe(1);
   });
 
   it("renders no handles when nothing is selected", () => {
@@ -233,5 +243,87 @@ describe("Heatzones reshape", () => {
     expect(id).toBe("hz-1");
     // dragged vertex 0 moved to unproject(18,18) = [0.18,0.18]
     expect(coords[0]).toEqual([0.18, 0.18]);
+  });
+});
+
+// A larger zone so interior points are clear of every vertex-handle radius.
+const BIG_ZONE: Heatzone = {
+  type: "Feature",
+  properties: { id: "hz-big", intensity: 0.5, timestamp: "2026-01-01T00:00:00Z", radius: 500 },
+  geometry: {
+    type: "Polygon",
+    // projects to (0,0)(100,0)(100,100)(0,100); centroid -> pixel (50,50)
+    coordinates: [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [0, 1],
+    ] as Position[],
+  },
+};
+
+describe("Heatzones move / body passthrough", () => {
+  it("moves the whole zone when dragging the center handle", () => {
+    heatzones = [BIG_ZONE];
+    editor = makeEditor({ mode: "selected", selectedId: "hz-big" });
+    render(<Heatzones visible />);
+
+    // Center handle sits at pixel (50,50); grab and drag it by +10px.
+    act(() => {
+      down(50, 50);
+      move(60, 60);
+    });
+    expect(editor.setDraft).toHaveBeenCalled();
+
+    act(() => {
+      up(60, 60);
+    });
+    expect(editor.commitGeometry).toHaveBeenCalledTimes(1);
+    const [id, coords] = vi.mocked(editor.commitGeometry).mock.calls[0];
+    expect(id).toBe("hz-big");
+    // every vertex translated by unproject(+10px) = +0.1 deg
+    expect(coords[0][0]).toBeCloseTo(0.1);
+    expect(coords[0][1]).toBeCloseTo(0.1);
+  });
+
+  it("does NOT capture a press on the zone body (away from handles) - deck pans/picks it", () => {
+    heatzones = [BIG_ZONE];
+    editor = makeEditor({ mode: "selected", selectedId: "hz-big" });
+    render(<Heatzones visible />);
+
+    // (50,20): inside the polygon but far from every vertex and the center handle.
+    act(() => {
+      down(50, 20);
+      move(60, 30);
+      up(60, 30);
+    });
+    expect(editor.setDraft).not.toHaveBeenCalled();
+    expect(editor.commitGeometry).not.toHaveBeenCalled();
+  });
+});
+
+describe("Heatzones selection (plain click, non-hijacking)", () => {
+  it("selects the zone under a plain click", () => {
+    heatzones = [BIG_ZONE];
+    render(<Heatzones visible />); // idle
+    act(() => clickAt(50, 50)); // inside BIG_ZONE (projects to geo [0.5,0.5])
+    expect(editor.select).toHaveBeenCalledWith("hz-big");
+  });
+
+  it("deselects when clicking empty map", () => {
+    heatzones = [BIG_ZONE];
+    editor = makeEditor({ mode: "selected", selectedId: "hz-big" });
+    render(<Heatzones visible />);
+    act(() => clickAt(500, 500)); // geo [5,5] - outside the zone
+    expect(editor.deselect).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not (de)select while drawing", () => {
+    heatzones = [BIG_ZONE];
+    editor = makeEditor({ mode: "draw", isDrawing: true });
+    render(<Heatzones visible />);
+    act(() => clickAt(50, 50));
+    expect(editor.select).not.toHaveBeenCalled();
+    expect(editor.deselect).not.toHaveBeenCalled();
   });
 });

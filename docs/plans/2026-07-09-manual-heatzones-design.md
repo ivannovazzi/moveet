@@ -75,7 +75,9 @@ single source of truth.
     vertex count before POST. `controller` dragPan is disabled while drawing.
   - **Reshape**: for the selected zone, a `ScatterplotLayer` of draggable vertex handles; dragging
     a handle rewrites that vertex.
-  - **Move**: dragging the selected zone body translates every vertex by the drag delta.
+  - **Move**: dragging the selected zone's dedicated center handle translates every vertex by
+    the drag delta. (Only handles intercept pointer events - never the zone body - so normal
+    map click / right-click / pan keep working over a selected zone, matching GeofenceDrawTool.)
 - Client gains `createHeatzone`, `updateHeatzone`, `deleteHeatzone`, `clearHeatzones`,
   `seedHeatzones`. Mutations are server round-trips; the WS broadcast updates `HeatZoneContext`
   which re-renders the layer. Reshape/move PATCH fires on drag-end (debounced) for smoothness.

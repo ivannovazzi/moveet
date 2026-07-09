@@ -12,6 +12,8 @@ import type { Heatzone, Position } from "@/types";
 const FADE_DURATION_MS = 500;
 
 const VERTEX_HIT_PX = 10;
+/** Hit radius for the center "move" handle (larger than a vertex - it's the grab target). */
+const MOVE_HANDLE_HIT_PX = 12;
 const DRAG_THRESHOLD_PX = 3;
 /** Pixel-space Douglas-Peucker tolerance - keeps ~8-40 vertices for a normal lasso. */
 const DRAW_SIMPLIFY_PX = 4;
@@ -43,6 +45,17 @@ function pointInRing(pt: Position, ring: Position[]): boolean {
     if (intersect) inside = !inside;
   }
   return inside;
+}
+
+/** Average of a ring's vertices - the grab point for moving the whole zone. */
+function ringCentroid(ring: Position[]): Position {
+  let sx = 0;
+  let sy = 0;
+  for (const [x, y] of ring) {
+    sx += x;
+    sy += y;
+  }
+  return [sx / ring.length, sy / ring.length];
 }
 
 /** Drop a trailing point that merely repeats the first (closed-ring duplicate). */
@@ -94,6 +107,12 @@ export default function Heatzones({ visible }: { visible: boolean }) {
   }, [editor.mode, drawPoints.length]);
 
   // ── Native pointer interactions ────────────────────────────────────
+  // These handlers only ever *intercept* (stopPropagation) on an explicit
+  // target: a lasso stroke while drawing, or a vertex / center handle of the
+  // SELECTED zone. Everywhere else - including the body of a selected zone and
+  // all of an unselected zone - the event falls through to deck.gl, so normal
+  // map click / right-click / pan behave exactly as without heatzones. This
+  // mirrors GeofenceDrawTool, which likewise intercepts only on its handles.
   useEffect(() => {
     if (!mapHTMLElement) return;
 
@@ -277,21 +296,35 @@ export default function Heatzones({ visible }: { visible: boolean }) {
           window.addEventListener("mouseup", handleWindowMouseUp, true);
           return;
         }
-        if (pointInRing(m.geo, base)) {
-          e.stopPropagation();
-          e.preventDefault();
-          dragKind = "body";
-          dragBaseCoords = base;
-          dragCoords = base;
-          dragDownGeo = m.geo;
-          window.addEventListener("mousemove", handleWindowMouseMove, true);
-          window.addEventListener("mouseup", handleWindowMouseUp, true);
-          return;
+        // Moving the whole zone is grabbed from the small center handle only -
+        // NOT the whole body. Capturing the body would swallow every click/pan
+        // over the zone's area; instead the body stays a normal part of the map
+        // (deck still pans and picks under it). This matches GeofenceDrawTool,
+        // which likewise only intercepts on explicit handles.
+        const vp = viewportRef.current;
+        if (vp) {
+          const c = vp.project(ringCentroid(base));
+          if (pixDist(m.px[0], m.px[1], c[0], c[1]) <= MOVE_HANDLE_HIT_PX) {
+            e.stopPropagation();
+            e.preventDefault();
+            dragKind = "body";
+            dragBaseCoords = base;
+            dragCoords = base;
+            dragDownGeo = m.geo;
+            window.addEventListener("mousemove", handleWindowMouseMove, true);
+            window.addEventListener("mouseup", handleWindowMouseUp, true);
+            return;
+          }
         }
+        // Anywhere else on a selected zone: do not capture - let deck.gl handle
+        // it (pan, or re-pick the zone / a vehicle on top of it).
       }
     };
 
-    // Plain click (no drag) selects the zone under the cursor / deselects.
+    // Plain click (no drag) selects the zone under the cursor, or deselects on
+    // empty map. This never calls stopPropagation, so it does not interfere
+    // with deck.gl's own click handling (vehicle/POI picking, the map context
+    // actions) - it only adds zone (de)selection on top.
     const handleClick = (e: MouseEvent) => {
       if (e.button !== 0) return;
       const ed = editorRef.current;
@@ -392,6 +425,21 @@ export default function Heatzones({ visible }: { visible: boolean }) {
         getFillColor: SELECTED_LINE_RGBA,
         getLineColor: WHITE_RGBA,
         getLineWidth: 1.5,
+        lineWidthUnits: "pixels",
+        stroked: true,
+        pickable: true,
+      }),
+      // Center "move" handle: the only grab target for repositioning the zone,
+      // so the body itself stays a normal (pannable, pickable) part of the map.
+      new ScatterplotLayer<Position>({
+        id: "heatzone-move-handle",
+        data: [ringCentroid(verts)],
+        getPosition: (d) => d,
+        getRadius: 7,
+        radiusUnits: "pixels",
+        getFillColor: WHITE_RGBA,
+        getLineColor: SELECTED_LINE_RGBA,
+        getLineWidth: 2,
         lineWidthUnits: "pixels",
         stroked: true,
         pickable: true,
