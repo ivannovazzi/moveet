@@ -139,7 +139,14 @@ describe("SimulationSegment", () => {
     await seg.updateOptions({ minSpeed: 6 } as never);
     await seg.getDirections();
     await seg.getHeatzones();
-    await seg.makeHeatzones();
+    await seg.createHeatzone({
+      geometry: { type: "Polygon", coordinates: [] },
+      intensity: 0.5,
+    });
+    await seg.updateHeatzone("hz-1", { intensity: 0.7 });
+    await seg.deleteHeatzone("hz-1");
+    await seg.clearHeatzones();
+    await seg.seedHeatzones({ count: 3 });
     await seg.search("Ngong");
 
     expect(h.http.post).toHaveBeenCalledWith("/start", { minSpeed: 5 });
@@ -149,7 +156,14 @@ describe("SimulationSegment", () => {
     expect(h.http.post).toHaveBeenCalledWith("/find-road", [36.8, -1.3]);
     expect(h.http.post).toHaveBeenCalledWith("/find-node", [36.8, -1.3]);
     expect(h.http.post).toHaveBeenCalledWith("/options", { minSpeed: 6 });
-    expect(h.http.post).toHaveBeenCalledWith("/heatzones");
+    expect(h.http.post).toHaveBeenCalledWith("/heatzones", {
+      geometry: { type: "Polygon", coordinates: [] },
+      intensity: 0.5,
+    });
+    expect(h.http.patch).toHaveBeenCalledWith("/heatzones/hz-1", { intensity: 0.7 });
+    expect(h.http.delete).toHaveBeenCalledWith("/heatzones/hz-1");
+    expect(h.http.delete).toHaveBeenCalledWith("/heatzones");
+    expect(h.http.post).toHaveBeenCalledWith("/heatzones/seed", { count: 3 });
     expect(h.http.post).toHaveBeenCalledWith("/search", { query: "Ngong" });
     expect(h.http.get).toHaveBeenCalledWith("/status");
     expect(h.http.get).toHaveBeenCalledWith("/vehicles");

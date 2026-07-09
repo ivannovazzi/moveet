@@ -60,7 +60,11 @@ export function createMockClient() {
     setUseAdapter: vi.fn().mockResolvedValue({ data: [] }),
     getDirections: vi.fn().mockResolvedValue({ data: [] }),
     getHeatzones: vi.fn().mockResolvedValue({ data: [] }),
-    makeHeatzones: vi.fn().mockResolvedValue({ data: undefined }),
+    createHeatzone: vi.fn().mockResolvedValue({ data: undefined }),
+    updateHeatzone: vi.fn().mockResolvedValue({ data: undefined }),
+    deleteHeatzone: vi.fn().mockResolvedValue({ data: undefined }),
+    clearHeatzones: vi.fn().mockResolvedValue({ data: undefined }),
+    seedHeatzones: vi.fn().mockResolvedValue({ data: [] }),
     search: vi.fn().mockResolvedValue({ data: null }),
   };
 }

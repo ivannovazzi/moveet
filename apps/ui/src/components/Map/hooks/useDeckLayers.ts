@@ -38,6 +38,10 @@ const LAYER_ORDER: Record<string, number> = {
   "selected-road": 55,
   "pending-dispatch": 60,
   vehicles: 70,
+  // Heatzone editing overlays sit above vehicles so handles/preview stay
+  // grabbable; the committed zone fill stays low at "traffic-zones" (35).
+  "heatzone-draw": 78,
+  "heatzone-handles": 79,
   "geofence-draw": 80,
 };
 

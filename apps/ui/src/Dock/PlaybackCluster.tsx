@@ -2,9 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import client from "@/utils/client";
 import type { SimulationStatus } from "@/types";
-import { Flame, Pause, Play, Record, Reset } from "@/components/Icons";
+import { Pause, Play, Record, Reset } from "@/components/Icons";
 import { useOptions } from "@/hooks/useOptions";
 import { toast, toErrorMessage } from "@/lib/toast";
+import ZonesGroup from "./ZonesGroup";
 
 /**
  * Await an `ApiResponse`-returning client call and surface the outcome as a
@@ -111,14 +112,6 @@ export default function PlaybackCluster({
       }),
     []
   );
-  const handleMakeZones = useCallback(
-    () =>
-      runWithToast(() => client.makeHeatzones(), {
-        success: "Heat zones generated",
-        failure: "Failed to generate heat zones",
-      }),
-    []
-  );
 
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval>>(undefined);
@@ -145,13 +138,7 @@ export default function PlaybackCluster({
       <IconBtn onClick={handleReset} aria-label="Reset" title="Reset">
         <Reset />
       </IconBtn>
-      <IconBtn
-        onClick={handleMakeZones}
-        aria-label="Generate heat zones"
-        title="Generate heat zones"
-      >
-        <Flame />
-      </IconBtn>
+      <ZonesGroup />
       <IconBtn
         onClick={isRecording ? onStopRecording : onStartRecording}
         aria-label={isRecording ? "Stop recording" : "Start recording"}

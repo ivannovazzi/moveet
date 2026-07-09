@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import client from "./utils/client";
 import Dock from "./Dock/Dock";
 import Inspector from "./Inspector/Inspector";
@@ -9,6 +9,8 @@ import TypeLegend from "./Map/TypeLegend";
 import SearchBar from "./SearchBar";
 import Zoom from "./Zoom/";
 import CreateZoneDialog from "./Map/Geofence/CreateZoneDialog";
+import HeatzoneInspector from "./Map/HeatzoneInspector";
+import { useHeatzoneEditorContext } from "./data/HeatzoneEditorContext";
 import type { Fleet, Modifiers } from "./types";
 import type { BoundingBox } from "@moveet/shared-types";
 import type { POI } from "./types";
@@ -86,6 +88,26 @@ export default function App() {
 
   // ─── Geofencing ─────────────────────────────────────────────────
   const geofences = useGeofenceManager();
+
+  // ─── Manual heat zones ──────────────────────────────────────────
+  // Drawing or selecting a zone implies the zone layer must be visible, so
+  // force the `showHeatzones` toggle on whenever the editor leaves idle.
+  const heatzoneEditor = useHeatzoneEditorContext();
+  useEffect(() => {
+    if (heatzoneEditor.mode !== "idle" && !modifiers.showHeatzones) {
+      setModifiers((prev) => ({ ...prev, showHeatzones: true }));
+    }
+  }, [heatzoneEditor.mode, modifiers.showHeatzones, setModifiers]);
+  // Seeding from idle would otherwise create zones the user can't see. Flip the
+  // layer on once per seed (the nonce is the one-shot signal), leaving the
+  // toggle free to hide them again afterward.
+  const seededOnce = useRef(0);
+  useEffect(() => {
+    if (heatzoneEditor.seedNonce > seededOnce.current) {
+      seededOnce.current = heatzoneEditor.seedNonce;
+      setModifiers((prev) => (prev.showHeatzones ? prev : { ...prev, showHeatzones: true }));
+    }
+  }, [heatzoneEditor.seedNonce, setModifiers]);
 
   // ─── Map / context-menu interactions ────────────────────────────
   const {
@@ -302,6 +324,7 @@ export default function App() {
               onSubmit={geofences.onCreateZone}
               onClose={geofences.closePendingPolygon}
             />
+            <HeatzoneInspector />
           </div>
         </ErrorBoundary>
       </div>

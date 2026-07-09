@@ -13,9 +13,32 @@ import type {
   DirectionResponse,
 } from "@/types";
 
+/** Polygon geometry as carried by `Heatzone.geometry` (a single `[lng,lat]` ring). */
+export interface HeatzonePolygon {
+  type: "Polygon";
+  coordinates: Position[];
+}
+
+/** Body for `POST /heatzones` — server assigns id/timestamp/radius. */
+export interface HeatzoneCreate {
+  geometry: HeatzonePolygon;
+  intensity?: number;
+}
+
+/** Body for `PATCH /heatzones/:id` — any subset of the mutable fields. */
+export interface HeatzoneUpdate {
+  geometry?: HeatzonePolygon;
+  intensity?: number;
+}
+
+/** Body for `POST /heatzones/seed`. */
+export interface HeatzoneSeed {
+  count?: number;
+}
+
 /**
  * Core simulation control (start/stop/reset/direction) plus read-only
- * network/road/POI/options/heatzone queries.
+ * network/road/POI/options/heatzone queries and heatzone mutations.
  */
 export class SimulationSegment {
   constructor(private deps: ClientDeps) {
@@ -35,7 +58,11 @@ export class SimulationSegment {
     this.updateOptions = this.updateOptions.bind(this);
     this.getDirections = this.getDirections.bind(this);
     this.getHeatzones = this.getHeatzones.bind(this);
-    this.makeHeatzones = this.makeHeatzones.bind(this);
+    this.createHeatzone = this.createHeatzone.bind(this);
+    this.updateHeatzone = this.updateHeatzone.bind(this);
+    this.deleteHeatzone = this.deleteHeatzone.bind(this);
+    this.clearHeatzones = this.clearHeatzones.bind(this);
+    this.seedHeatzones = this.seedHeatzones.bind(this);
     this.search = this.search.bind(this);
   }
 
@@ -111,8 +138,26 @@ export class SimulationSegment {
     return this.deps.http.get<Heatzone[]>("/heatzones");
   }
 
-  async makeHeatzones(): Promise<ApiResponse<void>> {
-    return this.deps.http.post("/heatzones");
+  async createHeatzone(body: HeatzoneCreate): Promise<ApiResponse<Heatzone>> {
+    return this.deps.http.post<HeatzoneCreate, Heatzone>("/heatzones", body);
+  }
+
+  async updateHeatzone(id: string, body: HeatzoneUpdate): Promise<ApiResponse<Heatzone>> {
+    return this.deps.http.patch<HeatzoneUpdate, Heatzone>(`/heatzones/${id}`, body);
+  }
+
+  async deleteHeatzone(id: string): Promise<ApiResponse<void>> {
+    return this.deps.http.delete(`/heatzones/${id}`);
+  }
+
+  /** Clear every heatzone (drawn + seeded). */
+  async clearHeatzones(): Promise<ApiResponse<void>> {
+    return this.deps.http.delete("/heatzones");
+  }
+
+  /** Append `count` randomly generated zones; returns the full updated list. */
+  async seedHeatzones(body: HeatzoneSeed = {}): Promise<ApiResponse<Heatzone[]>> {
+    return this.deps.http.post<HeatzoneSeed, Heatzone[]>("/heatzones/seed", body);
   }
 
   async search(query: string): Promise<ApiResponse<unknown>> {
