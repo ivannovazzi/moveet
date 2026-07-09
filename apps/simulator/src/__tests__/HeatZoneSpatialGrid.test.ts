@@ -104,6 +104,39 @@ describe("HeatZoneManager — spatial grid", () => {
     });
   });
 
+  // ── Defense-in-depth: pathological (out-of-projection) coordinates ───────
+
+  describe("pathological zone guard", () => {
+    it("does not index (or hang on) a zone whose bbox spans a huge number of cells", () => {
+      // Mixed WGS84 + Web-Mercator-metre coordinates: bbox spans ~10^8 cells per
+      // axis. Without a guard, indexZone's nested loop iterates effectively
+      // forever and freezes the event loop. It must return promptly and skip
+      // indexing this zone.
+      const huge: HeatZone = {
+        polygon: [
+          [4_000_000, -150_000],
+          [36.8, -1.3],
+          [36.9, -1.4],
+          [4_000_000, -150_000],
+        ],
+        intensity: 0.5,
+        timestamp: new Date().toISOString(),
+      };
+      injectZones(manager, [huge]);
+      expect((manager as any).spatialGrid.size).toBe(0);
+    }, 3000);
+
+    it("still indexes a normal-sized zone", () => {
+      const normal: HeatZone = {
+        polygon: makeSquarePolygon(1.0, 2.0, 0.002),
+        intensity: 0.5,
+        timestamp: new Date().toISOString(),
+      };
+      injectZones(manager, [normal]);
+      expect((manager as any).spatialGrid.size).toBeGreaterThan(0);
+    });
+  });
+
   // ── Point-in-zone detection (deterministic polygons) ────────────────────
 
   describe("isPositionInHeatZone with injected zones", () => {

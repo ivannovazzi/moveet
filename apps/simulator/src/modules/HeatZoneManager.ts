@@ -1,7 +1,21 @@
 import { point, destination, distance, lineString, bezierSpline } from "@turf/turf";
 import crypto from "crypto";
 import type { Edge, Node, HeatZone, HeatZoneFeature } from "../types";
-import { SPATIAL_GRID } from "../constants";
+import { SPATIAL_GRID, HEAT_ZONE_DEFAULTS } from "../constants";
+import logger from "../utils/logger";
+
+/**
+ * Thrown by `addZone` when the total-zone cap (`HEAT_ZONE_DEFAULTS.MAX_TOTAL`)
+ * is already reached. Carries a stable `code` so routes can map it to an HTTP
+ * 409 without depending on the message text.
+ */
+export class HeatZoneCapError extends Error {
+  public readonly code = "HEATZONE_CAP_REACHED";
+  constructor(max: number) {
+    super(`Heat zone limit reached (max ${max}). Delete an existing zone before adding a new one.`);
+    this.name = "HeatZoneCapError";
+  }
+}
 
 export class HeatZoneManager {
   private zones: HeatZone[] = [];
@@ -72,6 +86,13 @@ export class HeatZoneManager {
       return;
     }
 
+    // Cap total zones: append only up to the remaining capacity (no error).
+    const capacity = Math.max(0, HEAT_ZONE_DEFAULTS.MAX_TOTAL - this.zones.length);
+    const target = Math.min(count, capacity);
+    if (target === 0) {
+      return;
+    }
+
     const intersectionNodes = nodes.filter((n) => n.connections.length >= 3);
     const pool = intersectionNodes.length ? intersectionNodes : nodes;
     const items = pool.map((n) => ({
@@ -82,7 +103,7 @@ export class HeatZoneManager {
 
     const newZones: HeatZoneFeature[] = [];
     let attempts = 0;
-    while (newZones.length < count && attempts < count * maxAttempts) {
+    while (newZones.length < target && attempts < target * maxAttempts) {
       attempts++;
       const picked = this.pickNodeByWeight(items, totalWeight);
       const center: [number, number] = [picked.coordinates[0], picked.coordinates[1]];
@@ -116,6 +137,7 @@ export class HeatZoneManager {
       polygon: zone.geometry.coordinates,
       intensity: zone.properties.intensity,
       timestamp: zone.properties.timestamp,
+      radius: this.deriveRadius(zone.geometry.coordinates),
     }));
 
     for (const zone of generated) {
@@ -132,11 +154,15 @@ export class HeatZoneManager {
    * returns the exported GeoJSON feature.
    */
   public addZone(input: { polygon: number[][]; intensity: number; id?: string }): HeatZoneFeature {
+    if (this.zones.length >= HEAT_ZONE_DEFAULTS.MAX_TOTAL) {
+      throw new HeatZoneCapError(HEAT_ZONE_DEFAULTS.MAX_TOTAL);
+    }
     const zone: HeatZone = {
       id: input.id ?? crypto.randomUUID(),
       polygon: input.polygon,
       intensity: input.intensity,
       timestamp: new Date().toISOString(),
+      radius: this.deriveRadius(input.polygon),
     };
     this.zones.push(zone);
     this.indexZone(zone);
@@ -158,7 +184,10 @@ export class HeatZoneManager {
     const geometryChanged = patch.polygon !== undefined;
     if (geometryChanged) this.deindexZone(zone);
 
-    if (patch.polygon !== undefined) zone.polygon = patch.polygon;
+    if (patch.polygon !== undefined) {
+      zone.polygon = patch.polygon;
+      zone.radius = this.deriveRadius(patch.polygon);
+    }
     if (patch.intensity !== undefined) zone.intensity = patch.intensity;
 
     if (geometryChanged) this.indexZone(zone);
@@ -228,7 +257,9 @@ export class HeatZoneManager {
         id: zone.id ?? crypto.randomUUID(),
         intensity: zone.intensity,
         timestamp: zone.timestamp,
-        radius: this.deriveRadius(zone.polygon),
+        // Cached on add / geometry-change; only legacy or test-injected zones
+        // (no cached radius) fall back to recomputing the haversine here.
+        radius: zone.radius ?? this.deriveRadius(zone.polygon),
       },
       geometry: {
         type: "Polygon",
@@ -304,6 +335,19 @@ export class HeatZoneManager {
     const maxRow = Math.floor(bbox.maxLat / cellSize);
     const minCol = Math.floor(bbox.minLon / cellSize);
     const maxCol = Math.floor(bbox.maxLon / cellSize);
+
+    // Defense-in-depth: a pathological polygon (e.g. coordinates in the wrong
+    // projection that slipped past schema validation) can span tens of millions
+    // of cells, and the nested loop below would freeze the event loop for every
+    // client. Skip indexing such a zone rather than iterating it.
+    const cellCount = (maxRow - minRow + 1) * (maxCol - minCol + 1);
+    if (cellCount > SPATIAL_GRID.MAX_ZONE_CELLS) {
+      logger.warn(
+        `Heat zone ${zone.id ?? "(no id)"} spans ${cellCount} grid cells (> ${SPATIAL_GRID.MAX_ZONE_CELLS}); skipping spatial indexing. Check its coordinates are valid WGS84 [lng, lat].`
+      );
+      return;
+    }
+
     for (let row = minRow; row <= maxRow; row++) {
       for (let col = minCol; col <= maxCol; col++) {
         fn(`${row},${col}`);

@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import { DrawIcon, SeedIcon, TrashIcon } from "@/components/Icons";
 import { useHeatzoneEditorContext } from "@/data/HeatzoneEditorContext";
 
-/** A 36×42 dock icon button — matches PlaybackCluster's `.ibtn`. */
+/** A 36x42 dock icon button - matches PlaybackCluster's `.ibtn`. */
 function IconBtn({
   active,
   className,
@@ -31,7 +31,7 @@ function IconBtn({
 }
 
 /**
- * Dock "Zones" tool group — replaces the old flame generate-zones button.
+ * Dock "Zones" tool group - replaces the old flame generate-zones button.
  * Draw (lasso, toggles editor draw mode) · Seed random · Clear all. Reads the
  * shared heatzone editor from context so no props thread through the dock.
  */

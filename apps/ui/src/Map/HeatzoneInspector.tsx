@@ -23,7 +23,7 @@ export default function HeatzoneInspector() {
 
   if (!zone) return null;
   // Keyed on the zone id so the slider's local state re-initialises (fresh
-  // useState) whenever a different zone is selected — no sync effect needed.
+  // useState) whenever a different zone is selected - no sync effect needed.
   return <HeatzonePanel key={zone.properties.id} zone={zone} editor={editor} />;
 }
 

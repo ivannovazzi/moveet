@@ -1,8 +1,27 @@
 import { z } from "zod";
+import { HEAT_ZONE_DEFAULTS } from "../constants";
 
 // ─── Shared primitives ──────────────────────────────────────────────
 
 const coordinatePair = z.tuple([z.number(), z.number()]);
+
+/**
+ * A single GeoJSON position constrained to valid WGS84 ranges: longitude first
+ * (-180..180), latitude second (-90..90). Rejecting out-of-range coordinates
+ * (e.g. Web-Mercator metres, or swapped/garbage values) keeps a malicious or
+ * malformed polygon from producing a bounding box that spans millions of
+ * spatial-grid cells and freezes the event loop.
+ */
+const wgs84CoordinatePair = z.tuple([
+  z
+    .number()
+    .min(-180, "longitude must be between -180 and 180")
+    .max(180, "longitude must be between -180 and 180"),
+  z
+    .number()
+    .min(-90, "latitude must be between -90 and 90")
+    .max(90, "latitude must be between -90 and 90"),
+]);
 
 export const incidentTypeEnum = z.enum(["accident", "closure", "construction"], {
   message: "type must be one of: accident, closure, construction",
@@ -150,7 +169,7 @@ const heatzonePolygonSchema = z
   .object({
     type: z.literal("Polygon", { message: "geometry.type must be 'Polygon'" }),
     coordinates: z
-      .array(coordinatePair, {
+      .array(wgs84CoordinatePair, {
         message: "geometry.coordinates must be an array of [lng, lat] pairs",
       })
       .min(3, "polygon ring must have at least 3 positions"),
@@ -162,7 +181,11 @@ const heatzonePolygonSchema = z
 
 export const createHeatzoneSchema = z.object({
   geometry: heatzonePolygonSchema,
-  intensity: z.number().min(0).max(1, "intensity must be a number between 0 and 1").optional(),
+  intensity: z
+    .number()
+    .min(0)
+    .max(1, "intensity must be a number between 0 and 1")
+    .default(HEAT_ZONE_DEFAULTS.DEFAULT_INTENSITY),
 });
 
 export const updateHeatzoneSchema = z

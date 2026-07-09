@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import express from "express";
 import request from "supertest";
 import { createNetworkRoutes } from "../../routes/network";
+import { HeatZoneCapError } from "../../modules/HeatZoneManager";
+import { HEAT_ZONE_DEFAULTS } from "../../constants";
 import type { RouteContext } from "../../routes/types";
 
 // Mock logger to suppress output
@@ -156,12 +158,38 @@ describe("Network routes", () => {
       );
     });
 
-    it("defaults intensity to 0.6 when omitted", async () => {
+    it("defaults intensity to the server-side default when omitted", async () => {
       const res = await request(app).post("/heatzones").send({ geometry: validGeometry });
       expect(res.status).toBe(201);
       expect(ctx.network.addHeatZone).toHaveBeenCalledWith(
-        expect.objectContaining({ intensity: 0.6 })
+        expect.objectContaining({ intensity: HEAT_ZONE_DEFAULTS.DEFAULT_INTENSITY })
       );
+    });
+
+    it("rejects a coordinate outside WGS84 range (400) without indexing", async () => {
+      const res = await request(app)
+        .post("/heatzones")
+        .send({
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [4_000_000, -150_000],
+              [36.8, -1.3],
+              [36.9, -1.4],
+            ],
+          },
+        });
+      expect(res.status).toBe(400);
+      expect(ctx.network.addHeatZone).not.toHaveBeenCalled();
+    });
+
+    it("returns 409 when the total-zone cap is reached", async () => {
+      (ctx.network.addHeatZone as ReturnType<typeof vi.fn>).mockImplementation(() => {
+        throw new HeatZoneCapError(HEAT_ZONE_DEFAULTS.MAX_TOTAL);
+      });
+      const res = await request(app).post("/heatzones").send({ geometry: validGeometry });
+      expect(res.status).toBe(409);
+      expect(res.body.error).toMatch(/limit/i);
     });
 
     it("rejects a polygon with fewer than 3 distinct points (400)", async () => {
@@ -217,6 +245,23 @@ describe("Network routes", () => {
       (ctx.network.updateHeatZone as ReturnType<typeof vi.fn>).mockReturnValue(null);
       const res = await request(app).patch("/heatzones/missing").send({ intensity: 0.5 });
       expect(res.status).toBe(404);
+    });
+
+    it("rejects a coordinate outside WGS84 range (400) without updating", async () => {
+      const res = await request(app)
+        .patch("/heatzones/hz-1")
+        .send({
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [4_000_000, -150_000],
+              [36.8, -1.3],
+              [36.9, -1.4],
+            ],
+          },
+        });
+      expect(res.status).toBe(400);
+      expect(ctx.network.updateHeatZone).not.toHaveBeenCalled();
     });
 
     it("rejects an empty patch body (400)", async () => {

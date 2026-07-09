@@ -6,6 +6,7 @@ import {
   updateHeatzoneSchema,
   seedHeatzoneSchema,
 } from "../middleware/schemas";
+import { HeatZoneCapError } from "../modules/HeatZoneManager";
 
 /**
  * Routes for road network data: features, roads, POIs, and manual heat zones.
@@ -42,15 +43,25 @@ export function createNetworkRoutes(ctx: RouteContext): Router {
   });
 
   router.post("/heatzones", validateBody(createHeatzoneSchema), (req, res) => {
+    // The schema applies HEAT_ZONE_DEFAULTS.DEFAULT_INTENSITY, so `intensity` is
+    // always present here (single source of truth for the default).
     const { geometry, intensity } = req.body as {
       geometry: { type: "Polygon"; coordinates: [number, number][] };
-      intensity?: number;
+      intensity: number;
     };
-    const feature = network.addHeatZone({
-      polygon: geometry.coordinates,
-      intensity: intensity ?? 0.6,
-    });
-    res.status(201).json(feature);
+    try {
+      const feature = network.addHeatZone({
+        polygon: geometry.coordinates,
+        intensity,
+      });
+      res.status(201).json(feature);
+    } catch (err) {
+      if (err instanceof HeatZoneCapError) {
+        res.status(409).json({ error: err.message });
+        return;
+      }
+      throw err;
+    }
   });
 
   // Seed random zones (appends). Registered before the "/heatzones/:id"

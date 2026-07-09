@@ -29,7 +29,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe("useHeatzoneEditor — state machine", () => {
+describe("useHeatzoneEditor - state machine", () => {
   it("starts idle", () => {
     const { result } = renderHook(() => useHeatzoneEditor());
     expect(result.current.mode).toBe("idle");
@@ -73,7 +73,7 @@ describe("useHeatzoneEditor — state machine", () => {
   });
 });
 
-describe("useHeatzoneEditor — mutations", () => {
+describe("useHeatzoneEditor - mutations", () => {
   it("createFromLasso posts a closed ring with the default intensity", async () => {
     const { result } = renderHook(() => useHeatzoneEditor());
     await act(async () => {
@@ -136,6 +136,17 @@ describe("useHeatzoneEditor — mutations", () => {
     expect(result.current.selectedId).toBeNull();
   });
 
+  it("remove clears selection without an error toast on a clean (204) delete", async () => {
+    const { toast } = await import("@/lib/toast");
+    const { result } = renderHook(() => useHeatzoneEditor());
+    act(() => result.current.select("hz-1"));
+    await act(async () => {
+      await result.current.remove("hz-1");
+    });
+    expect(result.current.selectedId).toBeNull();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
   it("clearAll clears every zone and deselects", async () => {
     const { result } = renderHook(() => useHeatzoneEditor());
     act(() => result.current.select("hz-1"));
@@ -144,6 +155,16 @@ describe("useHeatzoneEditor — mutations", () => {
     });
     expect(client.clearHeatzones).toHaveBeenCalledTimes(1);
     expect(result.current.selectedId).toBeNull();
+  });
+
+  it("clearAll toasts success on a clean (204) delete", async () => {
+    const { toast } = await import("@/lib/toast");
+    const { result } = renderHook(() => useHeatzoneEditor());
+    await act(async () => {
+      await result.current.clearAll();
+    });
+    expect(toast.success).toHaveBeenCalledWith("Cleared all zones");
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("seed forwards the count", async () => {
@@ -181,7 +202,7 @@ describe("useHeatzoneEditor — mutations", () => {
   });
 });
 
-describe("useHeatzoneEditor — intensity debounce", () => {
+describe("useHeatzoneEditor - intensity debounce", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
@@ -198,5 +219,28 @@ describe("useHeatzoneEditor — intensity debounce", () => {
     });
     expect(client.updateHeatzone).toHaveBeenCalledTimes(1);
     expect(client.updateHeatzone).toHaveBeenCalledWith("hz-1", { intensity: 0.9 });
+  });
+
+  it("flushes the pending PATCH for zone A immediately when a different zone B is edited", () => {
+    const { result } = renderHook(() => useHeatzoneEditor());
+    act(() => {
+      result.current.setIntensity("hz-A", 0.3);
+    });
+    // Nothing sent yet - A is only armed on the debounce timer.
+    expect(client.updateHeatzone).not.toHaveBeenCalled();
+
+    act(() => {
+      result.current.setIntensity("hz-B", 0.8);
+    });
+    // Switching to B flushes A's pending change right away (no timer advance).
+    expect(client.updateHeatzone).toHaveBeenCalledTimes(1);
+    expect(client.updateHeatzone).toHaveBeenCalledWith("hz-A", { intensity: 0.3 });
+
+    // B still lands after its own debounce window.
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(client.updateHeatzone).toHaveBeenCalledTimes(2);
+    expect(client.updateHeatzone).toHaveBeenCalledWith("hz-B", { intensity: 0.8 });
   });
 });

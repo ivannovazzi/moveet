@@ -19,13 +19,13 @@ export interface HeatzonePolygon {
   coordinates: Position[];
 }
 
-/** Body for `POST /heatzones` — server assigns id/timestamp/radius. */
+/** Body for `POST /heatzones` - server assigns id/timestamp/radius. */
 export interface HeatzoneCreate {
   geometry: HeatzonePolygon;
   intensity?: number;
 }
 
-/** Body for `PATCH /heatzones/:id` — any subset of the mutable fields. */
+/** Body for `PATCH /heatzones/:id` - any subset of the mutable fields. */
 export interface HeatzoneUpdate {
   geometry?: HeatzonePolygon;
   intensity?: number;

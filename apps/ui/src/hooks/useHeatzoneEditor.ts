@@ -129,18 +129,31 @@ export function useHeatzoneEditor(): HeatzoneEditor {
     setDraftState((d) => (d && d.id === id ? null : d));
   }, []);
 
-  const setIntensity = useCallback((id: string, intensity: number) => {
-    pendingIntensity.current = { id, intensity };
+  // Send the pending intensity PATCH now (if any) and cancel its debounce timer.
+  const flushIntensity = useCallback(() => {
     clearTimeout(intensityTimer.current);
-    intensityTimer.current = setTimeout(() => {
-      const pending = pendingIntensity.current;
-      pendingIntensity.current = null;
-      if (!pending) return;
-      client.updateHeatzone(pending.id, { intensity: pending.intensity }).then((res) => {
-        if (res.error) toast.error(toErrorMessage(res.error, "Failed to update intensity"));
-      });
-    }, PATCH_DEBOUNCE_MS);
+    const pending = pendingIntensity.current;
+    pendingIntensity.current = null;
+    if (!pending) return;
+    client.updateHeatzone(pending.id, { intensity: pending.intensity }).then((res) => {
+      if (res.error) toast.error(toErrorMessage(res.error, "Failed to update intensity"));
+    });
   }, []);
+
+  const setIntensity = useCallback(
+    (id: string, intensity: number) => {
+      // Only one zone is edited at a time; if the pending change belongs to a
+      // different zone, flush it immediately so switching zones mid-debounce
+      // can't drop the first zone's edit (the shared slot/timer would otherwise
+      // overwrite it and it would snap back on the next WS broadcast).
+      const pending = pendingIntensity.current;
+      if (pending && pending.id !== id) flushIntensity();
+      pendingIntensity.current = { id, intensity };
+      clearTimeout(intensityTimer.current);
+      intensityTimer.current = setTimeout(flushIntensity, PATCH_DEBOUNCE_MS);
+    },
+    [flushIntensity]
+  );
 
   const remove = useCallback(async (id: string) => {
     const res = await client.deleteHeatzone(id);
@@ -175,15 +188,8 @@ export function useHeatzoneEditor(): HeatzoneEditor {
 
   // Flush any pending debounced intensity PATCH on unmount.
   useEffect(() => {
-    return () => {
-      clearTimeout(intensityTimer.current);
-      const pending = pendingIntensity.current;
-      if (pending) {
-        client.updateHeatzone(pending.id, { intensity: pending.intensity });
-        pendingIntensity.current = null;
-      }
-    };
-  }, []);
+    return () => flushIntensity();
+  }, [flushIntensity]);
 
   return useMemo(
     () => ({

@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { HeatZoneManager } from "../modules/HeatZoneManager";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { HeatZoneManager, HeatZoneCapError } from "../modules/HeatZoneManager";
+import { HEAT_ZONE_DEFAULTS } from "../constants";
 import type { Node, Edge } from "../types";
 
 /**
@@ -203,6 +204,81 @@ describe("HeatZoneManager — manual CRUD", () => {
 
       expect(manager.getZones()).toHaveLength(1);
       expect(manager.isPositionInHeatZone([10, 20])).toBe(true);
+    });
+  });
+
+  describe("total-zone cap (MAX_TOTAL)", () => {
+    function fillToCap(): void {
+      for (let i = 0; i < HEAT_ZONE_DEFAULTS.MAX_TOTAL; i++) {
+        manager.addZone({ polygon: makeSquarePolygon(i * 0.1, 20, 0.001), intensity: 0.5 });
+      }
+    }
+
+    it("addZone throws a typed cap error once at the cap", () => {
+      fillToCap();
+      expect(manager.getZones()).toHaveLength(HEAT_ZONE_DEFAULTS.MAX_TOTAL);
+      expect(() =>
+        manager.addZone({ polygon: makeSquarePolygon(500, 20, 0.001), intensity: 0.5 })
+      ).toThrow(HeatZoneCapError);
+      // Rejected add must not have grown the list.
+      expect(manager.getZones()).toHaveLength(HEAT_ZONE_DEFAULTS.MAX_TOTAL);
+    });
+
+    it("addZone still works below the cap", () => {
+      manager.addZone({ polygon: makeSquarePolygon(10, 20, 0.001), intensity: 0.5 });
+      expect(manager.getZones()).toHaveLength(1);
+    });
+
+    it("generateHeatedZones/seed tops out at MAX_TOTAL and never grows past it", () => {
+      const { nodes, edges } = makeMockNetwork();
+      manager.generateHeatedZones(edges, nodes, { count: HEAT_ZONE_DEFAULTS.MAX_TOTAL + 50 });
+      expect(manager.getZones().length).toBe(HEAT_ZONE_DEFAULTS.MAX_TOTAL);
+
+      // Seeding again once at the cap appends nothing (no error).
+      manager.generateHeatedZones(edges, nodes, { count: 50 });
+      expect(manager.getZones().length).toBe(HEAT_ZONE_DEFAULTS.MAX_TOTAL);
+    });
+  });
+
+  describe("radius caching", () => {
+    it("caches radius on add and does not recompute it on a plain export", () => {
+      const spy = vi.spyOn(manager as unknown as { deriveRadius: () => number }, "deriveRadius");
+      const feature = manager.addZone({
+        polygon: makeSquarePolygon(10, 20, 0.01),
+        intensity: 0.5,
+      });
+      expect(feature.properties.radius).toBeGreaterThan(0);
+
+      spy.mockClear();
+      const exported = manager.exportHeatedZonesAsFeatures();
+      expect(exported[0].properties.radius).toBe(feature.properties.radius);
+      expect(spy).not.toHaveBeenCalled();
+      spy.mockRestore();
+    });
+
+    it("recomputes the cached radius when geometry changes on update", () => {
+      const feature = manager.addZone({
+        polygon: makeSquarePolygon(10, 20, 0.01),
+        intensity: 0.5,
+      });
+      const smallRadius = feature.properties.radius;
+
+      const updated = manager.updateZone(feature.properties.id, {
+        polygon: makeSquarePolygon(10, 20, 0.05),
+      });
+      expect(updated?.properties.radius).toBeGreaterThan(smallRadius);
+      expect(manager.exportHeatedZonesAsFeatures()[0].properties.radius).toBe(
+        updated?.properties.radius
+      );
+    });
+
+    it("leaves the radius unchanged when only intensity is updated", () => {
+      const feature = manager.addZone({
+        polygon: makeSquarePolygon(10, 20, 0.01),
+        intensity: 0.5,
+      });
+      const updated = manager.updateZone(feature.properties.id, { intensity: 0.9 });
+      expect(updated?.properties.radius).toBe(feature.properties.radius);
     });
   });
 });

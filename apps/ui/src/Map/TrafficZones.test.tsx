@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, act } from "@testing-library/react";
 import type { Heatzone, Position } from "@/types";
 import type { HeatzoneEditor } from "@/hooks/useHeatzoneEditor";
@@ -155,6 +155,58 @@ describe("Heatzones lasso draw", () => {
     // collected geo points = pixel/100
     expect(path.length).toBeGreaterThanOrEqual(3);
     expect(path[0]).toEqual([0.1, 0.1]);
+  });
+});
+
+describe("Heatzones suppressNextClick", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  function armViaDraw() {
+    editor = makeEditor({ mode: "draw", isDrawing: true });
+    render(<Heatzones visible />);
+    // A draw gesture arms the click suppressor on mouseup.
+    act(() => {
+      down(10, 10);
+      up(10, 10);
+    });
+  }
+
+  function clickPrevented(): boolean {
+    const ev = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 });
+    act(() => {
+      window.dispatchEvent(ev);
+    });
+    return ev.defaultPrevented;
+  }
+
+  it("swallows a click on the same tick exactly once", () => {
+    armViaDraw();
+    expect(clickPrevented()).toBe(true); // the drag's synthetic click is eaten
+    expect(clickPrevented()).toBe(false); // a subsequent click passes through
+  });
+
+  it("does not swallow a click on a later tick (suppressor auto-expires)", () => {
+    armViaDraw();
+    act(() => {
+      vi.runAllTimers(); // no click arrived; the suppressor expires next tick
+    });
+    expect(clickPrevented()).toBe(false);
+  });
+
+  it("does not leak listeners when armed repeatedly", () => {
+    armViaDraw();
+    // Arm a second time before any click consumes the first suppressor.
+    act(() => {
+      down(12, 12);
+      up(12, 12);
+    });
+    expect(clickPrevented()).toBe(true); // only one suppressor is active
+    expect(clickPrevented()).toBe(false);
+    act(() => {
+      vi.runAllTimers();
+    });
+    expect(clickPrevented()).toBe(false); // nothing lingering
   });
 });
 

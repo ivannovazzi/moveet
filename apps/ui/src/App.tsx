@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import client from "./utils/client";
 import Dock from "./Dock/Dock";
 import Inspector from "./Inspector/Inspector";
@@ -11,6 +11,7 @@ import Zoom from "./Zoom/";
 import CreateZoneDialog from "./Map/Geofence/CreateZoneDialog";
 import HeatzoneInspector from "./Map/HeatzoneInspector";
 import { useHeatzoneEditorContext } from "./data/HeatzoneEditorContext";
+import { useHeatzoneAutoReveal } from "./hooks/useHeatzoneAutoReveal";
 import type { Fleet, Modifiers } from "./types";
 import type { BoundingBox } from "@moveet/shared-types";
 import type { POI } from "./types";
@@ -90,24 +91,11 @@ export default function App() {
   const geofences = useGeofenceManager();
 
   // ─── Manual heat zones ──────────────────────────────────────────
-  // Drawing or selecting a zone implies the zone layer must be visible, so
-  // force the `showHeatzones` toggle on whenever the editor leaves idle.
+  // Reveal the zone layer when the user starts drawing/selecting or seeds
+  // zones, but only on those transitions so the user can still toggle it back
+  // off while a zone stays selected. See useHeatzoneAutoReveal.
   const heatzoneEditor = useHeatzoneEditorContext();
-  useEffect(() => {
-    if (heatzoneEditor.mode !== "idle" && !modifiers.showHeatzones) {
-      setModifiers((prev) => ({ ...prev, showHeatzones: true }));
-    }
-  }, [heatzoneEditor.mode, modifiers.showHeatzones, setModifiers]);
-  // Seeding from idle would otherwise create zones the user can't see. Flip the
-  // layer on once per seed (the nonce is the one-shot signal), leaving the
-  // toggle free to hide them again afterward.
-  const seededOnce = useRef(0);
-  useEffect(() => {
-    if (heatzoneEditor.seedNonce > seededOnce.current) {
-      seededOnce.current = heatzoneEditor.seedNonce;
-      setModifiers((prev) => (prev.showHeatzones ? prev : { ...prev, showHeatzones: true }));
-    }
-  }, [heatzoneEditor.seedNonce, setModifiers]);
+  useHeatzoneAutoReveal(heatzoneEditor.mode, heatzoneEditor.seedNonce, setModifiers);
 
   // ─── Map / context-menu interactions ────────────────────────────
   const {
@@ -142,7 +130,7 @@ export default function App() {
     [onHoverVehicle, onUnhoverVehicle]
   );
 
-  // Escape-to-deselect defers entirely to dispatch mode / geofence drawing —
+  // Escape-to-deselect defers entirely to dispatch mode / geofence drawing -
   // both already own Escape via their own window-level shortcut handlers
   // (useDispatchShortcuts, GeofenceDrawTool), which fire independently of
   // this one; without this guard a single Escape press while the map has

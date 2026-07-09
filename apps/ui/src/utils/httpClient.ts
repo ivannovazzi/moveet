@@ -19,7 +19,11 @@ export class HttpClient {
     try {
       const res = await fetch(`${this.baseUrl}${path}`, { method: "DELETE" });
       if (!res.ok) throw new Error(`DELETE ${path} failed with status ${res.status}`);
-      const data = await res.json();
+      // DELETE endpoints commonly reply 204 with no body; only parse JSON when
+      // there is actually a body, so an empty response resolves cleanly instead
+      // of throwing "Unexpected end of JSON input".
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : undefined;
       return { data };
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);

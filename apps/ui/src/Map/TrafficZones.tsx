@@ -13,7 +13,7 @@ const FADE_DURATION_MS = 500;
 
 const VERTEX_HIT_PX = 10;
 const DRAG_THRESHOLD_PX = 3;
-/** Pixel-space Douglas–Peucker tolerance — keeps ~8–40 vertices for a normal lasso. */
+/** Pixel-space Douglas-Peucker tolerance - keeps ~8-40 vertices for a normal lasso. */
 const DRAW_SIMPLIFY_PX = 4;
 
 const DENSITY_LINE_RGBA = resolveMapColor("var(--color-overlay-density)", 153);
@@ -59,7 +59,7 @@ function openRing(ring: Position[]): Position[] {
  * Manual-heatzone layer: renders committed zones (intensity → fill alpha),
  * highlights the selected one, and hosts the lasso-draw / reshape / move
  * interactions. Interaction is done with native pointer handlers that intercept
- * mousedown in the capture phase to suppress deck.gl's pan — the same approach
+ * mousedown in the capture phase to suppress deck.gl's pan - the same approach
  * as `GeofenceDrawTool` / `PendingDispatch` (deck.gl 9 has no editable-layers).
  */
 export default function Heatzones({ visible }: { visible: boolean }) {
@@ -154,12 +154,28 @@ export default function Heatzones({ visible }: { visible: boolean }) {
     let dragCoords: Position[] = [];
     let moved = false;
 
+    // Swallow the one synthetic click a drag/draw gesture emits on release.
+    // Guard against a gesture that produces no click (pointer released outside
+    // the window, or a moved-drag whose click the browser drops): the listener
+    // auto-expires on the next tick so it can't linger and eat the user's next
+    // unrelated click. Re-arming clears any still-pending suppressor first, so
+    // repeated gestures never stack listeners or timers.
+    let suppressTimer: ReturnType<typeof setTimeout> | undefined;
+    let removeSuppressor: (() => void) | null = null;
     const suppressNextClick = () => {
+      removeSuppressor?.();
       const suppress = (ev: Event) => {
         ev.stopPropagation();
         ev.preventDefault();
+        removeSuppressor?.();
       };
-      window.addEventListener("click", suppress, { capture: true, once: true });
+      removeSuppressor = () => {
+        clearTimeout(suppressTimer);
+        window.removeEventListener("click", suppress, true);
+        removeSuppressor = null;
+      };
+      window.addEventListener("click", suppress, true);
+      suppressTimer = setTimeout(() => removeSuppressor?.(), 0);
     };
 
     const handleWindowMouseMove = (e: MouseEvent) => {
@@ -297,6 +313,7 @@ export default function Heatzones({ visible }: { visible: boolean }) {
       mapHTMLElement.removeEventListener("click", handleClick);
       window.removeEventListener("mousemove", handleWindowMouseMove, true);
       window.removeEventListener("mouseup", handleWindowMouseUp, true);
+      removeSuppressor?.();
     };
   }, [mapHTMLElement]);
 
