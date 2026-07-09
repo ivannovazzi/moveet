@@ -204,7 +204,10 @@ describe("removeSink", () => {
 
 describe("setRealism", () => {
   it("posts to /config/realism with config body", async () => {
-    const realismResponse = { ok: true, realism: { config: {}, schema: [], status: {} } };
+    const realismResponse = {
+      ok: true,
+      realism: { config: {}, schema: [], status: {} },
+    };
     vi.mocked(fetch).mockResolvedValue(jsonResponse(realismResponse));
 
     const result = await setRealism({ enabled: true });

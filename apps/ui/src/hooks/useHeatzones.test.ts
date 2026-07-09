@@ -48,10 +48,20 @@ describe("useHeatzones", () => {
 
   it("fetches heatzones on mount and updates state", async () => {
     const hz1 = createHeatzone({
-      properties: { id: "hz-1", intensity: 0.8, timestamp: "2026-01-01T00:00:00Z", radius: 300 },
+      properties: {
+        id: "hz-1",
+        intensity: 0.8,
+        timestamp: "2026-01-01T00:00:00Z",
+        radius: 300,
+      },
     });
     const hz2 = createHeatzone({
-      properties: { id: "hz-2", intensity: 0.3, timestamp: "2026-01-02T00:00:00Z", radius: 700 },
+      properties: {
+        id: "hz-2",
+        intensity: 0.3,
+        timestamp: "2026-01-02T00:00:00Z",
+        radius: 700,
+      },
     });
 
     vi.mocked(client.getHeatzones).mockResolvedValue({ data: [hz1, hz2] });

@@ -28,7 +28,10 @@ export function setupWebSocket(server: Server): WebSocketSetupResult {
     pingIntervalMs: DEFAULT_PING_INTERVAL_MS,
     pongTimeoutMs: DEFAULT_PONG_TIMEOUT_MS,
   });
-  const broadcaster = new WebSocketBroadcaster(wss, { flushIntervalMs: 100, transport });
+  const broadcaster = new WebSocketBroadcaster(wss, {
+    flushIntervalMs: 100,
+    transport,
+  });
   broadcaster.start();
 
   wss.on("connection", (ws) => {
@@ -38,7 +41,10 @@ export function setupWebSocket(server: Server): WebSocketSetupResult {
 
     ws.on("message", (data) => {
       try {
-        const msg = JSON.parse(data.toString()) as { type?: string; filter?: unknown };
+        const msg = JSON.parse(data.toString()) as {
+          type?: string;
+          filter?: unknown;
+        };
         if (msg.type === "subscribe") {
           // Validate the untrusted inbound filter before it reaches the
           // broadcaster. A null/absent filter clears filtering; a malformed

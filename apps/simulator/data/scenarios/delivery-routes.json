@@ -24,10 +24,30 @@
         "type": "dispatch",
         "vehicleId": "scenario-0",
         "waypoints": [
-          { "lat": -1.2773, "lng": 36.825, "dwellTime": 45, "label": "Ngara Depot" },
-          { "lat": -1.2921, "lng": 36.8219, "dwellTime": 30, "label": "CBD Drop 1" },
-          { "lat": -1.2979, "lng": 36.8138, "dwellTime": 30, "label": "Upper Hill Drop 2" },
-          { "lat": -1.2635, "lng": 36.8029, "dwellTime": 45, "label": "Westlands Drop 3" }
+          {
+            "lat": -1.2773,
+            "lng": 36.825,
+            "dwellTime": 45,
+            "label": "Ngara Depot"
+          },
+          {
+            "lat": -1.2921,
+            "lng": 36.8219,
+            "dwellTime": 30,
+            "label": "CBD Drop 1"
+          },
+          {
+            "lat": -1.2979,
+            "lng": 36.8138,
+            "dwellTime": 30,
+            "label": "Upper Hill Drop 2"
+          },
+          {
+            "lat": -1.2635,
+            "lng": 36.8029,
+            "dwellTime": 45,
+            "label": "Westlands Drop 3"
+          }
         ]
       }
     },
@@ -37,9 +57,24 @@
         "type": "dispatch",
         "vehicleId": "scenario-1",
         "waypoints": [
-          { "lat": -1.3015, "lng": 36.8484, "dwellTime": 60, "label": "Industrial Area Pickup" },
-          { "lat": -1.2921, "lng": 36.8219, "dwellTime": 30, "label": "CBD Delivery" },
-          { "lat": -1.2773, "lng": 36.825, "dwellTime": 30, "label": "Ngara Delivery" }
+          {
+            "lat": -1.3015,
+            "lng": 36.8484,
+            "dwellTime": 60,
+            "label": "Industrial Area Pickup"
+          },
+          {
+            "lat": -1.2921,
+            "lng": 36.8219,
+            "dwellTime": 30,
+            "label": "CBD Delivery"
+          },
+          {
+            "lat": -1.2773,
+            "lng": 36.825,
+            "dwellTime": 30,
+            "label": "Ngara Delivery"
+          }
         ]
       }
     },
@@ -49,10 +84,30 @@
         "type": "dispatch",
         "vehicleId": "scenario-2",
         "waypoints": [
-          { "lat": -1.2635, "lng": 36.8029, "dwellTime": 45, "label": "Westlands Pickup" },
-          { "lat": -1.2773, "lng": 36.825, "dwellTime": 30, "label": "Ngara Stop" },
-          { "lat": -1.3015, "lng": 36.8484, "dwellTime": 45, "label": "Industrial Delivery" },
-          { "lat": -1.2921, "lng": 36.8219, "dwellTime": 30, "label": "CBD Return" }
+          {
+            "lat": -1.2635,
+            "lng": 36.8029,
+            "dwellTime": 45,
+            "label": "Westlands Pickup"
+          },
+          {
+            "lat": -1.2773,
+            "lng": 36.825,
+            "dwellTime": 30,
+            "label": "Ngara Stop"
+          },
+          {
+            "lat": -1.3015,
+            "lng": 36.8484,
+            "dwellTime": 45,
+            "label": "Industrial Delivery"
+          },
+          {
+            "lat": -1.2921,
+            "lng": 36.8219,
+            "dwellTime": 30,
+            "label": "CBD Return"
+          }
         ]
       }
     },
@@ -62,9 +117,24 @@
         "type": "dispatch",
         "vehicleId": "scenario-3",
         "waypoints": [
-          { "lat": -1.2921, "lng": 36.8219, "dwellTime": 30, "label": "CBD Start" },
-          { "lat": -1.2979, "lng": 36.8138, "dwellTime": 45, "label": "Upper Hill Stop" },
-          { "lat": -1.3235, "lng": 36.7142, "dwellTime": 60, "label": "Karen Delivery" }
+          {
+            "lat": -1.2921,
+            "lng": 36.8219,
+            "dwellTime": 30,
+            "label": "CBD Start"
+          },
+          {
+            "lat": -1.2979,
+            "lng": 36.8138,
+            "dwellTime": 45,
+            "label": "Upper Hill Stop"
+          },
+          {
+            "lat": -1.3235,
+            "lng": 36.7142,
+            "dwellTime": 60,
+            "label": "Karen Delivery"
+          }
         ]
       }
     },
@@ -74,11 +144,36 @@
         "type": "dispatch",
         "vehicleId": "scenario-4",
         "waypoints": [
-          { "lat": -1.2773, "lng": 36.825, "dwellTime": 30, "label": "Ngara Hub" },
-          { "lat": -1.2635, "lng": 36.8029, "dwellTime": 45, "label": "Westlands Drop" },
-          { "lat": -1.2921, "lng": 36.8219, "dwellTime": 30, "label": "CBD Drop" },
-          { "lat": -1.3015, "lng": 36.8484, "dwellTime": 45, "label": "Industrial Drop" },
-          { "lat": -1.2773, "lng": 36.825, "dwellTime": 30, "label": "Ngara Return" }
+          {
+            "lat": -1.2773,
+            "lng": 36.825,
+            "dwellTime": 30,
+            "label": "Ngara Hub"
+          },
+          {
+            "lat": -1.2635,
+            "lng": 36.8029,
+            "dwellTime": 45,
+            "label": "Westlands Drop"
+          },
+          {
+            "lat": -1.2921,
+            "lng": 36.8219,
+            "dwellTime": 30,
+            "label": "CBD Drop"
+          },
+          {
+            "lat": -1.3015,
+            "lng": 36.8484,
+            "dwellTime": 45,
+            "label": "Industrial Drop"
+          },
+          {
+            "lat": -1.2773,
+            "lng": 36.825,
+            "dwellTime": 30,
+            "label": "Ngara Return"
+          }
         ]
       }
     },
@@ -88,9 +183,24 @@
         "type": "dispatch",
         "vehicleId": "scenario-5",
         "waypoints": [
-          { "lat": -1.3015, "lng": 36.8484, "dwellTime": 45, "label": "Industrial Pickup" },
-          { "lat": -1.3235, "lng": 36.8882, "dwellTime": 60, "label": "Embakasi Delivery" },
-          { "lat": -1.2921, "lng": 36.8219, "dwellTime": 30, "label": "CBD Return" }
+          {
+            "lat": -1.3015,
+            "lng": 36.8484,
+            "dwellTime": 45,
+            "label": "Industrial Pickup"
+          },
+          {
+            "lat": -1.3235,
+            "lng": 36.8882,
+            "dwellTime": 60,
+            "label": "Embakasi Delivery"
+          },
+          {
+            "lat": -1.2921,
+            "lng": 36.8219,
+            "dwellTime": 30,
+            "label": "CBD Return"
+          }
         ]
       }
     },
@@ -100,10 +210,25 @@
         "type": "dispatch",
         "vehicleId": "scenario-6",
         "waypoints": [
-          { "lat": -1.2635, "lng": 36.8029, "dwellTime": 30, "label": "Westlands Start" },
-          { "lat": -1.2979, "lng": 36.8138, "dwellTime": 45, "label": "Upper Hill" },
+          {
+            "lat": -1.2635,
+            "lng": 36.8029,
+            "dwellTime": 30,
+            "label": "Westlands Start"
+          },
+          {
+            "lat": -1.2979,
+            "lng": 36.8138,
+            "dwellTime": 45,
+            "label": "Upper Hill"
+          },
           { "lat": -1.2921, "lng": 36.8219, "dwellTime": 30, "label": "CBD" },
-          { "lat": -1.2773, "lng": 36.825, "dwellTime": 45, "label": "Ngara Final" }
+          {
+            "lat": -1.2773,
+            "lng": 36.825,
+            "dwellTime": 45,
+            "label": "Ngara Final"
+          }
         ]
       }
     },
@@ -113,10 +238,30 @@
         "type": "dispatch",
         "vehicleId": "scenario-7",
         "waypoints": [
-          { "lat": -1.2921, "lng": 36.8219, "dwellTime": 45, "label": "CBD Pickup" },
-          { "lat": -1.3235, "lng": 36.7142, "dwellTime": 60, "label": "Karen Drop" },
-          { "lat": -1.2979, "lng": 36.8138, "dwellTime": 30, "label": "Upper Hill Drop" },
-          { "lat": -1.2635, "lng": 36.8029, "dwellTime": 30, "label": "Westlands Final" }
+          {
+            "lat": -1.2921,
+            "lng": 36.8219,
+            "dwellTime": 45,
+            "label": "CBD Pickup"
+          },
+          {
+            "lat": -1.3235,
+            "lng": 36.7142,
+            "dwellTime": 60,
+            "label": "Karen Drop"
+          },
+          {
+            "lat": -1.2979,
+            "lng": 36.8138,
+            "dwellTime": 30,
+            "label": "Upper Hill Drop"
+          },
+          {
+            "lat": -1.2635,
+            "lng": 36.8029,
+            "dwellTime": 30,
+            "label": "Westlands Final"
+          }
         ]
       }
     },
@@ -126,9 +271,24 @@
         "type": "dispatch",
         "vehicleId": "scenario-8",
         "waypoints": [
-          { "lat": -1.2773, "lng": 36.825, "dwellTime": 30, "label": "Ngara Start" },
-          { "lat": -1.3015, "lng": 36.8484, "dwellTime": 45, "label": "Industrial Area" },
-          { "lat": -1.3235, "lng": 36.8882, "dwellTime": 60, "label": "Embakasi" }
+          {
+            "lat": -1.2773,
+            "lng": 36.825,
+            "dwellTime": 30,
+            "label": "Ngara Start"
+          },
+          {
+            "lat": -1.3015,
+            "lng": 36.8484,
+            "dwellTime": 45,
+            "label": "Industrial Area"
+          },
+          {
+            "lat": -1.3235,
+            "lng": 36.8882,
+            "dwellTime": 60,
+            "label": "Embakasi"
+          }
         ]
       }
     },
@@ -138,11 +298,36 @@
         "type": "dispatch",
         "vehicleId": "scenario-9",
         "waypoints": [
-          { "lat": -1.2979, "lng": 36.8138, "dwellTime": 45, "label": "Upper Hill Pickup" },
-          { "lat": -1.2921, "lng": 36.8219, "dwellTime": 30, "label": "CBD Delivery" },
-          { "lat": -1.2635, "lng": 36.8029, "dwellTime": 45, "label": "Westlands Delivery" },
-          { "lat": -1.2773, "lng": 36.825, "dwellTime": 30, "label": "Ngara Delivery" },
-          { "lat": -1.3015, "lng": 36.8484, "dwellTime": 45, "label": "Industrial Final" }
+          {
+            "lat": -1.2979,
+            "lng": 36.8138,
+            "dwellTime": 45,
+            "label": "Upper Hill Pickup"
+          },
+          {
+            "lat": -1.2921,
+            "lng": 36.8219,
+            "dwellTime": 30,
+            "label": "CBD Delivery"
+          },
+          {
+            "lat": -1.2635,
+            "lng": 36.8029,
+            "dwellTime": 45,
+            "label": "Westlands Delivery"
+          },
+          {
+            "lat": -1.2773,
+            "lng": 36.825,
+            "dwellTime": 30,
+            "label": "Ngara Delivery"
+          },
+          {
+            "lat": -1.3015,
+            "lng": 36.8484,
+            "dwellTime": 45,
+            "label": "Industrial Final"
+          }
         ]
       }
     },

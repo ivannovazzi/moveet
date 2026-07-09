@@ -13,11 +13,7 @@
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "test:ci": "vitest run --coverage",
-    "test:watch": "vitest watch",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
-    "format": "prettier --write \"src/**/*.{ts,js,json,md}\"",
-    "format:check": "prettier --check \"src/**/*.{ts,js,json,md}\""
+    "test:watch": "vitest watch"
   },
   "dependencies": {
     "commander": "^15.0.0",
@@ -25,11 +21,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@moveet/eslint-config": "*",
     "@types/node": "^26.0.1",
     "@vitest/coverage-v8": "^4.1.9",
-    "eslint": "^10.6.0",
-    "prettier": "^3.9.4",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vitest": "^4.1.9"

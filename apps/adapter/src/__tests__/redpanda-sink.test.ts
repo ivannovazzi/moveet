@@ -175,7 +175,11 @@ describe("RedpandaSink", () => {
 
   it("sends all messages in a single call when under batchSize", async () => {
     const sink = new RedpandaSink();
-    await sink.connect({ brokers: "localhost:9092", topic: "test-topic", batchSize: 500 });
+    await sink.connect({
+      brokers: "localhost:9092",
+      topic: "test-topic",
+      batchSize: 500,
+    });
 
     const updates = Array.from({ length: 100 }, (_, i) => ({
       id: `v${i}`,
@@ -198,7 +202,11 @@ describe("RedpandaSink", () => {
 
   it("chunks messages into batches when exceeding batchSize", async () => {
     const sink = new RedpandaSink();
-    await sink.connect({ brokers: "localhost:9092", topic: "test-topic", batchSize: 500 });
+    await sink.connect({
+      brokers: "localhost:9092",
+      topic: "test-topic",
+      batchSize: 500,
+    });
 
     const updates = Array.from({ length: 1200 }, (_, i) => ({
       id: `v${i}`,
@@ -222,7 +230,11 @@ describe("RedpandaSink", () => {
   describe("partial failure handling (chunked publishing)", () => {
     it("returns success result when all chunks succeed", async () => {
       const sink = new RedpandaSink();
-      await sink.connect({ brokers: "localhost:9092", topic: "test-topic", batchSize: 500 });
+      await sink.connect({
+        brokers: "localhost:9092",
+        topic: "test-topic",
+        batchSize: 500,
+      });
 
       const updates = Array.from({ length: 1200 }, (_, i) => ({
         id: `v${i}`,
@@ -250,7 +262,11 @@ describe("RedpandaSink", () => {
         .mockResolvedValueOnce(undefined); // chunk 2
 
       const sink = new RedpandaSink();
-      await sink.connect({ brokers: "localhost:9092", topic: "test-topic", batchSize: 500 });
+      await sink.connect({
+        brokers: "localhost:9092",
+        topic: "test-topic",
+        batchSize: 500,
+      });
 
       const updates = Array.from({ length: 1200 }, (_, i) => ({
         id: `v${i}`,
@@ -277,7 +293,11 @@ describe("RedpandaSink", () => {
         .mockRejectedValueOnce(new Error("broker down"));
 
       const sink = new RedpandaSink();
-      await sink.connect({ brokers: "localhost:9092", topic: "test-topic", batchSize: 500 });
+      await sink.connect({
+        brokers: "localhost:9092",
+        topic: "test-topic",
+        batchSize: 500,
+      });
 
       const updates = Array.from({ length: 1200 }, (_, i) => ({
         id: `v${i}`,
@@ -294,7 +314,11 @@ describe("RedpandaSink", () => {
 
     it("does not use chunked path for messages under batchSize (no partial failure)", async () => {
       const sink = new RedpandaSink();
-      await sink.connect({ brokers: "localhost:9092", topic: "test-topic", batchSize: 500 });
+      await sink.connect({
+        brokers: "localhost:9092",
+        topic: "test-topic",
+        batchSize: 500,
+      });
 
       const updates = Array.from({ length: 100 }, (_, i) => ({
         id: `v${i}`,

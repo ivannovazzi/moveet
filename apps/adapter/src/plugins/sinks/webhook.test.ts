@@ -74,7 +74,9 @@ describe("WebhookSink publishUpdates timeout", () => {
       "http://example.com/hook",
       expect.objectContaining({
         method: "POST",
-        headers: expect.objectContaining({ "Content-Type": "application/json" }),
+        headers: expect.objectContaining({
+          "Content-Type": "application/json",
+        }),
         body: expect.stringContaining("v1"),
       })
     );

@@ -73,7 +73,10 @@ export const scenarioEventSchema = z
       if (event.action.type !== "create_incident") return true;
       return event.action.edgeIds !== undefined || event.action.position !== undefined;
     },
-    { message: "At least one of 'edgeIds' or 'position' must be provided", path: ["action"] }
+    {
+      message: "At least one of 'edgeIds' or 'position' must be provided",
+      path: ["action"],
+    }
   );
 
 // ─── Scenario metadata ──────────────────────────────────────────────

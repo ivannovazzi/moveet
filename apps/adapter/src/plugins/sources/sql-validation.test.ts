@@ -36,19 +36,27 @@ describe("validateSqlQuery", () => {
     });
 
     it("SELECT with leading whitespace", () => {
-      expect(validateSqlQuery("   SELECT id FROM vehicles")).toEqual({ valid: true });
+      expect(validateSqlQuery("   SELECT id FROM vehicles")).toEqual({
+        valid: true,
+      });
     });
 
     it("lowercase select", () => {
-      expect(validateSqlQuery("select id, name from vehicles")).toEqual({ valid: true });
+      expect(validateSqlQuery("select id, name from vehicles")).toEqual({
+        valid: true,
+      });
     });
 
     it("mixed case SeLeCt", () => {
-      expect(validateSqlQuery("SeLeCt id, name FROM vehicles")).toEqual({ valid: true });
+      expect(validateSqlQuery("SeLeCt id, name FROM vehicles")).toEqual({
+        valid: true,
+      });
     });
 
     it("SELECT with trailing semicolon only", () => {
-      expect(validateSqlQuery("SELECT id FROM vehicles;")).toEqual({ valid: true });
+      expect(validateSqlQuery("SELECT id FROM vehicles;")).toEqual({
+        valid: true,
+      });
     });
 
     it("SELECT with GROUP BY and HAVING", () => {
@@ -60,7 +68,9 @@ describe("validateSqlQuery", () => {
     });
 
     it("SELECT with DISTINCT", () => {
-      expect(validateSqlQuery("SELECT DISTINCT name FROM vehicles")).toEqual({ valid: true });
+      expect(validateSqlQuery("SELECT DISTINCT name FROM vehicles")).toEqual({
+        valid: true,
+      });
     });
 
     it("column names containing keyword substrings (updated_at, created_by)", () => {

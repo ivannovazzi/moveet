@@ -58,7 +58,14 @@ describe("RestSource", () => {
       new Response(
         JSON.stringify({
           data: {
-            fleet: [{ vehicle_id: "a1", label: "Truck A", latitude: -1.3, longitude: 36.8 }],
+            fleet: [
+              {
+                vehicle_id: "a1",
+                label: "Truck A",
+                latitude: -1.3,
+                longitude: 36.8,
+              },
+            ],
           },
         }),
         { status: 200 }
@@ -69,7 +76,12 @@ describe("RestSource", () => {
     await source.connect({
       url: "https://api.example.com",
       vehiclePath: "data.fleet",
-      fieldMap: { id: "vehicle_id", name: "label", lat: "latitude", lng: "longitude" },
+      fieldMap: {
+        id: "vehicle_id",
+        name: "label",
+        lat: "latitude",
+        lng: "longitude",
+      },
     });
     const vehicles = await source.getVehicles();
 

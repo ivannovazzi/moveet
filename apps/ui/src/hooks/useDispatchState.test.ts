@@ -48,7 +48,11 @@ describe("deriveDispatchState", () => {
           dispatchMode: true,
           selectedForDispatch: ["v1"],
           assignments: [
-            { vehicleId: "v1", vehicleName: "Truck", waypoints: [{ position: [-1.29, 36.82] }] },
+            {
+              vehicleId: "v1",
+              vehicleName: "Truck",
+              waypoints: [{ position: [-1.29, 36.82] }],
+            },
           ],
           dispatching: true,
           results: [{ vehicleId: "v1", status: "ok" }],
@@ -76,7 +80,11 @@ describe("deriveDispatchState", () => {
           dispatchMode: false,
           selectedForDispatch: ["v1"],
           assignments: [
-            { vehicleId: "v1", vehicleName: "Truck", waypoints: [{ position: [-1.29, 36.82] }] },
+            {
+              vehicleId: "v1",
+              vehicleName: "Truck",
+              waypoints: [{ position: [-1.29, 36.82] }],
+            },
           ],
           dispatching: true,
           results: [{ vehicleId: "v1", status: "ok" }],

@@ -163,7 +163,7 @@ const IDLE_ICON_ALPHA = 166; // 0.65 * 255
 const MOVING_ICON_ALPHA = 255;
 
 function iconSizeForZoom(zoom: number): number {
-  const size = BASE_SIZE_PX * Math.pow(2, (zoom - REFERENCE_ZOOM) * SIZE_ZOOM_EXPONENT);
+  const size = BASE_SIZE_PX * 2 ** ((zoom - REFERENCE_ZOOM) * SIZE_ZOOM_EXPONENT);
   return Math.min(Math.max(size, MIN_SIZE_PX), MAX_SIZE_PX);
 }
 

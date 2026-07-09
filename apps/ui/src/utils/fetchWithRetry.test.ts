@@ -63,7 +63,10 @@ describe("fetchUntil", () => {
     const controller = new AbortController();
     const fn = vi.fn().mockResolvedValue(null);
 
-    const promise = fetchUntil(fn, { signal: controller.signal, maxRetries: 6 });
+    const promise = fetchUntil(fn, {
+      signal: controller.signal,
+      maxRetries: 6,
+    });
     // Let first attempt run and enter delay
     await vi.advanceTimersByTimeAsync(0);
     controller.abort();

@@ -250,7 +250,9 @@ describe("useFleets", () => {
 
 describe("useFleets error handling", () => {
   it("createFleet sets error on API error response", async () => {
-    vi.mocked(client.createFleet).mockResolvedValue({ error: "Fleet name taken" });
+    vi.mocked(client.createFleet).mockResolvedValue({
+      error: "Fleet name taken",
+    });
 
     const { result } = renderHook(() => useFleets());
 
@@ -274,7 +276,9 @@ describe("useFleets error handling", () => {
   });
 
   it("deleteFleet sets error on failure", async () => {
-    vi.mocked(client.deleteFleet).mockResolvedValue({ error: "Fleet not found" });
+    vi.mocked(client.deleteFleet).mockResolvedValue({
+      error: "Fleet not found",
+    });
 
     const { result } = renderHook(() => useFleets());
 
@@ -286,7 +290,9 @@ describe("useFleets error handling", () => {
   });
 
   it("assignVehicle sets error on failure", async () => {
-    vi.mocked(client.assignVehicles).mockResolvedValue({ error: "Vehicle already assigned" });
+    vi.mocked(client.assignVehicles).mockResolvedValue({
+      error: "Vehicle already assigned",
+    });
 
     const { result } = renderHook(() => useFleets());
 
@@ -298,7 +304,9 @@ describe("useFleets error handling", () => {
   });
 
   it("unassignVehicle sets error on failure", async () => {
-    vi.mocked(client.unassignVehicles).mockResolvedValue({ error: "Vehicle not in fleet" });
+    vi.mocked(client.unassignVehicles).mockResolvedValue({
+      error: "Vehicle not in fleet",
+    });
 
     const { result } = renderHook(() => useFleets());
 

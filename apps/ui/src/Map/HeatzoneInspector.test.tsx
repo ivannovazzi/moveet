@@ -18,7 +18,12 @@ import HeatzoneInspector from "./HeatzoneInspector";
 
 const ZONE: Heatzone = {
   type: "Feature",
-  properties: { id: "hz-1", intensity: 0.5, timestamp: "2026-01-01T00:00:00Z", radius: 500 },
+  properties: {
+    id: "hz-1",
+    intensity: 0.5,
+    timestamp: "2026-01-01T00:00:00Z",
+    radius: 500,
+  },
   geometry: {
     type: "Polygon",
     coordinates: [

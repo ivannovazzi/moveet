@@ -91,7 +91,10 @@ describe("GeoFenceManager", () => {
   describe("updateZone", () => {
     it("applies a partial patch and returns updated zone", () => {
       manager.addZone(makeFence());
-      const updated = manager.updateZone("fence-1", { name: "Updated Zone", active: false });
+      const updated = manager.updateZone("fence-1", {
+        name: "Updated Zone",
+        active: false,
+      });
       expect(updated).not.toBeNull();
       expect(updated!.name).toBe("Updated Zone");
       expect(updated!.active).toBe(false);

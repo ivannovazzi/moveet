@@ -34,7 +34,11 @@ function mockPublish() {
 describe("ReplayEmitter (realism off)", () => {
   it("emits every vehicle event stamped with its back-dated virtual time", async () => {
     const { publish, batches, all } = mockPublish();
-    const emitter = new ReplayEmitter({ source: fixtureLines(), realism: false, publish });
+    const emitter = new ReplayEmitter({
+      source: fixtureLines(),
+      realism: false,
+      publish,
+    });
     await emitter.run();
 
     // One publish per `vehicle` event (3); the `direction` event is ignored.
@@ -55,7 +59,11 @@ describe("ReplayEmitter (realism off)", () => {
 
   it("maps the recording vehicle shape to VehicleUpdate correctly", async () => {
     const { publish, batches } = mockPublish();
-    const emitter = new ReplayEmitter({ source: fixtureLines(), realism: false, publish });
+    const emitter = new ReplayEmitter({
+      source: fixtureLines(),
+      realism: false,
+      publish,
+    });
     await emitter.run();
 
     const first = batches[0].find((u) => u.id === "v1")!;
@@ -75,7 +83,12 @@ describe("ReplayEmitter (realism on)", () => {
       source: fixtureLines(),
       realism: true,
       seed: 12345,
-      realismConfig: { enabled: true, reportingPeriodMs: 1000, jitterMs: 0, emitStaleAfterMs: 0 },
+      realismConfig: {
+        enabled: true,
+        reportingPeriodMs: 1000,
+        jitterMs: 0,
+        emitStaleAfterMs: 0,
+      },
       publish,
     });
     await emitter.run();
@@ -97,11 +110,21 @@ describe("ReplayEmitter (realism on)", () => {
         source: fixtureLines(),
         realism: true,
         seed: 999,
-        realismConfig: { enabled: true, reportingPeriodMs: 1000, jitterMs: 0, emitStaleAfterMs: 0 },
+        realismConfig: {
+          enabled: true,
+          reportingPeriodMs: 1000,
+          jitterMs: 0,
+          emitStaleAfterMs: 0,
+        },
         publish,
       });
       await emitter.run();
-      return all().map((u) => ({ id: u.id, t: u.timestamp, lat: u.latitude, lon: u.longitude }));
+      return all().map((u) => ({
+        id: u.id,
+        t: u.timestamp,
+        lat: u.latitude,
+        lon: u.longitude,
+      }));
     }
     const a = await runOnce();
     const b = await runOnce();
@@ -116,7 +139,12 @@ describe("ReplayEmitter (realism on)", () => {
       source: fixtureLines(),
       realism: true,
       seed: 1,
-      realismConfig: { enabled: true, reportingPeriodMs: 1000, jitterMs: 0, emitStaleAfterMs: 0 },
+      realismConfig: {
+        enabled: true,
+        reportingPeriodMs: 1000,
+        jitterMs: 0,
+        emitStaleAfterMs: 0,
+      },
       publish,
     });
     await emitter.run();

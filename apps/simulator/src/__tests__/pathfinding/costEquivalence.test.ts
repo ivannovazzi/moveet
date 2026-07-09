@@ -69,10 +69,34 @@ describe("worker inline cost stays in lockstep with the shared module", () => {
     capacity: number;
     smoothnessFactor: number;
   }> = [
-    { distance: 1, maxSpeed: 60, surface: "asphalt", capacity: 1800, smoothnessFactor: 1.0 },
-    { distance: 2.5, maxSpeed: 40, surface: "unpaved", capacity: 3600, smoothnessFactor: 0.6 },
-    { distance: 0.3, maxSpeed: 110, surface: "dirt", capacity: 1800, smoothnessFactor: 0.9 },
-    { distance: 5, maxSpeed: 30, surface: "asphalt", capacity: 5400, smoothnessFactor: 0.3 },
+    {
+      distance: 1,
+      maxSpeed: 60,
+      surface: "asphalt",
+      capacity: 1800,
+      smoothnessFactor: 1.0,
+    },
+    {
+      distance: 2.5,
+      maxSpeed: 40,
+      surface: "unpaved",
+      capacity: 3600,
+      smoothnessFactor: 0.6,
+    },
+    {
+      distance: 0.3,
+      maxSpeed: 110,
+      surface: "dirt",
+      capacity: 1800,
+      smoothnessFactor: 0.9,
+    },
+    {
+      distance: 5,
+      maxSpeed: 30,
+      surface: "asphalt",
+      capacity: 5400,
+      smoothnessFactor: 0.3,
+    },
   ];
 
   it("computeBaseTravelTime matches across flow values", () => {

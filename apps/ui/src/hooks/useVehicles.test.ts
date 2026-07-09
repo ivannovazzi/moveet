@@ -114,7 +114,11 @@ describe("useVehicles", () => {
     const { result } = renderHook(() => useVehicles());
 
     act(() => {
-      result.current.setModifiers((prev) => ({ ...prev, showPOIs: true, showHeatmap: true }));
+      result.current.setModifiers((prev) => ({
+        ...prev,
+        showPOIs: true,
+        showHeatmap: true,
+      }));
     });
 
     expect(result.current.modifiers).toEqual({

@@ -182,7 +182,10 @@ describe("WebSocketBroadcaster", () => {
       const wss = createMockWSS([client]);
       const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer);
 
-      broadcaster.broadcast("direction", { vehicleId: "v1", route: [] } as never);
+      broadcaster.broadcast("direction", {
+        vehicleId: "v1",
+        route: [],
+      } as never);
 
       expect(client.send).toHaveBeenCalledTimes(1);
       const parsed = JSON.parse(client.send.mock.calls[0][0] as string);
@@ -194,7 +197,11 @@ describe("WebSocketBroadcaster", () => {
       const wss = createMockWSS([client]);
       const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer);
 
-      broadcaster.broadcast("status", { running: true, interval: 500, ready: true });
+      broadcaster.broadcast("status", {
+        running: true,
+        interval: 500,
+        ready: true,
+      });
 
       expect(client.send).toHaveBeenCalledTimes(1);
       const parsed = JSON.parse(client.send.mock.calls[0][0] as string);
@@ -639,7 +646,9 @@ describe("WebSocketBroadcaster", () => {
       // Tiny position change (well below threshold)
       const tinyDelta = POSITION_DELTA_THRESHOLD / 10;
       broadcaster.queueVehicleUpdate(
-        makeVehicle("v1", { position: [-1.286 + tinyDelta, 36.817 + tinyDelta] })
+        makeVehicle("v1", {
+          position: [-1.286 + tinyDelta, 36.817 + tinyDelta],
+        })
       );
       vi.advanceTimersByTime(100);
 
@@ -741,7 +750,9 @@ describe("WebSocketBroadcaster", () => {
       // Second flush — v1 unchanged, v2 moved significantly
       broadcaster.queueVehicleUpdate(makeVehicle("v1", { position: [-1.286, 36.817] }));
       broadcaster.queueVehicleUpdate(
-        makeVehicle("v2", { position: [-1.3 + POSITION_DELTA_THRESHOLD * 3, 36.83] })
+        makeVehicle("v2", {
+          position: [-1.3 + POSITION_DELTA_THRESHOLD * 3, 36.83],
+        })
       );
       vi.advanceTimersByTime(100);
 
@@ -1119,7 +1130,9 @@ describe("WebSocketBroadcaster", () => {
         flushIntervalMs: 100,
       });
       broadcaster.start();
-      broadcaster.setClientFilter(client as unknown as WebSocket, { fleetIds: ["fleet-a"] });
+      broadcaster.setClientFilter(client as unknown as WebSocket, {
+        fleetIds: ["fleet-a"],
+      });
 
       broadcaster.queueVehicleUpdate(makeVehicle("v1", { fleetId: "fleet-a" }));
       broadcaster.queueVehicleUpdate(makeVehicle("v2", { fleetId: "fleet-b" }));
@@ -1142,7 +1155,9 @@ describe("WebSocketBroadcaster", () => {
         flushIntervalMs: 100,
       });
       broadcaster.start();
-      broadcaster.setClientFilter(client as unknown as WebSocket, { vehicleTypes: ["truck"] });
+      broadcaster.setClientFilter(client as unknown as WebSocket, {
+        vehicleTypes: ["truck"],
+      });
 
       broadcaster.queueVehicleUpdate(makeVehicle("v1", { type: "car" }));
       broadcaster.queueVehicleUpdate(makeVehicle("v2", { type: "truck" }));
@@ -1217,7 +1232,9 @@ describe("WebSocketBroadcaster", () => {
       broadcaster.start();
 
       // First set a restrictive filter
-      broadcaster.setClientFilter(client as unknown as WebSocket, { fleetIds: ["fleet-a"] });
+      broadcaster.setClientFilter(client as unknown as WebSocket, {
+        fleetIds: ["fleet-a"],
+      });
 
       // Then remove it
       broadcaster.setClientFilter(client as unknown as WebSocket, null);
@@ -1244,7 +1261,9 @@ describe("WebSocketBroadcaster", () => {
       broadcaster.start();
 
       // Empty fleetIds means no restriction (filter.fleetIds?.length is falsy)
-      broadcaster.setClientFilter(client as unknown as WebSocket, { fleetIds: [] });
+      broadcaster.setClientFilter(client as unknown as WebSocket, {
+        fleetIds: [],
+      });
 
       broadcaster.queueVehicleUpdate(makeVehicle("v1", { fleetId: "fleet-a" }));
       broadcaster.queueVehicleUpdate(makeVehicle("v2", { fleetId: "fleet-b" }));
@@ -1289,7 +1308,9 @@ describe("WebSocketBroadcaster", () => {
         flushIntervalMs: 100,
       });
       broadcaster.start();
-      broadcaster.setClientFilter(client as unknown as WebSocket, { fleetIds: ["fleet-a"] });
+      broadcaster.setClientFilter(client as unknown as WebSocket, {
+        fleetIds: ["fleet-a"],
+      });
 
       // First flush: send both vehicles to establish lastSent positions
       broadcaster.queueVehicleUpdate(
@@ -1618,7 +1639,9 @@ describe("WebSocketBroadcaster", () => {
       const broadcaster = new WebSocketBroadcaster(wss as unknown as WebSocketServer);
 
       expect(() =>
-        broadcaster.sendTo(badClient as unknown as WebSocket, "status", { running: true } as never)
+        broadcaster.sendTo(badClient as unknown as WebSocket, "status", {
+          running: true,
+        } as never)
       ).not.toThrow();
     });
   });

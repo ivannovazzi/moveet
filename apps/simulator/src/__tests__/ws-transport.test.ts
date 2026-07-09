@@ -40,7 +40,9 @@ interface MockWebSocket {
   on: ReturnType<typeof vi.fn>;
 }
 
-function createMockWSS(clients: MockWebSocket[] = []): { clients: Set<WebSocket> } {
+function createMockWSS(clients: MockWebSocket[] = []): {
+  clients: Set<WebSocket>;
+} {
   return { clients: new Set(clients) as unknown as Set<WebSocket> };
 }
 
@@ -74,7 +76,11 @@ describe("selectBroadcastTransport", () => {
     const transport = selectBroadcastTransport(
       wss as unknown as WebSocketServer,
       { pingIntervalMs: 0, pongTimeoutMs: 0 },
-      { wsTransport: "redis", redisUrl: "redis://localhost:6379", wsPubSubChannel: "ch" }
+      {
+        wsTransport: "redis",
+        redisUrl: "redis://localhost:6379",
+        wsPubSubChannel: "ch",
+      }
     );
     expect(transport).toBeInstanceOf(RedisPubSubTransport);
   });
@@ -136,7 +142,11 @@ describe("RedisPubSubTransport", () => {
     await Promise.resolve();
     await Promise.resolve();
 
-    transport.publishMessage("status", { running: true, interval: 500, ready: true });
+    transport.publishMessage("status", {
+      running: true,
+      interval: 500,
+      ready: true,
+    });
 
     expect(pub.publish).toHaveBeenCalledTimes(1);
     const [, payload] = pub.publish.mock.calls[0] as [string, string];

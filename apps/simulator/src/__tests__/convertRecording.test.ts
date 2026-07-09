@@ -138,7 +138,10 @@ describe("convertRecordingToScenario", () => {
       expect(spawnEvents).toHaveLength(1);
       if (spawnEvents[0].action.type === "spawn_vehicles") {
         expect(spawnEvents[0].action.count).toBe(3);
-        expect(spawnEvents[0].action.vehicleTypes).toEqual({ car: 2, truck: 1 });
+        expect(spawnEvents[0].action.vehicleTypes).toEqual({
+          car: 2,
+          truck: 1,
+        });
       }
     });
 
@@ -207,7 +210,10 @@ describe("convertRecordingToScenario", () => {
         expect(incidentEvents[0].action.duration).toBe(300);
         expect(incidentEvents[0].action.severity).toBe(0.8);
         expect(incidentEvents[0].action.edgeIds).toEqual(["edge-1", "edge-2"]);
-        expect(incidentEvents[0].action.position).toEqual({ lat: -1.29, lng: 36.82 });
+        expect(incidentEvents[0].action.position).toEqual({
+          lat: -1.29,
+          lng: 36.82,
+        });
       }
     });
 
@@ -233,7 +239,10 @@ describe("convertRecordingToScenario", () => {
       const incidentEvents = scenario.events.filter((e) => e.action.type === "create_incident");
       expect(incidentEvents).toHaveLength(1);
       if (incidentEvents[0].action.type === "create_incident") {
-        expect(incidentEvents[0].action.position).toEqual({ lat: -1.3, lng: 36.85 });
+        expect(incidentEvents[0].action.position).toEqual({
+          lat: -1.3,
+          lng: 36.85,
+        });
         expect(incidentEvents[0].action.edgeIds).toBeUndefined();
       }
     });
@@ -274,7 +283,10 @@ describe("convertRecordingToScenario", () => {
       if (dispatchEvents[0].action.type === "dispatch") {
         expect(dispatchEvents[0].action.vehicleId).toBe("v-1");
         expect(dispatchEvents[0].action.waypoints).toHaveLength(2);
-        expect(dispatchEvents[0].action.waypoints[0]).toEqual({ lat: -1.28, lng: 36.81 });
+        expect(dispatchEvents[0].action.waypoints[0]).toEqual({
+          lat: -1.28,
+          lng: 36.81,
+        });
         expect(dispatchEvents[0].action.waypoints[1]).toEqual({
           lat: -1.29,
           lng: 36.82,
@@ -405,11 +417,17 @@ describe("convertRecordingToScenario", () => {
         makeEvent(300, "spawn", { vehicleType: "truck" }),
 
         // Vehicle position updates (discarded)
-        makeEvent(500, "vehicle", { vehicles: [{ id: "v-1", position: [-1.29, 36.82] }] }),
-        makeEvent(600, "vehicle", { vehicles: [{ id: "v-1", position: [-1.291, 36.821] }] }),
+        makeEvent(500, "vehicle", {
+          vehicles: [{ id: "v-1", position: [-1.29, 36.82] }],
+        }),
+        makeEvent(600, "vehicle", {
+          vehicles: [{ id: "v-1", position: [-1.291, 36.821] }],
+        }),
 
         // Heat zone (discarded)
-        makeEvent(1000, "heatzone", { zones: [{ id: "hz-1", intensity: 0.5 }] }),
+        makeEvent(1000, "heatzone", {
+          zones: [{ id: "hz-1", intensity: 0.5 }],
+        }),
 
         // Second wave of spawns (new window)
         makeEvent(5000, "spawn", { vehicleType: "bus" }),
@@ -444,7 +462,10 @@ describe("convertRecordingToScenario", () => {
         makeEvent(26000, "vehicle:rerouted", { vehicleId: "v-2" }),
 
         // Incident cleared (discarded)
-        makeEvent(30000, "incident", { action: "cleared", incidentId: "inc-1" }),
+        makeEvent(30000, "incident", {
+          action: "cleared",
+          incidentId: "inc-1",
+        }),
 
         // Despawn (discarded)
         makeEvent(35000, "despawn", { vehicleId: "v-1" }),

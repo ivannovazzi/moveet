@@ -43,11 +43,11 @@ const NETWORK_GEOJSON = path.join(REPO_ROOT, "apps", "simulator", "data", "netwo
 
 /** Run a docker compose subcommand for our isolated project. */
 function compose(args: string[], opts: { quiet?: boolean } = {}): void {
-  execFileSync(
-    "docker",
-    ["compose", "-p", PROJECT, "-f", COMPOSE_FILE, ...args],
-    { cwd: REPO_ROOT, stdio: opts.quiet ? "ignore" : "inherit", timeout: 220_000 }
-  );
+  execFileSync("docker", ["compose", "-p", PROJECT, "-f", COMPOSE_FILE, ...args], {
+    cwd: REPO_ROOT,
+    stdio: opts.quiet ? "ignore" : "inherit",
+    timeout: 220_000,
+  });
 }
 
 /** True when a Docker daemon is reachable. */
@@ -84,7 +84,6 @@ const describeMaybe = canRun ? describe : describe.skip;
 
 if (!canRun) {
   // Surface WHY it skipped so a maintainer running it locally understands.
-  // eslint-disable-next-line no-console
   console.warn(
     `[e2e] skipping docker-compose smoke test: ${
       !dockerAvailable() ? "no reachable Docker daemon" : `missing ${NETWORK_GEOJSON}`
@@ -155,7 +154,10 @@ describeMaybe("docker-compose smoke E2E", () => {
       });
 
       ws.on("message", (raw: WebSocket.RawData) => {
-        let msg: { type?: string; data?: Array<{ id: string; position: [number, number] }> };
+        let msg: {
+          type?: string;
+          data?: Array<{ id: string; position: [number, number] }>;
+        };
         try {
           msg = JSON.parse(raw.toString());
         } catch {

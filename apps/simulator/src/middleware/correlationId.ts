@@ -7,6 +7,8 @@ import logger from "../utils/logger";
  * stores it on `res.locals.requestId`, echoes it on the response, and attaches a
  * per-request child logger to `res.locals.logger`.
  */
-export const correlationIdMiddleware = createCorrelationIdMiddleware({ logger });
+export const correlationIdMiddleware = createCorrelationIdMiddleware({
+  logger,
+});
 
 export default correlationIdMiddleware;

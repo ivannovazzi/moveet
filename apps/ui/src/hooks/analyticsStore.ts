@@ -9,7 +9,11 @@
 // Re-exported from shared-types so the analytics contract has a single
 // cross-service source of truth.
 
-export type { AnalyticsSummary, FleetAnalytics, AnalyticsSnapshot } from "@moveet/shared-types";
+export type {
+  AnalyticsSummary,
+  FleetAnalytics,
+  AnalyticsSnapshot,
+} from "@moveet/shared-types";
 
 import type { AnalyticsSummary, FleetAnalytics, AnalyticsSnapshot } from "@moveet/shared-types";
 

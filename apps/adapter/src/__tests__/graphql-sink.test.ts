@@ -30,7 +30,10 @@ describe("GraphQLSink", () => {
 
   it("sends mutation with vehicle updates", async () => {
     const sink = new GraphQLSink();
-    await sink.connect({ url: "https://api.example.com/graphql", token: "abc123" });
+    await sink.connect({
+      url: "https://api.example.com/graphql",
+      token: "abc123",
+    });
     await sink.publishUpdates([{ id: "v1", latitude: -1.3, longitude: 36.8 }]);
 
     expect(mockRequest).toHaveBeenCalledWith(
@@ -38,7 +41,11 @@ describe("GraphQLSink", () => {
       expect.objectContaining({
         input: expect.objectContaining({
           vehicle: expect.arrayContaining([
-            expect.objectContaining({ id: "v1", latitude: -1.3, longitude: 36.8 }),
+            expect.objectContaining({
+              id: "v1",
+              latitude: -1.3,
+              longitude: 36.8,
+            }),
           ]),
         }),
       })
@@ -78,7 +85,10 @@ describe("GraphQLSink", () => {
 
   it("sets Authorization header from token", async () => {
     const sink = new GraphQLSink();
-    await sink.connect({ url: "https://api.example.com/graphql", token: "my-token" });
+    await sink.connect({
+      url: "https://api.example.com/graphql",
+      token: "my-token",
+    });
     await sink.publishUpdates([{ id: "v1", latitude: -1.3, longitude: 36.8 }]);
     expect(mockRequest).toHaveBeenCalled();
   });
@@ -96,7 +106,10 @@ describe("GraphQLSink", () => {
   it("uses custom mutation when provided", async () => {
     const sink = new GraphQLSink();
     const customMutation = `mutation Custom($input: CustomInput!) { custom(input: $input) { ok } }`;
-    await sink.connect({ url: "https://api.example.com/graphql", mutation: customMutation });
+    await sink.connect({
+      url: "https://api.example.com/graphql",
+      mutation: customMutation,
+    });
     await sink.publishUpdates([{ id: "v1", latitude: -1.3, longitude: 36.8 }]);
     // The gql tagged template mock strips interpolated values, but the mutation is stored
     // internally and passed through gql`${this.mutation}`. Verify request was called.
@@ -136,7 +149,11 @@ describe("GraphQLSink", () => {
 
   describe("batchSize chunking", () => {
     const makeUpdates = (n: number) =>
-      Array.from({ length: n }, (_, i) => ({ id: `v${i}`, latitude: -1.3, longitude: 36.8 }));
+      Array.from({ length: n }, (_, i) => ({
+        id: `v${i}`,
+        latitude: -1.3,
+        longitude: 36.8,
+      }));
 
     it("has a batchSize config field defaulting to 0 (single mutation)", () => {
       const sink = new GraphQLSink();
@@ -147,7 +164,10 @@ describe("GraphQLSink", () => {
 
     it("sends a single mutation when batchSize is 0", async () => {
       const sink = new GraphQLSink();
-      await sink.connect({ url: "https://api.example.com/graphql", batchSize: 0 });
+      await sink.connect({
+        url: "https://api.example.com/graphql",
+        batchSize: 0,
+      });
       const result = await sink.publishUpdates(makeUpdates(10));
       expect(mockRequest).toHaveBeenCalledTimes(1);
       // Unchunked path returns void.
@@ -156,7 +176,10 @@ describe("GraphQLSink", () => {
 
     it("splits into chunks when updates exceed batchSize", async () => {
       const sink = new GraphQLSink();
-      await sink.connect({ url: "https://api.example.com/graphql", batchSize: 2 });
+      await sink.connect({
+        url: "https://api.example.com/graphql",
+        batchSize: 2,
+      });
       const result = await sink.publishUpdates(makeUpdates(5));
       // 5 updates / batch 2 → 3 chunks → 3 mutations.
       expect(mockRequest).toHaveBeenCalledTimes(3);
@@ -168,7 +191,10 @@ describe("GraphQLSink", () => {
         .mockResolvedValueOnce({}) // chunk 0 ok
         .mockRejectedValueOnce(new Error("upstream 500")); // chunk 1 fails
       const sink = new GraphQLSink();
-      await sink.connect({ url: "https://api.example.com/graphql", batchSize: 2 });
+      await sink.connect({
+        url: "https://api.example.com/graphql",
+        batchSize: 2,
+      });
       const result = await sink.publishUpdates(makeUpdates(6)); // 3 chunks
 
       // Only chunks 0 and 1 attempted; chunk 2 aborted.
@@ -178,7 +204,10 @@ describe("GraphQLSink", () => {
         succeeded: 2,
         failures: [
           { itemId: "chunk-1", error: "upstream 500" },
-          { itemId: "chunk-2", error: "not attempted (batch aborted after chunk 1 failed)" },
+          {
+            itemId: "chunk-2",
+            error: "not attempted (batch aborted after chunk 1 failed)",
+          },
         ],
       });
     });
@@ -186,7 +215,10 @@ describe("GraphQLSink", () => {
     it("throws when the first chunk fails (nothing delivered)", async () => {
       mockRequest.mockRejectedValueOnce(new Error("broker down"));
       const sink = new GraphQLSink();
-      await sink.connect({ url: "https://api.example.com/graphql", batchSize: 2 });
+      await sink.connect({
+        url: "https://api.example.com/graphql",
+        batchSize: 2,
+      });
       await expect(sink.publishUpdates(makeUpdates(6))).rejects.toThrow(
         "GraphQL sink: first chunk failed to publish"
       );

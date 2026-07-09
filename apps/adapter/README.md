@@ -362,8 +362,9 @@ the UI Realism tab polls.
 npm run dev      # Start dev server with hot-reload (tsx watch)
 npm run build    # Compile TypeScript to dist/
 npm start        # Run production build (NODE_ENV=production)
-npm run lint     # Type-check without emitting
+npm run type-check # Type-check without emitting
 npm test         # Run tests (vitest)
+# Lint + format run repo-wide via Biome from the root: `npm run lint` / `npm run format`
 ```
 
 ## Docker

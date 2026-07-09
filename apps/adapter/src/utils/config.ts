@@ -135,7 +135,10 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
 
 /** Log the resolved config at startup, redacting sink configs that may contain secrets. */
 export function logConfig(cfg: StartupConfig): void {
-  const redactedSinks = cfg.sinks.map((s) => ({ type: s.type, config: "••••••" }));
+  const redactedSinks = cfg.sinks.map((s) => ({
+    type: s.type,
+    config: "••••••",
+  }));
   const redacted = {
     port: cfg.port,
     source: { type: cfg.source.type, config: "••••••" },

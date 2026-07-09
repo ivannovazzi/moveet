@@ -247,7 +247,12 @@ function findRoute(
   const closedSet = new Set<string>();
   const cameFrom = new Map<
     string,
-    { prevId: string; edgeId: string; edgeDistance: number; edgeStreetId: string }
+    {
+      prevId: string;
+      edgeId: string;
+      edgeDistance: number;
+      edgeStreetId: string;
+    }
   >();
   const gScore = new Map<string, number>();
 

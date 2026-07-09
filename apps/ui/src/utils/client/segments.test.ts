@@ -78,7 +78,13 @@ describe("ConnectionSegment", () => {
     seg.onVehicle(handler);
     const single = h.ws.on.mock.calls.find((c) => c[0] === "vehicle")![1];
     const batch = h.ws.on.mock.calls.find((c) => c[0] === "vehicles")![1];
-    const valid = { id: "v1", type: "car", position: [1, 2], speed: 10, heading: 90 };
+    const valid = {
+      id: "v1",
+      type: "car",
+      position: [1, 2],
+      speed: 10,
+      heading: 90,
+    };
     single(valid);
     expect(handler).toHaveBeenCalledWith(valid);
     handler.mockClear();
@@ -160,7 +166,9 @@ describe("SimulationSegment", () => {
       geometry: { type: "Polygon", coordinates: [] },
       intensity: 0.5,
     });
-    expect(h.http.patch).toHaveBeenCalledWith("/heatzones/hz-1", { intensity: 0.7 });
+    expect(h.http.patch).toHaveBeenCalledWith("/heatzones/hz-1", {
+      intensity: 0.7,
+    });
     expect(h.http.delete).toHaveBeenCalledWith("/heatzones/hz-1");
     expect(h.http.delete).toHaveBeenCalledWith("/heatzones");
     expect(h.http.post).toHaveBeenCalledWith("/heatzones/seed", { count: 3 });
@@ -193,8 +201,12 @@ describe("FleetSegment", () => {
     expect(h.http.get).toHaveBeenCalledWith("/fleets");
     expect(h.http.post).toHaveBeenCalledWith("/fleets", { name: "North" });
     expect(h.http.delete).toHaveBeenCalledWith("/fleets/f1");
-    expect(h.http.post).toHaveBeenCalledWith("/fleets/f1/assign", { vehicleIds: ["v1", "v2"] });
-    expect(h.http.post).toHaveBeenCalledWith("/fleets/f1/unassign", { vehicleIds: ["v1"] });
+    expect(h.http.post).toHaveBeenCalledWith("/fleets/f1/assign", {
+      vehicleIds: ["v1", "v2"],
+    });
+    expect(h.http.post).toHaveBeenCalledWith("/fleets/f1/unassign", {
+      vehicleIds: ["v1"],
+    });
   });
 
   it("wires fleet/route lifecycle ws events", () => {
@@ -284,14 +296,21 @@ describe("RecordingSegment", () => {
     expect(h.http.post).toHaveBeenCalledWith("/recording/start");
     expect(h.http.post).toHaveBeenCalledWith("/recording/stop");
     expect(h.http.get).toHaveBeenCalledWith("/recordings");
-    expect(h.http.post).toHaveBeenCalledWith("/replay/start", { file: "a.json", speed: 2 });
+    expect(h.http.post).toHaveBeenCalledWith("/replay/start", {
+      file: "a.json",
+      speed: 2,
+    });
     expect(h.http.post).toHaveBeenCalledWith("/replay/pause");
     expect(h.http.post).toHaveBeenCalledWith("/replay/resume");
     expect(h.http.post).toHaveBeenCalledWith("/replay/stop");
-    expect(h.http.post).toHaveBeenCalledWith("/replay/seek", { timestamp: 123 });
+    expect(h.http.post).toHaveBeenCalledWith("/replay/seek", {
+      timestamp: 123,
+    });
     expect(h.http.post).toHaveBeenCalledWith("/replay/speed", { speed: 4 });
     expect(h.http.get).toHaveBeenCalledWith("/replay/status");
-    expect(h.http.post).toHaveBeenCalledWith("/recording/generate", { hours: 1 });
+    expect(h.http.post).toHaveBeenCalledWith("/recording/generate", {
+      hours: 1,
+    });
     expect(h.http.get).toHaveBeenCalledWith("/recording/generate/status");
   });
 
@@ -371,12 +390,17 @@ describe("GeofenceSegment", () => {
     seg.subscribe(null);
     expect(h.http.get).toHaveBeenCalledWith("/geofences");
     expect(h.http.post).toHaveBeenCalledWith("/geofences", { name: "Zone" });
-    expect(h.http.patch).toHaveBeenCalledWith("/geofences/g1", { name: "Zone2" });
+    expect(h.http.patch).toHaveBeenCalledWith("/geofences/g1", {
+      name: "Zone2",
+    });
     expect(h.http.delete).toHaveBeenCalledWith("/geofences/g1");
     expect(h.http.post).toHaveBeenCalledWith("/geofences/g1/toggle");
     expect(h.ws.on).toHaveBeenCalledWith("geofence:event", fn);
     expect(h.ws.off).toHaveBeenCalledWith("geofence:event", undefined);
-    expect(h.ws.send).toHaveBeenCalledWith({ type: "subscribe", filter: { bbox: [0, 0, 1, 1] } });
+    expect(h.ws.send).toHaveBeenCalledWith({
+      type: "subscribe",
+      filter: { bbox: [0, 0, 1, 1] },
+    });
     expect(h.ws.send).toHaveBeenCalledWith({ type: "subscribe", filter: null });
   });
 });

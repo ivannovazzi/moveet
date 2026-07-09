@@ -78,7 +78,10 @@ describe("PluginRegistry", () => {
     it("caches source metadata from an instance", () => {
       const registry = new PluginRegistry();
       const schema: ConfigField[] = [{ name: "url", label: "URL", type: "string", required: true }];
-      const source = createMockSource({ name: "My Source", configSchema: schema });
+      const source = createMockSource({
+        name: "My Source",
+        configSchema: schema,
+      });
 
       registry.registerSource("test", () => source);
       registry.cacheSourceMeta("test", source);

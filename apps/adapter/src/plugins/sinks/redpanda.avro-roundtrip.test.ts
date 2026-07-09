@@ -54,7 +54,12 @@ vi.mock("@kafkajs/confluent-schema-registry", () => {
   }
   return {
     SchemaRegistry: MockSchemaRegistry,
-    SchemaType: { AVRO: "AVRO", JSON: "JSON", PROTOBUF: "PROTOBUF", UNKNOWN: "UNKNOWN" },
+    SchemaType: {
+      AVRO: "AVRO",
+      JSON: "JSON",
+      PROTOBUF: "PROTOBUF",
+      UNKNOWN: "UNKNOWN",
+    },
   };
 });
 
@@ -118,7 +123,10 @@ describe("canonical telemetry AVRO round-trip (real avsc codec)", () => {
     // Top-level + nested record fields survive the round-trip unchanged.
     expect(decoded.event_type).toBe("telemetry.location.reported");
     expect(decoded.event_version).toBe(1);
-    expect(decoded.source).toEqual({ service: "moveet-simulator", environment: "prod" });
+    expect(decoded.source).toEqual({
+      service: "moveet-simulator",
+      environment: "prod",
+    });
     expect(decoded.metadata).toEqual({
       correlation_id: "req-abc",
       causation_id: null,
@@ -155,7 +163,13 @@ describe("canonical telemetry AVRO round-trip (real avsc codec)", () => {
       keyField: "id",
     });
     await sink.publishUpdates([
-      { id: "m9", latitude: 0, longitude: 0, speed: 0, metadata: { deviceType: "mobile" } },
+      {
+        id: "m9",
+        latitude: 0,
+        longitude: 0,
+        speed: 0,
+        metadata: { deviceType: "mobile" },
+      },
     ]);
 
     const envelope = captured[0];

@@ -33,7 +33,10 @@ export function convertRecordingToScenario(
   });
 
   // 2. Walk events and convert relevant ones
-  const spawnBuffer: Array<{ timestampMs: number; data: Record<string, unknown> }> = [];
+  const spawnBuffer: Array<{
+    timestampMs: number;
+    data: Record<string, unknown>;
+  }> = [];
 
   for (const event of events) {
     switch (event.type) {
@@ -194,7 +197,8 @@ function buildDispatchAction(data: Record<string, unknown>): ScenarioAction | nu
 
   // Extract waypoints from direction data
   const waypoints = data.waypoints as
-    Array<{ lat: number; lng: number; dwellTime?: number; label?: string }> | undefined;
+    | Array<{ lat: number; lng: number; dwellTime?: number; label?: string }>
+    | undefined;
   if (!waypoints || waypoints.length === 0) return null;
 
   return {

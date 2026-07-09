@@ -20,7 +20,10 @@ function createApp() {
   const app = express();
   app.use(createCorrelationIdMiddleware({ logger: rootLogger }));
   app.get("/test", (_req, res) => {
-    res.json({ requestId: res.locals.requestId, hasLogger: !!res.locals.logger });
+    res.json({
+      requestId: res.locals.requestId,
+      hasLogger: !!res.locals.logger,
+    });
   });
   return app;
 }
@@ -51,7 +54,9 @@ describe("createCorrelationIdMiddleware", () => {
 
   it("creates a child logger bound to the requestId and attaches it to res.locals", async () => {
     const res = await request(createApp()).get("/test");
-    expect(rootLogger.child).toHaveBeenCalledWith({ requestId: expect.any(String) });
+    expect(rootLogger.child).toHaveBeenCalledWith({
+      requestId: expect.any(String),
+    });
     expect(res.body.hasLogger).toBe(true);
   });
 

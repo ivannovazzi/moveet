@@ -32,7 +32,9 @@ describe("usePois", () => {
   it("returns initial empty pois array", () => {
     vi.mocked(client.getPois).mockResolvedValue({ data: undefined });
 
-    const { result } = renderHook(() => usePois(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => usePois(), {
+      wrapper: createWrapper(),
+    });
 
     expect(result.current.pois).toEqual([]);
   });

@@ -17,7 +17,12 @@ vi.mock("../../utils/logger", () => ({
 
 const sampleFeature = {
   type: "Feature",
-  properties: { id: "hz-1", intensity: 0.6, timestamp: "2026-07-09T00:00:00.000Z", radius: 0.5 },
+  properties: {
+    id: "hz-1",
+    intensity: 0.6,
+    timestamp: "2026-07-09T00:00:00.000Z",
+    radius: 0.5,
+  },
   geometry: {
     type: "Polygon",
     coordinates: [
@@ -154,7 +159,10 @@ describe("Network routes", () => {
       expect(res.status).toBe(201);
       expect(res.body.properties.id).toBe("hz-1");
       expect(ctx.network.addHeatZone).toHaveBeenCalledWith(
-        expect.objectContaining({ polygon: validGeometry.coordinates, intensity: 0.7 })
+        expect.objectContaining({
+          polygon: validGeometry.coordinates,
+          intensity: 0.7,
+        })
       );
     });
 
@@ -162,7 +170,9 @@ describe("Network routes", () => {
       const res = await request(app).post("/heatzones").send({ geometry: validGeometry });
       expect(res.status).toBe(201);
       expect(ctx.network.addHeatZone).toHaveBeenCalledWith(
-        expect.objectContaining({ intensity: HEAT_ZONE_DEFAULTS.DEFAULT_INTENSITY })
+        expect.objectContaining({
+          intensity: HEAT_ZONE_DEFAULTS.DEFAULT_INTENSITY,
+        })
       );
     });
 

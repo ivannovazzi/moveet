@@ -2,7 +2,7 @@ import fs from "fs";
 import type { FeatureCollection } from "geojson";
 import type { Node, Edge, Route, HeatZoneFeature, POI, BoundingBox } from "../types";
 import { HEAT_ZONE_DEFAULTS } from "../constants";
-import { type CacheStats } from "../utils/LRUCache";
+import type { CacheStats } from "../utils/LRUCache";
 import { HeatZoneManager } from "./HeatZoneManager";
 import { PathfindingPool } from "./PathfindingPool";
 import { GraphBuilder, type SpeedLimitSign } from "./roadnetwork/GraphBuilder";

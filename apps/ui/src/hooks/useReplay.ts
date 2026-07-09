@@ -3,7 +3,9 @@ import client from "@/utils/client";
 import type { ReplayStatus } from "@/types";
 
 export function useReplay() {
-  const [replayStatus, setReplayStatus] = useState<ReplayStatus>({ mode: "live" });
+  const [replayStatus, setReplayStatus] = useState<ReplayStatus>({
+    mode: "live",
+  });
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {

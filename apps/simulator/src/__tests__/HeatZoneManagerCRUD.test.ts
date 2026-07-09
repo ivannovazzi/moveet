@@ -76,7 +76,10 @@ describe("HeatZoneManager — manual CRUD", () => {
     });
 
     it("indexes the new zone so isPositionInHeatZone finds a point inside it", () => {
-      manager.addZone({ polygon: makeSquarePolygon(10, 20, 0.01), intensity: 0.5 });
+      manager.addZone({
+        polygon: makeSquarePolygon(10, 20, 0.01),
+        intensity: 0.5,
+      });
       expect(manager.isPositionInHeatZone([10, 20])).toBe(true);
       expect(manager.isPositionInHeatZone([50, 50])).toBe(false);
     });
@@ -92,8 +95,14 @@ describe("HeatZoneManager — manual CRUD", () => {
     });
 
     it("assigns unique ids across added zones", () => {
-      const a = manager.addZone({ polygon: makeSquarePolygon(10, 20, 0.01), intensity: 0.5 });
-      const b = manager.addZone({ polygon: makeSquarePolygon(30, 40, 0.01), intensity: 0.5 });
+      const a = manager.addZone({
+        polygon: makeSquarePolygon(10, 20, 0.01),
+        intensity: 0.5,
+      });
+      const b = manager.addZone({
+        polygon: makeSquarePolygon(30, 40, 0.01),
+        intensity: 0.5,
+      });
       expect(a.properties.id).not.toBe(b.properties.id);
     });
 
@@ -132,7 +141,9 @@ describe("HeatZoneManager — manual CRUD", () => {
       });
       expect(manager.isPositionInHeatZone([10, 20])).toBe(true);
 
-      manager.updateZone(properties.id, { polygon: makeSquarePolygon(30, 40, 0.01) });
+      manager.updateZone(properties.id, {
+        polygon: makeSquarePolygon(30, 40, 0.01),
+      });
 
       expect(manager.isPositionInHeatZone([10, 20])).toBe(false);
       expect(manager.isPositionInHeatZone([30, 40])).toBe(true);
@@ -159,8 +170,14 @@ describe("HeatZoneManager — manual CRUD", () => {
     });
 
     it("only removes the targeted zone, leaving others intact", () => {
-      const a = manager.addZone({ polygon: makeSquarePolygon(10, 20, 0.01), intensity: 0.5 });
-      manager.addZone({ polygon: makeSquarePolygon(30, 40, 0.01), intensity: 0.5 });
+      const a = manager.addZone({
+        polygon: makeSquarePolygon(10, 20, 0.01),
+        intensity: 0.5,
+      });
+      manager.addZone({
+        polygon: makeSquarePolygon(30, 40, 0.01),
+        intensity: 0.5,
+      });
 
       manager.removeZone(a.properties.id);
 
@@ -172,8 +189,14 @@ describe("HeatZoneManager — manual CRUD", () => {
 
   describe("clearZones", () => {
     it("empties zones and the grid", () => {
-      manager.addZone({ polygon: makeSquarePolygon(10, 20, 0.01), intensity: 0.5 });
-      manager.addZone({ polygon: makeSquarePolygon(30, 40, 0.01), intensity: 0.5 });
+      manager.addZone({
+        polygon: makeSquarePolygon(10, 20, 0.01),
+        intensity: 0.5,
+      });
+      manager.addZone({
+        polygon: makeSquarePolygon(30, 40, 0.01),
+        intensity: 0.5,
+      });
 
       manager.clearZones();
 
@@ -185,12 +208,19 @@ describe("HeatZoneManager — manual CRUD", () => {
 
   describe("generateHeatedZones append semantics", () => {
     it("appends generated zones to existing ones instead of replacing them", () => {
-      manager.addZone({ polygon: makeSquarePolygon(10, 20, 0.02), intensity: 0.5 });
+      manager.addZone({
+        polygon: makeSquarePolygon(10, 20, 0.02),
+        intensity: 0.5,
+      });
       expect(manager.isPositionInHeatZone([10, 20])).toBe(true);
 
       const { nodes, edges } = makeMockNetwork();
       const before = manager.getZones().length;
-      manager.generateHeatedZones(edges, nodes, { count: 3, minRadius: 0.2, maxRadius: 0.5 });
+      manager.generateHeatedZones(edges, nodes, {
+        count: 3,
+        minRadius: 0.2,
+        maxRadius: 0.5,
+      });
 
       // Count grew, and the manually-added zone survives the generation.
       expect(manager.getZones().length).toBeGreaterThan(before);
@@ -198,7 +228,10 @@ describe("HeatZoneManager — manual CRUD", () => {
     });
 
     it("leaves existing zones intact when generation gets no usable nodes", () => {
-      manager.addZone({ polygon: makeSquarePolygon(10, 20, 0.02), intensity: 0.5 });
+      manager.addZone({
+        polygon: makeSquarePolygon(10, 20, 0.02),
+        intensity: 0.5,
+      });
 
       manager.generateHeatedZones([], [], { count: 3 });
 
@@ -210,7 +243,10 @@ describe("HeatZoneManager — manual CRUD", () => {
   describe("total-zone cap (MAX_TOTAL)", () => {
     function fillToCap(): void {
       for (let i = 0; i < HEAT_ZONE_DEFAULTS.MAX_TOTAL; i++) {
-        manager.addZone({ polygon: makeSquarePolygon(i * 0.1, 20, 0.001), intensity: 0.5 });
+        manager.addZone({
+          polygon: makeSquarePolygon(i * 0.1, 20, 0.001),
+          intensity: 0.5,
+        });
       }
     }
 
@@ -218,20 +254,28 @@ describe("HeatZoneManager — manual CRUD", () => {
       fillToCap();
       expect(manager.getZones()).toHaveLength(HEAT_ZONE_DEFAULTS.MAX_TOTAL);
       expect(() =>
-        manager.addZone({ polygon: makeSquarePolygon(500, 20, 0.001), intensity: 0.5 })
+        manager.addZone({
+          polygon: makeSquarePolygon(500, 20, 0.001),
+          intensity: 0.5,
+        })
       ).toThrow(HeatZoneCapError);
       // Rejected add must not have grown the list.
       expect(manager.getZones()).toHaveLength(HEAT_ZONE_DEFAULTS.MAX_TOTAL);
     });
 
     it("addZone still works below the cap", () => {
-      manager.addZone({ polygon: makeSquarePolygon(10, 20, 0.001), intensity: 0.5 });
+      manager.addZone({
+        polygon: makeSquarePolygon(10, 20, 0.001),
+        intensity: 0.5,
+      });
       expect(manager.getZones()).toHaveLength(1);
     });
 
     it("generateHeatedZones/seed tops out at MAX_TOTAL and never grows past it", () => {
       const { nodes, edges } = makeMockNetwork();
-      manager.generateHeatedZones(edges, nodes, { count: HEAT_ZONE_DEFAULTS.MAX_TOTAL + 50 });
+      manager.generateHeatedZones(edges, nodes, {
+        count: HEAT_ZONE_DEFAULTS.MAX_TOTAL + 50,
+      });
       expect(manager.getZones().length).toBe(HEAT_ZONE_DEFAULTS.MAX_TOTAL);
 
       // Seeding again once at the cap appends nothing (no error).
@@ -277,7 +321,9 @@ describe("HeatZoneManager — manual CRUD", () => {
         polygon: makeSquarePolygon(10, 20, 0.01),
         intensity: 0.5,
       });
-      const updated = manager.updateZone(feature.properties.id, { intensity: 0.9 });
+      const updated = manager.updateZone(feature.properties.id, {
+        intensity: 0.9,
+      });
       expect(updated?.properties.radius).toBe(feature.properties.radius);
     });
   });

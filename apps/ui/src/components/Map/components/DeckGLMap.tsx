@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type React from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DeckGL from "@deck.gl/react";
 import { MapView, WebMercatorViewport } from "@deck.gl/core";
 import type { Layer, MapViewState, PickingInfo } from "@deck.gl/core";
@@ -8,7 +9,12 @@ import type { Layer, MapViewState, PickingInfo } from "@deck.gl/core";
 type TooltipContent =
   | null
   | string
-  | { text?: string; html?: string; className?: string; style?: Partial<CSSStyleDeclaration> };
+  | {
+      text?: string;
+      html?: string;
+      className?: string;
+      style?: Partial<CSSStyleDeclaration>;
+    };
 import { SectionErrorFallback } from "@/components/ErrorBoundary";
 import { webgl2Adapter } from "@luma.gl/webgl";
 import { PathLayer } from "@deck.gl/layers";
@@ -151,7 +157,10 @@ function useThrottledCullInputs(
     ];
   }, [viewport]);
 
-  const [inputs, setInputs] = useState<{ box: ViewportBox | null; zoom: number }>(() => ({
+  const [inputs, setInputs] = useState<{
+    box: ViewportBox | null;
+    zoom: number;
+  }>(() => ({
     box: computeBox(),
     zoom,
   }));
@@ -377,7 +386,12 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
           <DeckLayersContext.Provider value={layerContextValue}>
             <div
               ref={containerRef}
-              style={{ width: "100%", height: "100%", position: "relative", outline: "none" }}
+              style={{
+                width: "100%",
+                height: "100%",
+                position: "relative",
+                outline: "none",
+              }}
               className="focus-visible:ring-inset focus-visible:ring-[3px] focus-visible:ring-ring/50"
               onContextMenu={handleContextMenu}
               tabIndex={0}

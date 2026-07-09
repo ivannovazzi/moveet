@@ -159,7 +159,11 @@ describe("VehicleManager", () => {
 
     it("should clamp speed to global maxSpeed when it is lower than edge maxSpeed", () => {
       const globalMax = 25;
-      manager.setOptions({ maxSpeed: globalMax, minSpeed: 5, speedVariation: 0 });
+      manager.setOptions({
+        maxSpeed: globalMax,
+        minSpeed: 5,
+        speedVariation: 0,
+      });
 
       const vehicle = firstVehicle();
       vehicle.speed = 100;
@@ -289,7 +293,12 @@ describe("VehicleManager", () => {
       follower.targetSpeed = 40;
 
       // Set high turnThreshold to prevent turn-based deceleration from interfering
-      manager.setOptions({ maxSpeed: 999, minSpeed: 1, speedVariation: 0, turnThreshold: 180 });
+      manager.setOptions({
+        maxSpeed: 999,
+        minSpeed: 1,
+        speedVariation: 0,
+        turnThreshold: 180,
+      });
 
       // Mock Math.random to return a high value so the targetSpeed refresh line
       // (Math.random() < deltaMs / 5000) does NOT trigger
@@ -585,7 +594,11 @@ describe("VehicleManager", () => {
         callCount++;
         if (callCount === 2) {
           // Second call is for the destination — return isolated node
-          return { id: "isolated", coordinates: [90, 180] as [number, number], connections: [] };
+          return {
+            id: "isolated",
+            coordinates: [90, 180] as [number, number],
+            connections: [],
+          };
         }
         return origFindNearest(pos);
       });

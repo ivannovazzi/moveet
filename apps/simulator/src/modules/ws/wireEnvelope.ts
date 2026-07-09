@@ -13,7 +13,11 @@ import type { WsMessageMap, WsDataMessageType } from "@moveet/shared-types";
  */
 export type WireEnvelope =
   | { kind: "vehicles"; vehicles: VehicleDTO[] }
-  | { kind: "message"; type: WsDataMessageType; data: WsMessageMap[WsDataMessageType] };
+  | {
+      kind: "message";
+      type: WsDataMessageType;
+      data: WsMessageMap[WsDataMessageType];
+    };
 
 /** Serialize a vehicle batch envelope. */
 export function encodeVehicles(vehicles: VehicleDTO[]): string {

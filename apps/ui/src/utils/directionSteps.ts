@@ -149,7 +149,14 @@ export function buildDirectionSteps(edges: Edge[]): DirectionStep[] {
       instruction = instructionFor(maneuver, road);
     }
 
-    steps.push({ maneuver, road, instruction, distanceKm, edgeStart: i, edgeEnd: j });
+    steps.push({
+      maneuver,
+      road,
+      instruction,
+      distanceKm,
+      edgeStart: i,
+      edgeEnd: j,
+    });
     i = j;
   }
 

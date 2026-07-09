@@ -75,5 +75,12 @@ export function useRecording() {
     }
   }, [refreshRecordings]);
 
-  return { isRecording, recordings, startRecording, stopRecording, refreshRecordings, error };
+  return {
+    isRecording,
+    recordings,
+    startRecording,
+    stopRecording,
+    refreshRecordings,
+    error,
+  };
 }

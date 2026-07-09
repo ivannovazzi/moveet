@@ -104,7 +104,10 @@ describe("IncidentManager", () => {
       const incident = im.createIncident(["e1"], "accident", 5000);
       im.removeIncident(incident.id);
 
-      expect(handler).toHaveBeenCalledWith({ id: incident.id, reason: "manual" });
+      expect(handler).toHaveBeenCalledWith({
+        id: incident.id,
+        reason: "manual",
+      });
     });
 
     it("should clean up edge index on removal", () => {

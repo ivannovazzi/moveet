@@ -378,7 +378,10 @@ describe("StateStore — analytics_history", () => {
   });
 
   it("survives re-opening (data persists)", () => {
-    store.insertAnalytics({ summary: makeSummary({ totalVehicles: 42 }), fleets: makeFleets() });
+    store.insertAnalytics({
+      summary: makeSummary({ totalVehicles: 42 }),
+      fleets: makeFleets(),
+    });
     store.close();
 
     store = new StateStore(dbPath);
@@ -471,10 +474,18 @@ describe("StateStore — recordings", () => {
 
   it("should store distinct metadata per recording", () => {
     const id1 = store.insertRecording(
-      makeRecording({ filePath: "recordings/rec-1.ndjson", duration: 10000, vehicleCount: 5 })
+      makeRecording({
+        filePath: "recordings/rec-1.ndjson",
+        duration: 10000,
+        vehicleCount: 5,
+      })
     );
     const id2 = store.insertRecording(
-      makeRecording({ filePath: "recordings/rec-2.ndjson", duration: 20000, vehicleCount: 15 })
+      makeRecording({
+        filePath: "recordings/rec-2.ndjson",
+        duration: 20000,
+        vehicleCount: 15,
+      })
     );
 
     const row1 = store.getRecording(id1)!;

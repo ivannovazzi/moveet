@@ -161,10 +161,16 @@ describe("httpClient", () => {
       const mockFn = vi
         .fn()
         .mockResolvedValueOnce(
-          new Response("", { status: 500, statusText: "Internal Server Error" })
+          new Response("", {
+            status: 500,
+            statusText: "Internal Server Error",
+          })
         )
         .mockResolvedValueOnce(
-          new Response("", { status: 500, statusText: "Internal Server Error" })
+          new Response("", {
+            status: 500,
+            statusText: "Internal Server Error",
+          })
         )
         .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
       globalThis.fetch = mockFn;
@@ -261,9 +267,12 @@ describe("httpClient", () => {
     });
 
     it("maxRetries=1 means no retry", async () => {
-      const mockFn = vi
-        .fn()
-        .mockResolvedValue(new Response("", { status: 500, statusText: "Internal Server Error" }));
+      const mockFn = vi.fn().mockResolvedValue(
+        new Response("", {
+          status: 500,
+          statusText: "Internal Server Error",
+        })
+      );
       globalThis.fetch = mockFn;
 
       await expect(

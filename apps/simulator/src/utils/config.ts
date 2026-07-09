@@ -235,6 +235,9 @@ export function verifyConfig(): void {
 
 /** Log the resolved config at startup, redacting sensitive values. */
 export function logConfig(): void {
-  const redacted = { ...config, adapterURL: config.adapterURL ? "••••••" : "(disabled)" };
+  const redacted = {
+    ...config,
+    adapterURL: config.adapterURL ? "••••••" : "(disabled)",
+  };
   logger.info({ config: redacted }, "Simulator config");
 }

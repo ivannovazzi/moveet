@@ -159,7 +159,10 @@ describe("RateLimiter", () => {
       const next = vi.fn();
       const { res, status } = makeRes();
 
-      const req = { ip: undefined, socket: { remoteAddress: "7.7.7.7" } } as unknown as Request;
+      const req = {
+        ip: undefined,
+        socket: { remoteAddress: "7.7.7.7" },
+      } as unknown as Request;
       mw(req, res, next); // ok
       mw(req, res, next); // blocked — same socket IP
 

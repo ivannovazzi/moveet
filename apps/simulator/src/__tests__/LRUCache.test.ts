@@ -105,7 +105,11 @@ describe("LRUCache", () => {
     it("should refresh TTL on hit when updateAgeOnGet is enabled", () => {
       vi.useFakeTimers();
       try {
-        const sliding = new LRUCache<string>({ maxSize: 3, ttlMs: 1000, updateAgeOnGet: true });
+        const sliding = new LRUCache<string>({
+          maxSize: 3,
+          ttlMs: 1000,
+          updateAgeOnGet: true,
+        });
         sliding.set("a", "alpha");
 
         // Touch the entry just before expiry — TTL should restart

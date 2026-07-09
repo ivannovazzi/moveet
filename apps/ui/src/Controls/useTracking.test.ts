@@ -42,7 +42,9 @@ describe("useTracking", () => {
     renderTracking([vehicle], "v1");
 
     expect(focusOn).toHaveBeenCalledTimes(1);
-    expect(focusOn).toHaveBeenCalledWith(36.82, -1.29, MIN_FOCUS_ZOOM, { duration: 0 });
+    expect(focusOn).toHaveBeenCalledWith(36.82, -1.29, MIN_FOCUS_ZOOM, {
+      duration: 0,
+    });
   });
 
   it("keeps the user's zoom when already zoomed in past the floor", () => {
@@ -69,7 +71,10 @@ describe("useTracking", () => {
 
     const moved = createVehicle({ id: "v1", position: [36.83, -1.3] });
     rerender({ vehicles: [moved], selected: "v1" });
-    rerender({ vehicles: [createVehicle({ id: "v1", position: [36.84, -1.31] })], selected: "v1" });
+    rerender({
+      vehicles: [createVehicle({ id: "v1", position: [36.84, -1.31] })],
+      selected: "v1",
+    });
 
     expect(focusOn).toHaveBeenCalledTimes(1);
   });
@@ -83,7 +88,9 @@ describe("useTracking", () => {
     rerender({ vehicles: [v1, v2], selected: "v2" });
 
     expect(focusOn).toHaveBeenCalledTimes(2);
-    expect(focusOn).toHaveBeenLastCalledWith(36.9, -1.35, MIN_FOCUS_ZOOM, { duration: 0 });
+    expect(focusOn).toHaveBeenLastCalledWith(36.9, -1.35, MIN_FOCUS_ZOOM, {
+      duration: 0,
+    });
   });
 
   it("re-flies when the same vehicle is re-selected after deselection", () => {
@@ -105,6 +112,8 @@ describe("useTracking", () => {
     rerender({ vehicles: [vehicle], selected: "v1" });
 
     expect(focusOn).toHaveBeenCalledTimes(1);
-    expect(focusOn).toHaveBeenCalledWith(36.82, -1.29, MIN_FOCUS_ZOOM, { duration: 0 });
+    expect(focusOn).toHaveBeenCalledWith(36.82, -1.29, MIN_FOCUS_ZOOM, {
+      duration: 0,
+    });
   });
 });

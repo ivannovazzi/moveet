@@ -218,7 +218,8 @@ export class StateStore {
     const result = this.insertSnapshotStmt.run(data);
     const id = Number(result.lastInsertRowid);
     const row = this.db.prepare("SELECT created_at FROM snapshots WHERE id = ?").get(id) as
-      { created_at: string } | undefined;
+      | { created_at: string }
+      | undefined;
     return { id, created_at: row?.created_at ?? new Date().toISOString() };
   }
 
@@ -254,7 +255,12 @@ export class StateStore {
   getAnalyticsHistory(from?: string, to?: string, limit: number = 1000): AnalyticsHistoryRow[] {
     const effectiveLimit = Math.min(Math.max(1, limit), 10000);
 
-    let rows: Array<{ id: number; timestamp: string; summary: string; fleets: string }>;
+    let rows: Array<{
+      id: number;
+      timestamp: string;
+      summary: string;
+      fleets: string;
+    }>;
 
     if (from && to) {
       rows = this.selectAnalyticsRangeStmt.all(from, to, effectiveLimit) as typeof rows;

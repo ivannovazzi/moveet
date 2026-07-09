@@ -1,10 +1,8 @@
 import { forwardRef } from "react";
 import { cn } from "@/lib/utils";
 
-export interface DockClusterProps extends Omit<
-  React.ButtonHTMLAttributes<HTMLButtonElement>,
-  "className"
-> {
+export interface DockClusterProps
+  extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "className"> {
   /** The cluster's icon (a lucide icon from `@/components/Icons`, unsized). */
   icon: React.ReactNode;
   /** Short label rendered under the icon. Omit for an icon-only cluster. */

@@ -41,13 +41,22 @@ function getLayers(): unknown[] {
 function getLayer(id: string): { props: Record<string, unknown> } | undefined {
   const layers = getLayers();
   return layers.find((l) => (l as { props: { id: string } }).props.id === id) as
-    { props: Record<string, unknown> } | undefined;
+    | { props: Record<string, unknown> }
+    | undefined;
 }
 
 describe("PendingDispatch", () => {
   const defaultVehicles: Vehicle[] = [
-    createVehicle({ id: "v1", name: "Truck Alpha", position: [36.8219, -1.2921] as Position }),
-    createVehicle({ id: "v2", name: "Van Beta", position: [36.85, -1.3] as Position }),
+    createVehicle({
+      id: "v1",
+      name: "Truck Alpha",
+      position: [36.8219, -1.2921] as Position,
+    }),
+    createVehicle({
+      id: "v2",
+      name: "Van Beta",
+      position: [36.85, -1.3] as Position,
+    }),
   ];
 
   beforeEach(() => {
@@ -118,7 +127,10 @@ describe("PendingDispatch", () => {
 
   it("skips assignments whose vehicle is not found in the vehicles list", () => {
     const assignments = [
-      makeAssignment({ vehicleId: "nonexistent", vehicleName: "Ghost Vehicle" }),
+      makeAssignment({
+        vehicleId: "nonexistent",
+        vehicleName: "Ghost Vehicle",
+      }),
     ];
 
     render(<PendingDispatch assignments={assignments} vehicles={defaultVehicles} />);

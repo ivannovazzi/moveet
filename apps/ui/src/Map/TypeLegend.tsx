@@ -6,8 +6,16 @@ import type { VehicleType } from "@/types";
 const VEHICLE_TYPES: { type: VehicleType; label: string; color: string }[] = [
   { type: "car", label: "Car", color: "var(--color-vehicle-car)" },
   { type: "truck", label: "Truck", color: "var(--color-vehicle-truck)" },
-  { type: "motorcycle", label: "Moto", color: "var(--color-vehicle-motorcycle)" },
-  { type: "ambulance", label: "Ambulance", color: "var(--color-vehicle-ambulance)" },
+  {
+    type: "motorcycle",
+    label: "Moto",
+    color: "var(--color-vehicle-motorcycle)",
+  },
+  {
+    type: "ambulance",
+    label: "Ambulance",
+    color: "var(--color-vehicle-ambulance)",
+  },
   { type: "bus", label: "Bus", color: "var(--color-vehicle-bus)" },
 ];
 

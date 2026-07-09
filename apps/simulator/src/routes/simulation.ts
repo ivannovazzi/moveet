@@ -37,7 +37,10 @@ export function createSimulationRoutes(ctx: RouteContext): Router {
     validateBody(startSchema),
     asyncHandler(async (req, res) => {
       await simulationController.start(req.body);
-      res.json({ status: "started", vehicleTypes: req.body.vehicleTypes ?? null });
+      res.json({
+        status: "started",
+        vehicleTypes: req.body.vehicleTypes ?? null,
+      });
     })
   );
 

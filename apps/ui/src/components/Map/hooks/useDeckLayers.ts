@@ -70,7 +70,10 @@ export function useDeckLayerManager() {
 
   const registerLayers = useCallback(
     (id: string, layers: Layer[], order?: number) => {
-      registryRef.current.set(id, { layers, order: order ?? LAYER_ORDER[id] ?? 100 });
+      registryRef.current.set(id, {
+        layers,
+        order: order ?? LAYER_ORDER[id] ?? 100,
+      });
       scheduleRebuild();
     },
     [scheduleRebuild]

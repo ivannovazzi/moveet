@@ -63,7 +63,9 @@ describe("Route caching in RoadNetwork", () => {
       vi.useFakeTimers();
       try {
         // Use a short TTL for testing
-        const shortTtlNetwork = new RoadNetwork(testGeojsonPath, { ttlMs: 500 });
+        const shortTtlNetwork = new RoadNetwork(testGeojsonPath, {
+          ttlMs: 500,
+        });
 
         const start = shortTtlNetwork.findNearestNode([45.5017, -73.5673]);
         const end = shortTtlNetwork.findNearestNode([45.5029, -73.5661]);
@@ -102,7 +104,9 @@ describe("Route caching in RoadNetwork", () => {
     it("should refresh TTL on cache hit (sliding expiry)", () => {
       vi.useFakeTimers();
       try {
-        const shortTtlNetwork = new RoadNetwork(testGeojsonPath, { ttlMs: 500 });
+        const shortTtlNetwork = new RoadNetwork(testGeojsonPath, {
+          ttlMs: 500,
+        });
 
         const start = shortTtlNetwork.findNearestNode([45.5017, -73.5673]);
         const end = shortTtlNetwork.findNearestNode([45.5029, -73.5661]);
@@ -129,7 +133,10 @@ describe("Route caching in RoadNetwork", () => {
   describe("LRU eviction", () => {
     it("should evict oldest route when max cache size is reached", () => {
       // Create network with small cache
-      const smallCacheNetwork = new RoadNetwork(testGeojsonPath, { maxSize: 2, ttlMs: 60_000 });
+      const smallCacheNetwork = new RoadNetwork(testGeojsonPath, {
+        maxSize: 2,
+        ttlMs: 60_000,
+      });
 
       const nodeA = smallCacheNetwork.findNearestNode([45.5017, -73.5673]);
       const nodeB = smallCacheNetwork.findNearestNode([45.502, -73.567]);

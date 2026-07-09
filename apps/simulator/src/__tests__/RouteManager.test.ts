@@ -343,7 +343,10 @@ describe("RouteManager", () => {
 
       // Stub the pathfinder to resolve deterministically (avoids depending on
       // real worker-pool timing) with a route for the vehicle's current edge.
-      const route: Route = { edges: [vehicle.currentEdge], distance: vehicle.currentEdge.distance };
+      const route: Route = {
+        edges: [vehicle.currentEdge],
+        distance: vehicle.currentEdge.distance,
+      };
       const findRouteSpy = vi.spyOn(network, "findRouteAsync").mockResolvedValue(route);
 
       // Trigger one failed-cooldown retry to populate unroutedAttempts and

@@ -30,7 +30,10 @@ describe("GraphQLSource", () => {
 
   it("connects with url and token", async () => {
     const source = new GraphQLSource();
-    await source.connect({ url: "https://api.example.com/graphql", token: "abc123" });
+    await source.connect({
+      url: "https://api.example.com/graphql",
+      token: "abc123",
+    });
     mockRequest.mockResolvedValueOnce({ __typename: "Query" });
     expect((await source.healthCheck()).healthy).toBe(true);
   });
@@ -80,7 +83,10 @@ describe("GraphQLSource", () => {
     });
 
     const source = new GraphQLSource();
-    await source.connect({ url: "https://api.example.com/graphql", maxVehicles: 10 });
+    await source.connect({
+      url: "https://api.example.com/graphql",
+      maxVehicles: 10,
+    });
     const vehicles = await source.getVehicles();
     expect(vehicles).toHaveLength(10);
   });
@@ -131,8 +137,18 @@ describe("GraphQLSource", () => {
       vehicles: {
         nodes: [
           { id: "v1", callsign: "Good", latitude: -1.28, longitude: 36.8 },
-          { id: "v2", callsign: "Bad", latitude: "not-a-number", longitude: 36.8 },
-          { id: "v3", callsign: "Undefined", latitude: undefined, longitude: undefined },
+          {
+            id: "v2",
+            callsign: "Bad",
+            latitude: "not-a-number",
+            longitude: 36.8,
+          },
+          {
+            id: "v3",
+            callsign: "Undefined",
+            latitude: undefined,
+            longitude: undefined,
+          },
         ],
       },
     });
@@ -176,7 +192,12 @@ describe("GraphQLSource", () => {
     await expect(
       source.connect({
         url: "https://api.example.com/graphql",
-        fieldMap: { id: "__proto__.polluted", name: "callsign", lat: "latitude", lng: "longitude" },
+        fieldMap: {
+          id: "__proto__.polluted",
+          name: "callsign",
+          lat: "latitude",
+          lng: "longitude",
+        },
       })
     ).rejects.toThrow("unsafe field map paths");
   });
@@ -309,8 +330,20 @@ describe("GraphQLSource", () => {
     mockRequest.mockResolvedValue({
       vehicles: {
         nodes: [
-          { id: "v1", callsign: "Online", latitude: -1.28, longitude: 36.8, isOnline: true },
-          { id: "v2", callsign: "Offline", latitude: -1.29, longitude: 36.81, isOnline: false },
+          {
+            id: "v1",
+            callsign: "Online",
+            latitude: -1.28,
+            longitude: 36.8,
+            isOnline: true,
+          },
+          {
+            id: "v2",
+            callsign: "Offline",
+            latitude: -1.29,
+            longitude: 36.81,
+            isOnline: false,
+          },
         ],
       },
     });

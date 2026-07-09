@@ -176,7 +176,12 @@ export class PathfindingPool {
       this.pending.set(id, { resolve, reject, workerIndex, timer });
 
       const worker = this.workers[workerIndex];
-      const msg: Record<string, unknown> = { type: "findRoute", id, startId, endId };
+      const msg: Record<string, unknown> = {
+        type: "findRoute",
+        id,
+        startId,
+        endId,
+      };
       if (incidentEdges) {
         msg.incidentEdges = Object.fromEntries(incidentEdges);
       }

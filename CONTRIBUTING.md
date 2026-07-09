@@ -61,9 +61,9 @@ The simulator works standalone with synthetic vehicles. The adapter is only need
 ## Code Style
 
 - **TypeScript** is used throughout every app and package.
-- **ESLint** enforces code quality and **Prettier** handles formatting across all apps (a single root `.prettierrc.json` is shared by every workspace). Run them from the root before submitting changes:
-  - `npm run lint` (ESLint across all workspaces via Turborepo)
-  - `npm run format:check` (Prettier check) or `npm run format` (write)
+- **Biome** handles both linting and formatting for the whole monorepo from a single root `biome.json`. Run it from the root before submitting changes:
+  - `npm run lint` (Biome lint across the whole repo) or `npm run lint:fix` (apply safe fixes)
+  - `npm run format:check` (Biome format check) or `npm run format` (write)
 - Type-checking is a separate task: `npm run type-check`.
 - Follow existing conventions in the codebase. When in doubt, match the style of surrounding code.
 

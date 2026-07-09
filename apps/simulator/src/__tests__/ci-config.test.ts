@@ -20,8 +20,11 @@ describe("CI workflow configuration", () => {
     }
   });
 
-  it("verify job runs lint, type-check, test and build through a single turbo invocation", () => {
-    expect(ciContent).toContain("npx turbo lint type-check test:ci build");
+  it("verify job runs Biome lint, then type-check, test and build through turbo", () => {
+    // Biome (lint + format) is a single fast pass over the whole repo, so it
+    // runs at the root via `npm run lint` rather than fanning out through turbo.
+    expect(ciContent).toContain("npm run lint");
+    expect(ciContent).toContain("npx turbo type-check test:ci build");
   });
 
   it("format-check job runs npm run format:check", () => {

@@ -109,7 +109,10 @@ export class RealismEngine {
         });
       }
     }
-    const result: AcceptedResult = { status: "accepted", accepted: updates.length };
+    const result: AcceptedResult = {
+      status: "accepted",
+      accepted: updates.length,
+    };
     return result;
   }
 

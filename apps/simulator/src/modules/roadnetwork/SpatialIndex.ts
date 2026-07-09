@@ -25,7 +25,12 @@ export class SpatialIndex {
   private gridCellSize = SPATIAL_GRID.CELL_SIZE;
   private spatialGrid: Map<string, Node[]> = new Map();
 
-  private bbox = { minLat: Infinity, maxLat: -Infinity, minLon: Infinity, maxLon: -Infinity };
+  private bbox = {
+    minLat: Infinity,
+    maxLat: -Infinity,
+    minLon: Infinity,
+    maxLon: -Infinity,
+  };
 
   private sectorEdges: Edge[][] = [];
   private sectorNodes: Node[][] = [];

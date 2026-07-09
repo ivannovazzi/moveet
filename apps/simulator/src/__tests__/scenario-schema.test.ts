@@ -67,7 +67,10 @@ describe("scenarioSchema", () => {
     if (result.success) {
       expect(result.data.description).toBe("A comprehensive test");
       expect(result.data.city).toBe("Nairobi");
-      expect(result.data.variables).toEqual({ vehicleCount: 20, speedRange: "fast" });
+      expect(result.data.variables).toEqual({
+        vehicleCount: 20,
+        speedRange: "fast",
+      });
       expect(result.data.events).toHaveLength(2);
     }
   });
@@ -601,7 +604,12 @@ describe("scenarioActionSchema", () => {
   it("parses each valid action type correctly", () => {
     const actions = [
       { type: "spawn_vehicles", count: 5 },
-      { type: "create_incident", edgeIds: ["e1"], incidentType: "accident", duration: 60 },
+      {
+        type: "create_incident",
+        edgeIds: ["e1"],
+        incidentType: "accident",
+        duration: 60,
+      },
       { type: "dispatch", vehicleId: "v1", waypoints: [{ lat: 0, lng: 0 }] },
       { type: "set_traffic_profile", name: "peak", timeRanges: [] },
       { type: "clear_incidents" },

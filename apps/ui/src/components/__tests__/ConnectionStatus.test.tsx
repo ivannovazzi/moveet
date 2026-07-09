@@ -6,13 +6,21 @@ import type { ConnectionStateInfo } from "@/utils/wsClient";
 
 describe("ConnectionStatus", () => {
   it("renders nothing when connected", () => {
-    const info: ConnectionStateInfo = { state: "connected", attempt: 0, maxAttempts: 10 };
+    const info: ConnectionStateInfo = {
+      state: "connected",
+      attempt: 0,
+      maxAttempts: 10,
+    };
     const { container } = render(<ConnectionStatus connectionInfo={info} />);
     expect(container.innerHTML).toBe("");
   });
 
   it("renders reconnecting banner with attempt info", () => {
-    const info: ConnectionStateInfo = { state: "reconnecting", attempt: 2, maxAttempts: 10 };
+    const info: ConnectionStateInfo = {
+      state: "reconnecting",
+      attempt: 2,
+      maxAttempts: 10,
+    };
     render(<ConnectionStatus connectionInfo={info} />);
 
     const banner = screen.getByTestId("connection-status");
@@ -22,7 +30,11 @@ describe("ConnectionStatus", () => {
   });
 
   it("renders disconnected banner", () => {
-    const info: ConnectionStateInfo = { state: "disconnected", attempt: 10, maxAttempts: 10 };
+    const info: ConnectionStateInfo = {
+      state: "disconnected",
+      attempt: 10,
+      maxAttempts: 10,
+    };
     render(<ConnectionStatus connectionInfo={info} />);
 
     const banner = screen.getByTestId("connection-status");
@@ -33,7 +45,11 @@ describe("ConnectionStatus", () => {
   });
 
   it("shows first attempt correctly", () => {
-    const info: ConnectionStateInfo = { state: "reconnecting", attempt: 0, maxAttempts: 5 };
+    const info: ConnectionStateInfo = {
+      state: "reconnecting",
+      attempt: 0,
+      maxAttempts: 5,
+    };
     render(<ConnectionStatus connectionInfo={info} />);
 
     expect(screen.getByTestId("connection-status")).toHaveTextContent(
@@ -42,7 +58,11 @@ describe("ConnectionStatus", () => {
   });
 
   it("shows last reconnect attempt correctly", () => {
-    const info: ConnectionStateInfo = { state: "reconnecting", attempt: 4, maxAttempts: 5 };
+    const info: ConnectionStateInfo = {
+      state: "reconnecting",
+      attempt: 4,
+      maxAttempts: 5,
+    };
     render(<ConnectionStatus connectionInfo={info} />);
 
     expect(screen.getByTestId("connection-status")).toHaveTextContent(
@@ -53,7 +73,11 @@ describe("ConnectionStatus", () => {
   it("offers a Retry action when disconnected", async () => {
     const user = userEvent.setup();
     const onRetry = vi.fn();
-    const info: ConnectionStateInfo = { state: "disconnected", attempt: 10, maxAttempts: 10 };
+    const info: ConnectionStateInfo = {
+      state: "disconnected",
+      attempt: 10,
+      maxAttempts: 10,
+    };
     render(<ConnectionStatus connectionInfo={info} onRetry={onRetry} />);
 
     const button = screen.getByTestId("connection-retry");
@@ -64,7 +88,11 @@ describe("ConnectionStatus", () => {
   });
 
   it("does not show Retry while still reconnecting", () => {
-    const info: ConnectionStateInfo = { state: "reconnecting", attempt: 2, maxAttempts: 10 };
+    const info: ConnectionStateInfo = {
+      state: "reconnecting",
+      attempt: 2,
+      maxAttempts: 10,
+    };
     render(<ConnectionStatus connectionInfo={info} />);
 
     expect(screen.queryByTestId("connection-retry")).not.toBeInTheDocument();

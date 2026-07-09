@@ -266,7 +266,10 @@ export class RouteManager extends EventEmitter {
 
         const nextLeg = multiRoute.legs[wpIndex + 1];
         if (nextLeg) {
-          this.setRouteFor(vehicle.id, { edges: nextLeg.edges, distance: nextLeg.distance });
+          this.setRouteFor(vehicle.id, {
+            edges: nextLeg.edges,
+            distance: nextLeg.distance,
+          });
           vehicle.currentWaypointIndex = wpIndex + 1;
           vehicle.edgeIndex = -1;
         }
@@ -470,7 +473,11 @@ export class RouteManager extends EventEmitter {
   ): Promise<DirectionResult> {
     const vehicle = this.registry.get(vehicleId);
     if (!vehicle) {
-      return { vehicleId, status: "error", error: `Vehicle ${vehicleId} not found` };
+      return {
+        vehicleId,
+        status: "error",
+        error: `Vehicle ${vehicleId} not found`,
+      };
     }
 
     const endNode = this.network.findNearestNode(destination);
@@ -531,7 +538,11 @@ export class RouteManager extends EventEmitter {
   ): Promise<DirectionResult> {
     const vehicle = this.registry.get(vehicleId);
     if (!vehicle) {
-      return { vehicleId, status: "error", error: `Vehicle ${vehicleId} not found` };
+      return {
+        vehicleId,
+        status: "error",
+        error: `Vehicle ${vehicleId} not found`,
+      };
     }
 
     if (waypoints.length === 0) {
@@ -540,7 +551,11 @@ export class RouteManager extends EventEmitter {
 
     const positions: [number, number][] = [vehicle.position, ...waypoints.map((wp) => wp.position)];
     const legs: { edges: Edge[]; distance: number; waypointIndex: number }[] = [];
-    const legResults: { start: [number, number]; end: [number, number]; distance: number }[] = [];
+    const legResults: {
+      start: [number, number];
+      end: [number, number];
+      distance: number;
+    }[] = [];
 
     const waypointProfile = getProfile(vehicle.type);
     for (let i = 0; i < positions.length - 1; i++) {
@@ -570,7 +585,11 @@ export class RouteManager extends EventEmitter {
         };
       }
 
-      legs.push({ edges: route.edges, distance: route.distance, waypointIndex: i });
+      legs.push({
+        edges: route.edges,
+        distance: route.distance,
+        waypointIndex: i,
+      });
       legResults.push({
         start: startNode.coordinates,
         end: endNode.coordinates,
@@ -589,7 +608,10 @@ export class RouteManager extends EventEmitter {
 
     const firstLeg = legs[0];
     const stitchedRoute: Route = { edges: allEdges, distance: totalDistance };
-    this.setRouteFor(vehicleId, { edges: firstLeg.edges, distance: firstLeg.distance });
+    this.setRouteFor(vehicleId, {
+      edges: firstLeg.edges,
+      distance: firstLeg.distance,
+    });
 
     const previousEdgeId = vehicle.currentEdge.id;
     this.traffic.leave(previousEdgeId);

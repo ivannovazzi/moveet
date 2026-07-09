@@ -1,10 +1,8 @@
 import { Input as UIInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-interface InputProps extends Omit<
-  React.ComponentProps<typeof UIInput>,
-  "onChange" | "value" | "type"
-> {
+interface InputProps
+  extends Omit<React.ComponentProps<typeof UIInput>, "onChange" | "value" | "type"> {
   label?: string;
   value?: string | number;
   onChange?: (value: string) => void;

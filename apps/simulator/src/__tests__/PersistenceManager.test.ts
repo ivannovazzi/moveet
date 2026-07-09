@@ -8,11 +8,16 @@ import { IncidentManager } from "../modules/IncidentManager";
 // Minimal VehicleManager mock that satisfies PersistenceManager's read-only usage
 function createMockVehicleManager() {
   return {
-    getVehicles: vi
-      .fn()
-      .mockReturnValue([
-        { id: "v1", name: "V1", position: [1.0, 2.0], speed: 30, bearing: 90, type: "car" },
-      ]),
+    getVehicles: vi.fn().mockReturnValue([
+      {
+        id: "v1",
+        name: "V1",
+        position: [1.0, 2.0],
+        speed: 30,
+        bearing: 90,
+        type: "car",
+      },
+    ]),
     analytics: {
       getSnapshot: vi.fn().mockReturnValue({
         summary: { totalVehicles: 1, activeVehicles: 1 },

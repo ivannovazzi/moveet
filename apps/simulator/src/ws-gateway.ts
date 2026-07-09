@@ -59,7 +59,10 @@ export async function startGateway(): Promise<GatewayHandle> {
 
     ws.on("message", (data) => {
       try {
-        const msg = JSON.parse(data.toString()) as { type?: string; filter?: unknown };
+        const msg = JSON.parse(data.toString()) as {
+          type?: string;
+          filter?: unknown;
+        };
         if (msg.type === "subscribe") {
           if (msg.filter === null || msg.filter === undefined) {
             fanout.setClientFilter(ws, null);

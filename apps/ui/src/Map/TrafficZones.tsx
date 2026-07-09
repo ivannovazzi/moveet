@@ -351,6 +351,7 @@ export default function Heatzones({ visible }: { visible: boolean }) {
   }, [mapHTMLElement]);
 
   // ── Display layer ──────────────────────────────────────────────────
+  // biome-ignore lint/correctness/useExhaustiveDependencies: dependency list is intentionally curated
   const displayLayers = useMemo(() => {
     if (!visible || heatzones.length === 0) return [];
     const data: HeatzoneDatum[] = heatzones.map((z) => ({
@@ -386,7 +387,6 @@ export default function Heatzones({ visible }: { visible: boolean }) {
         },
       }),
     ];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, heatzones, editor.selectedId, editor.draft]);
   useRegisterLayers("traffic-zones", displayLayers);
 
@@ -410,6 +410,7 @@ export default function Heatzones({ visible }: { visible: boolean }) {
   useRegisterLayers("heatzone-draw", drawLayers);
 
   // ── Vertex handles for the selected zone ───────────────────────────
+  // biome-ignore lint/correctness/useExhaustiveDependencies: dependency list is intentionally curated
   const handleLayers = useMemo(() => {
     if (editor.mode !== "selected" || !editor.selectedId) return [];
     const zone = heatzones.find((z) => z.properties.id === editor.selectedId);
@@ -445,7 +446,6 @@ export default function Heatzones({ visible }: { visible: boolean }) {
         pickable: true,
       }),
     ];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor.mode, editor.selectedId, editor.draft, heatzones]);
   useRegisterLayers("heatzone-handles", handleLayers);
 

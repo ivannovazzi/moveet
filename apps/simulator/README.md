@@ -298,10 +298,14 @@ See "Scaling WebSocket Clients" below for when to enable it and load-test result
 npm test
 ```
 
-### Lint
+### Lint & format
+
+Linting and formatting are handled repo-wide by **Biome**; run from the monorepo root
+(there are no per-app lint/format scripts):
 
 ```bash
-npm run lint
+npm run lint      # Biome lint
+npm run format    # Biome format (write)
 ```
 
 ## Scaling WebSocket Clients

@@ -138,7 +138,13 @@ describe("VehiclesLayer (deck.gl)", () => {
 
   it("registers two layers: highlight ring and vehicles", () => {
     vehicleStore.replace([
-      { id: "v1", name: "V1", position: [36.82, -1.29], speed: 30, heading: 90 },
+      {
+        id: "v1",
+        name: "V1",
+        position: [36.82, -1.29],
+        speed: 30,
+        heading: 90,
+      },
     ]);
 
     renderAndTick();
@@ -153,8 +159,20 @@ describe("VehiclesLayer (deck.gl)", () => {
 
   it("produces interpolated data for each vehicle", () => {
     vehicleStore.replace([
-      { id: "v1", name: "V1", position: [36.82, -1.29], speed: 30, heading: 90 },
-      { id: "v2", name: "V2", position: [36.83, -1.3], speed: 40, heading: 180 },
+      {
+        id: "v1",
+        name: "V1",
+        position: [36.82, -1.29],
+        speed: 30,
+        heading: 90,
+      },
+      {
+        id: "v2",
+        name: "V2",
+        position: [36.83, -1.3],
+        speed: 40,
+        heading: 180,
+      },
     ]);
 
     renderAndTick();
@@ -209,7 +227,13 @@ describe("VehiclesLayer (deck.gl)", () => {
     const hiddenFleetIds = new Set(["fleet-1"]);
 
     vehicleStore.replace([
-      { id: "v1", name: "V1", position: [36.82, -1.29], speed: 30, heading: 90 },
+      {
+        id: "v1",
+        name: "V1",
+        position: [36.82, -1.29],
+        speed: 30,
+        heading: 90,
+      },
     ]);
 
     renderAndTick({ vehicleFleetMap: fleetMap, hiddenFleetIds });
@@ -220,7 +244,14 @@ describe("VehiclesLayer (deck.gl)", () => {
 
   it("skips vehicles of hidden types", () => {
     vehicleStore.replace([
-      { id: "v1", name: "Car-1", type: "car", position: [36.82, -1.29], speed: 30, heading: 90 },
+      {
+        id: "v1",
+        name: "Car-1",
+        type: "car",
+        position: [36.82, -1.29],
+        speed: 30,
+        heading: 90,
+      },
       {
         id: "v2",
         name: "Truck-1",
@@ -306,7 +337,13 @@ describe("VehiclesLayer (deck.gl)", () => {
 
   it("converts compass heading (CW) to deck.gl angle (CCW degrees)", () => {
     vehicleStore.replace([
-      { id: "v1", name: "V1", position: [36.82, -1.29], speed: 30, heading: 90 },
+      {
+        id: "v1",
+        name: "V1",
+        position: [36.82, -1.29],
+        speed: 30,
+        heading: 90,
+      },
     ]);
 
     renderAndTick();
@@ -330,7 +367,13 @@ describe("VehiclesLayer teleport detection", () => {
 
     // First movement — clears isNew by snapping. Vehicle now at B.
     vehicleStore.replace([
-      { id: "v1", name: "V1", position: [36.8205, -1.29], speed: 30, heading: 0 },
+      {
+        id: "v1",
+        name: "V1",
+        position: [36.8205, -1.29],
+        speed: 30,
+        heading: 0,
+      },
     ]);
     act(() => {
       vi.advanceTimersByTime(100);
@@ -338,7 +381,13 @@ describe("VehiclesLayer teleport detection", () => {
 
     // Second small movement (~5m, plausible at 30 km/h) → should animate.
     vehicleStore.replace([
-      { id: "v1", name: "V1", position: [36.8206, -1.29], speed: 30, heading: 0 },
+      {
+        id: "v1",
+        name: "V1",
+        position: [36.8206, -1.29],
+        speed: 30,
+        heading: 0,
+      },
     ]);
     // Tick briefly — should be mid-interpolation between 36.8205 and 36.8206.
     act(() => {
@@ -365,7 +414,13 @@ describe("VehiclesLayer teleport detection", () => {
 
     // First real move — clears isNew via the existing snap.
     vehicleStore.replace([
-      { id: "v1", name: "V1", position: [36.821, -1.29], speed: 30, heading: 0 },
+      {
+        id: "v1",
+        name: "V1",
+        position: [36.821, -1.29],
+        speed: 30,
+        heading: 0,
+      },
     ]);
     act(() => {
       vi.advanceTimersByTime(100);
@@ -374,7 +429,13 @@ describe("VehiclesLayer teleport detection", () => {
     // Teleport ~1° of latitude away (~111 km) — far beyond any plausible
     // motion at 30 km/h over 100 ms.
     vehicleStore.replace([
-      { id: "v1", name: "V1", position: [37.821, -1.29], speed: 30, heading: 0 },
+      {
+        id: "v1",
+        name: "V1",
+        position: [37.821, -1.29],
+        speed: 30,
+        heading: 0,
+      },
     ]);
     act(() => {
       vi.advanceTimersByTime(50);
@@ -398,7 +459,13 @@ describe("VehiclesLayer teleport detection", () => {
 
     // Move ~11 m (under the 50 m floor). isNew clears here via existing snap.
     vehicleStore.replace([
-      { id: "v1", name: "V1", position: [36.8201, -1.29], speed: 0, heading: 0 },
+      {
+        id: "v1",
+        name: "V1",
+        position: [36.8201, -1.29],
+        speed: 0,
+        heading: 0,
+      },
     ]);
     act(() => {
       vi.advanceTimersByTime(100);
@@ -406,7 +473,13 @@ describe("VehiclesLayer teleport detection", () => {
 
     // Another ~11 m move — should animate (not teleport-snap).
     vehicleStore.replace([
-      { id: "v1", name: "V1", position: [36.8202, -1.29], speed: 0, heading: 0 },
+      {
+        id: "v1",
+        name: "V1",
+        position: [36.8202, -1.29],
+        speed: 0,
+        heading: 0,
+      },
     ]);
     act(() => {
       vi.advanceTimersByTime(50);
@@ -430,7 +503,13 @@ describe("VehiclesLayer teleport detection", () => {
 
     // Normal progression to clear isNew.
     vehicleStore.replace([
-      { id: "v1", name: "V1", position: [36.821, -1.29], speed: 30, heading: 0 },
+      {
+        id: "v1",
+        name: "V1",
+        position: [36.821, -1.29],
+        speed: 30,
+        heading: 0,
+      },
     ]);
     act(() => {
       vi.advanceTimersByTime(100);
@@ -482,7 +561,13 @@ describe("VehiclesLayer viewport culling", () => {
 
   it("culls vehicles far outside the viewport", () => {
     vehicleStore.replace([
-      { id: "inside", name: "In", position: [-1.29, 36.82], speed: 30, heading: 0 },
+      {
+        id: "inside",
+        name: "In",
+        position: [-1.29, 36.82],
+        speed: 30,
+        heading: 0,
+      },
       { id: "outside", name: "Out", position: [10, 50], speed: 30, heading: 0 },
     ]);
 
@@ -495,7 +580,13 @@ describe("VehiclesLayer viewport culling", () => {
   it("keeps vehicles just outside the viewport (margin)", () => {
     vehicleStore.replace([
       // ~0.03° east of the east edge — inside the 25% (0.05°) margin
-      { id: "near-edge", name: "Edge", position: [-1.3, 36.93], speed: 30, heading: 0 },
+      {
+        id: "near-edge",
+        name: "Edge",
+        position: [-1.3, 36.93],
+        speed: 30,
+        heading: 0,
+      },
     ]);
 
     renderWithViewport();
@@ -517,7 +608,13 @@ describe("VehiclesLayer viewport culling", () => {
 
   it("does not cull when no viewport bounds are available (default context)", () => {
     vehicleStore.replace([
-      { id: "anywhere", name: "Far", position: [10, 50], speed: 30, heading: 0 },
+      {
+        id: "anywhere",
+        name: "Far",
+        position: [10, 50],
+        speed: 30,
+        heading: 0,
+      },
     ]);
 
     renderAndTick();

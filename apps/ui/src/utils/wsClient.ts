@@ -24,7 +24,7 @@ interface WebSocketClientOptions {
 
 export class WebSocketClient {
   private ws: WebSocket | null = null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // biome-ignore lint/suspicious/noExplicitAny: the handler map is intentionally heterogeneous across message types
   private handlers = new Map<string, Set<HandlerFn<any>>>();
   private reconnectAttempts = 0;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -179,11 +179,11 @@ export class WebSocketClient {
       set = new Set();
       this.handlers.set(type, set);
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // biome-ignore lint/suspicious/noExplicitAny: handler is stored under an erased message type
     set.add(handler as HandlerFn<any>);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // biome-ignore lint/suspicious/noExplicitAny: handler param is generic across message types
   off(type: string, handler?: HandlerFn<any>) {
     if (handler) {
       const set = this.handlers.get(type);

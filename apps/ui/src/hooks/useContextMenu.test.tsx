@@ -45,7 +45,10 @@ describe("useContextMenu", () => {
 
   it("close() resets the position to null", () => {
     render(<TestComponent />);
-    fireEvent.contextMenu(screen.getByTestId("trigger"), { clientX: 100, clientY: 200 });
+    fireEvent.contextMenu(screen.getByTestId("trigger"), {
+      clientX: 100,
+      clientY: 200,
+    });
     expect(screen.getByTestId("state")).toHaveTextContent("100,200");
 
     fireEvent.click(screen.getByTestId("close"));

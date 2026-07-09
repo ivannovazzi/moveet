@@ -8,7 +8,12 @@ import { useCallback, useState } from "react";
  * analytics, geofences); `settings` holds view filters, session, and tuning.
  */
 export type DockClusterId =
-  "playback" | "tempo" | "fleet-dispatch" | "sinks-source" | "monitor" | "settings";
+  | "playback"
+  | "tempo"
+  | "fleet-dispatch"
+  | "sinks-source"
+  | "monitor"
+  | "settings";
 
 export interface DockNavigation {
   /** The single cluster whose drawer is currently open, or `null`. */

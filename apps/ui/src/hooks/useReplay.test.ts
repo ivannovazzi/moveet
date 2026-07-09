@@ -156,7 +156,9 @@ describe("useReplay", () => {
 
 describe("useReplay error handling", () => {
   it("startReplay sets error on API error", async () => {
-    vi.mocked(client.startReplay).mockResolvedValue({ error: "File not found" });
+    vi.mocked(client.startReplay).mockResolvedValue({
+      error: "File not found",
+    });
 
     const { result } = renderHook(() => useReplay());
 
@@ -192,7 +194,9 @@ describe("useReplay error handling", () => {
   });
 
   it("stopReplay sets error on failure", async () => {
-    vi.mocked(client.stopReplay).mockResolvedValue({ error: "No replay active" });
+    vi.mocked(client.stopReplay).mockResolvedValue({
+      error: "No replay active",
+    });
 
     const { result } = renderHook(() => useReplay());
 
@@ -204,7 +208,9 @@ describe("useReplay error handling", () => {
   });
 
   it("seekReplay sets error on failure", async () => {
-    vi.mocked(client.seekReplay).mockResolvedValue({ error: "Timestamp out of range" });
+    vi.mocked(client.seekReplay).mockResolvedValue({
+      error: "Timestamp out of range",
+    });
 
     const { result } = renderHook(() => useReplay());
 
@@ -216,7 +222,9 @@ describe("useReplay error handling", () => {
   });
 
   it("setReplaySpeed sets error on failure", async () => {
-    vi.mocked(client.setReplaySpeed).mockResolvedValue({ error: "Invalid speed" });
+    vi.mocked(client.setReplaySpeed).mockResolvedValue({
+      error: "Invalid speed",
+    });
 
     const { result } = renderHook(() => useReplay());
 

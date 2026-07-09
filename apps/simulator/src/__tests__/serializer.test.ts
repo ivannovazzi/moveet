@@ -107,7 +107,10 @@ describe("serializeRoute", () => {
     const a = makeRouteNode("a", 1, 2, true);
     const b = makeRouteNode("b", 3, 4);
     const c = makeRouteNode("c", 5, 6);
-    return { edges: [makeRouteEdge("e1", a, b), makeRouteEdge("e2", b, c)], distance: 4 };
+    return {
+      edges: [makeRouteEdge("e1", a, b), makeRouteEdge("e2", b, c)],
+      distance: 4,
+    };
   }
 
   it("strips endpoint-node connections on every edge", () => {

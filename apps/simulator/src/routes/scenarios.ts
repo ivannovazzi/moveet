@@ -161,7 +161,10 @@ export function createScenarioRoutes(ctx: RouteContext): Router {
 
       const raw = fs.readFileSync(filePath, "utf-8");
       const { header, events } = parseRecording(raw);
-      const scenario = convertRecordingToScenario(header, events, { name, description });
+      const scenario = convertRecordingToScenario(header, events, {
+        name,
+        description,
+      });
 
       res.json(scenario);
     })

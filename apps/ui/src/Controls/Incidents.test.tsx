@@ -112,7 +112,9 @@ describe("Incidents — auto-generate interval cleanup", () => {
   /** Toggle auto-generate switch via userEvent (works with shouldAdvanceTime). */
   async function toggleAutoGenerate() {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    const toggle = screen.getByRole("switch", { name: "Auto-generate incidents" });
+    const toggle = screen.getByRole("switch", {
+      name: "Auto-generate incidents",
+    });
     await user.click(toggle);
   }
 

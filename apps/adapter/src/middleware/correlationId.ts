@@ -8,6 +8,8 @@ import logger from "../utils/logger";
  * per-request child logger to `res.locals.logger` (used by downstream telemetry
  * propagation).
  */
-export const correlationIdMiddleware = createCorrelationIdMiddleware({ logger });
+export const correlationIdMiddleware = createCorrelationIdMiddleware({
+  logger,
+});
 
 export default correlationIdMiddleware;

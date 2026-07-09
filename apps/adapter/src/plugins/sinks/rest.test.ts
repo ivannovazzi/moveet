@@ -110,7 +110,9 @@ describe("RestSink", () => {
           "http://example.com/api",
           expect.objectContaining({
             method: "POST",
-            headers: expect.objectContaining({ "Content-Type": "application/json" }),
+            headers: expect.objectContaining({
+              "Content-Type": "application/json",
+            }),
             body: JSON.stringify({ vehicles: [vehicle1, vehicle2] }),
           })
         );

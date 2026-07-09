@@ -124,7 +124,9 @@ export function useHeatzoneEditor(): HeatzoneEditor {
   }, []);
 
   const commitGeometry = useCallback(async (id: string, coordinates: Position[]) => {
-    const res = await client.updateHeatzone(id, { geometry: toPolygon(coordinates) });
+    const res = await client.updateHeatzone(id, {
+      geometry: toPolygon(coordinates),
+    });
     if (res.error) toast.error(toErrorMessage(res.error, "Failed to reshape zone"));
     setDraftState((d) => (d && d.id === id ? null : d));
   }, []);

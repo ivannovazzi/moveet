@@ -95,7 +95,12 @@ describe("redactConfig", () => {
     const graphqlSchema: ConfigField[] = [
       { name: "url", label: "URL", type: "string", required: true },
       { name: "token", label: "Auth Token", type: "password" },
-      { name: "maxVehicles", label: "Max Vehicles", type: "number", default: 0 },
+      {
+        name: "maxVehicles",
+        label: "Max Vehicles",
+        type: "number",
+        default: 0,
+      },
     ];
 
     const config: PluginConfig = {
