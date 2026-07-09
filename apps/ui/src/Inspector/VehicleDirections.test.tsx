@@ -58,7 +58,9 @@ describe("VehicleDirections", () => {
   });
 
   it("renders nothing when the route has no edges", () => {
-    const { container } = renderWithDirection("v1", { route: { edges: [], distance: 0 } });
+    const { container } = renderWithDirection("v1", {
+      route: { edges: [], distance: 0 },
+    });
     expect(container).toBeEmptyDOMElement();
   });
 
@@ -87,8 +89,20 @@ describe("VehicleDirections", () => {
       {
         route: {
           edges: [
-            edge({ name: "First St", bearing: 0, distance: 1, start: [0, 0], end: [0, 2] }),
-            edge({ name: "Second St", bearing: 90, distance: 1, start: [0, 10], end: [0, 12] }),
+            edge({
+              name: "First St",
+              bearing: 0,
+              distance: 1,
+              start: [0, 0],
+              end: [0, 2],
+            }),
+            edge({
+              name: "Second St",
+              bearing: 90,
+              distance: 1,
+              start: [0, 10],
+              end: [0, 12],
+            }),
           ],
           distance: 2,
         },
@@ -112,7 +126,9 @@ describe("VehicleDirections", () => {
       },
     });
 
-    const turn = screen.getByRole("button", { name: /Turn right onto Second St/ });
+    const turn = screen.getByRole("button", {
+      name: /Turn right onto Second St/,
+    });
     expect(turn).toHaveAttribute("aria-pressed", "false");
     await userEvent.click(turn);
     expect(turn).toHaveAttribute("aria-pressed", "true");
@@ -122,9 +138,14 @@ describe("VehicleDirections", () => {
 
   it("makes the terminal arrival step non-interactive", () => {
     renderWithDirection("v1", {
-      route: { edges: [edge({ name: "Only St", bearing: 0, distance: 1 })], distance: 1 },
+      route: {
+        edges: [edge({ name: "Only St", bearing: 0, distance: 1 })],
+        distance: 1,
+      },
     });
-    const arrive = screen.getByRole("button", { name: /Arrive at your destination/ });
+    const arrive = screen.getByRole("button", {
+      name: /Arrive at your destination/,
+    });
     expect(arrive).toBeDisabled();
   });
 });

@@ -30,7 +30,10 @@ export class WebhookSink implements DataSink {
     await httpFetch(this.url, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...this.headers },
-      body: JSON.stringify({ vehicles: updates, timestamp: new Date().toISOString() }),
+      body: JSON.stringify({
+        vehicles: updates,
+        timestamp: new Date().toISOString(),
+      }),
     });
   }
 

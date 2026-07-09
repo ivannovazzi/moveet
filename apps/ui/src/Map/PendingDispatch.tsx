@@ -167,7 +167,10 @@ export default memo(function PendingDispatch({
           ev.stopPropagation();
           ev.preventDefault();
         };
-        window.addEventListener("click", suppress, { capture: true, once: true });
+        window.addEventListener("click", suppress, {
+          capture: true,
+          once: true,
+        });
       }
 
       downPx = null;
@@ -265,7 +268,10 @@ export default memo(function PendingDispatch({
             enlarged: editable && (key === hoverKey || key === dragKey),
           });
         }
-        nameLabels.push({ position: positions[0], text: assignment.vehicleName });
+        nameLabels.push({
+          position: positions[0],
+          text: assignment.vehicleName,
+        });
       } else {
         const key = `${assignment.waypoints[0].position[0].toFixed(6)},${assignment.waypoints[0].position[1].toFixed(6)}`;
         singleMarkers.push({

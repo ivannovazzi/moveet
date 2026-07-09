@@ -32,7 +32,9 @@ describe("PostgresSource", () => {
     });
 
     const source = new PostgresSource();
-    await source.connect({ connectionString: "postgresql://user:pass@localhost:5432/fleet" });
+    await source.connect({
+      connectionString: "postgresql://user:pass@localhost:5432/fleet",
+    });
     const vehicles = await source.getVehicles();
 
     expect(vehicles).toHaveLength(1);
@@ -51,7 +53,12 @@ describe("PostgresSource", () => {
     const source = new PostgresSource();
     await source.connect({
       connectionString: "postgresql://localhost/fleet",
-      fieldMap: { id: "vehicle_id", name: "vehicle_name", lat: "lat", lng: "lon" },
+      fieldMap: {
+        id: "vehicle_id",
+        name: "vehicle_name",
+        lat: "lat",
+        lng: "lon",
+      },
     });
     const vehicles = await source.getVehicles();
     expect(vehicles[0].id).toBe("p1");
@@ -71,7 +78,9 @@ describe("PostgresSource", () => {
 
   it("throws after disconnect", async () => {
     const source = new PostgresSource();
-    await source.connect({ connectionString: "postgresql://user:pass@localhost:5432/fleet" });
+    await source.connect({
+      connectionString: "postgresql://user:pass@localhost:5432/fleet",
+    });
     await source.disconnect();
     await expect(source.getVehicles()).rejects.toThrow("PostgresSource: not connected");
   });
@@ -80,7 +89,9 @@ describe("PostgresSource", () => {
     mockQuery.mockResolvedValue({ rows: [] });
 
     const source = new PostgresSource();
-    await source.connect({ connectionString: "postgresql://user:pass@localhost:5432/fleet" });
+    await source.connect({
+      connectionString: "postgresql://user:pass@localhost:5432/fleet",
+    });
     const vehicles = await source.getVehicles();
     expect(vehicles).toEqual([]);
   });
@@ -89,7 +100,9 @@ describe("PostgresSource", () => {
     mockQuery.mockRejectedValue(new Error("connection terminated"));
 
     const source = new PostgresSource();
-    await source.connect({ connectionString: "postgresql://user:pass@localhost:5432/fleet" });
+    await source.connect({
+      connectionString: "postgresql://user:pass@localhost:5432/fleet",
+    });
     await expect(source.getVehicles()).rejects.toThrow("connection terminated");
   });
 
@@ -109,7 +122,9 @@ describe("PostgresSource", () => {
       mockPoolConnect.mockResolvedValue(client);
 
       const source = new PostgresSource();
-      await source.connect({ connectionString: "postgresql://localhost/fleet" });
+      await source.connect({
+        connectionString: "postgresql://localhost/fleet",
+      });
       const result = await source.healthCheck();
 
       expect(result.healthy).toBe(false);
@@ -118,11 +133,16 @@ describe("PostgresSource", () => {
     });
 
     it("releases the client on a successful probe", async () => {
-      const client = { query: vi.fn().mockResolvedValue({ rows: [] }), release: vi.fn() };
+      const client = {
+        query: vi.fn().mockResolvedValue({ rows: [] }),
+        release: vi.fn(),
+      };
       mockPoolConnect.mockResolvedValue(client);
 
       const source = new PostgresSource();
-      await source.connect({ connectionString: "postgresql://localhost/fleet" });
+      await source.connect({
+        connectionString: "postgresql://localhost/fleet",
+      });
       const result = await source.healthCheck();
 
       expect(result.healthy).toBe(true);
@@ -135,13 +155,20 @@ describe("PostgresSource", () => {
       mockQuery.mockResolvedValue({
         rows: [
           { id: "v1", name: "Truck 1", latitude: -1.3, longitude: 36.8 },
-          { id: "v2", name: "Truck 2", latitude: "not-a-number", longitude: 36.7 },
+          {
+            id: "v2",
+            name: "Truck 2",
+            latitude: "not-a-number",
+            longitude: 36.7,
+          },
           { id: "v3", name: "Truck 3", latitude: -1.1, longitude: "bad" },
         ],
       });
 
       const source = new PostgresSource();
-      await source.connect({ connectionString: "postgresql://localhost/fleet" });
+      await source.connect({
+        connectionString: "postgresql://localhost/fleet",
+      });
       const vehicles = await source.getVehicles();
 
       expect(vehicles).toHaveLength(1);
@@ -157,7 +184,9 @@ describe("PostgresSource", () => {
       });
 
       const source = new PostgresSource();
-      await source.connect({ connectionString: "postgresql://localhost/fleet" });
+      await source.connect({
+        connectionString: "postgresql://localhost/fleet",
+      });
       const vehicles = await source.getVehicles();
 
       expect(vehicles).toHaveLength(0);
@@ -172,7 +201,9 @@ describe("PostgresSource", () => {
       });
 
       const source = new PostgresSource();
-      await source.connect({ connectionString: "postgresql://localhost/fleet" });
+      await source.connect({
+        connectionString: "postgresql://localhost/fleet",
+      });
       const vehicles = await source.getVehicles();
 
       expect(vehicles).toHaveLength(2);
@@ -205,7 +236,9 @@ describe("PostgresSource", () => {
       });
 
       const source = new PostgresSource();
-      await source.connect({ connectionString: "postgresql://localhost/fleet" });
+      await source.connect({
+        connectionString: "postgresql://localhost/fleet",
+      });
       const vehicles = await source.getVehicles();
 
       expect(vehicles).toHaveLength(1);
@@ -220,7 +253,12 @@ describe("PostgresSource", () => {
       const source = new PostgresSource();
       await source.connect({
         connectionString: "postgresql://localhost/fleet",
-        fieldMap: { id: "id", name: "label", lat: "latitude", lng: "longitude" },
+        fieldMap: {
+          id: "id",
+          name: "label",
+          lat: "latitude",
+          lng: "longitude",
+        },
       });
 
       const vehicles = await source.getVehicles();
@@ -241,7 +279,9 @@ describe("PostgresSource", () => {
       });
 
       const source = new PostgresSource();
-      await source.connect({ connectionString: "postgresql://localhost/fleet" });
+      await source.connect({
+        connectionString: "postgresql://localhost/fleet",
+      });
       const vehicles = await source.getVehicles();
 
       expect(vehicles).toHaveLength(3);
@@ -252,7 +292,9 @@ describe("PostgresSource", () => {
       mockQuery.mockResolvedValue({ rows: [] });
 
       const source = new PostgresSource();
-      await source.connect({ connectionString: "postgresql://localhost/fleet" });
+      await source.connect({
+        connectionString: "postgresql://localhost/fleet",
+      });
       const vehicles = await source.getVehicles();
 
       expect(vehicles).toEqual([]);

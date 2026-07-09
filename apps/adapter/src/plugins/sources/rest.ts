@@ -36,7 +36,12 @@ export class RestSource implements DataSource {
     },
     { name: "headers", label: "Headers", type: "json" },
     { name: "body", label: "Body", type: "json" },
-    { name: "vehiclePath", label: "Vehicle Path", type: "string", default: "vehicles" },
+    {
+      name: "vehiclePath",
+      label: "Vehicle Path",
+      type: "string",
+      default: "vehicles",
+    },
     { name: "fieldMap", label: "Field Map", type: "json" },
     { name: "metadataMap", label: "Metadata Map", type: "json" },
     {

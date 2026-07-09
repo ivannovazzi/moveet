@@ -43,7 +43,12 @@
         "vehicleId": "scenario-5",
         "waypoints": [
           { "lat": -1.29, "lng": 36.821, "label": "Approach CBD incident" },
-          { "lat": -1.2921, "lng": 36.8219, "dwellTime": 120, "label": "CBD Incident Site" }
+          {
+            "lat": -1.2921,
+            "lng": 36.8219,
+            "dwellTime": 120,
+            "label": "CBD Incident Site"
+          }
         ]
       }
     },
@@ -63,8 +68,17 @@
         "type": "dispatch",
         "vehicleId": "scenario-6",
         "waypoints": [
-          { "lat": -1.296, "lng": 36.815, "label": "Approach Upper Hill incident" },
-          { "lat": -1.2979, "lng": 36.8138, "dwellTime": 90, "label": "Upper Hill Incident Site" }
+          {
+            "lat": -1.296,
+            "lng": 36.815,
+            "label": "Approach Upper Hill incident"
+          },
+          {
+            "lat": -1.2979,
+            "lng": 36.8138,
+            "dwellTime": 90,
+            "label": "Upper Hill Incident Site"
+          }
         ]
       }
     },

@@ -84,7 +84,12 @@ export class EmitJobRunner {
   start(params: StartEmitParams): string | null {
     if (this.isRunning()) return null;
     const jobId = `emit-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-    this.status = { state: "emitting", jobId, emitted: 0, startedAt: Date.now() };
+    this.status = {
+      state: "emitting",
+      jobId,
+      emitted: 0,
+      startedAt: Date.now(),
+    };
     // Fire-and-forget; status reflects progress/outcome.
     void this.execute(jobId, params);
     return jobId;

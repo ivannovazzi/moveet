@@ -1,4 +1,4 @@
-import React from "react";
+import type React from "react";
 import type { RenderOptions } from "@testing-library/react";
 import { render } from "@testing-library/react";
 import DataProvider from "@/data";

@@ -64,7 +64,12 @@ function makeEditor(overrides: Partial<HeatzoneEditor> = {}): HeatzoneEditor {
 
 const ZONE: Heatzone = {
   type: "Feature",
-  properties: { id: "hz-1", intensity: 0.5, timestamp: "2026-01-01T00:00:00Z", radius: 500 },
+  properties: {
+    id: "hz-1",
+    intensity: 0.5,
+    timestamp: "2026-01-01T00:00:00Z",
+    radius: 500,
+  },
   geometry: {
     type: "Polygon",
     coordinates: [
@@ -77,7 +82,12 @@ const ZONE: Heatzone = {
 
 function down(x: number, y: number) {
   mapEl.dispatchEvent(
-    new MouseEvent("mousedown", { clientX: x, clientY: y, button: 0, bubbles: true })
+    new MouseEvent("mousedown", {
+      clientX: x,
+      clientY: y,
+      button: 0,
+      bubbles: true,
+    })
   );
 }
 function move(x: number, y: number) {
@@ -85,12 +95,22 @@ function move(x: number, y: number) {
 }
 function up(x: number, y: number) {
   window.dispatchEvent(
-    new MouseEvent("mouseup", { clientX: x, clientY: y, button: 0, bubbles: true })
+    new MouseEvent("mouseup", {
+      clientX: x,
+      clientY: y,
+      button: 0,
+      bubbles: true,
+    })
   );
 }
 function clickAt(x: number, y: number) {
   mapEl.dispatchEvent(
-    new MouseEvent("click", { clientX: x, clientY: y, button: 0, bubbles: true })
+    new MouseEvent("click", {
+      clientX: x,
+      clientY: y,
+      button: 0,
+      bubbles: true,
+    })
   );
 }
 
@@ -106,7 +126,9 @@ describe("Heatzones display layer", () => {
     render(<Heatzones visible />);
     const layers = registeredLayers.get("traffic-zones")!;
     expect(layers.length).toBe(1);
-    const layer = layers[0] as { props: { id: string; pickable: boolean; data: unknown[] } };
+    const layer = layers[0] as {
+      props: { id: string; pickable: boolean; data: unknown[] };
+    };
     expect(layer.props.id).toBe("traffic-zones");
     expect(layer.props.pickable).toBe(true);
     expect(layer.props.data.length).toBe(1);
@@ -183,7 +205,11 @@ describe("Heatzones suppressNextClick", () => {
   }
 
   function clickPrevented(): boolean {
-    const ev = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 });
+    const ev = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    });
     act(() => {
       window.dispatchEvent(ev);
     });
@@ -249,7 +275,12 @@ describe("Heatzones reshape", () => {
 // A larger zone so interior points are clear of every vertex-handle radius.
 const BIG_ZONE: Heatzone = {
   type: "Feature",
-  properties: { id: "hz-big", intensity: 0.5, timestamp: "2026-01-01T00:00:00Z", radius: 500 },
+  properties: {
+    id: "hz-big",
+    intensity: 0.5,
+    timestamp: "2026-01-01T00:00:00Z",
+    radius: 500,
+  },
   geometry: {
     type: "Polygon",
     // projects to (0,0)(100,0)(100,100)(0,100); centroid -> pixel (50,50)

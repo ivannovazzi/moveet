@@ -22,7 +22,9 @@ import type { WaypointRef } from "@/hooks/useDispatchFlow";
 // and the GL context is created. DeckGLMap is a named export, so adapt it to a
 // default export for React.lazy.
 const DeckGLMap = lazy(() =>
-  import("@/components/Map/components/DeckGLMap").then((m) => ({ default: m.DeckGLMap }))
+  import("@/components/Map/components/DeckGLMap").then((m) => ({
+    default: m.DeckGLMap,
+  }))
 );
 import VehiclesLayer from "./Vehicle/VehiclesLayer";
 import Direction from "./Direction";
@@ -148,7 +150,12 @@ export default function Map({
           <div class="font-medium text-foreground">${escapeHtml(vehicle.name)}</div>
           <div class="text-muted-foreground">${escapeHtml(fleet?.name ?? vehicle.type)} · ${Math.round(vehicle.speed)} km/h</div>
         </div>`,
-        style: { backgroundColor: "transparent", border: "none", padding: "0", margin: "8px" },
+        style: {
+          backgroundColor: "transparent",
+          border: "none",
+          padding: "0",
+          margin: "8px",
+        },
       };
     },
     [vehicles, vehicleFleetMap]

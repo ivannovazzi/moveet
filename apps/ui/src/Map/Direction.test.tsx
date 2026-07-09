@@ -82,7 +82,9 @@ function createDirectionWithEdges(n: number): DirectionState {
 }
 
 function getLayers(): { props: Record<string, unknown> }[] {
-  return (registeredLayers.get("directions") ?? []) as { props: Record<string, unknown> }[];
+  return (registeredLayers.get("directions") ?? []) as {
+    props: Record<string, unknown>;
+  }[];
 }
 
 function getLayer(id: string) {

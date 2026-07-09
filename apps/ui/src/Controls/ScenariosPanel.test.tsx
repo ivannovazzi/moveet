@@ -40,8 +40,16 @@ const pausedStatus: ScenarioStatus = {
 };
 
 const mockScenarios: ScenarioFile[] = [
-  { fileName: "rush-hour.json", fileSize: 2048, modifiedAt: "2026-03-01T10:00:00Z" },
-  { fileName: "night-shift.json", fileSize: 1024, modifiedAt: "2026-03-02T12:00:00Z" },
+  {
+    fileName: "rush-hour.json",
+    fileSize: 2048,
+    modifiedAt: "2026-03-01T10:00:00Z",
+  },
+  {
+    fileName: "night-shift.json",
+    fileSize: 1024,
+    modifiedAt: "2026-03-02T12:00:00Z",
+  },
 ];
 
 const mockGetScenarios = vi.fn();
@@ -71,7 +79,10 @@ beforeEach(() => {
   mockGetScenarios.mockResolvedValue({ data: mockScenarios });
   mockGetScenarioStatus.mockResolvedValue({ data: idleStatus });
   mockLoadScenarioByName.mockResolvedValue({
-    data: { status: "loaded", scenario: { name: "rush-hour", duration: 120, eventCount: 5 } },
+    data: {
+      status: "loaded",
+      scenario: { name: "rush-hour", duration: 120, eventCount: 5 },
+    },
   });
   mockStartScenario.mockResolvedValue({ data: runningStatus });
   mockPauseScenario.mockResolvedValue({ data: pausedStatus });
@@ -110,7 +121,10 @@ describe("ScenariosPanel", () => {
   it("loads scenario on click", async () => {
     const user = userEvent.setup();
     mockLoadScenarioByName.mockResolvedValue({
-      data: { status: "loaded", scenario: { name: "rush-hour", duration: 120, eventCount: 5 } },
+      data: {
+        status: "loaded",
+        scenario: { name: "rush-hour", duration: 120, eventCount: 5 },
+      },
     });
     // After loading, status should reflect the loaded scenario
     mockGetScenarioStatus

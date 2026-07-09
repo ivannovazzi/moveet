@@ -163,7 +163,9 @@ describe("useRecording", () => {
 
 describe("useRecording error handling", () => {
   it("startRecording sets error on API error", async () => {
-    vi.mocked(client.startRecording).mockResolvedValue({ error: "Already recording" });
+    vi.mocked(client.startRecording).mockResolvedValue({
+      error: "Already recording",
+    });
 
     const { result } = renderHook(() => useRecording());
 
@@ -176,7 +178,9 @@ describe("useRecording error handling", () => {
   });
 
   it("stopRecording sets error on failure", async () => {
-    vi.mocked(client.stopRecording).mockResolvedValue({ error: "Not recording" });
+    vi.mocked(client.stopRecording).mockResolvedValue({
+      error: "Not recording",
+    });
 
     const { result } = renderHook(() => useRecording());
 

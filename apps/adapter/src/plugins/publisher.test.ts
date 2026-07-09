@@ -131,8 +131,16 @@ describe("Publisher", () => {
       const result = await publisher.publishUpdates(sampleUpdates, sinks);
 
       expect(result.status).toBe("failure");
-      expect(result.sinks).toContainEqual({ type: "f1", success: false, error: "err1" });
-      expect(result.sinks).toContainEqual({ type: "f2", success: false, error: "err2" });
+      expect(result.sinks).toContainEqual({
+        type: "f1",
+        success: false,
+        error: "err1",
+      });
+      expect(result.sinks).toContainEqual({
+        type: "f2",
+        success: false,
+        error: "err2",
+      });
     });
 
     it("returns failure when single sink fails", async () => {
@@ -277,7 +285,12 @@ describe("Publisher", () => {
         failures: [{ itemId: "chunk-1", error: "broker down" }],
       };
       const sinks = new Map<string, DataSink>([
-        ["metrics-sink", createMockSink({ publishUpdates: vi.fn().mockResolvedValue(partial) })],
+        [
+          "metrics-sink",
+          createMockSink({
+            publishUpdates: vi.fn().mockResolvedValue(partial),
+          }),
+        ],
       ]);
 
       await publisher.publishUpdates(sampleUpdates, sinks);
@@ -292,7 +305,9 @@ describe("Publisher", () => {
       const sinks = new Map<string, DataSink>([
         [
           "throwing-sink",
-          createMockSink({ publishUpdates: vi.fn().mockRejectedValue(new Error("boom")) }),
+          createMockSink({
+            publishUpdates: vi.fn().mockRejectedValue(new Error("boom")),
+          }),
         ],
       ]);
 

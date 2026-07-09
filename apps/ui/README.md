@@ -57,8 +57,8 @@ npm run dev      # Vite dev server on http://localhost:5012 with HMR
 | `npm test`                        | Run tests once (Vitest)                              |
 | `npm run test:watch`              | Run tests in watch mode                              |
 | `npm run test:coverage`           | Run tests with v8 coverage                           |
-| `npm run lint` / `lint:fix`       | ESLint                                               |
-| `npm run format` / `format:check` | Prettier                                             |
+
+Linting and formatting are handled repo-wide by **Biome**; run `npm run lint` / `npm run format` from the monorepo root (there are no per-app lint/format scripts).
 
 ## Architecture Overview
 

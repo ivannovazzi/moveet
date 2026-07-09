@@ -38,7 +38,10 @@ export function useAdapterConfig(isOpen: boolean) {
         error: null,
         config:
           prev.config && prev.config.realism && health.realism
-            ? { ...prev.config, realism: { ...prev.config.realism, status: health.realism } }
+            ? {
+                ...prev.config,
+                realism: { ...prev.config.realism, status: health.realism },
+              }
             : prev.config,
       }));
     } catch {
@@ -61,7 +64,11 @@ export function useAdapterConfig(isOpen: boolean) {
         error: null,
       }));
     } catch {
-      setState((prev) => ({ ...prev, loading: false, error: "Failed to load config" }));
+      setState((prev) => ({
+        ...prev,
+        loading: false,
+        error: "Failed to load config",
+      }));
     }
   }, []);
 

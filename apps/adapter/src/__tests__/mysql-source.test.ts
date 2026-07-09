@@ -70,7 +70,12 @@ describe("MySQLSource", () => {
 
   it("disconnects pool", async () => {
     const source = new MySQLSource();
-    await source.connect({ host: "localhost", user: "root", password: "pass", database: "fleet" });
+    await source.connect({
+      host: "localhost",
+      user: "root",
+      password: "pass",
+      database: "fleet",
+    });
     await source.disconnect();
     expect(mockEnd).toHaveBeenCalled();
   });
@@ -82,7 +87,12 @@ describe("MySQLSource", () => {
 
   it("throws after disconnect", async () => {
     const source = new MySQLSource();
-    await source.connect({ host: "localhost", user: "root", password: "pass", database: "fleet" });
+    await source.connect({
+      host: "localhost",
+      user: "root",
+      password: "pass",
+      database: "fleet",
+    });
     await source.disconnect();
     await expect(source.getVehicles()).rejects.toThrow("MySQLSource: not connected");
   });
@@ -91,7 +101,12 @@ describe("MySQLSource", () => {
     mockExecute.mockResolvedValue([[]]);
 
     const source = new MySQLSource();
-    await source.connect({ host: "localhost", user: "root", password: "pass", database: "fleet" });
+    await source.connect({
+      host: "localhost",
+      user: "root",
+      password: "pass",
+      database: "fleet",
+    });
     const vehicles = await source.getVehicles();
     expect(vehicles).toEqual([]);
   });
@@ -100,7 +115,12 @@ describe("MySQLSource", () => {
     mockExecute.mockRejectedValue(new Error("ECONNREFUSED"));
 
     const source = new MySQLSource();
-    await source.connect({ host: "localhost", user: "root", password: "pass", database: "fleet" });
+    await source.connect({
+      host: "localhost",
+      user: "root",
+      password: "pass",
+      database: "fleet",
+    });
     await expect(source.getVehicles()).rejects.toThrow("ECONNREFUSED");
   });
 
@@ -135,7 +155,10 @@ describe("MySQLSource", () => {
     });
 
     it("releases the connection on a successful ping", async () => {
-      const conn = { ping: vi.fn().mockResolvedValue(undefined), release: vi.fn() };
+      const conn = {
+        ping: vi.fn().mockResolvedValue(undefined),
+        release: vi.fn(),
+      };
       mockGetConnection.mockResolvedValue(conn);
 
       const source = new MySQLSource();
@@ -157,7 +180,12 @@ describe("MySQLSource", () => {
       mockExecute.mockResolvedValue([
         [
           { id: "v1", name: "Bus 1", latitude: -1.3, longitude: 36.8 },
-          { id: "v2", name: "Bus 2", latitude: "not-a-number", longitude: 36.7 },
+          {
+            id: "v2",
+            name: "Bus 2",
+            latitude: "not-a-number",
+            longitude: 36.7,
+          },
           { id: "v3", name: "Bus 3", latitude: -1.1, longitude: "bad" },
         ],
       ]);
@@ -264,7 +292,12 @@ describe("MySQLSource", () => {
         user: "root",
         password: "pass",
         database: "fleet",
-        fieldMap: { id: "id", name: "label", lat: "latitude", lng: "longitude" },
+        fieldMap: {
+          id: "id",
+          name: "label",
+          lat: "latitude",
+          lng: "longitude",
+        },
       });
 
       const vehicles = await source.getVehicles();

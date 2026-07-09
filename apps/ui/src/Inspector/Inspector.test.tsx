@@ -14,7 +14,12 @@ describe("Inspector", () => {
   it("renders vehicle details when a vehicle is selected", () => {
     render(
       <Inspector
-        vehicle={createVehicle({ id: "v1", name: "Test Vehicle 1", speed: 42, heading: 90 })}
+        vehicle={createVehicle({
+          id: "v1",
+          name: "Test Vehicle 1",
+          speed: 42,
+          heading: 90,
+        })}
         onClose={vi.fn()}
       />
     );

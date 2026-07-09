@@ -214,8 +214,16 @@ describe("WebSocketClient connection state", () => {
 
     expect(client.connectionState).toBe("connected");
     expect(states).toHaveLength(2);
-    expect(states[0]).toEqual({ state: "connecting", attempt: 0, maxAttempts: 10 });
-    expect(states[1]).toEqual({ state: "connected", attempt: 0, maxAttempts: 10 });
+    expect(states[0]).toEqual({
+      state: "connecting",
+      attempt: 0,
+      maxAttempts: 10,
+    });
+    expect(states[1]).toEqual({
+      state: "connected",
+      attempt: 0,
+      maxAttempts: 10,
+    });
   });
 
   it("transitions to reconnecting on unexpected close", () => {
@@ -229,7 +237,11 @@ describe("WebSocketClient connection state", () => {
 
     expect(client.connectionState).toBe("reconnecting");
     expect(states).toHaveLength(3);
-    expect(states[2]).toEqual({ state: "reconnecting", attempt: 0, maxAttempts: 10 });
+    expect(states[2]).toEqual({
+      state: "reconnecting",
+      attempt: 0,
+      maxAttempts: 10,
+    });
   });
 
   it("transitions to disconnected on manual disconnect", () => {

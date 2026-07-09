@@ -16,7 +16,9 @@ describe("graphqlFetch (GraphQL resilience policy)", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(okResponse);
 
     const doFetch = graphqlFetch();
-    const res = await doFetch("https://api.example.com/graphql", { method: "POST" });
+    const res = await doFetch("https://api.example.com/graphql", {
+      method: "POST",
+    });
 
     expect(res).toBe(okResponse);
     expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -50,7 +52,9 @@ describe("graphqlFetch (GraphQL resilience policy)", () => {
     // baseDelayMs is internal to httpFetch; with maxRetries 2 the second attempt
     // succeeds. We don't assert on timing, only that a retry happened.
     const doFetch = graphqlFetch({ maxRetries: 2 });
-    const res = await doFetch("https://api.example.com/graphql", { method: "POST" });
+    const res = await doFetch("https://api.example.com/graphql", {
+      method: "POST",
+    });
 
     expect(res.status).toBe(200);
     expect(fetchSpy).toHaveBeenCalledTimes(2);

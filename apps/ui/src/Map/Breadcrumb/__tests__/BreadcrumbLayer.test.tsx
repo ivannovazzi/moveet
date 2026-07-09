@@ -64,7 +64,10 @@ const defaultProps = {
 };
 
 /** Get the PathLayer data from registered breadcrumbs layers. */
-function getTrailData(): Array<{ vehicleId: string; path: [number, number][] }> {
+function getTrailData(): Array<{
+  vehicleId: string;
+  path: [number, number][];
+}> {
   const layers = registeredLayers.get("breadcrumbs") ?? [];
   if (layers.length === 0) return [];
   const layer = layers[0] as {

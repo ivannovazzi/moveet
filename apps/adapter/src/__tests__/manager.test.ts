@@ -42,7 +42,9 @@ describe("PluginManager", () => {
       manager.registerSource("test", () => source);
       await manager.setSource("test", { url: "http://example.com" });
 
-      expect(source.connect).toHaveBeenCalledWith({ url: "http://example.com" });
+      expect(source.connect).toHaveBeenCalledWith({
+        url: "http://example.com",
+      });
       const config = manager.getConfig();
       expect(config.activeSource).toBe("test");
     });
@@ -68,7 +70,9 @@ describe("PluginManager", () => {
 
     it("returns vehicles from active source", async () => {
       const vehicles: ExportVehicle[] = [{ id: "v1", name: "Vehicle 1", position: [-1.3, 36.8] }];
-      const source = createMockSource({ getVehicles: vi.fn().mockResolvedValue(vehicles) });
+      const source = createMockSource({
+        getVehicles: vi.fn().mockResolvedValue(vehicles),
+      });
       manager.registerSource("test", () => source);
       await manager.setSource("test");
 

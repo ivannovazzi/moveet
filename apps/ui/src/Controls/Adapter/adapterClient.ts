@@ -105,7 +105,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     return (await res.json()) as T;
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") {
-      // eslint-disable-next-line preserve-caught-error
       throw new Error(`Adapter ${path}: request timed out`);
     }
     throw err;

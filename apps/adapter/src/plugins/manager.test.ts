@@ -240,7 +240,11 @@ describe("PluginManager", () => {
       assertPublishResult(result);
 
       expect(result.status).toBe("partial");
-      expect(result.sinks).toContainEqual({ type: "fail", success: false, error: "network error" });
+      expect(result.sinks).toContainEqual({
+        type: "fail",
+        success: false,
+        error: "network error",
+      });
       expect(result.sinks).toContainEqual({ type: "ok", success: true });
     });
 
@@ -263,8 +267,16 @@ describe("PluginManager", () => {
       assertPublishResult(result);
 
       expect(result.status).toBe("failure");
-      expect(result.sinks).toContainEqual({ type: "f1", success: false, error: "err1" });
-      expect(result.sinks).toContainEqual({ type: "f2", success: false, error: "err2" });
+      expect(result.sinks).toContainEqual({
+        type: "f1",
+        success: false,
+        error: "err1",
+      });
+      expect(result.sinks).toContainEqual({
+        type: "f2",
+        success: false,
+        error: "err2",
+      });
     });
 
     it("returns success with empty sinks when none configured", async () => {
@@ -317,7 +329,11 @@ describe("PluginManager", () => {
 
       const status = await manager.getStatus();
 
-      expect(status.source).toEqual({ type: "mock", healthy: false, message: "timeout" });
+      expect(status.source).toEqual({
+        type: "mock",
+        healthy: false,
+        message: "timeout",
+      });
     });
   });
 

@@ -43,7 +43,9 @@ describe("useRoads", () => {
   it("returns initial empty roads array", () => {
     vi.mocked(client.getRoads).mockResolvedValue({ data: undefined });
 
-    const { result } = renderHook(() => useRoads(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useRoads(), {
+      wrapper: createWrapper(),
+    });
 
     expect(result.current.roads).toEqual([]);
   });
@@ -85,7 +87,9 @@ describe("useRoads loading state", () => {
   it("initial loading state is true", () => {
     vi.mocked(client.getRoads).mockReturnValue(new Promise(() => {}));
 
-    const { result } = renderHook(() => useRoads(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useRoads(), {
+      wrapper: createWrapper(),
+    });
 
     expect(result.current.loading).toBe(true);
   });
@@ -94,7 +98,9 @@ describe("useRoads loading state", () => {
     const namedRoad = createRoad({ name: "Moi Avenue" });
     vi.mocked(client.getRoads).mockResolvedValue({ data: [namedRoad] });
 
-    const { result } = renderHook(() => useRoads(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useRoads(), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -104,7 +110,9 @@ describe("useRoads loading state", () => {
   it("loading stays true after failed fetch", async () => {
     vi.mocked(client.getRoads).mockRejectedValue(new Error("Network error"));
 
-    const { result } = renderHook(() => useRoads(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useRoads(), {
+      wrapper: createWrapper(),
+    });
 
     // Allow the fetch promise to settle
     await waitFor(() => {

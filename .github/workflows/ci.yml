@@ -43,8 +43,12 @@ jobs:
           key: ${{ runner.os }}-turbo-${{ hashFiles('package-lock.json', 'turbo.json', 'apps/**/src/**', 'packages/**/src/**', 'apps/**/*.json', 'packages/**/*.json') }}
           restore-keys: |
             ${{ runner.os }}-turbo-
-      - name: Lint, type-check, test, build
-        run: npx turbo lint type-check test:ci build
+      # Biome (lint + format) runs once over the whole repo, outside turbo:
+      # it is a single fast pass, so per-package fan-out/caching buys nothing.
+      - name: Lint (Biome)
+        run: npm run lint
+      - name: Type-check, test, build
+        run: npx turbo type-check test:ci build
       # Repo-policy checks (ESM config, workspace layout) run as their own root
       # step, outside the per-app turbo suites, so an infra/CI refactor reddens
       # this dedicated check rather than an app's unit tests.

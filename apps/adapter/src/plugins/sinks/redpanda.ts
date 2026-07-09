@@ -103,7 +103,8 @@ const TRAJECTORY_TEMPLATE: PayloadTemplate = {
 
 /** kafkajs `ssl` option once resolved: either `true` (system CAs) or explicit cert material. */
 type ResolvedSsl =
-  true | { ca?: string[]; cert?: string; key?: string; rejectUnauthorized: boolean };
+  | true
+  | { ca?: string[]; cert?: string; key?: string; rejectUnauthorized: boolean };
 
 /** SASL mechanisms supported by the sink (kafkajs username/password mechanisms). */
 const SASL_MECHANISMS = ["plain", "scram-sha-256", "scram-sha-512"] as const;
@@ -130,7 +131,12 @@ export class RedpandaSink implements DataSink {
       default: "localhost:19092",
       placeholder: "host1:9092,host2:9092",
     },
-    { name: "topic", label: "Topic", type: "string", default: "dispatch.vehicle.positions" },
+    {
+      name: "topic",
+      label: "Topic",
+      type: "string",
+      default: "dispatch.vehicle.positions",
+    },
     { name: "batchSize", label: "Batch Size", type: "number", default: 500 },
     {
       name: "acks",
@@ -151,7 +157,10 @@ export class RedpandaSink implements DataSink {
       options: [
         { label: "Dispatch (vehicle.position event)", value: "dispatch" },
         { label: "Trajectory-engine telemetry", value: "trajectory" },
-        { label: "Canonical telemetry (Confluent-AVRO)", value: "canonical-avro" },
+        {
+          label: "Canonical telemetry (Confluent-AVRO)",
+          value: "canonical-avro",
+        },
       ],
     },
     {
@@ -571,8 +580,15 @@ export class RedpandaSink implements DataSink {
       event_type: TELEMETRY_LOCATION_EVENT_TYPE,
       event_version: 1,
       occurred_at: new Date().toISOString(),
-      source: { service: this.sourceService, environment: this.sourceEnvironment },
-      metadata: { correlation_id: correlationId, causation_id: null, trace_id: traceId },
+      source: {
+        service: this.sourceService,
+        environment: this.sourceEnvironment,
+      },
+      metadata: {
+        correlation_id: correlationId,
+        causation_id: null,
+        trace_id: traceId,
+      },
       data: {
         device_id: deviceId,
         source: telemetrySource,

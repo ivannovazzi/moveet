@@ -40,7 +40,9 @@ beforeEach(() => {
   vi.mocked(client.onIncidentCleared).mockImplementation(() => {});
   vi.mocked(client.createRandomIncident).mockResolvedValue({ data: undefined });
   vi.mocked(client.removeIncident).mockResolvedValue({ data: undefined });
-  vi.mocked(client.createIncidentAtPosition).mockResolvedValue({ data: undefined });
+  vi.mocked(client.createIncidentAtPosition).mockResolvedValue({
+    data: undefined,
+  });
 });
 
 describe("useIncidents", () => {
@@ -167,7 +169,9 @@ describe("useIncidents", () => {
 
 describe("useIncidents error handling", () => {
   it("createRandom sets error on API error", async () => {
-    vi.mocked(client.createRandomIncident).mockResolvedValue({ error: "No edges available" });
+    vi.mocked(client.createRandomIncident).mockResolvedValue({
+      error: "No edges available",
+    });
 
     const { result } = renderHook(() => useIncidents());
 
@@ -191,7 +195,9 @@ describe("useIncidents error handling", () => {
   });
 
   it("remove sets error on failure", async () => {
-    vi.mocked(client.removeIncident).mockResolvedValue({ error: "Incident not found" });
+    vi.mocked(client.removeIncident).mockResolvedValue({
+      error: "Incident not found",
+    });
 
     const { result } = renderHook(() => useIncidents());
 
@@ -217,7 +223,9 @@ describe("useIncidents error handling", () => {
   });
 
   it("error clears on next successful operation", async () => {
-    vi.mocked(client.createRandomIncident).mockResolvedValue({ error: "Some error" });
+    vi.mocked(client.createRandomIncident).mockResolvedValue({
+      error: "Some error",
+    });
 
     const { result } = renderHook(() => useIncidents());
 
@@ -226,7 +234,9 @@ describe("useIncidents error handling", () => {
     });
     expect(result.current.error).toBe("Some error");
 
-    vi.mocked(client.createRandomIncident).mockResolvedValue({ data: undefined });
+    vi.mocked(client.createRandomIncident).mockResolvedValue({
+      data: undefined,
+    });
 
     await act(async () => {
       await result.current.createRandom();

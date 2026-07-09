@@ -172,7 +172,11 @@ describe("POST /direction (SimulationController.setDirections)", () => {
         callCount++;
         if (callCount === 2) {
           // Second call is for the destination — return isolated node
-          return { id: "isolated", coordinates: [90, 180] as [number, number], connections: [] };
+          return {
+            id: "isolated",
+            coordinates: [90, 180] as [number, number],
+            connections: [],
+          };
         }
         return origFindNearest(pos);
       });

@@ -135,7 +135,9 @@ describe("repo policy: every workspace app is ESM-aligned", () => {
 
 describe("repo policy: workspace layout", () => {
   it("root package.json declares the apps/* and packages/* workspaces", () => {
-    const root = readJSON(resolve(repoRoot, "package.json")) as { workspaces?: string[] };
+    const root = readJSON(resolve(repoRoot, "package.json")) as {
+      workspaces?: string[];
+    };
     expect(Array.isArray(root.workspaces)).toBe(true);
     expect(root.workspaces).toEqual(expect.arrayContaining(["apps/*", "packages/*"]));
   });

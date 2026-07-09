@@ -181,7 +181,13 @@ describe("RecordingManager", () => {
       manager.startRecording(defaultOptions, 1, filePath);
 
       manager.captureVehicleSnapshot([
-        { id: "v1", position: [-1.3, 36.8], speed: 40, heading: 90, name: "Car 1" } as any,
+        {
+          id: "v1",
+          position: [-1.3, 36.8],
+          speed: 40,
+          heading: 90,
+          name: "Car 1",
+        } as any,
       ]);
 
       manager.stopRecording();
@@ -239,7 +245,13 @@ describe("RecordingManager", () => {
 
     it("should not record when not recording", () => {
       manager.captureVehicleSnapshot([
-        { id: "v1", position: [-1.3, 36.8], speed: 40, heading: 90, name: "Car" } as any,
+        {
+          id: "v1",
+          position: [-1.3, 36.8],
+          speed: 40,
+          heading: 90,
+          name: "Car",
+        } as any,
       ]);
       // Should not throw
     });

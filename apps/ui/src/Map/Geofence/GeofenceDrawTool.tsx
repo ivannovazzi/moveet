@@ -172,7 +172,11 @@ export default function GeofenceDrawTool({
       if (bestEi >= 0) {
         const midGeo = vp.unproject([bestProjX, bestProjY]);
         if (midGeo) {
-          return { kind: "edge", index: bestEi, midpoint: [midGeo[0], midGeo[1]] };
+          return {
+            kind: "edge",
+            index: bestEi,
+            midpoint: [midGeo[0], midGeo[1]],
+          };
         }
       }
 
@@ -217,7 +221,10 @@ export default function GeofenceDrawTool({
           ev.stopPropagation();
           ev.preventDefault();
         };
-        window.addEventListener("click", suppress, { capture: true, once: true });
+        window.addEventListener("click", suppress, {
+          capture: true,
+          once: true,
+        });
         setDragging(null);
       }
       downPx = null;

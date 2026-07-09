@@ -14,7 +14,7 @@ export function multiplierToSlider(multiplier: number): number {
 
 export function sliderToMultiplier(slider: number): number {
   if (slider <= 0) return 1;
-  return Math.round(Math.pow(10, (slider / 100) * LOG_MAX));
+  return Math.round(10 ** ((slider / 100) * LOG_MAX));
 }
 
 /** Human phrasing of a multiplier — the "not really speed, just events" framing. */

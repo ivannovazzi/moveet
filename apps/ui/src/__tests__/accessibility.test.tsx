@@ -86,7 +86,12 @@ describe("VehicleList accessibility", () => {
   const defaultProps = {
     filter: "",
     vehicles: [
-      createVehicle({ id: "v1", name: "Truck Alpha", visible: true, speed: 45 }),
+      createVehicle({
+        id: "v1",
+        name: "Truck Alpha",
+        visible: true,
+        speed: 45,
+      }),
       createVehicle({ id: "v2", name: "Van Beta", visible: true, speed: 60 }),
     ],
     maxSpeed: 100,

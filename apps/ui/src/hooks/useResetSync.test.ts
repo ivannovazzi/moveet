@@ -135,7 +135,11 @@ describe("reset WS event: full vehicle replacement", () => {
     expect(result.current.vehicles).toHaveLength(3);
 
     // Fire the reset event with only v1 -- v2 and v3 should disappear
-    const resetV1 = createVehicleDTO({ id: "v1", name: "Alpha Updated", speed: 99 });
+    const resetV1 = createVehicleDTO({
+      id: "v1",
+      name: "Alpha Updated",
+      speed: 99,
+    });
     act(() => {
       resetHandlers.forEach((h) => h({ vehicles: [resetV1], directions: [] }));
     });

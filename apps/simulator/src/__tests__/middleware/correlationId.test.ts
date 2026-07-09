@@ -69,7 +69,9 @@ describe("correlationIdMiddleware", () => {
     const res = await request(app).get("/test");
     expect(res.status).toBe(200);
     expect(res.body.hasLogger).toBe(true);
-    expect(logger.child).toHaveBeenCalledWith({ requestId: expect.any(String) });
+    expect(logger.child).toHaveBeenCalledWith({
+      requestId: expect.any(String),
+    });
   });
 
   it("should log request start", async () => {

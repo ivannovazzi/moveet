@@ -1,4 +1,5 @@
-import React, { useRef, useLayoutEffect } from "react";
+import type React from "react";
+import { useRef, useLayoutEffect } from "react";
 import { useMapContext } from "../hooks";
 import type { Position } from "@/types";
 

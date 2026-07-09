@@ -14,7 +14,12 @@ function isMedical(vehicle: Vehicle): boolean {
 
 const DEFAULT_QUERY = `query { vehicles { nodes { id callsign isOnline _currentShift { id } _trackingType vehicleTypeRef { value } latitude longitude } } }`;
 const DEFAULT_VEHICLE_PATH = "vehicles.nodes";
-const DEFAULT_FIELD_MAP = { id: "id", name: "callsign", lat: "latitude", lng: "longitude" };
+const DEFAULT_FIELD_MAP = {
+  id: "id",
+  name: "callsign",
+  lat: "latitude",
+  lng: "longitude",
+};
 
 export class GraphQLSource implements DataSource {
   readonly type = "graphql";
@@ -23,7 +28,12 @@ export class GraphQLSource implements DataSource {
     { name: "url", label: "URL", type: "string", required: true },
     { name: "token", label: "Auth Token", type: "password" },
     { name: "query", label: "Query", type: "string", default: DEFAULT_QUERY },
-    { name: "vehiclePath", label: "Vehicle Path", type: "string", default: "vehicles.nodes" },
+    {
+      name: "vehiclePath",
+      label: "Vehicle Path",
+      type: "string",
+      default: "vehicles.nodes",
+    },
     { name: "maxVehicles", label: "Max Vehicles", type: "number", default: 0 },
     {
       name: "filter",

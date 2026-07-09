@@ -58,7 +58,9 @@ describe("correlationIdMiddleware (adapter)", () => {
   it("should create a child logger with the requestId", async () => {
     const app = createApp();
     await request(app).get("/test");
-    expect(logger.child).toHaveBeenCalledWith({ requestId: expect.any(String) });
+    expect(logger.child).toHaveBeenCalledWith({
+      requestId: expect.any(String),
+    });
   });
 
   it("should attach logger to res.locals", async () => {

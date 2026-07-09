@@ -87,9 +87,11 @@ function createAdapterApp({ isReady = true }: { isReady?: boolean } = {}) {
     try {
       const result = await mockPluginManager.publishUpdates(vehicles);
       const httpStatus = result.status === "failure" ? 502 : 200;
-      res
-        .status(httpStatus)
-        .json({ status: result.status, count: vehicles.length, sinks: result.sinks });
+      res.status(httpStatus).json({
+        status: result.status,
+        count: vehicles.length,
+        sinks: result.sinks,
+      });
     } catch {
       res.locals.logger.error("Error publishing updates");
       res.status(500).json({ error: "Failed to publish updates" });
@@ -165,8 +167,13 @@ describe("Adapter routes", () => {
       { id: "v1", latitude: -1.3, longitude: 36.8 },
     ]);
     mockPluginManager.getFleets.mockResolvedValue([{ id: "f1", name: "Fleet 1" }]);
-    mockPluginManager.getStatus.mockResolvedValue({ source: "rest", sinks: ["console"] });
-    mockPluginManager.getSafeConfig.mockReturnValue({ source: { type: "rest" } });
+    mockPluginManager.getStatus.mockResolvedValue({
+      source: "rest",
+      sinks: ["console"],
+    });
+    mockPluginManager.getSafeConfig.mockReturnValue({
+      source: { type: "rest" },
+    });
     mockPluginManager.publishUpdates.mockResolvedValue({
       status: "success",
       sinks: ["console"],

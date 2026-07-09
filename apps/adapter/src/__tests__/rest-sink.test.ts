@@ -45,7 +45,10 @@ describe("RestSink", () => {
 
   it("sends individual requests when batchMode is false", async () => {
     const sink = new RestSink();
-    await sink.connect({ url: "https://api.example.com/sync", batchMode: false });
+    await sink.connect({
+      url: "https://api.example.com/sync",
+      batchMode: false,
+    });
     await sink.publishUpdates([
       { id: "v1", latitude: -1.3, longitude: 36.8 },
       { id: "v2", latitude: -1.2, longitude: 36.7 },
@@ -78,7 +81,10 @@ describe("RestSink", () => {
   describe("partial failure handling (non-batch mode)", () => {
     it("returns success result when all individual requests succeed", async () => {
       const sink = new RestSink();
-      await sink.connect({ url: "https://api.example.com/sync", batchMode: false });
+      await sink.connect({
+        url: "https://api.example.com/sync",
+        batchMode: false,
+      });
 
       const result = await sink.publishUpdates([
         { id: "v1", latitude: -1.3, longitude: 36.8 },
@@ -101,7 +107,10 @@ describe("RestSink", () => {
         .mockResolvedValueOnce({ ok: true } as Response);
 
       const sink = new RestSink();
-      await sink.connect({ url: "https://api.example.com/sync", batchMode: false });
+      await sink.connect({
+        url: "https://api.example.com/sync",
+        batchMode: false,
+      });
 
       const result = await sink.publishUpdates([
         { id: "v1", latitude: -1.3, longitude: 36.8 },
@@ -122,7 +131,10 @@ describe("RestSink", () => {
         .mockRejectedValueOnce(new Error("timeout"));
 
       const sink = new RestSink();
-      await sink.connect({ url: "https://api.example.com/sync", batchMode: false });
+      await sink.connect({
+        url: "https://api.example.com/sync",
+        batchMode: false,
+      });
 
       await expect(
         sink.publishUpdates([
@@ -140,7 +152,10 @@ describe("RestSink", () => {
         .mockResolvedValueOnce({ ok: true } as Response);
 
       const sink = new RestSink();
-      await sink.connect({ url: "https://api.example.com/sync", batchMode: false });
+      await sink.connect({
+        url: "https://api.example.com/sync",
+        batchMode: false,
+      });
 
       const result = await sink.publishUpdates([
         { id: "v1", latitude: -1.3, longitude: 36.8 },

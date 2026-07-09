@@ -84,7 +84,10 @@ function createMockScenarioManager() {
 function createMockContext(
   scenarioManagerOverrides?: Partial<ReturnType<typeof createMockScenarioManager>>
 ): RouteContext {
-  const scenarioManager = { ...createMockScenarioManager(), ...scenarioManagerOverrides };
+  const scenarioManager = {
+    ...createMockScenarioManager(),
+    ...scenarioManagerOverrides,
+  };
   return {
     network: {} as RouteContext["network"],
     vehicleManager: {} as RouteContext["vehicleManager"],

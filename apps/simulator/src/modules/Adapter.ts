@@ -50,11 +50,15 @@ export default class Adapter {
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
         logger.error(`Adapter request to ${path} timed out after ${REQUEST_TIMEOUT_MS}ms`);
-        throw new Error(`Adapter request to ${path} timed out`, { cause: error });
+        throw new Error(`Adapter request to ${path} timed out`, {
+          cause: error,
+        });
       }
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error(`Error from adapter: ${errorMessage}`);
-      throw new Error(`Adapter request to ${path} failed: ${errorMessage}`, { cause: error });
+      throw new Error(`Adapter request to ${path} failed: ${errorMessage}`, {
+        cause: error,
+      });
     } finally {
       clearTimeout(timer);
     }

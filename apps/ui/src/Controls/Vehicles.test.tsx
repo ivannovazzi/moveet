@@ -163,9 +163,24 @@ describe("VehicleList", () => {
   describe("row memoization (fleetsim-all-k8sz)", () => {
     it("does not re-render unrelated rows when only one vehicle's data changes", async () => {
       const vehicles = [
-        createVehicle({ id: "v1", name: "Vehicle A", speed: 40, visible: true }),
-        createVehicle({ id: "v2", name: "Vehicle B", speed: 40, visible: true }),
-        createVehicle({ id: "v3", name: "Vehicle C", speed: 40, visible: true }),
+        createVehicle({
+          id: "v1",
+          name: "Vehicle A",
+          speed: 40,
+          visible: true,
+        }),
+        createVehicle({
+          id: "v2",
+          name: "Vehicle B",
+          speed: 40,
+          visible: true,
+        }),
+        createVehicle({
+          id: "v3",
+          name: "Vehicle C",
+          speed: 40,
+          visible: true,
+        }),
       ];
 
       const { rerender } = render(<VehicleList {...defaultProps} vehicles={vehicles} />);
@@ -175,9 +190,24 @@ describe("VehicleList", () => {
 
       // Only vehicle A's speed changes; B and C keep identical prop values.
       const updatedVehicles = [
-        createVehicle({ id: "v1", name: "Vehicle A", speed: 55, visible: true }),
-        createVehicle({ id: "v2", name: "Vehicle B", speed: 40, visible: true }),
-        createVehicle({ id: "v3", name: "Vehicle C", speed: 40, visible: true }),
+        createVehicle({
+          id: "v1",
+          name: "Vehicle A",
+          speed: 55,
+          visible: true,
+        }),
+        createVehicle({
+          id: "v2",
+          name: "Vehicle B",
+          speed: 40,
+          visible: true,
+        }),
+        createVehicle({
+          id: "v3",
+          name: "Vehicle C",
+          speed: 40,
+          visible: true,
+        }),
       ];
       rerender(<VehicleList {...defaultProps} vehicles={updatedVehicles} />);
 
@@ -192,8 +222,18 @@ describe("VehicleList", () => {
 
     it("re-renders a row when its own speed changes but keeps unrelated DOM stable across repeated updates", () => {
       const vehicles = [
-        createVehicle({ id: "v1", name: "Vehicle A", speed: 10, visible: true }),
-        createVehicle({ id: "v2", name: "Vehicle B", speed: 10, visible: true }),
+        createVehicle({
+          id: "v1",
+          name: "Vehicle A",
+          speed: 10,
+          visible: true,
+        }),
+        createVehicle({
+          id: "v2",
+          name: "Vehicle B",
+          speed: 10,
+          visible: true,
+        }),
       ];
       const { rerender } = render(<VehicleList {...defaultProps} vehicles={vehicles} />);
 
@@ -204,7 +244,12 @@ describe("VehicleList", () => {
       for (const speed of [20, 30, 40, 50]) {
         const updated = [
           createVehicle({ id: "v1", name: "Vehicle A", speed, visible: true }),
-          createVehicle({ id: "v2", name: "Vehicle B", speed: 10, visible: true }),
+          createVehicle({
+            id: "v2",
+            name: "Vehicle B",
+            speed: 10,
+            visible: true,
+          }),
         ];
         rerender(<VehicleList {...defaultProps} vehicles={updated} />);
         expect(screen.getByText(String(speed))).toBeInTheDocument();

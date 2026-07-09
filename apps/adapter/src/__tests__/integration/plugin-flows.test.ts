@@ -90,7 +90,10 @@ class RecordingSink implements DataSink {
   }
 
   async healthCheck(): Promise<HealthCheckResult> {
-    return { healthy: this.healthy, message: this.healthy ? "ok" : "unhealthy" };
+    return {
+      healthy: this.healthy,
+      message: this.healthy ? "ok" : "unhealthy",
+    };
   }
 }
 
@@ -543,7 +546,10 @@ describe("Plugin flow integration tests", () => {
       // Add source
       await manager.setSource("controllable", {});
       status = await manager.getStatus();
-      expect(status.source).toMatchObject({ type: "controllable", healthy: true });
+      expect(status.source).toMatchObject({
+        type: "controllable",
+        healthy: true,
+      });
 
       // Add sink
       await manager.addSink("recorder", {});

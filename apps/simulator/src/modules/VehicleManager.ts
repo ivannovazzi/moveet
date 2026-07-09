@@ -41,7 +41,10 @@ export class VehicleManager extends EventEmitter {
   public readonly adapterSync: AdapterSyncManager;
   public readonly analytics: AnalyticsAccumulator;
 
-  public readonly clock = new SimulationClock({ startHour: 7, speedMultiplier: 1 });
+  public readonly clock = new SimulationClock({
+    startHour: 7,
+    speedMultiplier: 1,
+  });
   private traffic = new TrafficManager(this.clock);
   public readonly fleets = new FleetManager();
 

@@ -9,11 +9,15 @@ function createMockContext(): RouteContext {
     network: {} as RouteContext["network"],
     vehicleManager: {} as RouteContext["vehicleManager"],
     fleetManager: {
-      getFleets: vi
-        .fn()
-        .mockReturnValue([
-          { id: "f1", name: "Fleet A", color: "#e6194b", source: "local", vehicleIds: ["v1"] },
-        ]),
+      getFleets: vi.fn().mockReturnValue([
+        {
+          id: "f1",
+          name: "Fleet A",
+          color: "#e6194b",
+          source: "local",
+          vehicleIds: ["v1"],
+        },
+      ]),
       createFleet: vi.fn().mockReturnValue({
         id: "f2",
         name: "Fleet B",

@@ -217,7 +217,9 @@ export type WsMessageType = WsDataMessageType | WsControlMessageType;
  * Data-carrying variants are `{ type; data }`; control frames are `{ type }`.
  */
 export type WebSocketMessage =
-  | { [K in WsDataMessageType]: { type: K; data: WsMessageMap[K] } }[WsDataMessageType]
+  | {
+      [K in WsDataMessageType]: { type: K; data: WsMessageMap[K] };
+    }[WsDataMessageType]
   | { type: "connect" }
   | { type: "disconnect" };
 

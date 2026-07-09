@@ -24,11 +24,17 @@ function score(name: string, q: string): Match | null {
 
   // Exact
   if (n === query)
-    return { score: 1000, positions: Array.from({ length: query.length }, (_, i) => i) };
+    return {
+      score: 1000,
+      positions: Array.from({ length: query.length }, (_, i) => i),
+    };
 
   // Starts with
   if (n.startsWith(query)) {
-    return { score: 800, positions: Array.from({ length: query.length }, (_, i) => i) };
+    return {
+      score: 800,
+      positions: Array.from({ length: query.length }, (_, i) => i),
+    };
   }
 
   // Word boundary start
@@ -68,7 +74,10 @@ function score(name: string, q: string): Match | null {
       (acc, p, i) => acc + (i > 0 && p === pos[i - 1] + 1 ? 10 : 0),
       0
     );
-    return { score: 200 * coverage + consecutiveBonus - pos[0], positions: pos };
+    return {
+      score: 200 * coverage + consecutiveBonus - pos[0],
+      positions: pos,
+    };
   }
 
   return null;

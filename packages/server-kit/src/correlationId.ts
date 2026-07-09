@@ -30,11 +30,7 @@ export interface CorrelationIdOptions {
 export function createCorrelationIdMiddleware(options: CorrelationIdOptions): RequestHandler {
   const { logger } = options;
 
-  return function correlationIdMiddleware(
-    req: Request,
-    res: Response,
-    next: NextFunction
-  ): void {
+  return function correlationIdMiddleware(req: Request, res: Response, next: NextFunction): void {
     const requestId = (req.headers[REQUEST_ID_HEADER] as string | undefined) ?? randomUUID();
 
     res.locals.requestId = requestId;
@@ -49,7 +45,12 @@ export function createCorrelationIdMiddleware(options: CorrelationIdOptions): Re
     res.on("finish", () => {
       const duration = Date.now() - start;
       child.info(
-        { method: req.method, path: req.path, status: res.statusCode, duration },
+        {
+          method: req.method,
+          path: req.path,
+          status: res.statusCode,
+          duration,
+        },
         "request finish"
       );
     });

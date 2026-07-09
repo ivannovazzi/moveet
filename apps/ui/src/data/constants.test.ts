@@ -92,16 +92,26 @@ describe("constants", () => {
     const speedMps = 40 * (1000 / 3600); // ~11 m/s, a typical moving vehicle
 
     it("snaps a brand-new vehicle", () => {
-      expect(shouldSnapPosition({ isNew: true, elapsedMs: 500, distanceM: 5, speedMps })).toBe(
-        true
-      );
+      expect(
+        shouldSnapPosition({
+          isNew: true,
+          elapsedMs: 500,
+          distanceM: 5,
+          speedMps,
+        })
+      ).toBe(true);
     });
 
     it("animates a normal continuous step", () => {
       // ~5.5 m in 500 ms at 11 m/s is well within the plausible envelope.
-      expect(shouldSnapPosition({ isNew: false, elapsedMs: 500, distanceM: 5.5, speedMps })).toBe(
-        false
-      );
+      expect(
+        shouldSnapPosition({
+          isNew: false,
+          elapsedMs: 500,
+          distanceM: 5.5,
+          speedMps,
+        })
+      ).toBe(false);
     });
 
     it("snaps after a long continuity gap even when the distance looks plausible", () => {
@@ -113,15 +123,25 @@ describe("constants", () => {
     });
 
     it("snaps a teleport/reposition (large jump in a short time)", () => {
-      expect(shouldSnapPosition({ isNew: false, elapsedMs: 500, distanceM: 2000, speedMps })).toBe(
-        true
-      );
+      expect(
+        shouldSnapPosition({
+          isNew: false,
+          elapsedMs: 500,
+          distanceM: 2000,
+          speedMps,
+        })
+      ).toBe(true);
     });
 
     it("does not snap a small reposition of a stopped vehicle (within the floor)", () => {
-      expect(shouldSnapPosition({ isNew: false, elapsedMs: 500, distanceM: 40, speedMps: 0 })).toBe(
-        false
-      );
+      expect(
+        shouldSnapPosition({
+          isNew: false,
+          elapsedMs: 500,
+          distanceM: 40,
+          speedMps: 0,
+        })
+      ).toBe(false);
     });
   });
 

@@ -110,7 +110,10 @@ describe("FleetManager", () => {
       fm.on("fleet:assigned", listener);
       const fleet = fm.createFleet("Alpha");
       fm.assignVehicles(fleet.id, ["v1"]);
-      expect(listener).toHaveBeenCalledWith({ fleetId: fleet.id, vehicleIds: ["v1"] });
+      expect(listener).toHaveBeenCalledWith({
+        fleetId: fleet.id,
+        vehicleIds: ["v1"],
+      });
     });
   });
 
@@ -134,7 +137,10 @@ describe("FleetManager", () => {
       fm.assignVehicles(fleet.id, ["v1"]);
       listener.mockClear();
       fm.unassignVehicles(fleet.id, ["v1"]);
-      expect(listener).toHaveBeenCalledWith({ fleetId: null, vehicleIds: ["v1"] });
+      expect(listener).toHaveBeenCalledWith({
+        fleetId: null,
+        vehicleIds: ["v1"],
+      });
     });
   });
 

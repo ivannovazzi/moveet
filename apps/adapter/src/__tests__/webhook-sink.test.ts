@@ -38,7 +38,9 @@ describe("WebhookSink", () => {
       "https://example.com/webhook",
       expect.objectContaining({
         method: "POST",
-        headers: expect.objectContaining({ "Content-Type": "application/json" }),
+        headers: expect.objectContaining({
+          "Content-Type": "application/json",
+        }),
         body: expect.stringContaining("v1"),
       })
     );
@@ -46,7 +48,10 @@ describe("WebhookSink", () => {
 
   it("includes custom headers", async () => {
     const sink = new WebhookSink();
-    await sink.connect({ url: "https://example.com/webhook", headers: { "X-Api-Key": "secret" } });
+    await sink.connect({
+      url: "https://example.com/webhook",
+      headers: { "X-Api-Key": "secret" },
+    });
     await sink.publishUpdates([{ id: "v1", latitude: -1.3, longitude: 36.8 }]);
 
     expect(mockHttpFetch).toHaveBeenCalledWith(

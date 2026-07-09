@@ -79,6 +79,7 @@ export default function TrafficOverlay({ visible }: { visible: boolean }) {
     return key;
   }, [streetCongestion]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: streetCongestion is read via the stable congestionVersion trigger, not listed directly
   const layers = useMemo(() => {
     if (!visible || trafficData.length === 0 || streetCongestion.size === 0) return [];
 
@@ -105,7 +106,6 @@ export default function TrafficOverlay({ visible }: { visible: boolean }) {
     ];
     // `streetCongestion` is read inside getColor; `congestionVersion` is the
     // stable trigger so we don't list the Map itself (new identity each tick).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, trafficData, congestionVersion]);
 
   useRegisterLayers("traffic-overlay", layers);

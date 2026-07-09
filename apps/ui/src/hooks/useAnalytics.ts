@@ -34,25 +34,19 @@ export function useAnalytics(): UseAnalyticsResult {
     return () => clearInterval(interval);
   }, []);
 
-  const summary = useMemo(
-    () => analyticsStore.getSummary(),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [version]
-  );
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-derive only when the store version bumps
+  const summary = useMemo(() => analyticsStore.getSummary(), [version]);
 
-  const summaryHistory = useMemo(
-    () => analyticsStore.getSummaryHistory(),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [version]
-  );
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-derive only when the store version bumps
+  const summaryHistory = useMemo(() => analyticsStore.getSummaryHistory(), [version]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-derive only when the store version bumps
   const fleetHistory = useMemo(() => {
     const map = new Map<string, FleetAnalytics[]>();
     for (const id of analyticsStore.getFleetIds()) {
       map.set(id, analyticsStore.getFleetHistory(id));
     }
     return map;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version]);
 
   return { summary, fleetHistory, summaryHistory };

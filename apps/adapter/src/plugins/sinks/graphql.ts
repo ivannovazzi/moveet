@@ -40,7 +40,12 @@ export class GraphQLSink implements DataSink {
   readonly configSchema: ConfigField[] = [
     { name: "url", label: "URL", type: "string", required: true },
     { name: "token", label: "Auth Token", type: "password" },
-    { name: "mutation", label: "Mutation", type: "string", default: DEFAULT_MUTATION },
+    {
+      name: "mutation",
+      label: "Mutation",
+      type: "string",
+      default: DEFAULT_MUTATION,
+    },
     { name: "headers", label: "Headers", type: "json" },
     {
       name: "batchSize",

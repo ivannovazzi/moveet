@@ -358,7 +358,12 @@ describe("RealismEngine reconfigure (deep merge)", () => {
   it("partial gps reconfigure preserves the other gps params", () => {
     const { engine } = makeEngine({
       enabled: true,
-      gps: { connectedSigmaM: 9, connectedTauS: 200, degradedSigmaM: 30, degradedTauS: 40 },
+      gps: {
+        connectedSigmaM: 9,
+        connectedTauS: 200,
+        degradedSigmaM: 30,
+        degradedTauS: 40,
+      },
     });
 
     engine.reconfigure({ gps: { connectedSigmaM: 1 } });

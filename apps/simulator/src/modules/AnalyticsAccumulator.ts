@@ -261,7 +261,10 @@ export class AnalyticsAccumulator {
     return s;
   }
 
-  private getOrCreateSpeedSamples(vehicleId: string): { sum: number; count: number } {
+  private getOrCreateSpeedSamples(vehicleId: string): {
+    sum: number;
+    count: number;
+  } {
     let s = this.speedSamples.get(vehicleId);
     if (!s) {
       s = { sum: 0, count: 0 };

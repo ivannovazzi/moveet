@@ -288,7 +288,10 @@ describe("Adapter", () => {
 
   describe("correlation id propagation", () => {
     it("forwards correlationId as the x-request-id header on sync", async () => {
-      (global.fetch as any).mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+      (global.fetch as any).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({}),
+      });
 
       await adapter.sync({ vehicles: [] }, "corr-123");
 
@@ -299,7 +302,10 @@ describe("Adapter", () => {
     });
 
     it("forwards correlationId as the x-request-id header on get", async () => {
-      (global.fetch as any).mockResolvedValueOnce({ ok: true, json: async () => [] });
+      (global.fetch as any).mockResolvedValueOnce({
+        ok: true,
+        json: async () => [],
+      });
 
       await adapter.get("corr-get-456");
 
@@ -308,7 +314,10 @@ describe("Adapter", () => {
     });
 
     it("does not set x-request-id when no correlationId is provided", async () => {
-      (global.fetch as any).mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+      (global.fetch as any).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({}),
+      });
 
       await adapter.sync({ vehicles: [] });
 

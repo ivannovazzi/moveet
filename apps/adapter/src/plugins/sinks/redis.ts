@@ -9,11 +9,21 @@ export class RedisPubSubSink implements DataSink {
   readonly type = "redis";
   readonly name = "Redis Pub/Sub";
   readonly configSchema: ConfigField[] = [
-    { name: "url", label: "URL", type: "string", placeholder: "redis://localhost:6379" },
+    {
+      name: "url",
+      label: "URL",
+      type: "string",
+      placeholder: "redis://localhost:6379",
+    },
     { name: "host", label: "Host", type: "string", default: "localhost" },
     { name: "port", label: "Port", type: "number", default: 6379 },
     { name: "password", label: "Password", type: "password" },
-    { name: "channel", label: "Channel", type: "string", default: "moveet:vehicle-updates" },
+    {
+      name: "channel",
+      label: "Channel",
+      type: "string",
+      default: "moveet:vehicle-updates",
+    },
     {
       name: "connectTimeoutMs",
       label: "Connect Timeout (ms)",

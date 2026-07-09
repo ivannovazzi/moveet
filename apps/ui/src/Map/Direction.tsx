@@ -64,10 +64,18 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
   const layers = useMemo(() => {
     const items: DirectionData[] = [];
     if (hovered && hoveredDirection) {
-      items.push({ id: `${hovered}--hovered`, direction: hoveredDirection, color: "#f93" });
+      items.push({
+        id: `${hovered}--hovered`,
+        direction: hoveredDirection,
+        color: "#f93",
+      });
     }
     if (selected && selectedDirection) {
-      items.push({ id: `${selected}--selected`, direction: selectedDirection, color: "#39f" });
+      items.push({
+        id: `${selected}--selected`,
+        direction: selectedDirection,
+        color: "#39f",
+      });
     }
 
     if (items.length === 0) return [];

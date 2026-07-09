@@ -62,7 +62,12 @@ vi.mock("@kafkajs/confluent-schema-registry", () => {
   }
   return {
     SchemaRegistry: MockSchemaRegistry,
-    SchemaType: { AVRO: "AVRO", JSON: "JSON", PROTOBUF: "PROTOBUF", UNKNOWN: "UNKNOWN" },
+    SchemaType: {
+      AVRO: "AVRO",
+      JSON: "JSON",
+      PROTOBUF: "PROTOBUF",
+      UNKNOWN: "UNKNOWN",
+    },
   };
 });
 
@@ -166,7 +171,14 @@ describe("RedpandaSink", () => {
     it("emits the trajectory-engine pure-GPS schema", async () => {
       await sink.connect({ brokers: "localhost:9092", format: "trajectory" });
       await sink.publishUpdates([
-        { id: "42", latitude: -1.2863, longitude: 36.8172, speed: 36, heading: 90, type: "car" },
+        {
+          id: "42",
+          latitude: -1.2863,
+          longitude: 36.8172,
+          speed: 36,
+          heading: 90,
+          type: "car",
+        },
       ]);
 
       const message = mockSend.mock.calls[0][0].messages[0];
@@ -245,7 +257,11 @@ describe("RedpandaSink", () => {
 
     it("rejects an empty keyField value", async () => {
       await expect(
-        sink.connect({ brokers: "localhost:9092", format: "trajectory", keyField: "   " })
+        sink.connect({
+          brokers: "localhost:9092",
+          format: "trajectory",
+          keyField: "   ",
+        })
       ).rejects.toThrow(/invalid keyField/);
     });
 
@@ -374,7 +390,12 @@ describe("RedpandaSink", () => {
     it("defaults to 'id'", async () => {
       await sink.connect({ brokers: "localhost:9092", format: "trajectory" });
       await sink.publishUpdates([
-        { id: "veh-1", latitude: 0, longitude: 0, metadata: { deviceId: "d-99" } },
+        {
+          id: "veh-1",
+          latitude: 0,
+          longitude: 0,
+          metadata: { deviceId: "d-99" },
+        },
       ]);
 
       expect(mockSend.mock.calls[0][0].messages[0].key).toBe("veh-1");
@@ -387,7 +408,12 @@ describe("RedpandaSink", () => {
         keyField: "metadata.deviceId",
       });
       await sink.publishUpdates([
-        { id: "veh-1", latitude: 0, longitude: 0, metadata: { deviceId: "d-99" } },
+        {
+          id: "veh-1",
+          latitude: 0,
+          longitude: 0,
+          metadata: { deviceId: "d-99" },
+        },
       ]);
 
       expect(mockSend.mock.calls[0][0].messages[0].key).toBe("d-99");
@@ -459,7 +485,10 @@ describe("RedpandaSink", () => {
 
     it("rejects an invalid JSON template", async () => {
       await expect(
-        sink.connect({ brokers: "localhost:9092", payloadTemplate: "{not json" })
+        sink.connect({
+          brokers: "localhost:9092",
+          payloadTemplate: "{not json",
+        })
       ).rejects.toThrow(/not valid JSON/);
     });
 
@@ -650,7 +679,10 @@ describe("RedpandaSink", () => {
     });
 
     it("defaults schemaRegistryUrl to localhost:18081", async () => {
-      await sink.connect({ brokers: "localhost:9092", format: "canonical-avro" });
+      await sink.connect({
+        brokers: "localhost:9092",
+        format: "canonical-avro",
+      });
       expect(lastRegistryHost).toBe("http://localhost:18081");
     });
 
@@ -687,7 +719,10 @@ describe("RedpandaSink", () => {
       expect(envelope.event_version).toBe(1);
       expect(typeof envelope.event_id).toBe("string");
       expect(typeof envelope.occurred_at).toBe("string");
-      expect(envelope.source).toEqual({ service: "moveet-simulator", environment: "dev" });
+      expect(envelope.source).toEqual({
+        service: "moveet-simulator",
+        environment: "dev",
+      });
       expect(envelope.metadata).toEqual({
         correlation_id: null,
         causation_id: null,
@@ -926,7 +961,11 @@ describe("RedpandaSink", () => {
     });
 
     it("defaults the SASL mechanism to PLAIN", async () => {
-      await sink.connect({ brokers: "rp1:9093", saslUsername: "u", saslPassword: "p" });
+      await sink.connect({
+        brokers: "rp1:9093",
+        saslUsername: "u",
+        saslPassword: "p",
+      });
       expect((lastKafkaConfig!.sasl as { mechanism: string }).mechanism).toBe("plain");
     });
 
@@ -1041,7 +1080,10 @@ describe("RedpandaSink", () => {
       );
 
       // Use a very short timeout so the test completes quickly
-      await sink.connect({ brokers: "localhost:9092", healthCheckTimeoutMs: 50 });
+      await sink.connect({
+        brokers: "localhost:9092",
+        healthCheckTimeoutMs: 50,
+      });
       const result = await sink.healthCheck();
 
       expect(result.healthy).toBe(false);

@@ -39,12 +39,16 @@ describe("RoadsContext", () => {
   }
 
   it("provides empty roads array by default", () => {
-    const { result } = renderHook(() => useRoadsCtx(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useRoadsCtx(), {
+      wrapper: createWrapper(),
+    });
     expect(result.current.roads).toEqual([]);
   });
 
   it("provides setRoads that updates roads state", () => {
-    const { result } = renderHook(() => useRoadsCtx(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useRoadsCtx(), {
+      wrapper: createWrapper(),
+    });
 
     const road = createRoad({ name: "Kenyatta Avenue" });
     act(() => {
@@ -56,7 +60,9 @@ describe("RoadsContext", () => {
   });
 
   it("does not include POIs, directions, or other unrelated data", () => {
-    const { result } = renderHook(() => useRoadsCtx(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useRoadsCtx(), {
+      wrapper: createWrapper(),
+    });
     const value = result.current as RoadsContextValue;
     expect(Object.keys(value)).toEqual(expect.arrayContaining(["roads", "setRoads"]));
     expect(Object.keys(value)).toHaveLength(2);
@@ -78,12 +84,16 @@ describe("POIContext", () => {
   }
 
   it("provides empty POI array by default", () => {
-    const { result } = renderHook(() => usePOICtx(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => usePOICtx(), {
+      wrapper: createWrapper(),
+    });
     expect(result.current.pois).toEqual([]);
   });
 
   it("provides setPOIs that updates POI state", () => {
-    const { result } = renderHook(() => usePOICtx(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => usePOICtx(), {
+      wrapper: createWrapper(),
+    });
 
     const poi = createPOI({ id: "poi-1", name: "Central Station" });
     act(() => {
@@ -95,7 +105,9 @@ describe("POIContext", () => {
   });
 
   it("does not include roads or other unrelated data", () => {
-    const { result } = renderHook(() => usePOICtx(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => usePOICtx(), {
+      wrapper: createWrapper(),
+    });
     const value = result.current as POIContextValue;
     expect(Object.keys(value)).toEqual(expect.arrayContaining(["pois", "setPOIs"]));
     expect(Object.keys(value)).toHaveLength(2);
@@ -121,13 +133,17 @@ describe("DirectionContext", () => {
   }
 
   it("provides empty directions map by default", () => {
-    const { result } = renderHook(() => useDirectionCtx(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useDirectionCtx(), {
+      wrapper: createWrapper(),
+    });
     expect(result.current.directions).toBeInstanceOf(Map);
     expect(result.current.directions.size).toBe(0);
   });
 
   it("provides setDirections that updates direction state", () => {
-    const { result } = renderHook(() => useDirectionCtx(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useDirectionCtx(), {
+      wrapper: createWrapper(),
+    });
 
     const route = { edges: [], distance: 100 };
     act(() => {
@@ -139,7 +155,9 @@ describe("DirectionContext", () => {
   });
 
   it("does not include roads, POIs, or other unrelated data", () => {
-    const { result } = renderHook(() => useDirectionCtx(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useDirectionCtx(), {
+      wrapper: createWrapper(),
+    });
     const value = result.current as DirectionContextValue;
     expect(Object.keys(value)).toEqual(expect.arrayContaining(["directions", "setDirections"]));
     expect(Object.keys(value)).toHaveLength(2);
@@ -165,15 +183,24 @@ describe("HeatZoneContext", () => {
   }
 
   it("provides empty heatzones array by default", () => {
-    const { result } = renderHook(() => useHeatZoneCtx(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useHeatZoneCtx(), {
+      wrapper: createWrapper(),
+    });
     expect(result.current.heatzones).toEqual([]);
   });
 
   it("provides setHeatzones that updates heatzone state", () => {
-    const { result } = renderHook(() => useHeatZoneCtx(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useHeatZoneCtx(), {
+      wrapper: createWrapper(),
+    });
 
     const hz = createHeatzone({
-      properties: { id: "hz-1", intensity: 0.7, timestamp: "2026-01-01T00:00:00Z", radius: 500 },
+      properties: {
+        id: "hz-1",
+        intensity: 0.7,
+        timestamp: "2026-01-01T00:00:00Z",
+        radius: 500,
+      },
     });
     act(() => {
       result.current.setHeatzones([hz]);
@@ -184,7 +211,9 @@ describe("HeatZoneContext", () => {
   });
 
   it("does not include roads or other unrelated data", () => {
-    const { result } = renderHook(() => useHeatZoneCtx(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useHeatZoneCtx(), {
+      wrapper: createWrapper(),
+    });
     const value = result.current as HeatZoneContextValue;
     expect(Object.keys(value)).toEqual(expect.arrayContaining(["heatzones", "setHeatzones"]));
     expect(Object.keys(value)).toHaveLength(2);
@@ -213,13 +242,17 @@ describe("NetworkContext", () => {
   }
 
   it("provides empty network by default", () => {
-    const { result } = renderHook(() => useNetworkCtx(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useNetworkCtx(), {
+      wrapper: createWrapper(),
+    });
     expect(result.current.network.type).toBe("FeatureCollection");
     expect(result.current.network.features).toEqual([]);
   });
 
   it("provides setNetwork that updates network state", () => {
-    const { result } = renderHook(() => useNetworkCtx(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useNetworkCtx(), {
+      wrapper: createWrapper(),
+    });
 
     const network = createRoadNetwork();
     act(() => {
@@ -230,7 +263,9 @@ describe("NetworkContext", () => {
   });
 
   it("does not include roads or other unrelated data", () => {
-    const { result } = renderHook(() => useNetworkCtx(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useNetworkCtx(), {
+      wrapper: createWrapper(),
+    });
     const value = result.current as NetworkContextValue;
     expect(Object.keys(value)).toEqual(expect.arrayContaining(["network", "setNetwork"]));
     expect(Object.keys(value)).toHaveLength(2);
@@ -256,12 +291,16 @@ describe("OptionsContext", () => {
   }
 
   it("provides default start options", () => {
-    const { result } = renderHook(() => useOptionsCtx(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useOptionsCtx(), {
+      wrapper: createWrapper(),
+    });
     expect(result.current.options).toEqual(DEFAULT_START_OPTIONS);
   });
 
   it("provides setOptions that updates options state", () => {
-    const { result } = renderHook(() => useOptionsCtx(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useOptionsCtx(), {
+      wrapper: createWrapper(),
+    });
 
     act(() => {
       result.current.setOptions({ ...DEFAULT_START_OPTIONS, minSpeed: 25 });
@@ -271,7 +310,9 @@ describe("OptionsContext", () => {
   });
 
   it("does not include roads or other unrelated data", () => {
-    const { result } = renderHook(() => useOptionsCtx(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useOptionsCtx(), {
+      wrapper: createWrapper(),
+    });
     const value = result.current as OptionsContextValue;
     expect(Object.keys(value)).toEqual(expect.arrayContaining(["options", "setOptions"]));
     expect(Object.keys(value)).toHaveLength(2);

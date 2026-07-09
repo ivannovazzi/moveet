@@ -99,7 +99,13 @@ function renderSVGToCanvas(
   ctx.restore();
 }
 
-type IconMappingEntry = { x: number; y: number; width: number; height: number; mask: boolean };
+type IconMappingEntry = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  mask: boolean;
+};
 
 // ─── POI atlas ──────────────────────────────────────────────────────
 
@@ -122,7 +128,13 @@ export function createPOIIconAtlas(): {
     const iconColor = type === "bus_stop" ? "rgba(40,40,40,0.95)" : "rgba(255,255,255,0.98)";
     const { d, viewBox } = POI_PATHS[type];
     renderSVGToCanvas(ctx, d, x, 0, ICON_SIZE, bgColor, iconColor, viewBox);
-    iconMapping[type] = { x, y: 0, width: ICON_SIZE, height: ICON_SIZE, mask: false };
+    iconMapping[type] = {
+      x,
+      y: 0,
+      width: ICON_SIZE,
+      height: ICON_SIZE,
+      mask: false,
+    };
   });
 
   return { iconAtlas: canvas.toDataURL(), iconMapping };

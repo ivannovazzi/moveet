@@ -29,13 +29,25 @@ describe("directionHighlightStore", () => {
     expect(result.current).toEqual({ hovered: null, pinned: null });
 
     act(() => setHoveredStep({ vehicleId: "v1", start: 0, end: 3 }));
-    expect(result.current.hovered).toEqual({ vehicleId: "v1", start: 0, end: 3 });
+    expect(result.current.hovered).toEqual({
+      vehicleId: "v1",
+      start: 0,
+      end: 3,
+    });
     expect(result.current.pinned).toBeNull();
 
     act(() => togglePinnedStep({ vehicleId: "v1", start: 5, end: 8 }));
-    expect(result.current.pinned).toEqual({ vehicleId: "v1", start: 5, end: 8 });
+    expect(result.current.pinned).toEqual({
+      vehicleId: "v1",
+      start: 5,
+      end: 8,
+    });
     // Hover survives pinning.
-    expect(result.current.hovered).toEqual({ vehicleId: "v1", start: 0, end: 3 });
+    expect(result.current.hovered).toEqual({
+      vehicleId: "v1",
+      start: 0,
+      end: 3,
+    });
 
     act(() => setHoveredStep(null));
     expect(result.current.hovered).toBeNull();

@@ -80,7 +80,10 @@ describe("loadConfig", () => {
 
   it("parses SOURCE_CONFIG as JSON", () => {
     const cfg = loadConfig(
-      validEnv({ SOURCE_TYPE: "graphql", SOURCE_CONFIG: '{"url":"http://api.test"}' })
+      validEnv({
+        SOURCE_TYPE: "graphql",
+        SOURCE_CONFIG: '{"url":"http://api.test"}',
+      })
     );
     expect(cfg.source.config).toEqual({ url: "http://api.test" });
   });

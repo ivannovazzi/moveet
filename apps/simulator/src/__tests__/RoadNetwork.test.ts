@@ -97,7 +97,11 @@ describe("RoadNetwork", () => {
     it("should return null if no route exists", () => {
       const node1 = network.getRandomNode();
       // Create isolated node by modifying test case
-      const node2 = { id: "isolated", coordinates: [90, 180] as [number, number], connections: [] };
+      const node2 = {
+        id: "isolated",
+        coordinates: [90, 180] as [number, number],
+        connections: [],
+      };
 
       const route = network.findRoute(node1, node2);
       expect(route).toBeNull();
@@ -420,7 +424,10 @@ describe("RoadNetwork", () => {
       const emitted: unknown[] = [];
       network.on("heatzones", (zones) => emitted.push(zones));
 
-      const feature = network.addHeatZone({ polygon: square(10, 20, 0.01), intensity: 0.6 });
+      const feature = network.addHeatZone({
+        polygon: square(10, 20, 0.01),
+        intensity: 0.6,
+      });
 
       expect(feature.properties.id).toBeTruthy();
       expect(network.isPositionInHeatZone([10, 20])).toBe(true);
@@ -430,11 +437,16 @@ describe("RoadNetwork", () => {
     });
 
     it("updateHeatZone edits a zone and emits; returns null for a missing id", () => {
-      const feature = network.addHeatZone({ polygon: square(10, 20, 0.01), intensity: 0.6 });
+      const feature = network.addHeatZone({
+        polygon: square(10, 20, 0.01),
+        intensity: 0.6,
+      });
       const emitted: unknown[] = [];
       network.on("heatzones", (zones) => emitted.push(zones));
 
-      const updated = network.updateHeatZone(feature.properties.id, { intensity: 0.9 });
+      const updated = network.updateHeatZone(feature.properties.id, {
+        intensity: 0.9,
+      });
       expect(updated?.properties.intensity).toBe(0.9);
       expect(emitted).toHaveLength(1);
 
@@ -445,7 +457,10 @@ describe("RoadNetwork", () => {
     });
 
     it("removeHeatZone deletes a zone and emits; returns false for a missing id", () => {
-      const feature = network.addHeatZone({ polygon: square(10, 20, 0.01), intensity: 0.6 });
+      const feature = network.addHeatZone({
+        polygon: square(10, 20, 0.01),
+        intensity: 0.6,
+      });
       const emitted: unknown[] = [];
       network.on("heatzones", (zones) => emitted.push(zones));
 
@@ -1202,7 +1217,12 @@ describe("RoadNetwork", () => {
           // Path 1: A→B (high-congestion intermediate node B)
           {
             type: "Feature",
-            properties: { id: "p1-ab", name: "Path1-AB", highway: "primary", maxspeed: "50" },
+            properties: {
+              id: "p1-ab",
+              name: "Path1-AB",
+              highway: "primary",
+              maxspeed: "50",
+            },
             geometry: {
               type: "LineString",
               coordinates: [
@@ -1214,7 +1234,12 @@ describe("RoadNetwork", () => {
           // Extra spurs from B to inflate its connection count (simulating busy intersection)
           {
             type: "Feature",
-            properties: { id: "spur1", name: "Spur1", highway: "primary", maxspeed: "50" },
+            properties: {
+              id: "spur1",
+              name: "Spur1",
+              highway: "primary",
+              maxspeed: "50",
+            },
             geometry: {
               type: "LineString",
               coordinates: [
@@ -1225,7 +1250,12 @@ describe("RoadNetwork", () => {
           },
           {
             type: "Feature",
-            properties: { id: "spur2", name: "Spur2", highway: "primary", maxspeed: "50" },
+            properties: {
+              id: "spur2",
+              name: "Spur2",
+              highway: "primary",
+              maxspeed: "50",
+            },
             geometry: {
               type: "LineString",
               coordinates: [
@@ -1236,7 +1266,12 @@ describe("RoadNetwork", () => {
           },
           {
             type: "Feature",
-            properties: { id: "spur3", name: "Spur3", highway: "primary", maxspeed: "50" },
+            properties: {
+              id: "spur3",
+              name: "Spur3",
+              highway: "primary",
+              maxspeed: "50",
+            },
             geometry: {
               type: "LineString",
               coordinates: [
@@ -1248,7 +1283,12 @@ describe("RoadNetwork", () => {
           // Path 1: B→D
           {
             type: "Feature",
-            properties: { id: "p1-bd", name: "Path1-BD", highway: "primary", maxspeed: "50" },
+            properties: {
+              id: "p1-bd",
+              name: "Path1-BD",
+              highway: "primary",
+              maxspeed: "50",
+            },
             geometry: {
               type: "LineString",
               coordinates: [
@@ -1260,7 +1300,12 @@ describe("RoadNetwork", () => {
           // Path 2: A→C→D (C has only one outbound edge — low congestion)
           {
             type: "Feature",
-            properties: { id: "p2-ac", name: "Path2-AC", highway: "primary", maxspeed: "50" },
+            properties: {
+              id: "p2-ac",
+              name: "Path2-AC",
+              highway: "primary",
+              maxspeed: "50",
+            },
             geometry: {
               type: "LineString",
               coordinates: [
@@ -1271,7 +1316,12 @@ describe("RoadNetwork", () => {
           },
           {
             type: "Feature",
-            properties: { id: "p2-cd", name: "Path2-CD", highway: "primary", maxspeed: "50" },
+            properties: {
+              id: "p2-cd",
+              name: "Path2-CD",
+              highway: "primary",
+              maxspeed: "50",
+            },
             geometry: {
               type: "LineString",
               coordinates: [
@@ -1460,7 +1510,11 @@ describe("RoadNetwork", () => {
         features: [
           {
             type: "Feature",
-            properties: { id: "r1", name: "Unclassified Road", highway: "unclassified" },
+            properties: {
+              id: "r1",
+              name: "Unclassified Road",
+              highway: "unclassified",
+            },
             geometry: {
               type: "LineString",
               coordinates: [
@@ -1491,7 +1545,11 @@ describe("RoadNetwork", () => {
         features: [
           {
             type: "Feature",
-            properties: { id: "r2", name: "Living Street", highway: "living_street" },
+            properties: {
+              id: "r2",
+              name: "Living Street",
+              highway: "living_street",
+            },
             geometry: {
               type: "LineString",
               coordinates: [
@@ -1526,7 +1584,11 @@ describe("RoadNetwork", () => {
         features: [
           {
             type: "Feature",
-            properties: { id: "road-a", name: "Road A", highway: "residential" },
+            properties: {
+              id: "road-a",
+              name: "Road A",
+              highway: "residential",
+            },
             geometry: {
               type: "LineString",
               // end point: exactly [36.8, -1.28]
@@ -1538,7 +1600,11 @@ describe("RoadNetwork", () => {
           },
           {
             type: "Feature",
-            properties: { id: "road-b", name: "Road B", highway: "residential" },
+            properties: {
+              id: "road-b",
+              name: "Road B",
+              highway: "residential",
+            },
             geometry: {
               type: "LineString",
               // start point: differs from [36.8, -1.28] by 1e-8 (within epsilon)
@@ -1580,7 +1646,11 @@ describe("RoadNetwork", () => {
         features: [
           {
             type: "Feature",
-            properties: { id: "road-x", name: "Road X", highway: "residential" },
+            properties: {
+              id: "road-x",
+              name: "Road X",
+              highway: "residential",
+            },
             geometry: {
               type: "LineString",
               coordinates: [
@@ -2159,7 +2229,12 @@ describe("RoadNetwork", () => {
       const baseFeatures = [
         {
           type: "Feature",
-          properties: { id: "r1", name: "Road1", highway: "primary", maxspeed: "50" },
+          properties: {
+            id: "r1",
+            name: "Road1",
+            highway: "primary",
+            maxspeed: "50",
+          },
           geometry: {
             type: "LineString",
             coordinates: [
@@ -2183,7 +2258,10 @@ describe("RoadNetwork", () => {
       );
       fs.writeFileSync(
         tmpWithSignal,
-        JSON.stringify({ type: "FeatureCollection", features: [...baseFeatures, signalFeature] })
+        JSON.stringify({
+          type: "FeatureCollection",
+          features: [...baseFeatures, signalFeature],
+        })
       );
 
       try {

@@ -14,8 +14,20 @@ const sliders: {
   { key: "maxSpeed", label: "Speed", min: 10, max: 120 },
   { key: "acceleration", label: "Acceleration", min: 1, max: 10 },
   { key: "deceleration", label: "Deceleration", min: 1, max: 10 },
-  { key: "updateInterval", label: "Update Interval", min: 50, max: 2000, step: 50 },
-  { key: "adapterSyncInterval", label: "Publish Interval", min: 50, max: 10000, step: 50 },
+  {
+    key: "updateInterval",
+    label: "Update Interval",
+    min: 50,
+    max: 2000,
+    step: 50,
+  },
+  {
+    key: "adapterSyncInterval",
+    label: "Publish Interval",
+    min: 50,
+    max: 10000,
+    step: 50,
+  },
 ];
 
 export interface AdvancedTuningTabProps {

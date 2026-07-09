@@ -57,7 +57,10 @@ async function startup(): Promise<void> {
     logger.info({ source: config.source.type }, "Source configured");
   } catch (err) {
     logger.error(
-      { source: config.source.type, err: err instanceof Error ? err.message : err },
+      {
+        source: config.source.type,
+        err: err instanceof Error ? err.message : err,
+      },
       "Source failed to connect at startup — continuing without it; configure it via the API/UI once its backend is reachable"
     );
   }
@@ -192,9 +195,11 @@ async function startup(): Promise<void> {
       // result is now narrowed to PublishResult
       stopTimer({ outcome: result.status });
       const httpStatus = result.status === "failure" ? 502 : 200;
-      res
-        .status(httpStatus)
-        .json({ status: result.status, count: vehicles.length, sinks: result.sinks });
+      res.status(httpStatus).json({
+        status: result.status,
+        count: vehicles.length,
+        sinks: result.sinks,
+      });
     } catch (error) {
       stopTimer({ outcome: "error" });
       res.locals.logger.error({ err: error }, "Error publishing updates");

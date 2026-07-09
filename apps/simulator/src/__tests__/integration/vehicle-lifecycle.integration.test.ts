@@ -280,7 +280,9 @@ describe("Integration: Incident Rerouting", () => {
     if (result.status !== "ok") return; // skip if no route on this tiny network
 
     const routes = (
-      manager.routeManager as unknown as { routes: Map<string, { edges: { id: string }[] }> }
+      manager.routeManager as unknown as {
+        routes: Map<string, { edges: { id: string }[] }>;
+      }
     ).routes;
     const route = routes.get(vehicle.id);
     if (!route || route.edges.length < 2) return;
@@ -304,15 +306,16 @@ describe("Integration: Incident Rerouting", () => {
     edgeSpeedFactors.set(aheadEdge.id, 0);
     network.setIncidentEdges(edgeSpeedFactors);
 
-    const reroutePromise = new Promise<{ vehicleId: string; incidentId: string }>(
-      (resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error("reroute timeout")), 5000);
-        manager.on("vehicle:rerouted", (data) => {
-          clearTimeout(timeout);
-          resolve(data as { vehicleId: string; incidentId: string });
-        });
-      }
-    );
+    const reroutePromise = new Promise<{
+      vehicleId: string;
+      incidentId: string;
+    }>((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error("reroute timeout")), 5000);
+      manager.on("vehicle:rerouted", (data) => {
+        clearTimeout(timeout);
+        resolve(data as { vehicleId: string; incidentId: string });
+      });
+    });
 
     manager.handleIncidentCreated(incident);
 
@@ -376,7 +379,9 @@ describe("Integration: Incident Rerouting", () => {
     if (result.status !== "ok") return;
 
     const routes = (
-      manager.routeManager as unknown as { routes: Map<string, { edges: { id: string }[] }> }
+      manager.routeManager as unknown as {
+        routes: Map<string, { edges: { id: string }[] }>;
+      }
     ).routes;
     const route = routes.get(vehicle.id);
     if (!route || route.edges.length < 2) return;
@@ -508,7 +513,10 @@ describe("Integration: SimulationController Lifecycle", () => {
     await controller.reset();
 
     expect(resetEvents).toHaveLength(1);
-    const payload = resetEvents[0] as { vehicles: unknown[]; directions: unknown[] };
+    const payload = resetEvents[0] as {
+      vehicles: unknown[];
+      directions: unknown[];
+    };
     expect(payload.vehicles).toBeDefined();
     expect(Array.isArray(payload.vehicles)).toBe(true);
     expect(payload.vehicles.length).toBe(3);
@@ -518,7 +526,11 @@ describe("Integration: SimulationController Lifecycle", () => {
 
   // Test 14
   it("should propagate options through controller to vehicle manager", async () => {
-    await controller.start({ maxSpeed: 100, minSpeed: 15, updateInterval: 300 });
+    await controller.start({
+      maxSpeed: 100,
+      minSpeed: 15,
+      updateInterval: 300,
+    });
 
     const opts = controller.getOptions();
     expect(opts.maxSpeed).toBe(100);

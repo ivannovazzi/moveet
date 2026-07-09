@@ -98,7 +98,9 @@ describe("Simulation routes", () => {
       expect(res.status).toBe(200);
       expect(res.body.status).toBe("started");
       expect(res.body.vehicleTypes).toEqual({ car: 5 });
-      expect(ctx.simulationController.start).toHaveBeenCalledWith({ vehicleTypes: { car: 5 } });
+      expect(ctx.simulationController.start).toHaveBeenCalledWith({
+        vehicleTypes: { car: 5 },
+      });
     });
 
     it("should return null vehicleTypes if not provided", async () => {
@@ -228,7 +230,14 @@ describe("Simulation routes", () => {
     it("should set traffic profile with valid body", async () => {
       const profile = {
         name: "rush",
-        timeRanges: [{ start: 7, end: 9, demandMultiplier: 1.5, affectedHighways: ["primary"] }],
+        timeRanges: [
+          {
+            start: 7,
+            end: 9,
+            demandMultiplier: 1.5,
+            affectedHighways: ["primary"],
+          },
+        ],
       };
       const res = await request(app).post("/traffic-profile").send(profile);
       expect(res.status).toBe(200);

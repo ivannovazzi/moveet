@@ -55,7 +55,9 @@ export function createGeofenceRoutes(geoFenceManager: GeoFenceManager): Router {
       return;
     }
 
-    const body = req.body as Partial<CreateGeoFenceRequest> & { active?: boolean };
+    const body = req.body as Partial<CreateGeoFenceRequest> & {
+      active?: boolean;
+    };
     const updated = geoFenceManager.updateZone(req.params.id, body);
     if (!updated) {
       res.status(404).json({ error: "Zone not found" });

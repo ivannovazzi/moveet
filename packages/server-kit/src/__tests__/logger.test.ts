@@ -44,7 +44,10 @@ describe("createLogger", () => {
   });
 
   it("attaches base bindings when provided", () => {
-    const logger = createLogger({ level: "info", base: { service: "simulator" } });
+    const logger = createLogger({
+      level: "info",
+      base: { service: "simulator" },
+    });
     expect(typeof logger.info).toBe("function");
     // pino applies `base` bindings to every record; constructing without throwing
     // and producing a usable logger exercises the base !== undefined branch.

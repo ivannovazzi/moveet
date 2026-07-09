@@ -266,7 +266,9 @@ describe("SimulationService", () => {
 
       const result = await service.updateHeatzone("hz-1", { intensity: 0.9 });
 
-      expect(mockHttp.patch).toHaveBeenCalledWith("/heatzones/hz-1", { intensity: 0.9 });
+      expect(mockHttp.patch).toHaveBeenCalledWith("/heatzones/hz-1", {
+        intensity: 0.9,
+      });
       expect(result).toBe(response);
     });
   });
@@ -302,7 +304,9 @@ describe("SimulationService", () => {
 
       const result = await service.seedHeatzones({ count: 5 });
 
-      expect(mockHttp.post).toHaveBeenCalledWith("/heatzones/seed", { count: 5 });
+      expect(mockHttp.post).toHaveBeenCalledWith("/heatzones/seed", {
+        count: 5,
+      });
       expect(result).toBe(response);
     });
 
@@ -688,7 +692,7 @@ describe("SimulationService", () => {
         const ref = (service as unknown as Record<string, unknown>)[name];
         // Bound methods are own enumerable properties on the instance, not
         // inherited from the prototype.
-        expect(Object.prototype.hasOwnProperty.call(service, name)).toBe(true);
+        expect(Object.hasOwn(service, name)).toBe(true);
         expect(typeof ref).toBe("function");
       }
     });

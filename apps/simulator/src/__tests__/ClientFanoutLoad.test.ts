@@ -74,32 +74,34 @@ describe("ClientFanout load test (fleetsim-all-7ksg)", () => {
     for (const f of fanouts.splice(0)) f.stop();
   });
 
-  it.each(CLIENT_COUNTS)(
-    "measures fanoutVehicles wall-clock time with %i clients @ 70 vehicles",
-    (clientCount) => {
-      const clients = Array.from({ length: clientCount }, () => makeMockClient());
-      const wss = makeMockWss(clients);
-      const fanout = new ClientFanout(wss, { pingIntervalMs: 0, pongTimeoutMs: 0 });
-      fanouts.push(fanout);
+  it.each(
+    CLIENT_COUNTS
+  )("measures fanoutVehicles wall-clock time with %i clients @ 70 vehicles", (clientCount) => {
+    const clients = Array.from({ length: clientCount }, () => makeMockClient());
+    const wss = makeMockWss(clients);
+    const fanout = new ClientFanout(wss, {
+      pingIntervalMs: 0,
+      pongTimeoutMs: 0,
+    });
+    fanouts.push(fanout);
 
-      // Warm up (JIT + first-send-always-included path) before measuring.
-      fanout.fanoutVehicles(makeVehicles(VEHICLE_COUNT, 0));
+    // Warm up (JIT + first-send-always-included path) before measuring.
+    fanout.fanoutVehicles(makeVehicles(VEHICLE_COUNT, 0));
 
-      const start = performance.now();
-      for (let tick = 1; tick <= FLUSHES_PER_SCALE; tick++) {
-        fanout.fanoutVehicles(makeVehicles(VEHICLE_COUNT, tick));
-      }
-      const totalMs = performance.now() - start;
-      const perFlushMs = totalMs / FLUSHES_PER_SCALE;
-
-      results.push({ clientCount, totalMs, perFlushMs });
-
-      // Not a strict budget assertion (this is a scaling measurement, not a
-      // regression guard) - just a loose sanity ceiling so a genuine hang or
-      // infinite loop still fails the test instead of timing out silently.
-      expect(perFlushMs).toBeLessThan(2000);
+    const start = performance.now();
+    for (let tick = 1; tick <= FLUSHES_PER_SCALE; tick++) {
+      fanout.fanoutVehicles(makeVehicles(VEHICLE_COUNT, tick));
     }
-  );
+    const totalMs = performance.now() - start;
+    const perFlushMs = totalMs / FLUSHES_PER_SCALE;
+
+    results.push({ clientCount, totalMs, perFlushMs });
+
+    // Not a strict budget assertion (this is a scaling measurement, not a
+    // regression guard) - just a loose sanity ceiling so a genuine hang or
+    // infinite loop still fails the test instead of timing out silently.
+    expect(perFlushMs).toBeLessThan(2000);
+  });
 
   it("prints the client-count -> per-flush-time scaling table", () => {
     // This runs after the it.each block (vitest preserves declaration order),

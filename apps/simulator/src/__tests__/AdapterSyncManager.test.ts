@@ -53,8 +53,16 @@ describe("AdapterSyncManager", () => {
 
       const adapter = (syncManager as any).adapter;
       vi.spyOn(adapter, "get").mockResolvedValue([
-        { id: "v1", name: "Vehicle 1", position: [1.0, 36.0] as [number, number] },
-        { id: "v2", name: "Vehicle 2", position: [1.1, 36.1] as [number, number] },
+        {
+          id: "v1",
+          name: "Vehicle 1",
+          position: [1.0, 36.0] as [number, number],
+        },
+        {
+          id: "v2",
+          name: "Vehicle 2",
+          position: [1.1, 36.1] as [number, number],
+        },
       ]);
 
       const addVehicle = vi.fn();

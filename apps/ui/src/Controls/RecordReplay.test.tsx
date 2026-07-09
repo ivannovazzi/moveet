@@ -61,7 +61,9 @@ const recordings: RecordingFile[] = [
 beforeEach(() => {
   vi.clearAllMocks();
   mockGetGenerateStatus.mockResolvedValue({ data: { state: "idle" } });
-  mockGenerateRecording.mockResolvedValue({ data: { status: "generating", jobId: "j1" } });
+  mockGenerateRecording.mockResolvedValue({
+    data: { status: "generating", jobId: "j1" },
+  });
   mockEmitRecording.mockResolvedValue({ status: "emitting", jobId: "e1" });
   mockGetEmitStatus.mockResolvedValue({ state: "idle", emitted: 0 });
 });
@@ -167,14 +169,22 @@ describe("RecordReplay — emit to sinks", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     mockGetEmitStatus
-      .mockResolvedValueOnce({ state: "emitting", emitted: 5, total: 10, pct: 50 })
+      .mockResolvedValueOnce({
+        state: "emitting",
+        emitted: 5,
+        total: 10,
+        pct: 50,
+      })
       .mockResolvedValue({ state: "done", emitted: 10, total: 10, pct: 100 });
 
     renderPanel();
 
     await user.click(screen.getByLabelText(/Emit recording .* to sinks/));
 
-    expect(mockEmitRecording).toHaveBeenCalledWith({ recordingId: 1, realism: "on" });
+    expect(mockEmitRecording).toHaveBeenCalledWith({
+      recordingId: 1,
+      realism: "on",
+    });
 
     await waitFor(() => {
       expect(screen.getByText("5 / 10")).toBeInTheDocument();
@@ -196,13 +206,21 @@ describe("RecordReplay — emit to sinks", () => {
     await user.click(screen.getByLabelText("Realism")); // uncheck
     await user.click(screen.getByLabelText(/Emit recording .* to sinks/));
 
-    expect(mockEmitRecording).toHaveBeenCalledWith({ recordingId: 1, realism: "off" });
+    expect(mockEmitRecording).toHaveBeenCalledWith({
+      recordingId: 1,
+      realism: "off",
+    });
   });
 
   it("handles a 409 (already emitting) by entering the emitting state", async () => {
     const { AdapterHttpError } = await import("./Adapter/adapterClient");
     mockEmitRecording.mockRejectedValue(new AdapterHttpError("conflict", 409));
-    mockGetEmitStatus.mockResolvedValue({ state: "emitting", emitted: 2, total: 4, pct: 50 });
+    mockGetEmitStatus.mockResolvedValue({
+      state: "emitting",
+      emitted: 2,
+      total: 4,
+      pct: 50,
+    });
 
     const user = userEvent.setup();
     renderPanel();

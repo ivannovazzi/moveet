@@ -6,5 +6,5 @@ export function calculateBackoffDelay(
   initialDelay: number = INITIAL_RECONNECT_DELAY,
   maxDelay: number = MAX_RECONNECT_DELAY
 ): number {
-  return Math.min(initialDelay * Math.pow(2, attempt), maxDelay);
+  return Math.min(initialDelay * 2 ** attempt, maxDelay);
 }

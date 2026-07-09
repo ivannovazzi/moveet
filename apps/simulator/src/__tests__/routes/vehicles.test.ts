@@ -38,11 +38,15 @@ function createMockContext(): RouteContext {
       searchByName: vi.fn().mockResolvedValue([{ name: "Main Street", id: "road-1" }]),
     } as unknown as RouteContext["network"],
     vehicleManager: {
-      getVehicles: vi
-        .fn()
-        .mockResolvedValue([
-          { id: "v1", name: "Car 1", position: [-1.3, 36.8], speed: 40, heading: 90 },
-        ]),
+      getVehicles: vi.fn().mockResolvedValue([
+        {
+          id: "v1",
+          name: "Car 1",
+          position: [-1.3, 36.8],
+          speed: 40,
+          heading: 90,
+        },
+      ]),
       getDirections: vi.fn().mockReturnValue([]),
       hasVehicle: vi.fn().mockReturnValue(true),
     } as unknown as RouteContext["vehicleManager"],

@@ -121,7 +121,9 @@ describe("useHeatzoneEditor - mutations", () => {
     });
     expect(client.updateHeatzone).toHaveBeenCalledWith(
       "hz-1",
-      expect.objectContaining({ geometry: expect.objectContaining({ type: "Polygon" }) })
+      expect.objectContaining({
+        geometry: expect.objectContaining({ type: "Polygon" }),
+      })
     );
     expect(result.current.draft).toBeNull();
   });
@@ -191,7 +193,9 @@ describe("useHeatzoneEditor - mutations", () => {
 
   it("does not bump seedNonce or toast success when seeding fails", async () => {
     const { toast } = await import("@/lib/toast");
-    vi.mocked(client.seedHeatzones).mockResolvedValueOnce({ error: "boom" } as never);
+    vi.mocked(client.seedHeatzones).mockResolvedValueOnce({
+      error: "boom",
+    } as never);
     const { result } = renderHook(() => useHeatzoneEditor());
     await act(async () => {
       await result.current.seed();
@@ -218,7 +222,9 @@ describe("useHeatzoneEditor - intensity debounce", () => {
       vi.advanceTimersByTime(250);
     });
     expect(client.updateHeatzone).toHaveBeenCalledTimes(1);
-    expect(client.updateHeatzone).toHaveBeenCalledWith("hz-1", { intensity: 0.9 });
+    expect(client.updateHeatzone).toHaveBeenCalledWith("hz-1", {
+      intensity: 0.9,
+    });
   });
 
   it("flushes the pending PATCH for zone A immediately when a different zone B is edited", () => {
@@ -234,13 +240,17 @@ describe("useHeatzoneEditor - intensity debounce", () => {
     });
     // Switching to B flushes A's pending change right away (no timer advance).
     expect(client.updateHeatzone).toHaveBeenCalledTimes(1);
-    expect(client.updateHeatzone).toHaveBeenCalledWith("hz-A", { intensity: 0.3 });
+    expect(client.updateHeatzone).toHaveBeenCalledWith("hz-A", {
+      intensity: 0.3,
+    });
 
     // B still lands after its own debounce window.
     act(() => {
       vi.advanceTimersByTime(250);
     });
     expect(client.updateHeatzone).toHaveBeenCalledTimes(2);
-    expect(client.updateHeatzone).toHaveBeenCalledWith("hz-B", { intensity: 0.8 });
+    expect(client.updateHeatzone).toHaveBeenCalledWith("hz-B", {
+      intensity: 0.8,
+    });
   });
 });

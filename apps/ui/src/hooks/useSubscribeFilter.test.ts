@@ -84,7 +84,12 @@ describe("useSubscribeFilter", () => {
   });
 
   it("sends bbox filter when bbox is provided", () => {
-    const bbox: BoundingBox = { minLat: -1.35, maxLat: -1.25, minLng: 36.75, maxLng: 36.85 };
+    const bbox: BoundingBox = {
+      minLat: -1.35,
+      maxLat: -1.25,
+      minLng: 36.75,
+      maxLng: 36.85,
+    };
 
     renderHook(() => useSubscribeFilter(fleets, new Set(), new Set(), bbox));
 
@@ -102,7 +107,12 @@ describe("useSubscribeFilter", () => {
   it("sends combined filter with fleet, type, and bbox", () => {
     const hiddenFleets = new Set(["fleet-a"]);
     const hiddenTypes = new Set<VehicleType>(["bus"]);
-    const bbox: BoundingBox = { minLat: -1.35, maxLat: -1.25, minLng: 36.75, maxLng: 36.85 };
+    const bbox: BoundingBox = {
+      minLat: -1.35,
+      maxLat: -1.25,
+      minLng: 36.75,
+      maxLng: 36.85,
+    };
 
     renderHook(() => useSubscribeFilter(fleets, hiddenFleets, hiddenTypes, bbox));
 
@@ -115,8 +125,18 @@ describe("useSubscribeFilter", () => {
   });
 
   it("re-sends when bbox changes", () => {
-    const bbox1: BoundingBox = { minLat: -1.35, maxLat: -1.25, minLng: 36.75, maxLng: 36.85 };
-    const bbox2: BoundingBox = { minLat: -1.3, maxLat: -1.2, minLng: 36.8, maxLng: 36.9 };
+    const bbox1: BoundingBox = {
+      minLat: -1.35,
+      maxLat: -1.25,
+      minLng: 36.75,
+      maxLng: 36.85,
+    };
+    const bbox2: BoundingBox = {
+      minLat: -1.3,
+      maxLat: -1.2,
+      minLng: 36.8,
+      maxLng: 36.9,
+    };
 
     const { rerender } = renderHook(
       ({ bbox }: { bbox: BoundingBox | null }) =>

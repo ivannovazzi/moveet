@@ -41,10 +41,10 @@ describe("GenerationManager", () => {
       expect(p.pct).toBeGreaterThanOrEqual(0);
     });
 
-    const completePromise = waitFor<{ jobId: string; metadata: RecordingMetadata }>(
-      gm,
-      "generate:complete"
-    );
+    const completePromise = waitFor<{
+      jobId: string;
+      metadata: RecordingMetadata;
+    }>(gm, "generate:complete");
 
     const jobId = gm.start({
       startTime: new Date("2026-05-25T00:00:00.000Z"),
@@ -98,7 +98,9 @@ describe("GenerationManager", () => {
     });
     expect(second).toBeNull();
 
-    const { metadata } = (await completePromise) as { metadata: RecordingMetadata };
+    const { metadata } = (await completePromise) as {
+      metadata: RecordingMetadata;
+    };
     produced.push(metadata.filePath);
   });
 });

@@ -112,7 +112,11 @@ describe("useDispatchFlow", () => {
     // Set up an initial assignment
     act(() => {
       result.current.setAssignments([
-        { vehicleId: "v1", vehicleName: "Truck", waypoints: [{ position: [-1.29, 36.82] }] },
+        {
+          vehicleId: "v1",
+          vehicleName: "Truck",
+          waypoints: [{ position: [-1.29, 36.82] }],
+        },
       ]);
     });
 
@@ -130,8 +134,16 @@ describe("useDispatchFlow", () => {
 
     act(() => {
       result.current.setAssignments([
-        { vehicleId: "v1", vehicleName: "Truck", waypoints: [{ position: [-1.29, 36.82] }] },
-        { vehicleId: "v2", vehicleName: "Van", waypoints: [{ position: [-1.28, 36.81] }] },
+        {
+          vehicleId: "v1",
+          vehicleName: "Truck",
+          waypoints: [{ position: [-1.29, 36.82] }],
+        },
+        {
+          vehicleId: "v2",
+          vehicleName: "Van",
+          waypoints: [{ position: [-1.28, 36.81] }],
+        },
       ]);
     });
 
@@ -162,7 +174,11 @@ describe("useDispatchFlow", () => {
     // Give v1 an existing assignment
     act(() => {
       result.current.setAssignments([
-        { vehicleId: "v1", vehicleName: "Alpha", waypoints: [{ position: [-1.29, 36.82] }] },
+        {
+          vehicleId: "v1",
+          vehicleName: "Alpha",
+          waypoints: [{ position: [-1.29, 36.82] }],
+        },
       ]);
     });
 
@@ -266,7 +282,11 @@ describe("useDispatchFlow", () => {
     });
     act(() => {
       result.current.setAssignments([
-        { vehicleId: "v1", vehicleName: "Truck", waypoints: [{ position: [-1.29, 36.82] }] },
+        {
+          vehicleId: "v1",
+          vehicleName: "Truck",
+          waypoints: [{ position: [-1.29, 36.82] }],
+        },
       ]);
     });
 
@@ -298,7 +318,11 @@ describe("useDispatchFlow", () => {
 
     act(() => {
       result.current.setAssignments([
-        { vehicleId: "v1", vehicleName: "Truck", waypoints: [{ position: [-1.29, 36.82] }] },
+        {
+          vehicleId: "v1",
+          vehicleName: "Truck",
+          waypoints: [{ position: [-1.29, 36.82] }],
+        },
       ]);
     });
 
@@ -324,7 +348,11 @@ describe("useDispatchFlow", () => {
     });
     act(() => {
       result.current.setAssignments([
-        { vehicleId: "v1", vehicleName: "Truck", waypoints: [{ position: [-1.29, 36.82] }] },
+        {
+          vehicleId: "v1",
+          vehicleName: "Truck",
+          waypoints: [{ position: [-1.29, 36.82] }],
+        },
       ]);
     });
 
@@ -358,8 +386,16 @@ describe("useDispatchFlow", () => {
     });
     act(() => {
       result.current.setAssignments([
-        { vehicleId: "v1", vehicleName: "Truck", waypoints: [{ position: [-1.29, 36.82] }] },
-        { vehicleId: "v2", vehicleName: "Van", waypoints: [{ position: [-1.28, 36.81] }] },
+        {
+          vehicleId: "v1",
+          vehicleName: "Truck",
+          waypoints: [{ position: [-1.29, 36.82] }],
+        },
+        {
+          vehicleId: "v2",
+          vehicleName: "Van",
+          waypoints: [{ position: [-1.28, 36.81] }],
+        },
       ]);
     });
 
@@ -381,7 +417,10 @@ describe("useDispatchFlow", () => {
 
   it("handleDispatch includes waypoints when there are multiple", async () => {
     vi.mocked(client.batchDirection).mockResolvedValue({
-      data: { status: "ok", results: [{ vehicleId: "v1", status: "ok" as const }] },
+      data: {
+        status: "ok",
+        results: [{ vehicleId: "v1", status: "ok" as const }],
+      },
     });
 
     const { result } = renderHook(() => useDispatchFlow());
@@ -472,7 +511,11 @@ describe("useDispatchFlow waypoint validation", () => {
     act(() => {
       result.current.setAssignments([
         // ~0.5° north of the network — well beyond the margin
-        { vehicleId: "v1", vehicleName: "Truck", waypoints: [{ position: [-0.75, 36.82] }] },
+        {
+          vehicleId: "v1",
+          vehicleName: "Truck",
+          waypoints: [{ position: [-0.75, 36.82] }],
+        },
       ]);
     });
 
@@ -489,7 +532,10 @@ describe("useDispatchFlow waypoint validation", () => {
 
   it("allows dispatch when all waypoints are within bounds", async () => {
     vi.mocked(client.batchDirection).mockResolvedValue({
-      data: { status: "ok", results: [{ vehicleId: "v1", status: "ok" as const }] },
+      data: {
+        status: "ok",
+        results: [{ vehicleId: "v1", status: "ok" as const }],
+      },
     });
 
     const { result } = renderHook(() => useDispatchFlow(), {
@@ -498,7 +544,11 @@ describe("useDispatchFlow waypoint validation", () => {
 
     act(() => {
       result.current.setAssignments([
-        { vehicleId: "v1", vehicleName: "Truck", waypoints: [{ position: [-1.29, 36.82] }] },
+        {
+          vehicleId: "v1",
+          vehicleName: "Truck",
+          waypoints: [{ position: [-1.29, 36.82] }],
+        },
       ]);
     });
 
@@ -520,7 +570,11 @@ describe("useDispatchFlow waypoint validation", () => {
 
     act(() => {
       result.current.setAssignments([
-        { vehicleId: "v1", vehicleName: "Truck", waypoints: [{ position: [50, 100] }] },
+        {
+          vehicleId: "v1",
+          vehicleName: "Truck",
+          waypoints: [{ position: [50, 100] }],
+        },
       ]);
     });
 
@@ -538,7 +592,11 @@ describe("useDispatchFlow waypoint validation", () => {
 
     act(() => {
       result.current.setAssignments([
-        { vehicleId: "v1", vehicleName: "Truck", waypoints: [{ position: [-0.75, 36.82] }] },
+        {
+          vehicleId: "v1",
+          vehicleName: "Truck",
+          waypoints: [{ position: [-0.75, 36.82] }],
+        },
       ]);
     });
 

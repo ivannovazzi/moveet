@@ -46,7 +46,10 @@ describe("loadConfig", () => {
 
     const cfg = loadConfig();
     expect(cfg.sinks).toEqual([
-      { type: "redpanda", config: { brokers: "localhost:19092", topic: "vehicles" } },
+      {
+        type: "redpanda",
+        config: { brokers: "localhost:19092", topic: "vehicles" },
+      },
       { type: "console", config: { verbose: true } },
     ]);
   });

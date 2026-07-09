@@ -425,7 +425,11 @@ describe("ReplayManager", () => {
       const events: RecordingEvent[] = [
         { timestamp: 100, type: "vehicle", data: { vehicles: [] } },
         { timestamp: 200, type: "direction", data: { vehicleId: "v2" } },
-        { timestamp: 300, type: "incident", data: { action: "created", id: "inc1" } },
+        {
+          timestamp: 300,
+          type: "incident",
+          data: { action: "created", id: "inc1" },
+        },
       ];
       writeTestRecording(filePath, header, events);
 
