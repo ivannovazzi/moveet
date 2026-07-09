@@ -5,18 +5,25 @@ import { useCallback, useEffect } from "react";
 
 export interface DirectionState {
   route: Route;
+  /** Estimated time of arrival in seconds, when the simulator provides it. */
+  eta?: number;
   waypoints?: VehicleDirection["waypoints"];
   currentWaypointIndex?: number;
+}
+
+function toState(direction: VehicleDirection): DirectionState {
+  return {
+    route: direction.route,
+    eta: direction.eta,
+    waypoints: direction.waypoints,
+    currentWaypointIndex: direction.currentWaypointIndex,
+  };
 }
 
 function buildDirectionMap(directions: VehicleDirection[]): Map<string, DirectionState> {
   const directionMap = new Map<string, DirectionState>();
   for (const direction of directions) {
-    directionMap.set(direction.vehicleId, {
-      route: direction.route,
-      waypoints: direction.waypoints,
-      currentWaypointIndex: direction.currentWaypointIndex,
-    });
+    directionMap.set(direction.vehicleId, toState(direction));
   }
   return directionMap;
 }
@@ -41,11 +48,7 @@ export function useDirections() {
     const directionHandler = (direction: VehicleDirection) => {
       setDirections((prev) => {
         const updated = new Map(prev);
-        updated.set(direction.vehicleId, {
-          route: direction.route,
-          waypoints: direction.waypoints,
-          currentWaypointIndex: direction.currentWaypointIndex,
-        });
+        updated.set(direction.vehicleId, toState(direction));
         return updated;
       });
     };

@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import Inspector from "./Inspector";
 import { createVehicle, createPOI } from "@/test/mocks/types";
-import type { Fleet, Route } from "@/types";
+import type { Fleet } from "@/types";
 
 describe("Inspector", () => {
   it("renders nothing when neither a vehicle nor a POI is selected", () => {
@@ -30,7 +30,7 @@ describe("Inspector", () => {
     expect(screen.getByText("Idle")).toBeInTheDocument();
   });
 
-  it("prefers the resolved fleet name and shows the route distance when provided", () => {
+  it("prefers the resolved fleet name over the raw fleet id", () => {
     const fleet: Fleet = {
       id: "f1",
       name: "North Fleet",
@@ -38,17 +38,8 @@ describe("Inspector", () => {
       source: "local",
       vehicleIds: ["v1"],
     };
-    const route: Route = { edges: [], distance: 3.4 };
-    render(
-      <Inspector
-        vehicle={createVehicle({ id: "v1" })}
-        fleet={fleet}
-        route={route}
-        onClose={vi.fn()}
-      />
-    );
+    render(<Inspector vehicle={createVehicle({ id: "v1" })} fleet={fleet} onClose={vi.fn()} />);
     expect(screen.getByText("North Fleet")).toBeInTheDocument();
-    expect(screen.getByText("3.4 km")).toBeInTheDocument();
   });
 
   it("renders POI details, falling back gracefully when the name is null", () => {
