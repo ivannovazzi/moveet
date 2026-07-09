@@ -226,6 +226,8 @@ export default function App() {
               onDrawVertexCountChange={geofences.setDrawingVertexCount}
               drawConfirmId={geofences.drawConfirmId}
               onBboxChange={onBboxChange}
+              panLocked={heatzoneEditor.mode !== "idle"}
+              zoneDrawActive={heatzoneEditor.mode === "draw"}
             />
             {!mapLoading && (
               <SearchBar
