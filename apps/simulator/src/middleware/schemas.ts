@@ -134,6 +134,54 @@ export const trafficProfileSchema = z.object({
   ),
 });
 
+// ─── Heat zones ─────────────────────────────────────────────────────
+
+/** Counts distinct [lng, lat] positions in a ring (a duplicated closing point counts once). */
+function distinctPositionCount(coords: [number, number][]): number {
+  return new Set(coords.map(([lng, lat]) => `${lng},${lat}`)).size;
+}
+
+/**
+ * A GeoJSON-style Polygon carrying a single flat ring of positions, matching the
+ * wire `Heatzone.geometry` shape (`coordinates: Position[]`). Requires a ring with
+ * at least 3 distinct points so it encloses an area.
+ */
+const heatzonePolygonSchema = z
+  .object({
+    type: z.literal("Polygon", { message: "geometry.type must be 'Polygon'" }),
+    coordinates: z
+      .array(coordinatePair, {
+        message: "geometry.coordinates must be an array of [lng, lat] pairs",
+      })
+      .min(3, "polygon ring must have at least 3 positions"),
+  })
+  .refine((g) => distinctPositionCount(g.coordinates) >= 3, {
+    message: "polygon ring must have at least 3 distinct points",
+    path: ["coordinates"],
+  });
+
+export const createHeatzoneSchema = z.object({
+  geometry: heatzonePolygonSchema,
+  intensity: z.number().min(0).max(1, "intensity must be a number between 0 and 1").optional(),
+});
+
+export const updateHeatzoneSchema = z
+  .object({
+    geometry: heatzonePolygonSchema.optional(),
+    intensity: z.number().min(0).max(1, "intensity must be a number between 0 and 1").optional(),
+  })
+  .refine((b) => b.geometry !== undefined || b.intensity !== undefined, {
+    message: "provide at least one of 'geometry' or 'intensity'",
+  });
+
+export const seedHeatzoneSchema = z
+  .object({
+    count: z.number().int().positive().max(200, "count must be between 1 and 200").optional(),
+  })
+  .strict()
+  .optional()
+  .default({});
+
 // ─── Fleets ─────────────────────────────────────────────────────────
 
 export const createFleetSchema = z.object({

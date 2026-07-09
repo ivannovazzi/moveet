@@ -488,21 +488,130 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
-      operationId: generateHeatZones
-      summary: Generate new heat zones
+      operationId: createHeatZone
+      summary: Create a manually-drawn heat zone
       tags: [Heat Zones]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateHeatZoneRequest"
       responses:
-        "200":
-          description: Heat zones generated
+        "201":
+          description: Created heat zone feature
           content:
             application/json:
               schema:
-                type: object
-                required: [status]
-                properties:
-                  status:
-                    type: string
-                    enum: [heatzones generated]
+                $ref: "#/components/schemas/HeatZoneFeature"
+        "400":
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: clearHeatZones
+      summary: Delete all heat zones
+      tags: [Heat Zones]
+      responses:
+        "204":
+          description: All heat zones cleared
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /heatzones/{id}:
+    patch:
+      operationId: updateHeatZone
+      summary: Update a heat zone's geometry and/or intensity
+      tags: [Heat Zones]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateHeatZoneRequest"
+      responses:
+        "200":
+          description: Updated heat zone feature
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HeatZoneFeature"
+        "400":
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Heat zone not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: deleteHeatZone
+      summary: Delete a single heat zone by id
+      tags: [Heat Zones]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Heat zone deleted
+        "404":
+          description: Heat zone not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /heatzones/seed:
+    post:
+      operationId: seedHeatZones
+      summary: Append randomly-generated heat zones
+      tags: [Heat Zones]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SeedHeatZonesRequest"
+      responses:
+        "200":
+          description: Full heat zone list after seeding
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HeatZoneFeature"
+        "400":
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "500":
           description: Internal server error
           content:
@@ -2324,6 +2433,52 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/CoordinatePair"
+
+    HeatZoneGeometry:
+      type: object
+      required: [type, coordinates]
+      properties:
+        type:
+          type: string
+          enum: [Polygon]
+        coordinates:
+          type: array
+          minItems: 3
+          description: A single flat ring of [lng, lat] positions with >= 3 distinct points.
+          items:
+            $ref: "#/components/schemas/CoordinatePair"
+
+    CreateHeatZoneRequest:
+      type: object
+      required: [geometry]
+      properties:
+        geometry:
+          $ref: "#/components/schemas/HeatZoneGeometry"
+        intensity:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Slowdown intensity 0-1 (default 0.6 when omitted).
+
+    UpdateHeatZoneRequest:
+      type: object
+      description: At least one of geometry or intensity must be provided.
+      properties:
+        geometry:
+          $ref: "#/components/schemas/HeatZoneGeometry"
+        intensity:
+          type: number
+          minimum: 0
+          maximum: 1
+
+    SeedHeatZonesRequest:
+      type: object
+      properties:
+        count:
+          type: integer
+          minimum: 1
+          maximum: 200
+          description: Number of zones to append (default HEAT_ZONE_DEFAULTS.COUNT).
 
     # ─── Incidents ───────────────────────────────────────────────────
     IncidentType:

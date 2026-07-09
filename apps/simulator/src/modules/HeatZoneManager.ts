@@ -1,4 +1,4 @@
-import { point, destination, lineString, bezierSpline } from "@turf/turf";
+import { point, destination, distance, lineString, bezierSpline } from "@turf/turf";
 import crypto from "crypto";
 import type { Edge, Node, HeatZone, HeatZoneFeature } from "../types";
 import { SPATIAL_GRID } from "../constants";
@@ -67,9 +67,8 @@ export class HeatZoneManager {
       maxAttempts = 10,
     } = options;
 
+    // No usable nodes: append nothing and leave existing zones untouched.
     if (nodes.length === 0) {
-      this.zones = [];
-      this.buildSpatialGrid();
       return;
     }
 
@@ -110,13 +109,86 @@ export class HeatZoneManager {
       newZones.push(candidateZone);
     }
 
-    this.zones = this.smoothPolygons(newZones).map((zone) => ({
+    // APPEND generated zones to any existing (drawn or previously-seeded)
+    // zones instead of replacing them, and index each new zone into the grid.
+    const generated: HeatZone[] = this.smoothPolygons(newZones).map((zone) => ({
+      id: zone.properties.id,
       polygon: zone.geometry.coordinates,
       intensity: zone.properties.intensity,
       timestamp: zone.properties.timestamp,
     }));
 
-    this.buildSpatialGrid();
+    for (const zone of generated) {
+      this.zones.push(zone);
+      this.indexZone(zone);
+    }
+  }
+
+  // ─── Manual CRUD ────────────────────────────────────────────────────
+
+  /**
+   * Adds a single manually-drawn zone. Assigns a stable id (unless one is
+   * supplied) and a creation timestamp, indexes it into the spatial grid, and
+   * returns the exported GeoJSON feature.
+   */
+  public addZone(input: { polygon: number[][]; intensity: number; id?: string }): HeatZoneFeature {
+    const zone: HeatZone = {
+      id: input.id ?? crypto.randomUUID(),
+      polygon: input.polygon,
+      intensity: input.intensity,
+      timestamp: new Date().toISOString(),
+    };
+    this.zones.push(zone);
+    this.indexZone(zone);
+    return this.zoneToFeature(zone);
+  }
+
+  /**
+   * Updates a zone's geometry and/or intensity. Re-indexes the spatial grid
+   * only when the geometry changes. Returns the updated feature, or null if no
+   * zone has the given id.
+   */
+  public updateZone(
+    id: string,
+    patch: { polygon?: number[][]; intensity?: number }
+  ): HeatZoneFeature | null {
+    const zone = this.getZoneById(id);
+    if (!zone) return null;
+
+    const geometryChanged = patch.polygon !== undefined;
+    if (geometryChanged) this.deindexZone(zone);
+
+    if (patch.polygon !== undefined) zone.polygon = patch.polygon;
+    if (patch.intensity !== undefined) zone.intensity = patch.intensity;
+
+    if (geometryChanged) this.indexZone(zone);
+    return this.zoneToFeature(zone);
+  }
+
+  /**
+   * Removes a zone (and its grid entries) by id. Returns whether it existed.
+   */
+  public removeZone(id: string): boolean {
+    const index = this.zones.findIndex((z) => z.id === id);
+    if (index === -1) return false;
+    const [zone] = this.zones.splice(index, 1);
+    this.deindexZone(zone);
+    return true;
+  }
+
+  /**
+   * Removes every zone and empties the spatial grid.
+   */
+  public clearZones(): void {
+    this.zones = [];
+    this.spatialGrid.clear();
+  }
+
+  /**
+   * Finds a zone by its id, or undefined if none matches.
+   */
+  public getZoneById(id: string): HeatZone | undefined {
+    return this.zones.find((z) => z.id === id);
   }
 
   /**
@@ -140,19 +212,44 @@ export class HeatZoneManager {
    * const geojson = { type: 'FeatureCollection', features };
    */
   public exportHeatedZonesAsFeatures(): HeatZoneFeature[] {
-    return this.zones.map((zone) => ({
+    return this.zones.map((zone) => this.zoneToFeature(zone));
+  }
+
+  /**
+   * Converts an internal zone to its wire-format GeoJSON feature. The id is the
+   * zone's own stable id (a fresh uuid is only minted as a fallback for legacy
+   * zones with no id). `radius` is derived from the polygon bbox for
+   * wire-compat / the spatial grid.
+   */
+  private zoneToFeature(zone: HeatZone): HeatZoneFeature {
+    return {
       type: "Feature",
       properties: {
-        id: crypto.randomUUID(),
+        id: zone.id ?? crypto.randomUUID(),
         intensity: zone.intensity,
         timestamp: zone.timestamp,
-        radius: 0,
+        radius: this.deriveRadius(zone.polygon),
       },
       geometry: {
         type: "Polygon",
         coordinates: zone.polygon as [number, number][],
       },
-    }));
+    };
+  }
+
+  /**
+   * Derives a representative radius (km) for a polygon: roughly half the
+   * diagonal of its bounding box. Kept for wire-compat and coarse sizing.
+   */
+  private deriveRadius(polygon: number[][]): number {
+    const bbox = this.polygonBBox(polygon);
+    if (!bbox) return 0;
+    const diagonalKm = distance(
+      point([bbox.minLon, bbox.minLat]),
+      point([bbox.maxLon, bbox.maxLat]),
+      { units: "kilometers" }
+    );
+    return diagonalKm / 2;
   }
 
   /**
@@ -174,51 +271,72 @@ export class HeatZoneManager {
   }
 
   /**
-   * Builds the spatial grid index from the current zones.
-   * For each zone, computes its bounding box and inserts the zone into every
-   * grid cell that the bounding box overlaps.
+   * Computes a polygon's bounding box. Coords are [longitude, latitude]
+   * (GeoJSON convention). Returns null for an empty polygon.
    */
-  private buildSpatialGrid(): void {
-    this.spatialGrid.clear();
+  private polygonBBox(
+    polygon: number[][]
+  ): { minLon: number; maxLon: number; minLat: number; maxLat: number } | null {
+    if (polygon.length === 0) return null;
+    let minLon = Infinity,
+      maxLon = -Infinity,
+      minLat = Infinity,
+      maxLat = -Infinity;
+    for (const coord of polygon) {
+      const lon = coord[0];
+      const lat = coord[1];
+      if (lon < minLon) minLon = lon;
+      if (lon > maxLon) maxLon = lon;
+      if (lat < minLat) minLat = lat;
+      if (lat > maxLat) maxLat = lat;
+    }
+    return { minLon, maxLon, minLat, maxLat };
+  }
 
-    for (const zone of this.zones) {
-      const polygon = zone.polygon;
-      if (polygon.length === 0) continue;
-
-      // Compute bounding box of polygon.
-      // Polygon coords are [longitude, latitude] (GeoJSON convention).
-      let minLon = Infinity,
-        maxLon = -Infinity,
-        minLat = Infinity,
-        maxLat = -Infinity;
-      for (const coord of polygon) {
-        const lon = coord[0];
-        const lat = coord[1];
-        if (lon < minLon) minLon = lon;
-        if (lon > maxLon) maxLon = lon;
-        if (lat < minLat) minLat = lat;
-        if (lat > maxLat) maxLat = lat;
-      }
-
-      // Map bounding box to grid cell range
-      const cellSize = HeatZoneManager.GRID_CELL_SIZE;
-      const minRow = Math.floor(minLat / cellSize);
-      const maxRow = Math.floor(maxLat / cellSize);
-      const minCol = Math.floor(minLon / cellSize);
-      const maxCol = Math.floor(maxLon / cellSize);
-
-      for (let row = minRow; row <= maxRow; row++) {
-        for (let col = minCol; col <= maxCol; col++) {
-          const key = `${row},${col}`;
-          let cell = this.spatialGrid.get(key);
-          if (!cell) {
-            cell = [];
-            this.spatialGrid.set(key, cell);
-          }
-          cell.push(zone);
-        }
+  /**
+   * Invokes `fn` for every grid cell key overlapped by the zone's bounding box.
+   */
+  private forEachZoneCell(zone: HeatZone, fn: (key: string) => void): void {
+    const bbox = this.polygonBBox(zone.polygon);
+    if (!bbox) return;
+    const cellSize = HeatZoneManager.GRID_CELL_SIZE;
+    const minRow = Math.floor(bbox.minLat / cellSize);
+    const maxRow = Math.floor(bbox.maxLat / cellSize);
+    const minCol = Math.floor(bbox.minLon / cellSize);
+    const maxCol = Math.floor(bbox.maxLon / cellSize);
+    for (let row = minRow; row <= maxRow; row++) {
+      for (let col = minCol; col <= maxCol; col++) {
+        fn(`${row},${col}`);
       }
     }
+  }
+
+  /**
+   * Inserts a single zone into every grid cell its bounding box overlaps.
+   */
+  private indexZone(zone: HeatZone): void {
+    this.forEachZoneCell(zone, (key) => {
+      let cell = this.spatialGrid.get(key);
+      if (!cell) {
+        cell = [];
+        this.spatialGrid.set(key, cell);
+      }
+      cell.push(zone);
+    });
+  }
+
+  /**
+   * Removes a single zone from every grid cell its bounding box overlaps,
+   * dropping any cell that becomes empty.
+   */
+  private deindexZone(zone: HeatZone): void {
+    this.forEachZoneCell(zone, (key) => {
+      const cell = this.spatialGrid.get(key);
+      if (!cell) return;
+      const idx = cell.indexOf(zone);
+      if (idx !== -1) cell.splice(idx, 1);
+      if (cell.length === 0) this.spatialGrid.delete(key);
+    });
   }
 
   /**

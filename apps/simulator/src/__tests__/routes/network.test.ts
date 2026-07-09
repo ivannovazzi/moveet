@@ -13,14 +13,43 @@ vi.mock("../../utils/logger", () => ({
   },
 }));
 
+const sampleFeature = {
+  type: "Feature",
+  properties: { id: "hz-1", intensity: 0.6, timestamp: "2026-07-09T00:00:00.000Z", radius: 0.5 },
+  geometry: {
+    type: "Polygon",
+    coordinates: [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [0, 0],
+    ],
+  },
+};
+
+const validGeometry = {
+  type: "Polygon",
+  coordinates: [
+    [0, 0],
+    [1, 0],
+    [1, 1],
+    [0, 0],
+  ],
+};
+
 function createMockContext(): RouteContext {
   return {
     network: {
       getFeatures: vi.fn().mockReturnValue({ type: "FeatureCollection", features: [] }),
       getAllRoads: vi.fn().mockReturnValue([{ id: "r1", name: "Main Street" }]),
       getAllPOIs: vi.fn().mockReturnValue([{ id: "p1", name: "Hospital" }]),
-      generateHeatedZones: vi.fn(),
+      getSpeedLimits: vi.fn().mockReturnValue([]),
       exportHeatZones: vi.fn().mockReturnValue([]),
+      addHeatZone: vi.fn().mockReturnValue(sampleFeature),
+      updateHeatZone: vi.fn().mockReturnValue(sampleFeature),
+      removeHeatZone: vi.fn().mockReturnValue(true),
+      clearHeatZones: vi.fn(),
+      seedHeatZones: vi.fn().mockReturnValue([sampleFeature]),
     } as unknown as RouteContext["network"],
     vehicleManager: {} as RouteContext["vehicleManager"],
     fleetManager: {} as RouteContext["fleetManager"],
@@ -99,25 +128,6 @@ describe("Network routes", () => {
     });
   });
 
-  describe("POST /heatzones", () => {
-    it("should generate heat zones", async () => {
-      const res = await request(app).post("/heatzones");
-      expect(res.status).toBe(200);
-      expect(res.body.status).toBe("heatzones generated");
-      expect(ctx.network.generateHeatedZones).toHaveBeenCalledWith(
-        expect.objectContaining({ count: 10 })
-      );
-    });
-
-    it("should return 500 if generation fails", async () => {
-      (ctx.network.generateHeatedZones as ReturnType<typeof vi.fn>).mockImplementation(() => {
-        throw new Error("boom");
-      });
-      const res = await request(app).post("/heatzones");
-      expect(res.status).toBe(500);
-    });
-  });
-
   describe("GET /heatzones", () => {
     it("should return exported heat zones", async () => {
       const res = await request(app).get("/heatzones");
@@ -131,6 +141,124 @@ describe("Network routes", () => {
       });
       const res = await request(app).get("/heatzones");
       expect(res.status).toBe(500);
+    });
+  });
+
+  describe("POST /heatzones", () => {
+    it("creates a zone from valid geometry and returns 201 with the feature", async () => {
+      const res = await request(app)
+        .post("/heatzones")
+        .send({ geometry: validGeometry, intensity: 0.7 });
+      expect(res.status).toBe(201);
+      expect(res.body.properties.id).toBe("hz-1");
+      expect(ctx.network.addHeatZone).toHaveBeenCalledWith(
+        expect.objectContaining({ polygon: validGeometry.coordinates, intensity: 0.7 })
+      );
+    });
+
+    it("defaults intensity to 0.6 when omitted", async () => {
+      const res = await request(app).post("/heatzones").send({ geometry: validGeometry });
+      expect(res.status).toBe(201);
+      expect(ctx.network.addHeatZone).toHaveBeenCalledWith(
+        expect.objectContaining({ intensity: 0.6 })
+      );
+    });
+
+    it("rejects a polygon with fewer than 3 distinct points (400)", async () => {
+      const res = await request(app)
+        .post("/heatzones")
+        .send({
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [0, 0],
+              [0, 0],
+              [0, 0],
+            ],
+          },
+        });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe("Validation failed");
+    });
+
+    it("rejects a missing geometry (400)", async () => {
+      const res = await request(app).post("/heatzones").send({ intensity: 0.5 });
+      expect(res.status).toBe(400);
+    });
+
+    it("rejects intensity out of range (400)", async () => {
+      const res = await request(app)
+        .post("/heatzones")
+        .send({ geometry: validGeometry, intensity: 2 });
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe("PATCH /heatzones/:id", () => {
+    it("updates a zone and returns 200 with the feature", async () => {
+      const res = await request(app).patch("/heatzones/hz-1").send({ intensity: 0.9 });
+      expect(res.status).toBe(200);
+      expect(res.body.properties.id).toBe("hz-1");
+      expect(ctx.network.updateHeatZone).toHaveBeenCalledWith(
+        "hz-1",
+        expect.objectContaining({ intensity: 0.9 })
+      );
+    });
+
+    it("passes geometry coordinates as polygon on update", async () => {
+      await request(app).patch("/heatzones/hz-1").send({ geometry: validGeometry });
+      expect(ctx.network.updateHeatZone).toHaveBeenCalledWith(
+        "hz-1",
+        expect.objectContaining({ polygon: validGeometry.coordinates })
+      );
+    });
+
+    it("returns 404 when the zone does not exist", async () => {
+      (ctx.network.updateHeatZone as ReturnType<typeof vi.fn>).mockReturnValue(null);
+      const res = await request(app).patch("/heatzones/missing").send({ intensity: 0.5 });
+      expect(res.status).toBe(404);
+    });
+
+    it("rejects an empty patch body (400)", async () => {
+      const res = await request(app).patch("/heatzones/hz-1").send({});
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe("DELETE /heatzones/:id", () => {
+    it("removes a zone and returns 204", async () => {
+      const res = await request(app).delete("/heatzones/hz-1");
+      expect(res.status).toBe(204);
+      expect(ctx.network.removeHeatZone).toHaveBeenCalledWith("hz-1");
+    });
+
+    it("returns 404 when the zone does not exist", async () => {
+      (ctx.network.removeHeatZone as ReturnType<typeof vi.fn>).mockReturnValue(false);
+      const res = await request(app).delete("/heatzones/missing");
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe("DELETE /heatzones", () => {
+    it("clears all zones and returns 204", async () => {
+      const res = await request(app).delete("/heatzones");
+      expect(res.status).toBe(204);
+      expect(ctx.network.clearHeatZones).toHaveBeenCalled();
+    });
+  });
+
+  describe("POST /heatzones/seed", () => {
+    it("seeds zones with an explicit count and returns 200 with the full list", async () => {
+      const res = await request(app).post("/heatzones/seed").send({ count: 4 });
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body)).toBe(true);
+      expect(ctx.network.seedHeatZones).toHaveBeenCalledWith(4);
+    });
+
+    it("seeds with the default count when omitted", async () => {
+      const res = await request(app).post("/heatzones/seed").send({});
+      expect(res.status).toBe(200);
+      expect(ctx.network.seedHeatZones).toHaveBeenCalled();
     });
   });
 });

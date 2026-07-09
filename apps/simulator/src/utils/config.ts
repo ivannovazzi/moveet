@@ -140,16 +140,6 @@ const envObjectSchema = z.object({
    * more (smaller) sector buckets.
    */
   SECTORS_N: z.coerce.number().int().min(1).default(10),
-
-  /**
-   * How often (ms) HeatZoneManager auto-regenerates heat zones. Bounds how
-   * frequently slowdown polygons shuffle without a redeploy.
-   */
-  HEAT_ZONE_REGEN_INTERVAL_MS: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .default(5 * 60 * 1000),
 });
 
 export const envSchema = envObjectSchema
@@ -206,7 +196,6 @@ function buildConfig(env: EnvConfig) {
     pathfindCooldownMs: env.PATHFIND_COOLDOWN_MS,
     maxSyncBackoffMs: env.MAX_SYNC_BACKOFF_MS,
     sectorsN: env.SECTORS_N,
-    heatZoneRegenIntervalMs: env.HEAT_ZONE_REGEN_INTERVAL_MS,
   } as const;
 }
 

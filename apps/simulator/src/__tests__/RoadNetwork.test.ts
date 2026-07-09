@@ -406,6 +406,84 @@ describe("RoadNetwork", () => {
     });
   });
 
+  describe("manual heat zone CRUD", () => {
+    // Closed square ring in [lon, lat] order centred on [lat, lon].
+    const square = (lat: number, lon: number, half: number): number[][] => [
+      [lon - half, lat - half],
+      [lon + half, lat - half],
+      [lon + half, lat + half],
+      [lon - half, lat + half],
+      [lon - half, lat - half],
+    ];
+
+    it("addHeatZone inserts a zone, makes it authoritative, and emits the full list", () => {
+      const emitted: unknown[] = [];
+      network.on("heatzones", (zones) => emitted.push(zones));
+
+      const feature = network.addHeatZone({ polygon: square(10, 20, 0.01), intensity: 0.6 });
+
+      expect(feature.properties.id).toBeTruthy();
+      expect(network.isPositionInHeatZone([10, 20])).toBe(true);
+      expect(emitted).toHaveLength(1);
+      expect(Array.isArray(emitted[0])).toBe(true);
+      expect((emitted[0] as unknown[]).length).toBe(1);
+    });
+
+    it("updateHeatZone edits a zone and emits; returns null for a missing id", () => {
+      const feature = network.addHeatZone({ polygon: square(10, 20, 0.01), intensity: 0.6 });
+      const emitted: unknown[] = [];
+      network.on("heatzones", (zones) => emitted.push(zones));
+
+      const updated = network.updateHeatZone(feature.properties.id, { intensity: 0.9 });
+      expect(updated?.properties.intensity).toBe(0.9);
+      expect(emitted).toHaveLength(1);
+
+      const missing = network.updateHeatZone("nope", { intensity: 0.1 });
+      expect(missing).toBeNull();
+      // No extra broadcast for a no-op update
+      expect(emitted).toHaveLength(1);
+    });
+
+    it("removeHeatZone deletes a zone and emits; returns false for a missing id", () => {
+      const feature = network.addHeatZone({ polygon: square(10, 20, 0.01), intensity: 0.6 });
+      const emitted: unknown[] = [];
+      network.on("heatzones", (zones) => emitted.push(zones));
+
+      expect(network.removeHeatZone(feature.properties.id)).toBe(true);
+      expect(network.isPositionInHeatZone([10, 20])).toBe(false);
+      expect(emitted).toHaveLength(1);
+
+      expect(network.removeHeatZone("nope")).toBe(false);
+      expect(emitted).toHaveLength(1);
+    });
+
+    it("clearHeatZones empties all zones and emits an empty list", () => {
+      network.addHeatZone({ polygon: square(10, 20, 0.01), intensity: 0.6 });
+      network.addHeatZone({ polygon: square(30, 40, 0.01), intensity: 0.6 });
+      const emitted: unknown[] = [];
+      network.on("heatzones", (zones) => emitted.push(zones));
+
+      network.clearHeatZones();
+
+      expect(network.exportHeatZones()).toHaveLength(0);
+      expect(emitted).toHaveLength(1);
+      expect((emitted[0] as unknown[]).length).toBe(0);
+    });
+
+    it("seedHeatZones appends generated zones and emits the full list", () => {
+      network.addHeatZone({ polygon: square(10, 20, 0.02), intensity: 0.6 });
+      const emitted: unknown[] = [];
+      network.on("heatzones", (zones) => emitted.push(zones));
+
+      const result = network.seedHeatZones(3);
+
+      // Manual zone survived; generated ones were appended.
+      expect(result.length).toBeGreaterThan(1);
+      expect(network.isPositionInHeatZone([10, 20])).toBe(true);
+      expect(emitted).toHaveLength(1);
+    });
+  });
+
   describe("getFeatures", () => {
     it("should return GeoJSON features without POIs", () => {
       const features = network.getFeatures();

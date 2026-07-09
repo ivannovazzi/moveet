@@ -23,13 +23,14 @@ function makeSquarePolygon(centerLat: number, centerLon: number, halfSize: numbe
 
 /**
  * Injects zones directly into a HeatZoneManager, bypassing generateHeatedZones
- * (which uses turf and randomness). Uses the private zones + buildSpatialGrid
- * via type coercion so tests can be deterministic.
+ * (which uses turf and randomness). Rebuilds the spatial grid via the private
+ * indexZone helper (using type coercion) so tests can be deterministic.
  */
 function injectZones(manager: HeatZoneManager, zones: HeatZone[]): void {
   const m = manager as any;
   m.zones = zones;
-  m.buildSpatialGrid();
+  m.spatialGrid.clear();
+  for (const zone of zones) m.indexZone(zone);
 }
 
 describe("HeatZoneManager — spatial grid", () => {
@@ -258,7 +259,7 @@ describe("HeatZoneManager — spatial grid", () => {
       const grid: Map<string, HeatZone[]> = (manager as any).spatialGrid;
       expect(grid.size).toBeGreaterThan(0);
 
-      // Regenerate — grid should be rebuilt (not accumulate old entries)
+      // Regenerate — appends more zones and indexes them into the grid.
       manager.generateHeatedZones(mockEdges, mockNodes, {
         count: 1,
         minRadius: 0.1,
@@ -266,7 +267,7 @@ describe("HeatZoneManager — spatial grid", () => {
       });
 
       const gridAfter: Map<string, HeatZone[]> = (manager as any).spatialGrid;
-      // All entries in the grid should reference zones from the current generation
+      // Every entry in the grid must reference a currently-tracked zone
       const currentZones = manager.getZones();
       for (const cell of gridAfter.values()) {
         for (const zone of cell) {
@@ -275,7 +276,7 @@ describe("HeatZoneManager — spatial grid", () => {
       }
     });
 
-    it("should clear grid when generateHeatedZones receives empty nodes", () => {
+    it("should leave existing zones intact when generateHeatedZones receives empty nodes", () => {
       // First populate with zones
       injectZones(manager, [
         {
@@ -287,11 +288,12 @@ describe("HeatZoneManager — spatial grid", () => {
 
       expect((manager as any).spatialGrid.size).toBeGreaterThan(0);
 
-      // Generate with empty nodes
+      // Generate with empty nodes — append semantics: nothing to append,
+      // existing zones (and their grid entries) are preserved.
       manager.generateHeatedZones([], [], { count: 3 });
 
-      expect((manager as any).spatialGrid.size).toBe(0);
-      expect(manager.getZones()).toHaveLength(0);
+      expect((manager as any).spatialGrid.size).toBeGreaterThan(0);
+      expect(manager.getZones()).toHaveLength(1);
     });
   });
 

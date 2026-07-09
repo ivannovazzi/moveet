@@ -6,7 +6,6 @@ import {
   VEHICLE_CONSTANTS,
   FLEET_COLORS,
 } from "../constants";
-import { config } from "../utils/config";
 
 describe("constants", () => {
   describe("WS_BROADCASTER", () => {
@@ -59,12 +58,6 @@ describe("constants", () => {
       expect(BACKPRESSURE_THRESHOLD).toBe(WS_BROADCASTER.BACKPRESSURE_THRESHOLD);
       expect(MAX_DROPPED_FLUSHES).toBe(WS_BROADCASTER.MAX_DROPPED_FLUSHES);
       expect(POSITION_DELTA_THRESHOLD).toBe(WS_BROADCASTER.POSITION_DELTA_THRESHOLD);
-    });
-  });
-
-  describe("config.heatZoneRegenIntervalMs", () => {
-    it("should default to 5 minutes in ms (migrated from TIME_INTERVALS)", () => {
-      expect(config.heatZoneRegenIntervalMs).toBe(5 * 60 * 1000);
     });
   });
 

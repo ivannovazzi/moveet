@@ -37,7 +37,6 @@ type EventEmitterMap = {
 };
 
 export class SimulationController extends EventEmitter<EventEmitterMap> {
-  private autoHeatZoneInterval?: NodeJS.Timeout;
   private _ready = false;
   private incidentManager?: IncidentManager;
   private _mode: "live" | "replay" = "live";
@@ -141,8 +140,8 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
 
   /**
    * Starts the simulation with optional configuration overrides.
-   * Begins vehicle movement updates, adapter synchronization (if ADAPTER_URL is configured),
-   * and automatic heat zone regeneration every 5 minutes.
+   * Begins vehicle movement updates and adapter synchronization (if ADAPTER_URL is configured).
+   * Heat zones are not generated here — they are manual/API-driven.
    * Emits 'updateStatus' event after start completes.
    *
    * @param options - Optional partial configuration to override defaults
@@ -197,18 +196,9 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
       this.incidentManager.on("incident:cleared", this._onIncidentCleared);
     }
 
-    // Automatically regenerate heat zones (config.heatZoneRegenIntervalMs, default 5 minutes).
-    // Always clear any timer left over from a previous start() so repeated
-    // starts never accumulate intervals.
-    if (this.autoHeatZoneInterval) {
-      clearInterval(this.autoHeatZoneInterval);
-      this.autoHeatZoneInterval = undefined;
-    }
-    this.vehicleManager.getNetwork().generateHeatedZones();
-    this.autoHeatZoneInterval = setInterval(() => {
-      // Generate new heat zones
-      this.vehicleManager.getNetwork().generateHeatedZones();
-    }, config.heatZoneRegenIntervalMs);
+    // Heat zones are fully manual/API-driven: the simulation starts with none,
+    // and zones appear only via the /heatzones REST endpoints. There is no
+    // startup auto-generate and no regeneration timer.
 
     // Wire clock hour:changed to broadcast clock events. Only emit when the
     // clock state is actually present so consumers never receive an undefined
@@ -280,8 +270,7 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
 
   /**
    * Stops all simulation activity.
-   * Halts vehicle movement updates, adapter synchronization,
-   * and automatic heat zone regeneration.
+   * Halts vehicle movement updates and adapter synchronization.
    * Emits 'updateStatus' event after stop completes.
    *
    * @example
@@ -314,12 +303,6 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
     }
     // Stop location updates
     this.vehicleManager.stopLocationUpdates();
-
-    // Clear auto heat zone interval to prevent memory leak
-    if (this.autoHeatZoneInterval) {
-      clearInterval(this.autoHeatZoneInterval);
-      this.autoHeatZoneInterval = undefined;
-    }
 
     this.emit("updateStatus", this.getStatus());
   }

@@ -145,6 +145,13 @@ export interface HeatZoneProperties {
 }
 
 export interface HeatZone {
+  /**
+   * Stable unique id assigned when the zone is created (drawn or seeded), so
+   * CRUD operations can target an individual zone and exported features keep a
+   * stable id across broadcasts. Optional only so legacy/test-injected zones
+   * that bypass the create path still typecheck.
+   */
+  id?: string;
   polygon: number[][];
   intensity: number; // 0-1 scale
   timestamp: string;
