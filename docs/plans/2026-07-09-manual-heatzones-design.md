@@ -20,8 +20,11 @@ and have full control, and they must work spotlessly.
 - **Per-zone control** — intensity slider, move/reshape, delete one; plus a Clear-all.
 - **Persistence** — simulator in-memory. Survives a UI reload (re-fetch on load). Cleared on a
   simulator restart. No new storage layer.
-- **Draw engine** — `@deck.gl/editable-layers` (official deck.gl editing package), pinned to
-  the `^9.x` line matching deck.gl 9.2/9.3.
+- **Draw engine** — custom pointer-event drawing (no new dependency). `@deck.gl/editable-layers`
+  does not exist and nebula.gl is stuck at 1.0.4 peering on deck.gl 8 / luma.gl 8, which is
+  incompatible with our deck.gl 9.2/9.3 (luma 9). Hand-rolling reuses the existing dispatch
+  route-drawing pattern (pointer events + `ScatterplotLayer` handles) and keeps the app on one
+  deck.gl major — the "spotless" path.
 
 ## Wire contract (unchanged shared type)
 
@@ -63,11 +66,16 @@ single source of truth.
 
 ## UI changes (`apps/ui`)
 
-- Add `@deck.gl/editable-layers@^9`.
-- Replace the read-only `TrafficZones` display with an `EditableGeoJsonLayer`-backed component
-  that preserves the intensity→alpha fill:
-  - Default `ViewMode` (display + click-to-select).
-  - Tool-driven `DrawPolygonByDraggingMode` (lasso), `ModifyMode` (reshape), `TranslateMode` (move).
+- No new dependency. A `useHeatzoneEditor` hook + `Heatzones` layer component built on deck.gl 9
+  primitives, preserving the intensity→alpha fill:
+  - **Display/select**: `PolygonLayer` (pickable) renders committed zones; click selects one.
+  - **Lasso draw**: while the Draw tool is active, `onDragStart/onDrag/onDragEnd` on the DeckGL
+    canvas collect `coordinate` (lng/lat) points into an in-progress path (rendered live via a
+    `PathLayer`); on drag end the ring is closed and light Douglas-Peucker decimation trims
+    vertex count before POST. `controller` dragPan is disabled while drawing.
+  - **Reshape**: for the selected zone, a `ScatterplotLayer` of draggable vertex handles; dragging
+    a handle rewrites that vertex.
+  - **Move**: dragging the selected zone body translates every vertex by the drag delta.
 - Client gains `createHeatzone`, `updateHeatzone`, `deleteHeatzone`, `clearHeatzones`,
   `seedHeatzones`. Mutations are server round-trips; the WS broadcast updates `HeatZoneContext`
   which re-renders the layer. Reshape/move PATCH fires on drag-end (debounced) for smoothness.
