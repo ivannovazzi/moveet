@@ -88,29 +88,32 @@ export default function Inspector({ vehicle, poi, fleet, onClose }: InspectorPro
       <Hairline />
 
       {vehicle && (
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pb-1">
-          <Field label="ID">
-            <span className={mono}>{vehicle.id}</span>
-          </Field>
-          <Field label="Status">
-            <span className="inline-flex items-center gap-1.5">
-              <StatusDot tone={moving ? "ok" : "idle"} />
-              {moving ? "En route" : "Idle"}
-            </span>
-          </Field>
-          <Field label="Type">
-            <Tag tone="accent">{vehicle.type}</Tag>
-          </Field>
-          <Field label="Speed">
-            <span className={mono}>{Math.round(vehicle.speed)} km/h</span>
-          </Field>
-          <Field label="Heading">
-            <span className={mono}>{Math.round(vehicle.heading)}°</span>
-          </Field>
-          <Field label="Fleet">{fleet?.name ?? vehicle.fleetId ?? "—"}</Field>
-          <Field label="Coordinates">
-            <span className={mono}>{formatCoords(vehicle.position)}</span>
-          </Field>
+        <div className="flex min-h-0 flex-1 flex-col">
+          {/* Vehicle stats stay pinned; only the directions list scrolls. */}
+          <div className="shrink-0">
+            <Field label="ID">
+              <span className={mono}>{vehicle.id}</span>
+            </Field>
+            <Field label="Status">
+              <span className="inline-flex items-center gap-1.5">
+                <StatusDot tone={moving ? "ok" : "idle"} />
+                {moving ? "En route" : "Idle"}
+              </span>
+            </Field>
+            <Field label="Type">
+              <Tag tone="accent">{vehicle.type}</Tag>
+            </Field>
+            <Field label="Speed">
+              <span className={mono}>{Math.round(vehicle.speed)} km/h</span>
+            </Field>
+            <Field label="Heading">
+              <span className={mono}>{Math.round(vehicle.heading)}°</span>
+            </Field>
+            <Field label="Fleet">{fleet?.name ?? vehicle.fleetId ?? "—"}</Field>
+            <Field label="Coordinates">
+              <span className={mono}>{formatCoords(vehicle.position)}</span>
+            </Field>
+          </div>
           {/* Vehicle positions are [lng, lat] here; edge coords are [lat, lng].
               Invert so the active-step lookup compares matching axes. */}
           <VehicleDirections vehicleId={vehicle.id} position={invertLatLng(vehicle.position)} />

@@ -106,9 +106,9 @@ export default function VehicleDirections({ vehicleId, position }: VehicleDirect
   const eta = formatEta(direction.eta ?? 0);
 
   return (
-    <>
+    <div className="flex min-h-0 flex-1 flex-col">
       <Hairline />
-      <div className="flex items-baseline justify-between gap-3 px-[15px] pb-[6px] pt-[10px]">
+      <div className="flex shrink-0 items-baseline justify-between gap-3 px-[15px] pb-[6px] pt-[10px]">
         <Eyebrow>Directions</Eyebrow>
         <div className={cn(mono, "flex items-center gap-1.5 text-[10.5px] text-muted-foreground")}>
           <span className="text-foreground">{formatDistance(remaining)}</span>
@@ -125,7 +125,10 @@ export default function VehicleDirections({ vehicleId, position }: VehicleDirect
         </div>
       </div>
 
-      <ol className="pb-2" aria-label="Turn-by-turn directions">
+      <ol
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2"
+        aria-label="Turn-by-turn directions"
+      >
         {steps.map((step, i) => {
           const Icon = MANEUVER_ICON[step.maneuver];
           const isActive = i === activeStep;
@@ -198,6 +201,6 @@ export default function VehicleDirections({ vehicleId, position }: VehicleDirect
           );
         })}
       </ol>
-    </>
+    </div>
   );
 }
