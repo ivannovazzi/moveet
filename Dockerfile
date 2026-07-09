@@ -5,7 +5,7 @@
 # The per-app Dockerfiles build from each app's own context and `npm install`
 # their dependencies in isolation — which fails for local/branch builds because
 # the apps depend on UNPUBLISHED workspace packages (@moveet/shared-types,
-# @moveet/eslint-config) referenced as "*". Building from the repo root with
+# @moveet/server-kit) referenced as "*". Building from the repo root with
 # `npm ci` resolves them locally via npm workspaces.
 #
 # The simulator/adapter are bundled with esbuild into a single ESM file each
@@ -25,7 +25,6 @@ FROM node:26-alpine AS deps
 WORKDIR /repo
 COPY package.json package-lock.json ./
 COPY packages/shared-types/package.json packages/shared-types/
-COPY packages/eslint-config/package.json packages/eslint-config/
 COPY apps/simulator/package.json apps/simulator/
 COPY apps/adapter/package.json apps/adapter/
 COPY apps/ui/package.json apps/ui/
