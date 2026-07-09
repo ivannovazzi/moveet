@@ -5,7 +5,6 @@ import type { SimulationStatus } from "@/types";
 import { Pause, Play, Record, Reset } from "@/components/Icons";
 import { useOptions } from "@/hooks/useOptions";
 import { toast, toErrorMessage } from "@/lib/toast";
-import ZonesGroup from "./ZonesGroup";
 
 /**
  * Await an `ApiResponse`-returning client call and surface the outcome as a
@@ -61,8 +60,9 @@ export interface PlaybackClusterProps {
 }
 
 /**
- * The leftmost dock group: play/pause, reset, generate-heat-zones, record.
- * No panel — these are one-click transport actions (mockup Playback group).
+ * The leftmost dock group: play/pause, reset, record. No panel — these are
+ * one-click transport actions (mockup Playback group). Heat-zone authoring
+ * lives in the Monitor panel's Heat Zones tab, not here (it is secondary).
  * Tracks the sim's `running` flag via `client.onStatus` (a multi-subscriber
  * event) rather than owning the WS lifecycle, which `useSimulationConnection`
  * keeps singular.
@@ -138,7 +138,6 @@ export default function PlaybackCluster({
       <IconBtn onClick={handleReset} aria-label="Reset" title="Reset">
         <Reset />
       </IconBtn>
-      <ZonesGroup />
       <IconBtn
         onClick={isRecording ? onStopRecording : onStartRecording}
         aria-label={isRecording ? "Stop recording" : "Start recording"}
