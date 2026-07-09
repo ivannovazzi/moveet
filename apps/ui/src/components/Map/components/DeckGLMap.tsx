@@ -328,8 +328,9 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
 
   // Controller config lives on the view (single source of truth — do not also
   // pass `controller` to <DeckGL>): the map is strictly 2D so rotation is
-  // disabled, smooth scroll-zoom and a short inertia make pan/zoom feel less
-  // stepped.
+  // disabled. Scroll-zoom tracks the wheel directly (no `smooth` interpolation)
+  // and inertia is off, so pan/zoom respond immediately instead of gliding —
+  // the smoothed variant read as laggy/floaty.
   const MAP_VIEW = useMemo(
     () =>
       new MapView({
@@ -337,8 +338,8 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
         controller: {
           dragRotate: false,
           touchRotate: false,
-          scrollZoom: { smooth: true },
-          inertia: 250,
+          scrollZoom: { smooth: false },
+          inertia: 0,
         },
       }),
     []
