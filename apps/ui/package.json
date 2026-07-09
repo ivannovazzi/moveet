@@ -59,7 +59,7 @@
     "@vitest/coverage-v8": "^4.1.9",
     "@vitest/ui": "^4.1.9",
     "jsdom": "^29.0.1",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "vite": "^8.0.2",
     "vitest": "^4.1.9"
   }
