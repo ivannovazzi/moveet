@@ -9,6 +9,9 @@ import TypeLegend from "./Map/TypeLegend";
 import SearchBar from "./SearchBar";
 import Zoom from "./Zoom/";
 import CreateZoneDialog from "./Map/Geofence/CreateZoneDialog";
+import HeatzoneInspector from "./Map/HeatzoneInspector";
+import { useHeatzoneEditorContext } from "./data/HeatzoneEditorContext";
+import { useHeatzoneAutoReveal } from "./hooks/useHeatzoneAutoReveal";
 import type { Fleet, Modifiers } from "./types";
 import type { BoundingBox } from "@moveet/shared-types";
 import type { POI } from "./types";
@@ -87,6 +90,13 @@ export default function App() {
   // ─── Geofencing ─────────────────────────────────────────────────
   const geofences = useGeofenceManager();
 
+  // ─── Manual heat zones ──────────────────────────────────────────
+  // Reveal the zone layer when the user starts drawing/selecting or seeds
+  // zones, but only on those transitions so the user can still toggle it back
+  // off while a zone stays selected. See useHeatzoneAutoReveal.
+  const heatzoneEditor = useHeatzoneEditorContext();
+  useHeatzoneAutoReveal(heatzoneEditor.mode, heatzoneEditor.seedNonce, setModifiers);
+
   // ─── Map / context-menu interactions ────────────────────────────
   const {
     contextMenuXY,
@@ -120,7 +130,7 @@ export default function App() {
     [onHoverVehicle, onUnhoverVehicle]
   );
 
-  // Escape-to-deselect defers entirely to dispatch mode / geofence drawing —
+  // Escape-to-deselect defers entirely to dispatch mode / geofence drawing -
   // both already own Escape via their own window-level shortcut handlers
   // (useDispatchShortcuts, GeofenceDrawTool), which fire independently of
   // this one; without this guard a single Escape press while the map has
@@ -216,6 +226,8 @@ export default function App() {
               onDrawVertexCountChange={geofences.setDrawingVertexCount}
               drawConfirmId={geofences.drawConfirmId}
               onBboxChange={onBboxChange}
+              panLocked={heatzoneEditor.mode !== "idle"}
+              zoneDrawActive={heatzoneEditor.mode === "draw"}
             />
             {!mapLoading && (
               <SearchBar
@@ -302,6 +314,7 @@ export default function App() {
               onSubmit={geofences.onCreateZone}
               onClose={geofences.closePendingPolygon}
             />
+            <HeatzoneInspector />
           </div>
         </ErrorBoundary>
       </div>

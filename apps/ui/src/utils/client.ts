@@ -56,7 +56,11 @@ class SimulationService {
   updateOptions: SimulationSegment["updateOptions"];
   getDirections: SimulationSegment["getDirections"];
   getHeatzones: SimulationSegment["getHeatzones"];
-  makeHeatzones: SimulationSegment["makeHeatzones"];
+  createHeatzone: SimulationSegment["createHeatzone"];
+  updateHeatzone: SimulationSegment["updateHeatzone"];
+  deleteHeatzone: SimulationSegment["deleteHeatzone"];
+  clearHeatzones: SimulationSegment["clearHeatzones"];
+  seedHeatzones: SimulationSegment["seedHeatzones"];
   search: SimulationSegment["search"];
 
   // ─── Fleets ─────────────────────────────────────────────────────
@@ -196,7 +200,11 @@ class SimulationService {
     this.updateOptions = simulation.updateOptions;
     this.getDirections = simulation.getDirections;
     this.getHeatzones = simulation.getHeatzones;
-    this.makeHeatzones = simulation.makeHeatzones;
+    this.createHeatzone = simulation.createHeatzone;
+    this.updateHeatzone = simulation.updateHeatzone;
+    this.deleteHeatzone = simulation.deleteHeatzone;
+    this.clearHeatzones = simulation.clearHeatzones;
+    this.seedHeatzones = simulation.seedHeatzones;
     this.search = simulation.search;
 
     this.getFleets = fleets.getFleets;

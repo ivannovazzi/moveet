@@ -14,6 +14,19 @@ export const HEAT_ZONE_DEFAULTS = {
   MIN_INTENSITY: 0.3,
   /** Maximum intensity for heat zones (1-1) */
   MAX_INTENSITY: 1,
+  /**
+   * Default intensity applied to a manually created zone (POST /heatzones) when
+   * the caller supplies none. Single server-side source of truth so the schema
+   * default and the route fall back to the same value.
+   */
+  DEFAULT_INTENSITY: 0.6,
+  /**
+   * Hard cap on the total number of heat zones held at once. Seeding/generation
+   * appends only up to this cap (no error); a single create at the cap is
+   * rejected. Keeps the zone list + spatial grid bounded so repeated seeding
+   * cannot degrade rendering and point-in-polygon checks.
+   */
+  MAX_TOTAL: 100,
 } as const;
 
 // Vehicle state management
@@ -38,6 +51,14 @@ export const WS_BROADCASTER = {
 export const SPATIAL_GRID = {
   /** Grid cell size in degrees (~500 m). Used for spatial indexing in both HeatZoneManager and RoadNetwork. */
   CELL_SIZE: 0.005,
+  /**
+   * Defense-in-depth cap on how many grid cells a single zone's bounding box may
+   * span before it is refused indexing. A pathological polygon (e.g. coordinates
+   * in the wrong projection that bypass schema validation) could otherwise span
+   * tens of millions of cells and freeze the event loop. 250k cells is ~250 km
+   * square, far larger than any realistic heat zone.
+   */
+  MAX_ZONE_CELLS: 250_000,
 } as const;
 
 // Fleet color palette (10 distinct colors for fleet grouping)

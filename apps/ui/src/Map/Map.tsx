@@ -87,6 +87,10 @@ interface MapProps {
   onDrawVertexCountChange?: (count: number) => void;
   drawConfirmId?: number;
   onBboxChange?: (bbox: BoundingBox | null) => void;
+  /** Lock map panning (heat-zone tool engaged) so press-drags draw/edit zones. */
+  panLocked?: boolean;
+  /** Heat-zone draw mode is active - show a crosshair cursor. */
+  zoneDrawActive?: boolean;
 }
 
 export default function Map({
@@ -119,9 +123,15 @@ export default function Map({
   onDrawVertexCountChange,
   drawConfirmId,
   onBboxChange,
+  panLocked = false,
+  zoneDrawActive = false,
 }: MapProps) {
-  // Derive cursor: prefer dispatchState if provided, fall back to dispatchMode boolean
-  const cursor = dispatchState ? cursorForDispatchState(dispatchState) : "grab";
+  // Derive cursor: heat-zone draw wins (crosshair), then dispatchState, else grab.
+  const cursor = zoneDrawActive
+    ? "crosshair"
+    : dispatchState
+      ? cursorForDispatchState(dispatchState)
+      : "grab";
 
   // Native deck.gl tooltip for GL-picked layers (currently just vehicles —
   // POIs/incidents render their own styled HTML markers instead). Hover is
@@ -167,6 +177,7 @@ export default function Map({
         onContextClick={onMapContextClick}
         onEscape={onEscape}
         cursor={cursor}
+        panLocked={panLocked}
         htmlMarkers={htmlMarkers}
         getTooltip={getTooltip}
       >

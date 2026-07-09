@@ -6,6 +6,8 @@ const { mockHttp, mockWs } = vi.hoisted(() => ({
   mockHttp: {
     get: vi.fn(),
     post: vi.fn(),
+    patch: vi.fn(),
+    delete: vi.fn(),
   },
   mockWs: {
     connect: vi.fn(),
@@ -233,15 +235,83 @@ describe("SimulationService", () => {
     });
   });
 
-  describe("makeHeatzones", () => {
-    it("posts to /heatzones with no body", async () => {
+  describe("createHeatzone", () => {
+    it("posts geometry + intensity to /heatzones", async () => {
+      const body = {
+        geometry: {
+          type: "Polygon" as const,
+          coordinates: [
+            [36.8, -1.3],
+            [36.81, -1.3],
+            [36.81, -1.31],
+            [36.8, -1.3],
+          ] as Position[],
+        },
+        intensity: 0.6,
+      };
       const response = { data: undefined };
       mockHttp.post.mockResolvedValue(response);
 
-      const result = await service.makeHeatzones();
+      const result = await service.createHeatzone(body);
 
-      expect(mockHttp.post).toHaveBeenCalledWith("/heatzones");
+      expect(mockHttp.post).toHaveBeenCalledWith("/heatzones", body);
       expect(result).toBe(response);
+    });
+  });
+
+  describe("updateHeatzone", () => {
+    it("patches the body to /heatzones/:id", async () => {
+      const response = { data: undefined };
+      mockHttp.patch.mockResolvedValue(response);
+
+      const result = await service.updateHeatzone("hz-1", { intensity: 0.9 });
+
+      expect(mockHttp.patch).toHaveBeenCalledWith("/heatzones/hz-1", { intensity: 0.9 });
+      expect(result).toBe(response);
+    });
+  });
+
+  describe("deleteHeatzone", () => {
+    it("deletes /heatzones/:id", async () => {
+      const response = { data: undefined };
+      mockHttp.delete.mockResolvedValue(response);
+
+      const result = await service.deleteHeatzone("hz-1");
+
+      expect(mockHttp.delete).toHaveBeenCalledWith("/heatzones/hz-1");
+      expect(result).toBe(response);
+    });
+  });
+
+  describe("clearHeatzones", () => {
+    it("deletes /heatzones", async () => {
+      const response = { data: undefined };
+      mockHttp.delete.mockResolvedValue(response);
+
+      const result = await service.clearHeatzones();
+
+      expect(mockHttp.delete).toHaveBeenCalledWith("/heatzones");
+      expect(result).toBe(response);
+    });
+  });
+
+  describe("seedHeatzones", () => {
+    it("posts the count to /heatzones/seed", async () => {
+      const response = { data: [] };
+      mockHttp.post.mockResolvedValue(response);
+
+      const result = await service.seedHeatzones({ count: 5 });
+
+      expect(mockHttp.post).toHaveBeenCalledWith("/heatzones/seed", { count: 5 });
+      expect(result).toBe(response);
+    });
+
+    it("defaults to an empty body when no count is given", async () => {
+      mockHttp.post.mockResolvedValue({ data: [] });
+
+      await service.seedHeatzones();
+
+      expect(mockHttp.post).toHaveBeenCalledWith("/heatzones/seed", {});
     });
   });
 
@@ -522,7 +592,11 @@ describe("SimulationService", () => {
       "updateOptions",
       "getDirections",
       "getHeatzones",
-      "makeHeatzones",
+      "createHeatzone",
+      "updateHeatzone",
+      "deleteHeatzone",
+      "clearHeatzones",
+      "seedHeatzones",
       "search",
       // fleets
       "getFleets",

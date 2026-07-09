@@ -1,6 +1,7 @@
 import fs from "fs";
 import type { FeatureCollection } from "geojson";
 import type { Node, Edge, Route, HeatZoneFeature, POI, BoundingBox } from "../types";
+import { HEAT_ZONE_DEFAULTS } from "../constants";
 import { type CacheStats } from "../utils/LRUCache";
 import { HeatZoneManager } from "./HeatZoneManager";
 import { PathfindingPool } from "./PathfindingPool";
@@ -347,5 +348,65 @@ export class RoadNetwork extends EventEmitter {
 
   public isPositionInHeatZone(position: [number, number]): boolean {
     return this.heatZoneManager.isPositionInHeatZone(position);
+  }
+
+  /**
+   * Appends `count` randomly-generated heat zones to the existing set and
+   * broadcasts the full list. Used by the on-demand "seed" endpoint.
+   */
+  public seedHeatZones(count: number = HEAT_ZONE_DEFAULTS.COUNT): HeatZoneFeature[] {
+    // generateHeatedZones emits "heatzones" itself, so no extra emit here.
+    this.generateHeatedZones({
+      count,
+      minRadius: HEAT_ZONE_DEFAULTS.MIN_RADIUS,
+      maxRadius: HEAT_ZONE_DEFAULTS.MAX_RADIUS,
+      minIntensity: HEAT_ZONE_DEFAULTS.MIN_INTENSITY,
+      maxIntensity: HEAT_ZONE_DEFAULTS.MAX_INTENSITY,
+    });
+    return this.exportHeatZones();
+  }
+
+  /**
+   * Adds a single manually-drawn heat zone and broadcasts the full list.
+   */
+  public addHeatZone(input: {
+    polygon: number[][];
+    intensity: number;
+    id?: string;
+  }): HeatZoneFeature {
+    const feature = this.heatZoneManager.addZone(input);
+    this.emit("heatzones", this.exportHeatZones());
+    return feature;
+  }
+
+  /**
+   * Updates a heat zone's geometry and/or intensity, broadcasting the full list
+   * on success. Returns the updated feature, or null if the id is unknown.
+   */
+  public updateHeatZone(
+    id: string,
+    patch: { polygon?: number[][]; intensity?: number }
+  ): HeatZoneFeature | null {
+    const feature = this.heatZoneManager.updateZone(id, patch);
+    if (feature) this.emit("heatzones", this.exportHeatZones());
+    return feature;
+  }
+
+  /**
+   * Removes a heat zone by id, broadcasting the full list on success. Returns
+   * whether the zone existed.
+   */
+  public removeHeatZone(id: string): boolean {
+    const existed = this.heatZoneManager.removeZone(id);
+    if (existed) this.emit("heatzones", this.exportHeatZones());
+    return existed;
+  }
+
+  /**
+   * Removes every heat zone and broadcasts the now-empty list.
+   */
+  public clearHeatZones(): void {
+    this.heatZoneManager.clearZones();
+    this.emit("heatzones", this.exportHeatZones());
   }
 }

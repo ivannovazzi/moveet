@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import client from "@/utils/client";
 import type { SimulationStatus } from "@/types";
-import { Flame, Pause, Play, Record, Reset } from "@/components/Icons";
+import { Pause, Play, Record, Reset } from "@/components/Icons";
 import { useOptions } from "@/hooks/useOptions";
 import { toast, toErrorMessage } from "@/lib/toast";
 
@@ -60,8 +60,9 @@ export interface PlaybackClusterProps {
 }
 
 /**
- * The leftmost dock group: play/pause, reset, generate-heat-zones, record.
- * No panel — these are one-click transport actions (mockup Playback group).
+ * The leftmost dock group: play/pause, reset, record. No panel — these are
+ * one-click transport actions (mockup Playback group). Heat-zone authoring
+ * lives in the Monitor panel's Heat Zones tab, not here (it is secondary).
  * Tracks the sim's `running` flag via `client.onStatus` (a multi-subscriber
  * event) rather than owning the WS lifecycle, which `useSimulationConnection`
  * keeps singular.
@@ -111,14 +112,6 @@ export default function PlaybackCluster({
       }),
     []
   );
-  const handleMakeZones = useCallback(
-    () =>
-      runWithToast(() => client.makeHeatzones(), {
-        success: "Heat zones generated",
-        failure: "Failed to generate heat zones",
-      }),
-    []
-  );
 
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval>>(undefined);
@@ -144,13 +137,6 @@ export default function PlaybackCluster({
       </IconBtn>
       <IconBtn onClick={handleReset} aria-label="Reset" title="Reset">
         <Reset />
-      </IconBtn>
-      <IconBtn
-        onClick={handleMakeZones}
-        aria-label="Generate heat zones"
-        title="Generate heat zones"
-      >
-        <Flame />
       </IconBtn>
       <IconBtn
         onClick={isRecording ? onStopRecording : onStartRecording}

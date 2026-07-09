@@ -28,13 +28,16 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App";
 import DataProvider from "./data";
+import { HeatzoneEditorProvider } from "./data/HeatzoneEditorContext";
 import ErrorBoundary from "./components/ErrorBoundary";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ErrorBoundary>
       <DataProvider>
-        <App />
+        <HeatzoneEditorProvider>
+          <App />
+        </HeatzoneEditorProvider>
       </DataProvider>
     </ErrorBoundary>
   </StrictMode>

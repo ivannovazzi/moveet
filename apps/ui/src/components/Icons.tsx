@@ -35,6 +35,9 @@ import {
   ClipboardList as ClipboardListBase,
   Clock as ClockBase,
   X as XBase,
+  Pencil as PencilBase,
+  Sparkles as SparklesBase,
+  Trash2 as Trash2Base,
   type LucideIcon,
   type LucideProps,
 } from "lucide-react";
@@ -90,3 +93,6 @@ export const GeofenceIcon = aliasIcon(HexagonBase);
 export const ScenarioIcon = aliasIcon(ClipboardListBase);
 export const ClockIcon = aliasIcon(ClockBase);
 export const CloseIcon = aliasIcon(XBase);
+export const DrawIcon = aliasIcon(PencilBase);
+export const SeedIcon = aliasIcon(SparklesBase);
+export const TrashIcon = aliasIcon(Trash2Base);

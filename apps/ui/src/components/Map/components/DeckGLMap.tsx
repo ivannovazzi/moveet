@@ -42,6 +42,13 @@ interface DeckGLMapProps {
   onEscape?: () => void;
   cursor?: string;
   getTooltip?: (info: PickingInfo) => TooltipContent;
+  /**
+   * Lock map panning. Drawing tools (e.g. freehand heat zones) set this while
+   * engaged so a press-drag draws/edits instead of panning the map - deck.gl's
+   * controller pans on pointer events, which a DOM stopPropagation can't stop,
+   * so the pan must be disabled at the controller.
+   */
+  panLocked?: boolean;
 }
 
 // Separate road features into regular roads and highways for distinct styling,
@@ -185,6 +192,7 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
   htmlMarkers,
   cursor = "grab",
   getTooltip,
+  panLocked = false,
 }) => {
   const [containerRef, size] = useResizeObserver();
   const deckContainerRef = useRef<HTMLDivElement>(null);
@@ -340,9 +348,12 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
           touchRotate: false,
           scrollZoom: { smooth: false },
           inertia: 0,
+          // Disabled while a drawing tool is engaged so a press-drag draws
+          // instead of panning. Zoom stays available.
+          dragPan: !panLocked,
         },
       }),
-    []
+    [panLocked]
   );
 
   if (mapError) {

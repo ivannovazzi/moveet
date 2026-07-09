@@ -23,13 +23,14 @@ function makeSquarePolygon(centerLat: number, centerLon: number, halfSize: numbe
 
 /**
  * Injects zones directly into a HeatZoneManager, bypassing generateHeatedZones
- * (which uses turf and randomness). Uses the private zones + buildSpatialGrid
- * via type coercion so tests can be deterministic.
+ * (which uses turf and randomness). Rebuilds the spatial grid via the private
+ * indexZone helper (using type coercion) so tests can be deterministic.
  */
 function injectZones(manager: HeatZoneManager, zones: HeatZone[]): void {
   const m = manager as any;
   m.zones = zones;
-  m.buildSpatialGrid();
+  m.spatialGrid.clear();
+  for (const zone of zones) m.indexZone(zone);
 }
 
 describe("HeatZoneManager — spatial grid", () => {
@@ -100,6 +101,39 @@ describe("HeatZoneManager — spatial grid", () => {
       }
       // 0.016 degrees / 0.005 cell size ~ 3.2 cells per axis -> at least 3x3 = 9 cells
       expect(cellCount).toBeGreaterThanOrEqual(9);
+    });
+  });
+
+  // ── Defense-in-depth: pathological (out-of-projection) coordinates ───────
+
+  describe("pathological zone guard", () => {
+    it("does not index (or hang on) a zone whose bbox spans a huge number of cells", () => {
+      // Mixed WGS84 + Web-Mercator-metre coordinates: bbox spans ~10^8 cells per
+      // axis. Without a guard, indexZone's nested loop iterates effectively
+      // forever and freezes the event loop. It must return promptly and skip
+      // indexing this zone.
+      const huge: HeatZone = {
+        polygon: [
+          [4_000_000, -150_000],
+          [36.8, -1.3],
+          [36.9, -1.4],
+          [4_000_000, -150_000],
+        ],
+        intensity: 0.5,
+        timestamp: new Date().toISOString(),
+      };
+      injectZones(manager, [huge]);
+      expect((manager as any).spatialGrid.size).toBe(0);
+    }, 3000);
+
+    it("still indexes a normal-sized zone", () => {
+      const normal: HeatZone = {
+        polygon: makeSquarePolygon(1.0, 2.0, 0.002),
+        intensity: 0.5,
+        timestamp: new Date().toISOString(),
+      };
+      injectZones(manager, [normal]);
+      expect((manager as any).spatialGrid.size).toBeGreaterThan(0);
     });
   });
 
@@ -258,7 +292,7 @@ describe("HeatZoneManager — spatial grid", () => {
       const grid: Map<string, HeatZone[]> = (manager as any).spatialGrid;
       expect(grid.size).toBeGreaterThan(0);
 
-      // Regenerate — grid should be rebuilt (not accumulate old entries)
+      // Regenerate — appends more zones and indexes them into the grid.
       manager.generateHeatedZones(mockEdges, mockNodes, {
         count: 1,
         minRadius: 0.1,
@@ -266,7 +300,7 @@ describe("HeatZoneManager — spatial grid", () => {
       });
 
       const gridAfter: Map<string, HeatZone[]> = (manager as any).spatialGrid;
-      // All entries in the grid should reference zones from the current generation
+      // Every entry in the grid must reference a currently-tracked zone
       const currentZones = manager.getZones();
       for (const cell of gridAfter.values()) {
         for (const zone of cell) {
@@ -275,7 +309,7 @@ describe("HeatZoneManager — spatial grid", () => {
       }
     });
 
-    it("should clear grid when generateHeatedZones receives empty nodes", () => {
+    it("should leave existing zones intact when generateHeatedZones receives empty nodes", () => {
       // First populate with zones
       injectZones(manager, [
         {
@@ -287,11 +321,12 @@ describe("HeatZoneManager — spatial grid", () => {
 
       expect((manager as any).spatialGrid.size).toBeGreaterThan(0);
 
-      // Generate with empty nodes
+      // Generate with empty nodes — append semantics: nothing to append,
+      // existing zones (and their grid entries) are preserved.
       manager.generateHeatedZones([], [], { count: 3 });
 
-      expect((manager as any).spatialGrid.size).toBe(0);
-      expect(manager.getZones()).toHaveLength(0);
+      expect((manager as any).spatialGrid.size).toBeGreaterThan(0);
+      expect(manager.getZones()).toHaveLength(1);
     });
   });
 

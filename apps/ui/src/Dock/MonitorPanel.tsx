@@ -2,6 +2,7 @@ import { useState, type ComponentProps } from "react";
 import Incidents from "@/Controls/Incidents";
 import AnalyticsPanel from "@/Controls/AnalyticsPanel";
 import GeofencePanel from "@/Controls/GeofencePanel";
+import HeatzonePanel from "@/Controls/HeatzonePanel";
 import { SuppressPanelHeader } from "@/Controls/PanelPrimitives";
 import { PanelHead, PanelScroll, PanelTabStrip, type PanelTab } from "./DockPanelKit";
 
@@ -11,7 +12,7 @@ export interface MonitorPanelProps {
   geofences: ComponentProps<typeof GeofencePanel>;
 }
 
-type MonitorTabId = "incidents" | "analytics" | "geofences";
+type MonitorTabId = "incidents" | "analytics" | "geofences" | "heatzones";
 
 /**
  * Monitor panel — observe-only. Everything here is something you *watch*:
@@ -29,6 +30,7 @@ export default function MonitorPanel({ incidents, analytics, geofences }: Monito
     { id: "incidents", label: "Incidents", badge: incidents.incidents.length },
     { id: "analytics", label: "Analytics" },
     { id: "geofences", label: "Geofences" },
+    { id: "heatzones", label: "Heat Zones" },
   ];
   const activeLabel = tabs.find((t) => t.id === tab)?.label ?? "Incidents";
 
@@ -41,6 +43,7 @@ export default function MonitorPanel({ incidents, analytics, geofences }: Monito
           {tab === "incidents" && <Incidents {...incidents} />}
           {tab === "analytics" && <AnalyticsPanel {...analytics} />}
           {tab === "geofences" && <GeofencePanel {...geofences} />}
+          {tab === "heatzones" && <HeatzonePanel />}
         </SuppressPanelHeader>
       </PanelScroll>
     </>
