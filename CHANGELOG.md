@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.0.10](https://github.com/ivannovazzi/moveet/compare/v0.0.9...v0.0.10) (2026-07-10)
+
+
+### Features
+
+* enforce cross-service contract, add observability, and decouple the broadcaster ([#179](https://github.com/ivannovazzi/moveet/issues/179)) ([fb49627](https://github.com/ivannovazzi/moveet/commit/fb49627ff1bd8d7306a89321f6ea2a55568cbccb))
+* **heatzones:** draw and control heatzones manually ([#214](https://github.com/ivannovazzi/moveet/issues/214)) ([a4bdf2b](https://github.com/ivannovazzi/moveet/commit/a4bdf2b47bfe650b48407b8d18587bb882afdcf0))
+* **ui:** improve POI visibility with prominent markers and name labels ([#209](https://github.com/ivannovazzi/moveet/issues/209)) ([03e0bd0](https://github.com/ivannovazzi/moveet/commit/03e0bd015ab8d8cdbe2c28043403a68ef41a2bee))
+* **ui:** professional map interaction, overlay, and visual polish pass ([#196](https://github.com/ivannovazzi/moveet/issues/196)) ([923a276](https://github.com/ivannovazzi/moveet/commit/923a276a4b5d4e298450bb5399308f264b0bf795))
+* **ui:** redesign controls into a bottom dock with one morphing panel ([#210](https://github.com/ivannovazzi/moveet/issues/210)) ([8c89aad](https://github.com/ivannovazzi/moveet/commit/8c89aad5c6a67cefad07a26a8438618ad9b2851c))
+* **ui:** salvage [#197](https://github.com/ivannovazzi/moveet/issues/197) Phase-2 interaction quality onto the dock ([#211](https://github.com/ivannovazzi/moveet/issues/211)) ([b427f3a](https://github.com/ivannovazzi/moveet/commit/b427f3afd54759084788497c6ce252c1ce1fe338))
+* **ui:** turn-by-turn directions in the vehicle inspector + map highlight ([#212](https://github.com/ivannovazzi/moveet/issues/212)) ([d9a0eaa](https://github.com/ivannovazzi/moveet/commit/d9a0eaad92e84b4c45643611402421890dae8b11))
+
+
+### Bug Fixes
+
+* **simulator:** adapter/routing health metrics, game loop interval fix ([#194](https://github.com/ivannovazzi/moveet/issues/194)) ([624c9d9](https://github.com/ivannovazzi/moveet/commit/624c9d9af28711b839911299437489c309e3c349))
+* **ui:** per-vehicle direction memo, Set-based fleet lookup (c8m7, 8zj9) ([#192](https://github.com/ivannovazzi/moveet/issues/192)) ([156b92b](https://github.com/ivannovazzi/moveet/commit/156b92bbc5f0032b1633bfe63865c59fae4bcb56))
+* **ui:** snap vehicles to position after idle/reposition instead of gliding (fleetsim-all-bx68) ([#177](https://github.com/ivannovazzi/moveet/issues/177)) ([52b3a81](https://github.com/ivannovazzi/moveet/commit/52b3a81d9d513acb73bdc28c95ec8928e934602d))
+* **ui:** snappier map zoom controls + zoom-out limit ([#213](https://github.com/ivannovazzi/moveet/issues/213)) ([e9ac98c](https://github.com/ivannovazzi/moveet/commit/e9ac98c6bff619961aa625e0283c89a9b6621e2b))
+* **ui:** vehicleStore trail leak + VehiclesLayer hot-path allocs ([#193](https://github.com/ivannovazzi/moveet/issues/193)) ([b73c2fc](https://github.com/ivannovazzi/moveet/commit/b73c2fcb5d90f2e02fcf8a49a4fe4fea7caa9dda))
+
+
+### Performance Improvements
+
+* virtualize vehicle list, centralize sim config, document ws scaling ([#195](https://github.com/ivannovazzi/moveet/issues/195)) ([c41603c](https://github.com/ivannovazzi/moveet/commit/c41603c163d6133c1e80e9cd59f86a07469aef47))
+
 ## [0.0.9](https://github.com/ivannovazzi/moveet/compare/v0.0.8...v0.0.9) (2026-06-23)
 
 
