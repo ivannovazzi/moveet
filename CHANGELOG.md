@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.0](https://github.com/ivannovazzi/moveet/compare/v0.0.10...v0.1.0) (2026-07-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* the adapter's per-sink circuit breaker is enabled by default. A sink that throws on five consecutive publishes is skipped until it recovers, instead of being retried on every publish. Partial failures never trip it. With the outbox disabled a skipped publish is still counted as a drop, so this makes existing at-most-once loss visible rather than introducing new loss.
+* malformed adapter plugin configuration now refuses to start the service. Fail-soft on an unreachable backend is unchanged and deliberate; what was wrong is that a typo'd plugin type or a missing required field produced a silently skipped plugin, leaving a stack that booted looking healthy and emitted nothing. Unknown configuration keys remain warnings only, so an undocumented key cannot break a working deployment.
+
+### Features
+
+* command palette, analytics charts, density view, replay keyframes, sink outbox ([#230](https://github.com/ivannovazzi/moveet/issues/230)) ([cc029ed](https://github.com/ivannovazzi/moveet/commit/cc029edc73d6276b3584dd006fe7cf84ca5133c8))
+* stale-bundle reload prompt, time-of-day heat zones, adapter config validation ([#227](https://github.com/ivannovazzi/moveet/issues/227)) ([86a8d64](https://github.com/ivannovazzi/moveet/commit/86a8d64e295ea539aeeeb721c77c87d432f68d5c))
+
 ## [0.0.10](https://github.com/ivannovazzi/moveet/compare/v0.0.9...v0.0.10) (2026-07-10)
 
 
