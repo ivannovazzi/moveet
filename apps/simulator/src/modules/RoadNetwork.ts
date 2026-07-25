@@ -351,6 +351,11 @@ export class RoadNetwork extends EventEmitter {
     return this.heatZoneManager.isPositionInHeatZone(position);
   }
 
+  /** Intensity of the hottest zone at this position, or null when in none. */
+  public getHeatZoneIntensityAt(position: [number, number]): number | null {
+    return this.heatZoneManager.getIntensityAt(position);
+  }
+
   /**
    * Appends `count` randomly-generated heat zones to the existing set and
    * broadcasts the full list. Used by the on-demand "seed" endpoint.

@@ -52,16 +52,15 @@ function renderWithDirection(
 }
 
 describe("VehicleDirections", () => {
-  it("renders nothing when the vehicle has no active route", () => {
-    const { container } = renderWithDirection("v1", undefined);
-    expect(container).toBeEmptyDOMElement();
+  it("shows the empty state when the vehicle has no active route", () => {
+    renderWithDirection("v1", undefined);
+    expect(screen.getByText("No active route.")).toBeInTheDocument();
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
   });
 
-  it("renders nothing when the route has no edges", () => {
-    const { container } = renderWithDirection("v1", {
-      route: { edges: [], distance: 0 },
-    });
-    expect(container).toBeEmptyDOMElement();
+  it("shows the empty state when the route has no edges", () => {
+    renderWithDirection("v1", { route: { edges: [], distance: 0 } });
+    expect(screen.getByText("No active route.")).toBeInTheDocument();
   });
 
   it("lists each turn with its road name and the arrival step", () => {
@@ -113,6 +112,41 @@ describe("VehicleDirections", () => {
     const current = document.querySelector('[aria-current="step"]');
     expect(current).not.toBeNull();
     expect(current).toHaveTextContent("Turn right onto Second St");
+  });
+
+  it("reports route progress from the vehicle's position along the steps", () => {
+    // Three equal 1 km steps; sitting on the second one means one of three
+    // steps (33%) is behind us and "Step 2/4" (incl. the arrive pseudo-step).
+    const { unmount } = renderWithDirection(
+      "v1",
+      {
+        route: {
+          edges: [
+            edge({ name: "A St", bearing: 0, distance: 1, start: [0, 0], end: [0, 2] }),
+            edge({ name: "B St", bearing: 90, distance: 1, start: [0, 10], end: [0, 12] }),
+            edge({ name: "C St", bearing: 0, distance: 1, start: [0, 20], end: [0, 22] }),
+          ],
+          distance: 3,
+        },
+      },
+      [0, 11] // exactly B St's midpoint
+    );
+
+    const bar = screen.getByRole("progressbar", { name: "Route progress" });
+    expect(bar).toHaveAttribute("aria-valuenow", "33");
+    expect(screen.getByText("Step 2/4")).toBeInTheDocument();
+    unmount();
+  });
+
+  it("reports zero progress when the position can't be placed on the route", () => {
+    renderWithDirection("v1", {
+      route: {
+        edges: [edge({ name: "A St", bearing: 0, distance: 1 })],
+        distance: 1,
+      },
+    });
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "0");
+    expect(screen.getByText("Not started")).toBeInTheDocument();
   });
 
   it("pins a step on click and toggles it off on a second click", async () => {

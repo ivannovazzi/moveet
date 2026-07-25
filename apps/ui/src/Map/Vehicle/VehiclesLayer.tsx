@@ -6,6 +6,7 @@ import { VEHICLE_INTERPOLATION, shouldSnapPosition } from "../../data/constants"
 import { useRegisterLayers } from "../../components/Map/hooks/useDeckLayers";
 import { useMapContext } from "../../components/Map/hooks";
 import { VehicleIconAtlasManager, type VehicleAtlas } from "./vehicleIconAtlas";
+import { shouldAggregate } from "./densityView";
 
 // Type-specific default colors (used when no fleet color). These reference the
 // shared --color-vehicle-* tokens (tokens.css) and are resolved to concrete
@@ -36,6 +37,13 @@ interface VehiclesLayerProps {
   onClick: (id: string) => void;
   /** Canvas hover — mirrors the sidebar list's hover state (undefined = none). */
   onHover?: (id: string | undefined) => void;
+  /**
+   * The user's "Density" visibility toggle. When on, sprites are suppressed
+   * in the zoom/count window where `VehicleDensityLayer` takes over (see
+   * `densityView.shouldAggregate`). Off by default and costs a single boolean
+   * read per animation frame in that case.
+   */
+  densityMode?: boolean;
 }
 
 /** Interpolated vehicle data for the deck.gl IconLayer. */
@@ -162,6 +170,13 @@ const IDLE_SPEED_KMH = 1;
 const IDLE_ICON_ALPHA = 166; // 0.65 * 255
 const MOVING_ICON_ALPHA = 255;
 
+/**
+ * Constant empty publish used while the density view has taken over. Reusing
+ * one reference means React bails out of every re-render after the first
+ * suppressed frame instead of churning on a fresh `[]` each tick.
+ */
+const EMPTY_VEHICLES: VehicleIconDatum[] = [];
+
 function iconSizeForZoom(zoom: number): number {
   const size = BASE_SIZE_PX * 2 ** ((zoom - REFERENCE_ZOOM) * SIZE_ZOOM_EXPONENT);
   return Math.min(Math.max(size, MIN_SIZE_PX), MAX_SIZE_PX);
@@ -188,6 +203,7 @@ export default function VehiclesLayer({
   hoveredId,
   onClick,
   onHover,
+  densityMode = false,
 }: VehiclesLayerProps) {
   const { getZoom, getBoundingBox } = useMapContext();
   const [vehicleData, setVehicleData] = useState<VehicleIconDatum[]>([]);
@@ -235,6 +251,8 @@ export default function VehiclesLayer({
   getZoomRef.current = getZoom;
   const getBoundingBoxRef = useRef(getBoundingBox);
   getBoundingBoxRef.current = getBoundingBox;
+  const densityModeRef = useRef(densityMode);
+  densityModeRef.current = densityMode;
 
   // RAF interpolation loop: reads from vehicleStore, updates React state
   // Throttled to ~60fps to keep motion smooth without unbounded re-renders
@@ -253,6 +271,8 @@ export default function VehiclesLayer({
     let lastHiddenFleets: Set<string> | null = null;
     let lastHiddenTypes: Set<VehicleType> | null = null;
     let lastBoundsKey = "";
+    // Whether the density (hexagon) view was on screen on the last publish.
+    let lastAggregated = false;
     // Sticky add/remove flag — survives throttled frames so a removal isn't
     // dropped when the 16ms gate skips the frame it was detected on.
     let structureChanged = false;
@@ -396,13 +416,33 @@ export default function VehiclesLayer({
         hiddenFleetsRef.current !== lastHiddenFleets ||
         hiddenTypesRef.current !== lastHiddenTypes;
 
+      // Density (aggregation) mode. When the user's Density toggle is on AND
+      // the view has zoomed past the point where sprites are readable,
+      // VehicleDensityLayer owns the picture and this layer publishes nothing.
+      // With the toggle off this is one ref read and a `false` — the rest of
+      // the hot path is untouched, and `vehicleStore.getAll()` is not called
+      // an extra time.
+      const aggregated = densityModeRef.current
+        ? shouldAggregate({
+            enabled: true,
+            zoom: currentZoom,
+            vehicleCount: vehicleStore.getAll().size,
+          })
+        : false;
+      const aggregationChanged = aggregated !== lastAggregated;
+
       // Dirty check: skip building/publishing the VehicleIconDatum[] array
       // entirely when nothing visible changed — no vehicle moved (mid-lerp),
       // none was added/removed, and zoom/viewport/selection/filters are all
       // unchanged. WS ticks that re-send identical positions no longer cause
       // a fresh array allocation or a re-render.
       const isDirty =
-        structureChanged || animating || zoomChanged || visualsChanged || boundsChanged;
+        structureChanged ||
+        animating ||
+        zoomChanged ||
+        visualsChanged ||
+        boundsChanged ||
+        aggregationChanged;
       if (!isDirty) {
         return;
       }
@@ -417,7 +457,16 @@ export default function VehiclesLayer({
       lastHiddenFleets = hiddenFleetsRef.current;
       lastHiddenTypes = hiddenTypesRef.current;
       lastBoundsKey = boundsKey;
+      lastAggregated = aggregated;
       structureChanged = false;
+
+      // Hexagon plate is on screen — skip the per-vehicle build entirely.
+      // Interpolation state above kept updating, so switching back to sprites
+      // (zoom in, or toggle off) resumes mid-motion rather than snapping.
+      if (aggregated) {
+        setVehicleData(EMPTY_VEHICLES);
+        return;
+      }
 
       const store = vehicleStore.getAll();
       const fleetMap = fleetMapRef.current;

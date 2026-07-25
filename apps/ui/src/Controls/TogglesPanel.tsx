@@ -14,6 +14,7 @@ const toggles: { key: keyof Modifiers; label: string }[] = [
   { key: "showDirections", label: "Network" },
   { key: "showTrafficOverlay", label: "Traffic Colours" },
   { key: "showVehicles", label: "Vehicles" },
+  { key: "showDensity", label: "Density" },
   { key: "showHeatmap", label: "Heatmap" },
   { key: "showHeatzones", label: "Zones" },
   { key: "showPOIs", label: "POIs" },
@@ -80,7 +81,8 @@ export default memo(function TogglesPanel({ modifiers, onChangeModifiers }: Togg
       />
       <PanelBody className="gap-0">
         {toggles.map(({ key, label }) => {
-          const on = modifiers[key];
+          // `showDensity` is an optional modifier (absent = off), so coerce.
+          const on = modifiers[key] ?? false;
           return (
             <label
               key={key}

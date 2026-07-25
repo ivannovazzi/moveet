@@ -34,6 +34,9 @@ const LAYER_ORDER: Record<string, number> = {
   breadcrumbs: 30,
   "traffic-zones": 35,
   heatmap: 40,
+  // Density plate replaces vehicle sprites at low zoom — above the heatmap,
+  // below routes so an inspected route still reads over it.
+  "vehicle-density": 45,
   directions: 50,
   "selected-road": 55,
   "pending-dispatch": 60,
