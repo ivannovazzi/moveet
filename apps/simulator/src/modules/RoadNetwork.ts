@@ -17,9 +17,10 @@ import EventEmitter from "events";
  * review #6):
  *
  *  - {@link GraphBuilder}      builds the graph (nodes/edges/roads/connected
- *                              edges/base costs/turn restrictions) and eagerly
- *                              derives the POI / speed-limit / LineString-only
- *                              collections from the raw GeoJSON.
+ *                              edges/base costs/turn restrictions/ALT landmark
+ *                              tables) and eagerly derives the POI /
+ *                              speed-limit / LineString-only collections from
+ *                              the raw GeoJSON.
  *  - {@link SpatialIndex}      grid + sector indexes, nearest-node and random
  *                              node/edge/POI-node queries, bbox.
  *  - {@link PathfindingEngine} main-thread A*, incident costs and the LRU
@@ -89,6 +90,7 @@ export class RoadNetwork extends EventEmitter {
         turnRestrictions: built.turnRestrictions,
         turnRestrictionTypes: built.turnRestrictionTypes,
         maxNetworkSpeed: built.maxNetworkSpeed,
+        landmarks: built.landmarks,
       },
       cacheOptions
     );
@@ -242,6 +244,15 @@ export class RoadNetwork extends EventEmitter {
   /** Return hit/miss statistics for the route cache. */
   public routeCacheStats(): CacheStats {
     return this.pathfinding.routeCacheStats();
+  }
+
+  /**
+   * Nodes expanded by the most recent synchronous `findRoute` call. This is the
+   * quantity the ALT landmark heuristic exists to shrink, so it is exposed for
+   * benchmarks and regression tests.
+   */
+  public get lastExpandedNodes(): number {
+    return this.pathfinding.expandedNodes;
   }
 
   /** Looks up an edge by its ID. */

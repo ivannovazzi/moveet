@@ -27,7 +27,7 @@ import {
   TrashIcon,
   WarningTriangle,
 } from "@/components/Icons";
-import { closeDockPanel, openDockPanel } from "./dockControls";
+import type { DockNavigation } from "@/hooks/useDockNavigation";
 import type { PaletteAction } from "./types";
 
 /**
@@ -68,6 +68,13 @@ const VISIBILITY_TOGGLES: { key: keyof Modifiers; label: string }[] = [
 const REPLAY_SPEEDS = [1, 2, 4] as const;
 
 export interface CommandDeps {
+  /**
+   * The dock's panel navigation, lifted to `App.tsx` and shared with `Dock`.
+   * Opening a panel from here and clicking the dock's own cluster button are
+   * the same state transition, so the two can never disagree.
+   */
+  dock: DockNavigation;
+
   /** Simulation transport (dock Playback cluster). */
   running: boolean;
   options: StartOptions;
@@ -129,9 +136,9 @@ export interface CommandDeps {
 }
 
 /**
- * Every action the dock exposes, as palette entries. Built from the handlers
- * `App.tsx` already owns; where the dock keeps state to itself (which panel is
- * open) we drive its own buttons — see `dockControls.ts`.
+ * Every action the dock exposes, as palette entries. Built entirely from
+ * handlers `App.tsx` owns — including `dock`, the dock's own panel navigation
+ * — so the palette never reaches into rendered markup to drive the UI.
  *
  * Entries are state-aware: the transport reads "Pause simulation" while
  * running, replay controls only appear during a replay, and dispatch actions
@@ -139,6 +146,7 @@ export interface CommandDeps {
  */
 export function buildCommands(deps: CommandDeps): PaletteAction[] {
   const {
+    dock,
     running,
     options,
     isRecording,
@@ -256,7 +264,7 @@ export function buildCommands(deps: CommandDeps): PaletteAction[] {
       keywords: "clock speed time of day",
       hint: "Panel",
       icon: <ClockIcon />,
-      run: () => openDockPanel("Tempo details"),
+      run: () => dock.open("tempo"),
     },
     {
       id: "panel-fleet",
@@ -264,7 +272,7 @@ export function buildCommands(deps: CommandDeps): PaletteAction[] {
       keywords: "vehicles fleets dispatch list",
       hint: "Panel",
       icon: <CarIcon />,
-      run: () => openDockPanel("Fleet & Dispatch"),
+      run: () => dock.open("fleet-dispatch"),
     },
     {
       id: "panel-sinks",
@@ -272,7 +280,7 @@ export function buildCommands(deps: CommandDeps): PaletteAction[] {
       keywords: "adapter kafka graphql config health",
       hint: "Panel",
       icon: <Gear />,
-      run: () => openDockPanel("Sinks & Source"),
+      run: () => dock.open("sinks-source"),
     },
     {
       id: "panel-monitor",
@@ -280,7 +288,7 @@ export function buildCommands(deps: CommandDeps): PaletteAction[] {
       keywords: "incidents analytics geofences heat zones",
       hint: "Panel",
       icon: <ChartIcon />,
-      run: () => openDockPanel("Monitor"),
+      run: () => dock.open("monitor"),
     },
     {
       id: "panel-settings",
@@ -288,7 +296,7 @@ export function buildCommands(deps: CommandDeps): PaletteAction[] {
       keywords: "visibility scenarios recordings advanced tuning",
       hint: "Panel",
       icon: <GaugeIcon />,
-      run: () => openDockPanel("Settings"),
+      run: () => dock.open("settings"),
     },
     {
       id: "panel-close",
@@ -296,7 +304,7 @@ export function buildCommands(deps: CommandDeps): PaletteAction[] {
       keywords: "dismiss hide",
       hint: "Panel",
       icon: <CloseIcon />,
-      run: () => closeDockPanel(),
+      run: dock.close,
     }
   );
 

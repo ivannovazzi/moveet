@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, render } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import type { VehicleDTO } from "@moveet/shared-types";
 import type { Fleet, VehicleType } from "@/types";
 
@@ -181,6 +181,15 @@ describe("VehicleDensityLayer", () => {
     expect(densityPoints().length).toBe(DENSITY_MIN_VEHICLES + 40);
   });
 
+  it("hands the legend the very same colour array it hands the layer", () => {
+    seedVehicles(DENSITY_MIN_VEHICLES);
+    renderLayer();
+
+    const ramp = densityLayer()?.props.colorRange as unknown[];
+    expect(ramp).toBe(densityColorRange()); // identity, not just equality
+    expect(screen.getAllByTestId("density-legend-step")).toHaveLength(ramp.length);
+  });
+
   it("stops sampling after unmount", () => {
     vi.useFakeTimers();
     seedVehicles(DENSITY_MIN_VEHICLES);
@@ -194,5 +203,130 @@ describe("VehicleDensityLayer", () => {
     });
 
     expect(densityPoints().length).toBe(before);
+  });
+});
+
+// ── Legend ─────────────────────────────────────────────────────────
+
+/** Push a domain through the exact callback deck.gl would call. */
+function reportDomain(min: number, max: number) {
+  const onSetColorDomain = densityLayer()?.props.onSetColorDomain as (d: [number, number]) => void;
+  act(() => {
+    onSetColorDomain([min, max]);
+  });
+}
+
+describe("VehicleDensityLayer legend", () => {
+  it("is absent when zoomed in past the density threshold", () => {
+    seedVehicles(DENSITY_MIN_VEHICLES + 500);
+    ctx.zoom = DENSITY_ZOOM_THRESHOLD + 2;
+    renderLayer();
+
+    expect(screen.queryByTestId("density-legend")).toBeNull();
+  });
+
+  it("is absent below the vehicle-count threshold", () => {
+    seedVehicles(DENSITY_MIN_VEHICLES - 1);
+    renderLayer();
+
+    expect(screen.queryByTestId("density-legend")).toBeNull();
+  });
+
+  it("is absent when the filters leave no vehicles to bin", () => {
+    seedVehicles(DENSITY_MIN_VEHICLES + 10, "truck");
+    renderLayer({ hiddenVehicleTypes: new Set<VehicleType>(["truck"]) });
+
+    expect(screen.queryByTestId("density-legend")).toBeNull();
+  });
+
+  it("appears with the plate and names what the colour means", () => {
+    seedVehicles(DENSITY_MIN_VEHICLES);
+    renderLayer();
+
+    const legend = screen.getByTestId("density-legend");
+    expect(legend).toHaveAttribute("aria-label", "Vehicles per bin");
+    // Bin size is stated so a colour can be read as a density, not a raw count
+    // over an unknown area.
+    expect(legend.textContent).toMatch(/hex bins/);
+  });
+
+  it("renders exactly as many steps as the ramp the layer was given", () => {
+    seedVehicles(DENSITY_MIN_VEHICLES);
+    renderLayer();
+
+    expect(screen.getAllByTestId("density-legend-step")).toHaveLength(densityColorRange().length);
+  });
+
+  it("shows no numbers until deck.gl reports a domain", () => {
+    seedVehicles(DENSITY_MIN_VEHICLES);
+    renderLayer();
+
+    expect(screen.getByTestId("density-legend-min")).toHaveTextContent("—");
+    expect(screen.getByTestId("density-legend-max")).toHaveTextContent("—");
+  });
+
+  it("labels the domain deck.gl actually coloured against", () => {
+    seedVehicles(DENSITY_MIN_VEHICLES);
+    renderLayer();
+
+    reportDomain(2, 74);
+
+    expect(screen.getByTestId("density-legend-min")).toHaveTextContent("2");
+    expect(screen.getByTestId("density-legend-max")).toHaveTextContent("74");
+  });
+
+  it("maps each ramp step to the bin range that step colours", () => {
+    seedVehicles(DENSITY_MIN_VEHICLES);
+    renderLayer();
+
+    reportDomain(0, 60); // 6 steps → width 10
+
+    const rows = screen.getByTestId("density-legend-table").querySelectorAll("li");
+    expect(rows).toHaveLength(densityColorRange().length);
+    expect(rows[0].textContent).toBe("Step 1 of 6: 0 to 10");
+    expect(rows[2].textContent).toBe("Step 3 of 6: 20 to 30");
+    expect(rows[5].textContent).toBe("Step 6 of 6: 50 to 60");
+  });
+
+  it("follows the domain when the data moves under it", () => {
+    seedVehicles(DENSITY_MIN_VEHICLES);
+    renderLayer();
+
+    reportDomain(1, 20);
+    expect(screen.getByTestId("density-legend-max")).toHaveTextContent("20");
+
+    reportDomain(1, 340);
+    expect(screen.getByTestId("density-legend-max")).toHaveTextContent("340");
+  });
+
+  it("ignores the empty-aggregation domain instead of printing Infinity", () => {
+    seedVehicles(DENSITY_MIN_VEHICLES);
+    renderLayer();
+
+    reportDomain(Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY);
+
+    expect(screen.getByTestId("density-legend-max")).toHaveTextContent("—");
+  });
+
+  it("drops a stale domain when the density view switches off", () => {
+    vi.useFakeTimers();
+    seedVehicles(DENSITY_MIN_VEHICLES);
+    renderLayer();
+    reportDomain(1, 99);
+    expect(screen.getByTestId("density-legend-max")).toHaveTextContent("99");
+
+    // Fleet shrinks below the switch threshold → plate and legend both go.
+    seedVehicles(DENSITY_MIN_VEHICLES - 50);
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(screen.queryByTestId("density-legend")).toBeNull();
+
+    // Back above it: the ramp returns without last time's numbers.
+    seedVehicles(DENSITY_MIN_VEHICLES);
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(screen.getByTestId("density-legend-max")).toHaveTextContent("—");
   });
 });

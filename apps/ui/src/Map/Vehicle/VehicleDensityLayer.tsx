@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { HexagonLayer } from "@deck.gl/aggregation-layers";
 import type { Layer } from "@deck.gl/core";
 import type { Fleet, VehicleType } from "@/types";
 import { vehicleStore } from "@/hooks/vehicleStore";
+import { LayersIcon } from "@/components/Icons";
 import { useMapContext } from "@/components/Map/hooks";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
+import ScaleLegend from "../ScaleLegend";
 import { densityColorRange, hexRadiusMetersForZoom, shouldAggregate } from "./densityView";
 
 export const DENSITY_LAYER_ID = "vehicle-density";
@@ -45,6 +47,13 @@ interface Sample {
 
 const EMPTY_SAMPLE: Sample = { points: [], total: 0 };
 
+/** Bin size, phrased for a human reading the legend. */
+function formatBinSize(radiusMeters: number): string {
+  return radiusMeters >= 1000
+    ? `~${(radiusMeters / 1000).toFixed(radiusMeters >= 10000 ? 0 : 1)} km hex bins`
+    : `~${radiusMeters} m hex bins`;
+}
+
 /**
  * Zoom-dependent density view for high vehicle counts.
  *
@@ -62,6 +71,17 @@ export default function VehicleDensityLayer({
   const { viewState } = useMapContext();
   const zoom = viewState?.zoom ?? 0;
   const [sample, setSample] = useState<Sample>(EMPTY_SAMPLE);
+  /**
+   * `[min, max]` bin count the layer is currently colouring across.
+   *
+   * Reported *by deck.gl*, not derived here. With `colorDomain` left unset and
+   * no percentile cutoff, `HexagonLayer` colours cells against
+   * `aggregator.getResultDomain(0)` and hands that same array to
+   * `onSetColorDomain`, so the legend reads the map's own number. Re-deriving
+   * it would mean re-implementing hexagon binning, and any drift between the
+   * two implementations would be a legend that lies.
+   */
+  const [colorDomain, setColorDomain] = useState<[number, number] | null>(null);
 
   useEffect(() => {
     const read = () => {
@@ -89,9 +109,28 @@ export default function VehicleDensityLayer({
   // Bucketed to half-zoom steps inside the helper, so this is a stable number
   // across small zoom changes and doesn't bust the memo on every wheel tick.
   const radius = hexRadiusMetersForZoom(zoom);
+  const drawing = active && sample.points.length > 0;
+
+  // The one ramp. The identical array reference goes to the layer and to the
+  // legend below, so "same number of steps, same colours" is structural rather
+  // than a convention two call sites have to keep agreeing on.
+  const colorRange = densityColorRange();
+
+  const onSetColorDomain = useCallback(([min, max]: [number, number]) => {
+    // Aggregation over zero bins yields [Infinity, -Infinity].
+    if (!Number.isFinite(min) || !Number.isFinite(max)) return;
+    setColorDomain((prev) => (prev && prev[0] === min && prev[1] === max ? prev : [min, max]));
+  }, []);
+
+  // A domain outlives the layer that produced it, so drop it the moment the
+  // plate comes off screen; otherwise re-engaging density would flash last
+  // time's numbers under this time's colours.
+  useEffect(() => {
+    if (!drawing) setColorDomain(null);
+  }, [drawing]);
 
   const layers = useMemo(() => {
-    if (!active || sample.points.length === 0) return NO_LAYERS;
+    if (!drawing) return NO_LAYERS;
     return [
       new HexagonLayer<DensityPoint>({
         id: DENSITY_LAYER_ID,
@@ -106,13 +145,32 @@ export default function VehicleDensityLayer({
         getColorWeight: 1,
         colorAggregation: "SUM",
         colorScaleType: "quantize",
-        colorRange: densityColorRange(),
+        colorRange,
+        // Deliberately no `colorDomain`: deck.gl derives it from the live bins
+        // and reports it back here, which is what the legend renders.
+        onSetColorDomain,
         pickable: false,
       }),
     ];
-  }, [active, sample.points, radius]);
+  }, [drawing, sample.points, radius, colorRange, onSetColorDomain]);
 
   useRegisterLayers(DENSITY_LAYER_ID, layers);
 
-  return null;
+  if (!drawing) return null;
+
+  return (
+    <ScaleLegend
+      testId="density-legend"
+      title="Vehicles per bin"
+      subtitle={formatBinSize(radius)}
+      icon={LayersIcon}
+      colorRange={colorRange}
+      domain={colorDomain}
+      // Top-left is the only corner nothing else claims: the dock and the
+      // start hint own the bottom centre, the type legend the bottom left, the
+      // zoom controls and fleet legend the bottom right. Below the search bar
+      // rather than beside it, so the two never collide on a narrow window.
+      className="left-3 top-[72px]"
+    />
+  );
 }

@@ -1926,6 +1926,23 @@ paths:
       description: >
         Returns historical analytics snapshots stored in SQLite.
         Only available when persistence is enabled (PERSISTENCE_ENABLED=true).
+
+
+        When the window holds more rows than `limit`, the RECENT end is kept and
+        older rows are dropped, so the payload always reaches the end of the
+        window. What was dropped is reported on every response via the
+        `X-Analytics-*` headers, and in the body when `envelope=true`.
+
+
+        `bucket` downsamples server-side into fixed-width time buckets. Each
+        bucketed entry carries a `bucket` object, and the metadata names the
+        aggregation applied per field: cumulative counters
+        (`totalDistanceTraveled`, `totalIdleTime`, `fleets[].totalDistance`,
+        `fleets[].totalIdleTime`) keep the bucket's LAST value, gauges
+        (`activeVehicles`, `avgSpeed`, `avgRouteEfficiency`, `activeCount`,
+        `routeEfficiency`) are averaged, `totalVehicles`/`vehicleCount` keep the
+        last value, and `fleets[].vehicles` is carried through from the newest
+        sample without aggregation.
       tags: [Analytics]
       parameters:
         - name: from
@@ -1950,16 +1967,73 @@ paths:
             minimum: 1
             maximum: 10000
             default: 1000
-          description: Maximum number of entries to return
+          description: >
+            Maximum number of entries (rows, or buckets when `bucket` is set).
+            Truncation always drops the oldest entries.
+        - name: order
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+          description: Order of the returned entries. Does not affect which entries survive `limit`.
+        - name: bucket
+          in: query
+          required: false
+          schema:
+            type: string
+          description: >
+            Downsample width: `auto`, a duration (`30s`, `5m`, `1h`, `1d`) or a
+            millisecond count between 1000 and 604800000. `auto` picks the
+            smallest width that fits the window into `limit` buckets.
+        - name: envelope
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: >
+            Return `{ meta, rows }` instead of a bare array, so truncation and
+            bucketing metadata travels in the body.
       responses:
         "200":
-          description: Array of analytics history entries
+          description: >
+            Array of analytics history entries, or a `{ meta, rows }` envelope
+            when `envelope=true`.
+          headers:
+            X-Analytics-Matched:
+              description: Stored rows inside the requested window, before limiting or bucketing.
+              schema:
+                type: integer
+            X-Analytics-Returned:
+              description: Entries in the payload.
+              schema:
+                type: integer
+            X-Analytics-Omitted:
+              description: Stored rows in the window that are not represented in the payload.
+              schema:
+                type: integer
+            X-Analytics-Truncated:
+              description: "`true` when the payload is not the whole window."
+              schema:
+                type: boolean
+            X-Analytics-Anchor:
+              description: Which end of the window survives the limit. Always `newest`.
+              schema:
+                type: string
+            X-Analytics-Bucket:
+              description: Bucket width label, or `none` for un-bucketed responses.
+              schema:
+                type: string
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/AnalyticsHistoryEntry"
+                oneOf:
+                  - type: array
+                    items:
+                      $ref: "#/components/schemas/AnalyticsHistoryEntry"
+                  - $ref: "#/components/schemas/AnalyticsHistoryEnvelope"
         "400":
           description: Invalid query parameters
           content:
@@ -3210,15 +3284,155 @@ components:
       properties:
         id:
           type: integer
+          description: >
+            Row id. On a bucketed entry this is the id of the newest stored row
+            folded into the bucket.
         timestamp:
           type: string
           format: date-time
+          description: Row timestamp, or the bucket start on a bucketed entry.
         summary:
           $ref: "#/components/schemas/AnalyticsSummary"
         fleets:
           type: array
           items:
             $ref: "#/components/schemas/FleetAnalytics"
+        bucket:
+          allOf:
+            - $ref: "#/components/schemas/AnalyticsBucketInfo"
+          description: >
+            Present only on downsampled entries; its absence means the entry is
+            a verbatim stored sample.
+
+    AnalyticsBucketInfo:
+      type: object
+      required:
+        [durationMs, label, start, end, sampleCount, firstTimestamp, lastTimestamp]
+      properties:
+        durationMs:
+          type: integer
+        label:
+          type: string
+          example: 5m
+        start:
+          type: string
+          format: date-time
+          description: Bucket start, inclusive.
+        end:
+          type: string
+          format: date-time
+          description: Bucket end, exclusive.
+        sampleCount:
+          type: integer
+          description: Stored samples folded into this entry.
+        firstTimestamp:
+          type: string
+          format: date-time
+        lastTimestamp:
+          type: string
+          format: date-time
+
+    AnalyticsHistoryMeta:
+      type: object
+      description: What the query returned, and what it left out.
+      required:
+        [
+          matched,
+          scanned,
+          returned,
+          omitted,
+          truncated,
+          anchor,
+          limit,
+          order,
+          from,
+          to,
+          coveredFrom,
+          coveredTo,
+          windowFrom,
+          windowTo,
+          bucket,
+        ]
+      properties:
+        matched:
+          type: integer
+          description: Stored rows inside the requested window, before limiting or bucketing.
+        scanned:
+          type: integer
+          description: Stored rows actually read, and therefore represented in the payload.
+        returned:
+          type: integer
+          description: Entries in the payload.
+        omitted:
+          type: integer
+          description: Stored rows in the window that are not represented at all.
+        truncated:
+          type: boolean
+        anchor:
+          type: string
+          enum: [newest]
+          description: Which end of the window survives the limit.
+        limit:
+          type: integer
+          description: Limit actually applied, after clamping to [1, 10000].
+        order:
+          type: string
+          enum: [asc, desc]
+        from:
+          type: string
+          nullable: true
+        to:
+          type: string
+          nullable: true
+        coveredFrom:
+          type: string
+          nullable: true
+          description: Oldest stored timestamp represented in the payload.
+        coveredTo:
+          type: string
+          nullable: true
+          description: Newest stored timestamp represented in the payload.
+        windowFrom:
+          type: string
+          nullable: true
+          description: Oldest stored timestamp inside the requested window.
+        windowTo:
+          type: string
+          nullable: true
+          description: Newest stored timestamp inside the requested window.
+        bucket:
+          nullable: true
+          allOf:
+            - type: object
+              required: [durationMs, label, count, sampleCount, auto, aggregation]
+              properties:
+                durationMs:
+                  type: integer
+                label:
+                  type: string
+                count:
+                  type: integer
+                sampleCount:
+                  type: integer
+                auto:
+                  type: boolean
+                  description: True when the width was derived from the data rather than requested.
+                aggregation:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  description: Fold applied per field, e.g. `summary.avgSpeed -> mean`.
+
+    AnalyticsHistoryEnvelope:
+      type: object
+      required: [meta, rows]
+      properties:
+        meta:
+          $ref: "#/components/schemas/AnalyticsHistoryMeta"
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalyticsHistoryEntry"
 
     RecordingIndexEntry:
       type: object

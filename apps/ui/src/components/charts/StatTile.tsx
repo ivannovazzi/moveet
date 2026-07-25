@@ -2,7 +2,7 @@ import { ArrowDown, ArrowUp, Minus } from "lucide-react";
 import type { ReactNode } from "react";
 import { Eyebrow } from "@/Dock/DockPanelKit";
 import { cn } from "@/lib/utils";
-import { Sparkline } from "./Sparkline";
+import { Sparkline, type SparkPoint } from "./Sparkline";
 
 /** Whether an increase in this measure is a good thing. */
 export type DeltaPolarity = "up-is-good" | "down-is-good" | "neutral";
@@ -23,8 +23,11 @@ export interface StatTileProps {
   /** Unit suffix, rendered de-emphasised next to the value. */
   unit?: string;
   delta?: StatDelta | null;
-  /** Trend series for the sparkline. Fewer than 2 points renders no spark. */
-  trend?: number[];
+  /**
+   * Trend series for the sparkline. Fewer than 2 readings renders no spark.
+   * `null` entries are gaps in the measure, not zeros.
+   */
+  trend?: SparkPoint[];
   className?: string;
 }
 

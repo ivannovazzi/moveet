@@ -26,10 +26,11 @@ export {
   type PlotBox,
   type Point,
   type SeriesGeometry,
+  type SeriesRun,
 } from "./geometry";
 export { SeriesTable, type SeriesTableProps } from "./SeriesTable";
 export { SmallMultiples, type SmallMultiplesProps } from "./SmallMultiples";
-export { Sparkline, type SparklineProps } from "./Sparkline";
+export { Sparkline, type SparkPoint, type SparklineProps } from "./Sparkline";
 export { StatTile, type StatDelta, type StatTileProps, type DeltaPolarity } from "./StatTile";
 export { FACET_INSETS, TimeSeriesFacet, type FacetSeries } from "./TimeSeriesFacet";
 export { useElementWidth } from "./useElementWidth";

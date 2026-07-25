@@ -28,6 +28,136 @@ export interface AnalyticsHistoryRow {
   timestamp: string;
   summary: AnalyticsSummary;
   fleets: FleetAnalytics[];
+  /**
+   * Present only on downsampled rows. Its absence means the row is a verbatim
+   * stored sample.
+   */
+  bucket?: AnalyticsBucketInfo;
+}
+
+// ─── Analytics history query shaping ────────────────────────────────
+
+/** Sort order of the rows handed back by {@link StateStore.getAnalyticsHistory}. */
+export type AnalyticsOrder = "asc" | "desc";
+
+/** Provenance of a single downsampled row. */
+export interface AnalyticsBucketInfo {
+  /** Bucket width in milliseconds. */
+  durationMs: number;
+  /** Canonical width label, e.g. `"5m"`. */
+  label: string;
+  /** ISO start of the bucket window (inclusive). */
+  start: string;
+  /** ISO end of the bucket window (exclusive). */
+  end: string;
+  /** Stored samples folded into this row. */
+  sampleCount: number;
+  /** ISO timestamp of the oldest sample folded in. */
+  firstTimestamp: string;
+  /** ISO timestamp of the newest sample folded in. */
+  lastTimestamp: string;
+}
+
+/**
+ * How each analytics field is folded when a query is bucketed.
+ *
+ * The distinction matters: `totalDistanceTraveled` and `totalIdleTime` are
+ * monotonically accumulating counters — averaging them would understate the
+ * fleet and break monotonicity, so the bucket keeps the LAST value. Gauges
+ * (`activeVehicles`, `avgSpeed`, `avgRouteEfficiency`) are averaged across the
+ * samples in the bucket. `totalVehicles` is a slow-moving gauge (fleet size),
+ * so the last value is the honest representative rather than a fractional mean.
+ *
+ * `fleets[].vehicles` (the per-vehicle `VehicleStats[]`) is NOT aggregated: it
+ * is a point-in-time array mixing cumulative counters with per-vehicle gauges
+ * and there is no meaningful element-wise fold, so the newest sample's array is
+ * carried through verbatim.
+ *
+ * Shipped inside the response metadata so a caller can never mistake a bucketed
+ * counter for a mean.
+ */
+export const ANALYTICS_BUCKET_AGGREGATION = {
+  "summary.totalVehicles": "last",
+  "summary.activeVehicles": "mean",
+  "summary.totalDistanceTraveled": "last (cumulative counter)",
+  "summary.avgSpeed": "mean",
+  "summary.totalIdleTime": "last (cumulative counter)",
+  "summary.avgRouteEfficiency": "mean",
+  "summary.timestamp": "bucket start",
+  "fleets[].vehicleCount": "last",
+  "fleets[].activeCount": "mean",
+  "fleets[].totalDistance": "last (cumulative counter)",
+  "fleets[].avgSpeed": "mean",
+  "fleets[].totalIdleTime": "last (cumulative counter)",
+  "fleets[].routeEfficiency": "mean",
+  "fleets[].vehicles": "last (not aggregated)",
+} as const;
+
+/** Bucket summary attached to the metadata of a downsampled query. */
+export interface AnalyticsBucketMeta {
+  durationMs: number;
+  label: string;
+  /** Buckets in the payload. */
+  count: number;
+  /** Stored samples folded into those buckets. */
+  sampleCount: number;
+  /** True when the width was derived from the data rather than requested. */
+  auto: boolean;
+  aggregation: typeof ANALYTICS_BUCKET_AGGREGATION;
+}
+
+/**
+ * Everything the caller needs to know about what the query did NOT return.
+ *
+ * A limited query is answered from the RECENT end of the window, so anything
+ * omitted is always older than the payload.
+ */
+export interface AnalyticsHistoryMeta {
+  /** Stored rows inside the requested window, before limiting or bucketing. */
+  matched: number;
+  /** Stored rows actually read (and therefore represented in the payload). */
+  scanned: number;
+  /** Entries in the payload (buckets when bucketed, rows otherwise). */
+  returned: number;
+  /** Stored rows in the window that are NOT represented at all. */
+  omitted: number;
+  /** True whenever `omitted > 0` — i.e. the payload is not the whole window. */
+  truncated: boolean;
+  /** Which end of the window survives the limit. Always the newest. */
+  anchor: "newest";
+  /** Limit actually applied after clamping to [1, 10000]. */
+  limit: number;
+  order: AnalyticsOrder;
+  /** Echo of the requested window (`null` = unbounded). */
+  from: string | null;
+  to: string | null;
+  /** Span the payload actually covers (`null` when empty). */
+  coveredFrom: string | null;
+  coveredTo: string | null;
+  /** Oldest/newest stored timestamps inside the requested window. */
+  windowFrom: string | null;
+  windowTo: string | null;
+  bucket: AnalyticsBucketMeta | null;
+}
+
+/**
+ * Analytics rows plus their metadata.
+ *
+ * It is an `Array` so `res.json()` and every existing caller keep seeing the
+ * exact same JSON payload; `meta` is a non-enumerable property, invisible to
+ * `JSON.stringify`, spreads and deep-equality checks, that transports the
+ * truncation/bucketing facts to the HTTP layer.
+ */
+export type AnalyticsHistoryResult = AnalyticsHistoryRow[] & {
+  readonly meta: AnalyticsHistoryMeta;
+};
+
+/** Options for shaping an analytics history query. */
+export interface AnalyticsHistoryOptions {
+  /** Row order in the payload. Default `"asc"`. Truncation always keeps the newest. */
+  order?: AnalyticsOrder;
+  /** Downsample width: `"auto"`, a duration (`"30s"`, `"5m"`, `"1h"`) or milliseconds. */
+  bucket?: string | number | null;
 }
 
 /** Row shape returned by SELECT on the recordings table. */
@@ -40,6 +170,210 @@ export interface RecordingRow {
   vehicle_count: number;
   start_time: string;
   created_at: string;
+}
+
+// ─── Analytics history helpers ──────────────────────────────────────
+
+/** Upper bound on rows (or buckets) a single history query may return. */
+const MAX_ANALYTICS_LIMIT = 10000;
+
+/**
+ * Hard cap on stored rows read while bucketing. At the 5 s persistence cadence
+ * this is ~14 days of samples; beyond it the query reports truncation instead
+ * of scanning the table forever.
+ */
+const MAX_BUCKET_SCAN_ROWS = 250_000;
+
+/** Sentinels used when only one side of the range is supplied. */
+const MIN_TIMESTAMP = "1970-01-01T00:00:00.000Z";
+const MAX_TIMESTAMP = "9999-12-31T23:59:59.999Z";
+
+const MIN_BUCKET_MS = 1000;
+const MAX_BUCKET_MS = 7 * 24 * 60 * 60 * 1000;
+
+const BUCKET_UNIT_MS: Record<string, number> = {
+  ms: 1,
+  s: 1000,
+  m: 60_000,
+  h: 3_600_000,
+  d: 86_400_000,
+};
+
+/** Widths `bucket=auto` may pick from, ascending. */
+const AUTO_BUCKET_LADDER_MS = [
+  1_000, 5_000, 10_000, 30_000, 60_000, 300_000, 900_000, 1_800_000, 3_600_000, 10_800_000,
+  21_600_000, 43_200_000, 86_400_000,
+];
+
+/**
+ * Parses a bucket specification.
+ *
+ * Accepts `"auto"`, a duration string (`"30s"`, `"5m"`, `"1h"`, `"1d"`) or a
+ * raw millisecond count. Returns `null` for anything unparseable or out of the
+ * `[1s, 7d]` range so callers can answer 400 rather than guess.
+ */
+export function parseBucketSpec(spec: string | number): number | "auto" | null {
+  if (typeof spec === "number") {
+    return Number.isFinite(spec) && spec >= MIN_BUCKET_MS && spec <= MAX_BUCKET_MS
+      ? Math.floor(spec)
+      : null;
+  }
+
+  const trimmed = spec.trim().toLowerCase();
+  if (trimmed === "auto") return "auto";
+
+  const match = /^(\d+(?:\.\d+)?)(ms|s|m|h|d)$/.exec(trimmed);
+  if (match) {
+    const ms = Math.floor(Number(match[1]) * BUCKET_UNIT_MS[match[2]]);
+    return ms >= MIN_BUCKET_MS && ms <= MAX_BUCKET_MS ? ms : null;
+  }
+
+  if (/^\d+$/.test(trimmed)) return parseBucketSpec(Number(trimmed));
+
+  return null;
+}
+
+/** Renders a bucket width back into its most compact canonical label. */
+export function formatBucketLabel(durationMs: number): string {
+  for (const [unit, size] of [
+    ["d", BUCKET_UNIT_MS.d],
+    ["h", BUCKET_UNIT_MS.h],
+    ["m", BUCKET_UNIT_MS.m],
+    ["s", BUCKET_UNIT_MS.s],
+  ] as const) {
+    if (durationMs % size === 0) return `${durationMs / size}${unit}`;
+  }
+  return `${durationMs}ms`;
+}
+
+/** Smallest ladder width that fits `spanMs` into at most `targetBuckets`. */
+function pickAutoBucket(spanMs: number, targetBuckets: number): number {
+  const ideal = spanMs / Math.max(1, targetBuckets);
+  for (const candidate of AUTO_BUCKET_LADDER_MS) {
+    if (candidate >= ideal) return candidate;
+  }
+  return AUTO_BUCKET_LADDER_MS[AUTO_BUCKET_LADDER_MS.length - 1];
+}
+
+/** Trims float noise introduced by summing then dividing. */
+function roundValue(value: number): number {
+  return Math.round(value * 1e6) / 1e6;
+}
+
+/** Raw `analytics_history` row as SQLite hands it over. */
+interface RawAnalyticsRow {
+  id: number;
+  timestamp: string;
+  summary: string;
+  fleets: string;
+}
+
+function decodeRow(row: RawAnalyticsRow): AnalyticsHistoryRow {
+  return {
+    id: row.id,
+    timestamp: row.timestamp,
+    summary: JSON.parse(row.summary) as AnalyticsSummary,
+    fleets: JSON.parse(row.fleets) as FleetAnalytics[],
+  };
+}
+
+/** Running fold of one fleet inside one bucket. */
+interface FleetAccumulator {
+  /** Newest sample seen for this fleet — the source of every "last" field. */
+  latest: FleetAnalytics;
+  samples: number;
+  activeCount: number;
+  avgSpeed: number;
+  routeEfficiency: number;
+}
+
+/** Running fold of one time bucket. */
+interface BucketAccumulator {
+  /** Epoch ms of the bucket start. */
+  key: number;
+  /** Newest row in the bucket — the source of every "last" field. */
+  latest: AnalyticsHistoryRow;
+  oldestTimestamp: string;
+  sampleCount: number;
+  activeVehicles: number;
+  avgSpeed: number;
+  avgRouteEfficiency: number;
+  fleets: Map<string, FleetAccumulator>;
+}
+
+/** Folds one raw row into its bucket, respecting per-field aggregation rules. */
+function accumulate(acc: BucketAccumulator, row: AnalyticsHistoryRow): void {
+  acc.sampleCount += 1;
+  acc.oldestTimestamp = row.timestamp;
+  acc.activeVehicles += row.summary.activeVehicles ?? 0;
+  acc.avgSpeed += row.summary.avgSpeed ?? 0;
+  acc.avgRouteEfficiency += row.summary.avgRouteEfficiency ?? 0;
+
+  for (const fleet of row.fleets ?? []) {
+    const existing = acc.fleets.get(fleet.fleetId);
+    if (existing) {
+      existing.samples += 1;
+      existing.activeCount += fleet.activeCount ?? 0;
+      existing.avgSpeed += fleet.avgSpeed ?? 0;
+      existing.routeEfficiency += fleet.routeEfficiency ?? 0;
+    } else {
+      // Rows arrive newest-first, so the first sighting of a fleet is its
+      // newest sample and therefore the "last" value for this bucket.
+      acc.fleets.set(fleet.fleetId, {
+        latest: fleet,
+        samples: 1,
+        activeCount: fleet.activeCount ?? 0,
+        avgSpeed: fleet.avgSpeed ?? 0,
+        routeEfficiency: fleet.routeEfficiency ?? 0,
+      });
+    }
+  }
+}
+
+/** Materializes an accumulated bucket into an `AnalyticsHistoryRow`. */
+function finalizeBucket(acc: BucketAccumulator, durationMs: number): AnalyticsHistoryRow {
+  const n = acc.sampleCount;
+  const last = acc.latest;
+
+  return {
+    // The newest underlying row's id, so ids stay real and strictly increasing.
+    id: last.id,
+    timestamp: new Date(acc.key).toISOString(),
+    summary: {
+      totalVehicles: last.summary.totalVehicles,
+      activeVehicles: roundValue(acc.activeVehicles / n),
+      totalDistanceTraveled: last.summary.totalDistanceTraveled,
+      avgSpeed: roundValue(acc.avgSpeed / n),
+      totalIdleTime: last.summary.totalIdleTime,
+      avgRouteEfficiency: roundValue(acc.avgRouteEfficiency / n),
+      timestamp: acc.key,
+    },
+    fleets: [...acc.fleets.values()].map((fleet) => ({
+      fleetId: fleet.latest.fleetId,
+      vehicleCount: fleet.latest.vehicleCount,
+      activeCount: roundValue(fleet.activeCount / fleet.samples),
+      totalDistance: fleet.latest.totalDistance,
+      avgSpeed: roundValue(fleet.avgSpeed / fleet.samples),
+      totalIdleTime: fleet.latest.totalIdleTime,
+      routeEfficiency: roundValue(fleet.routeEfficiency / fleet.samples),
+      vehicles: fleet.latest.vehicles,
+    })),
+    bucket: {
+      durationMs,
+      label: formatBucketLabel(durationMs),
+      start: new Date(acc.key).toISOString(),
+      end: new Date(acc.key + durationMs).toISOString(),
+      sampleCount: n,
+      firstTimestamp: acc.oldestTimestamp,
+      lastTimestamp: last.timestamp,
+    },
+  };
+}
+
+/** Attaches `meta` to the rows array without making it part of the JSON body. */
+function withMeta(rows: AnalyticsHistoryRow[], meta: AnalyticsHistoryMeta): AnalyticsHistoryResult {
+  Object.defineProperty(rows, "meta", { value: meta, enumerable: false, configurable: true });
+  return rows as AnalyticsHistoryResult;
 }
 
 /**
@@ -63,8 +397,8 @@ export class StateStore {
 
   // ─── Analytics history statements ─────────────────────────────────
   private insertAnalyticsStmt: Database.Statement;
-  private selectAnalyticsRangeStmt: Database.Statement;
-  private selectAnalyticsAllStmt: Database.Statement;
+  private selectAnalyticsDescStmt: Database.Statement;
+  private analyticsRangeStatsStmt: Database.Statement;
   private pruneAnalyticsStmt: Database.Statement;
   private countAnalyticsStmt: Database.Statement;
 
@@ -121,17 +455,19 @@ export class StateStore {
       `INSERT INTO analytics_history (timestamp, summary, fleets) VALUES (?, ?, ?)`
     );
 
-    this.selectAnalyticsRangeStmt = this.db.prepare(
+    // Reads run newest-first so a LIMIT keeps the RECENT end of the window;
+    // ascending payloads are produced by reversing in JS.
+    this.selectAnalyticsDescStmt = this.db.prepare(
       `SELECT id, timestamp, summary, fleets FROM analytics_history
        WHERE timestamp >= ? AND timestamp <= ?
-       ORDER BY timestamp ASC
+       ORDER BY timestamp DESC, id DESC
        LIMIT ?`
     );
 
-    this.selectAnalyticsAllStmt = this.db.prepare(
-      `SELECT id, timestamp, summary, fleets FROM analytics_history
-       ORDER BY timestamp ASC
-       LIMIT ?`
+    this.analyticsRangeStatsStmt = this.db.prepare(
+      `SELECT COUNT(*) AS count, MIN(timestamp) AS min_ts, MAX(timestamp) AS max_ts
+       FROM analytics_history
+       WHERE timestamp >= ? AND timestamp <= ?`
     );
 
     this.pruneAnalyticsStmt = this.db.prepare(`DELETE FROM analytics_history WHERE timestamp < ?`);
@@ -252,40 +588,181 @@ export class StateStore {
     );
   }
 
-  getAnalyticsHistory(from?: string, to?: string, limit: number = 1000): AnalyticsHistoryRow[] {
-    const effectiveLimit = Math.min(Math.max(1, limit), 10000);
+  /**
+   * Reads the analytics time series for a window.
+   *
+   * The returned array is the payload; its non-enumerable `meta` property
+   * reports what was left out. Two rules matter:
+   *
+   * - **Truncation keeps the newest.** When the window holds more rows than
+   *   `limit`, the OLD end is dropped, never the recent end, so a limited query
+   *   over a wide range still ends at "now". (Before this method was fixed the
+   *   opposite was true: `ORDER BY timestamp ASC ... LIMIT ?` silently returned
+   *   ancient history and hid everything after it.)
+   * - **Nothing is dropped silently.** `meta.truncated`, `meta.matched` and
+   *   `meta.omitted` always describe the gap between the window and the payload.
+   *
+   * @param from  ISO lower bound (inclusive), unbounded when omitted.
+   * @param to    ISO upper bound (inclusive), unbounded when omitted.
+   * @param limit Max entries; clamped to [1, 10000].
+   * @param options `order` for payload ordering, `bucket` to downsample.
+   */
+  getAnalyticsHistory(
+    from?: string,
+    to?: string,
+    limit: number = 1000,
+    options: AnalyticsHistoryOptions = {}
+  ): AnalyticsHistoryResult {
+    const effectiveLimit = Math.min(Math.max(1, Math.floor(limit) || 1), MAX_ANALYTICS_LIMIT);
+    const order: AnalyticsOrder = options.order === "desc" ? "desc" : "asc";
+    const lower = from ?? MIN_TIMESTAMP;
+    const upper = to ?? MAX_TIMESTAMP;
 
-    let rows: Array<{
-      id: number;
-      timestamp: string;
-      summary: string;
-      fleets: string;
-    }>;
+    const stats = this.analyticsRangeStatsStmt.get(lower, upper) as {
+      count: number;
+      min_ts: string | null;
+      max_ts: string | null;
+    };
 
-    if (from && to) {
-      rows = this.selectAnalyticsRangeStmt.all(from, to, effectiveLimit) as typeof rows;
-    } else if (from) {
-      rows = this.selectAnalyticsRangeStmt.all(
-        from,
-        "9999-12-31T23:59:59.999Z",
-        effectiveLimit
-      ) as typeof rows;
-    } else if (to) {
-      rows = this.selectAnalyticsRangeStmt.all(
-        "1970-01-01T00:00:00.000Z",
-        to,
-        effectiveLimit
-      ) as typeof rows;
-    } else {
-      rows = this.selectAnalyticsAllStmt.all(effectiveLimit) as typeof rows;
+    const base = {
+      matched: stats.count,
+      anchor: "newest" as const,
+      limit: effectiveLimit,
+      order,
+      from: from ?? null,
+      to: to ?? null,
+      windowFrom: stats.min_ts,
+      windowTo: stats.max_ts,
+    };
+
+    const bucketSpec = options.bucket ?? null;
+    if (bucketSpec !== null) {
+      return this.readBucketed(lower, upper, effectiveLimit, order, bucketSpec, stats, base);
     }
 
-    return rows.map((row) => ({
-      id: row.id,
-      timestamp: row.timestamp,
-      summary: JSON.parse(row.summary) as AnalyticsSummary,
-      fleets: JSON.parse(row.fleets) as FleetAnalytics[],
-    }));
+    const raw = this.selectAnalyticsDescStmt.all(lower, upper, effectiveLimit) as RawAnalyticsRow[];
+    const rows = raw.map(decodeRow);
+    if (order === "asc") rows.reverse();
+
+    const coveredFrom = raw.length > 0 ? raw[raw.length - 1].timestamp : null;
+    const coveredTo = raw.length > 0 ? raw[0].timestamp : null;
+
+    return withMeta(rows, {
+      ...base,
+      scanned: raw.length,
+      returned: rows.length,
+      omitted: Math.max(0, stats.count - raw.length),
+      truncated: stats.count > raw.length,
+      coveredFrom,
+      coveredTo,
+      bucket: null,
+    });
+  }
+
+  /**
+   * Downsampled read: streams stored rows newest-first and folds them into
+   * fixed-width time buckets, stopping as soon as `limit` buckets are complete.
+   * A 24 h window therefore costs a bounded scan instead of shipping every
+   * sample for the client to thin.
+   */
+  private readBucketed(
+    lower: string,
+    upper: string,
+    effectiveLimit: number,
+    order: AnalyticsOrder,
+    bucketSpec: string | number,
+    stats: { count: number; min_ts: string | null; max_ts: string | null },
+    base: Omit<
+      AnalyticsHistoryMeta,
+      "scanned" | "returned" | "omitted" | "truncated" | "coveredFrom" | "coveredTo" | "bucket"
+    >
+  ): AnalyticsHistoryResult {
+    const parsed = parseBucketSpec(bucketSpec);
+    if (parsed === null) {
+      throw new Error(
+        `Invalid bucket "${bucketSpec}": expected "auto", a duration (30s, 5m, 1h, 1d) or milliseconds between ${MIN_BUCKET_MS} and ${MAX_BUCKET_MS}`
+      );
+    }
+
+    const auto = parsed === "auto";
+    const spanMs =
+      stats.min_ts && stats.max_ts
+        ? Math.max(1, Date.parse(stats.max_ts) - Date.parse(stats.min_ts))
+        : 0;
+    const durationMs =
+      parsed === "auto"
+        ? // With no data to measure, fall back to the ladder's 1 m step.
+          pickAutoBucket(spanMs || 60_000 * effectiveLimit, effectiveLimit)
+        : parsed;
+
+    const accumulators: BucketAccumulator[] = [];
+    let current: BucketAccumulator | null = null;
+    let scanned = 0;
+    let stoppedEarly = false;
+
+    const iterator = this.selectAnalyticsDescStmt.iterate(
+      lower,
+      upper,
+      MAX_BUCKET_SCAN_ROWS
+    ) as IterableIterator<RawAnalyticsRow>;
+
+    for (const raw of iterator) {
+      const decoded = decodeRow(raw);
+      const key = Math.floor(Date.parse(raw.timestamp) / durationMs) * durationMs;
+
+      if (!current || current.key !== key) {
+        if (accumulators.length >= effectiveLimit) {
+          // `limit` buckets are already complete and this row belongs to an
+          // older one — everything below is outside the requested budget.
+          // Breaking closes the SQLite cursor via the iterator protocol.
+          stoppedEarly = true;
+          break;
+        }
+        current = {
+          key,
+          latest: decoded,
+          oldestTimestamp: raw.timestamp,
+          sampleCount: 0,
+          activeVehicles: 0,
+          avgSpeed: 0,
+          avgRouteEfficiency: 0,
+          fleets: new Map(),
+        };
+        accumulators.push(current);
+      }
+
+      accumulate(current, decoded);
+      scanned += 1;
+
+      if (scanned >= MAX_BUCKET_SCAN_ROWS) {
+        stoppedEarly = true;
+        break;
+      }
+    }
+
+    const rows = accumulators.map((acc) => finalizeBucket(acc, durationMs));
+    if (order === "asc") rows.reverse();
+
+    const newest = accumulators[0];
+    const oldest = accumulators[accumulators.length - 1];
+
+    return withMeta(rows, {
+      ...base,
+      scanned,
+      returned: rows.length,
+      omitted: Math.max(0, stats.count - scanned),
+      truncated: stoppedEarly || stats.count > scanned,
+      coveredFrom: oldest ? oldest.oldestTimestamp : null,
+      coveredTo: newest ? newest.latest.timestamp : null,
+      bucket: {
+        durationMs,
+        label: formatBucketLabel(durationMs),
+        count: rows.length,
+        sampleCount: scanned,
+        auto,
+        aggregation: ANALYTICS_BUCKET_AGGREGATION,
+      },
+    });
   }
 
   pruneAnalyticsHistory(olderThan: string): number {
