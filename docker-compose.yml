@@ -1,6 +1,6 @@
 # Generic, self-contained Moveet stack built from source (workspace-aware
 # ./Dockerfile). Runs simulator + adapter + ui with synthetic data only —
-# no external infra, no VPN, no Flare-specific topology required.
+# no external infra, no VPN, no site-specific topology required.
 #
 #   docker compose up -d --build     # build images + start the whole stack
 #   docker compose logs -f           # follow logs
@@ -15,10 +15,6 @@
 # The simulator needs a road network at ./apps/simulator/data/network.geojson
 # (data/* is gitignored; generate it with
 # `npx tsx apps/network/src/cli.ts prepare nairobi` from the repo root).
-#
-# For the Flare dev environment (real fleet roster + dev Redpanda over the
-# external suite_network/VPN), layer the override on top:
-#   docker compose -f docker-compose.yml -f docker-compose.flare-dev.yml up --build
 #
 # Scale-out WS fan-out (optional, behind the `scale` profile): runs a Redis bus
 # + a standalone ws-gateway that does the per-client fan-out off the sim thread.

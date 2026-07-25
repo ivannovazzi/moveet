@@ -20,9 +20,9 @@ export enum MedicalType {
 }
 
 export enum VehicleTrackingTypes {
-  FLARE_APP = "FLARE_APP",
-  FLARE_APP_AND_GPS = "FLARE_APP_AND_GPS",
-  FLARE_GPS = "FLARE_GPS",
+  APP = "APP",
+  APP_AND_GPS = "APP_AND_GPS",
+  GPS = "GPS",
   UNTRACKED = "UNTRACKED",
 }
 

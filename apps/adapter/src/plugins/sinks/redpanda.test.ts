@@ -938,7 +938,7 @@ describe("RedpandaSink", () => {
         tlsCert: CERT,
         tlsKey: KEY,
         saslMechanism: "scram-sha-512",
-        saslUsername: "flare-cc",
+        saslUsername: "sim-client",
         saslPassword: "secret",
       });
 
@@ -950,7 +950,7 @@ describe("RedpandaSink", () => {
       });
       expect(lastKafkaConfig!.sasl).toEqual({
         mechanism: "scram-sha-512",
-        username: "flare-cc",
+        username: "sim-client",
         password: "secret",
       });
     });
