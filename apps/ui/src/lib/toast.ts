@@ -4,10 +4,17 @@
  */
 import { toast as sonnerToast } from "sonner";
 
+export interface ToastOptions {
+  /** Optional inline action button (e.g. "Reload" on the new-version prompt). */
+  action?: { label: string; onClick: () => void };
+  /** Auto-dismiss delay in ms. `Infinity` keeps the toast until dismissed. */
+  duration?: number;
+}
+
 export const toast = {
-  success: (message: string) => sonnerToast.success(message),
-  error: (message: string) => sonnerToast.error(message),
-  info: (message: string) => sonnerToast.info(message),
+  success: (message: string, options?: ToastOptions) => sonnerToast.success(message, options),
+  error: (message: string, options?: ToastOptions) => sonnerToast.error(message, options),
+  info: (message: string, options?: ToastOptions) => sonnerToast.info(message, options),
 };
 
 /** Coerce an unknown thrown value into a human-readable message. */

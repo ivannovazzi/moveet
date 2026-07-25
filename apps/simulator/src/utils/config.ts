@@ -38,6 +38,22 @@ const envObjectSchema = z.object({
   /** Speed multiplier inside heat zones [0, 1] */
   HEATZONE_SPEED_FACTOR: z.coerce.number().min(0).max(1).default(0.5),
 
+  /**
+   * Bind heat-zone intensity to the simulated clock. When enabled, zones
+   * generated from intersection density are rescaled at every simulated hour
+   * boundary by the SAME time-of-day demand curve TrafficManager uses
+   * (`utils/trafficProfiles`), so they bloom at rush hour and fade overnight,
+   * and a "heatzones" broadcast goes out whenever an intensity actually moves.
+   * Manually-drawn zones always keep the operator's intensity.
+   *
+   * Opt-in (default false): existing deployments keep today's static zones and
+   * today's broadcast volume until they ask for the behaviour.
+   */
+  HEATZONE_TIME_SCALING: z
+    .enum(["true", "false", "1", "0", ""])
+    .default("false")
+    .transform((v) => v === "true" || v === "1"),
+
   /** Timeout for adapter sync requests in ms */
   SYNC_ADAPTER_TIMEOUT: z.coerce.number().int().min(0).default(5000),
 
@@ -177,6 +193,7 @@ function buildConfig(env: EnvConfig) {
     turnThreshold: env.TURN_THRESHOLD,
     speedVariation: env.SPEED_VARIATION,
     heatZoneSpeedFactor: env.HEATZONE_SPEED_FACTOR,
+    heatZoneTimeScaling: env.HEATZONE_TIME_SCALING,
     syncAdapterTimeout: env.SYNC_ADAPTER_TIMEOUT,
     adapterSyncInterval: env.ADAPTER_SYNC_INTERVAL,
     vehicleCount: env.VEHICLE_COUNT,

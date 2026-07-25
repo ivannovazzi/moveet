@@ -85,6 +85,11 @@ services:
     build:
       context: .
       target: ui
+      args:
+        # Stamps the build so an open tab can tell it is running an old bundle.
+        # Defaults to a build timestamp, which makes every rebuild look new;
+        # export BUILD_ID=$(git rev-parse --short HEAD) to tie it to the code.
+        BUILD_ID: ${BUILD_ID:-}
     ports:
       - "5012:8080"
 

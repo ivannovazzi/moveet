@@ -134,8 +134,26 @@ export default function GeofenceLayer({
             enter: (value: number[]) => [value[0], value[1], value[2], 0],
           },
         },
-        outlineColor: [0, 0, 0, 153],
-        outlineWidth: 3,
+        // deck.gl only draws an outline for SDF atlases — without `sdf: true`
+        // it logs "fontSettings.sdf is required to render outline" and the
+        // outline props are silently ignored.
+        //
+        // With SDF, the halo width is measured in font-atlas pixels (atlas is
+        // rendered at fontSettings.fontSize = 64) and works out to
+        // 0.75 * outlineWidth, then scales down by getSize / 64. So
+        // outlineWidth 8 → 6 atlas px → ~1px on screen at getSize 11, which is
+        // a legible halo. Two atlas settings have to keep up with that:
+        //   - radius (default 12): distance is only encoded up to
+        //     radius * (1 - cutoff) px outside the glyph; 16 keeps the halo at
+        //     half the encoded range, away from the smoothing clamp.
+        //   - buffer (default 4): glyph padding in the atlas clips the halo,
+        //     so it must be >= the 6 atlas px the halo occupies.
+        fontSettings: { sdf: true, radius: 16, buffer: 8 },
+        outlineWidth: 8,
+        // In the halo band the shader takes its alpha from outlineColor, so
+        // 0.8 keeps labels readable over bright fills without fully hiding the
+        // polygon underneath.
+        outlineColor: [0, 0, 0, 204],
       }),
     ];
   }, [fences, selectedFenceId, onSelectFence, selectable]);

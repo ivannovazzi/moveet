@@ -279,6 +279,35 @@ export function wireEvents(ctx: EventWiringContext): {
     }
   }, analyticsIntervalMs);
 
+  // ─── Heat-zone intensity follows the simulated clock ────────────────
+  // Cadence is the clock's own "hour:changed" event, i.e. once per SIMULATED
+  // hour — not a wall-clock timer and not the game tick. At the default 1x
+  // speed multiplier that is one recompute an hour; at 60x, one a minute. The
+  // recompute is O(zones) (<= HEAT_ZONE_DEFAULTS.MAX_TOTAL = 100) and only
+  // emits "heatzones" when an intensity actually moved, so an hour boundary
+  // that stays inside the same demand range costs nothing on the wire.
+  // Off by default (HEATZONE_TIME_SCALING) so existing deployments are unchanged.
+  //
+  // Wired LAST on purpose: it emits "heatzones" synchronously while seeding the
+  // current hour, so every subscriber above (broadcaster AND the recording
+  // layer) must already be attached.
+  if (config.heatZoneTimeScaling) {
+    const clock = vehicleManager.clock;
+    if (clock) {
+      const rescaleHeatZones = (hour: number): void => {
+        // Sample the LIVE traffic profile rather than a cached copy, so a
+        // runtime profile change moves congestion and heat zones together.
+        network.applyHeatZoneTimeOfDay(hour, vehicleManager.getTrafficProfile());
+      };
+      clock.on("hour:changed", rescaleHeatZones);
+      // Seed the current hour immediately, otherwise zones would stay at their
+      // unscaled intensity until the first hour boundary is crossed.
+      rescaleHeatZones(clock.getHour());
+    } else {
+      logger.warn("HEATZONE_TIME_SCALING is on but no simulation clock is available; skipping.");
+    }
+  }
+
   return {
     trafficBroadcastInterval,
     analyticsBroadcastInterval,

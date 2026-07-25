@@ -75,7 +75,13 @@ export default function DirectionMap({ road }: DirectionProps) {
         getTextAnchor: "middle",
         getAlignmentBaseline: "center",
         fontFamily: "inherit",
-        outlineWidth: 2,
+        // SDF is required for deck.gl to draw an outline at all; see the fuller
+        // explanation on the geofence label layer. Halo is 0.75 * outlineWidth
+        // atlas px scaled by getSize / 64, so outlineWidth 8 → 6 atlas px →
+        // ~1.3px on screen at getSize 14. radius must be >= outlineWidth and
+        // buffer >= the halo's 6 atlas px, or the atlas clips it.
+        fontSettings: { sdf: true, radius: 16, buffer: 8 },
+        outlineWidth: 8,
         outlineColor: [0, 0, 0, 180],
         pickable: false,
       }),

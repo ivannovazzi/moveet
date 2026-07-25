@@ -5,6 +5,7 @@ import { PluginManager } from "./plugins/manager";
 import { validateVehicleUpdates } from "./validation/vehicleUpdate";
 import { REALISM_SCHEMA } from "./realism/config";
 import { loadConfig, logConfig } from "./utils/config";
+import { createConfigValidateHandler } from "./routes/configValidate";
 import { createLogger } from "./utils/logger";
 import { correlationIdMiddleware } from "./middleware/correlationId";
 import { errorHandlerMiddleware } from "./middleware/errorHandler";
@@ -47,6 +48,29 @@ pluginManager.registerSink("console", () => new ConsoleSink());
 async function startup(): Promise<void> {
   const config = loadConfig();
   logConfig(config);
+
+  // Malformed configuration is NOT a fail-soft condition. An unreachable
+  // backend is (see below) — but a typo'd plugin type, a missing required
+  // field or a wrong value type would otherwise produce a plugin that is
+  // silently skipped, leaving a stack that boots looking healthy and emits
+  // nothing. Validate the resolved set against each plugin's own configSchema
+  // and refuse to start when it is wrong, so the operator sees the reason.
+  const validation = pluginManager.validateConfig({
+    source: config.source,
+    sinks: config.sinks,
+  });
+  for (const warning of validation.warnings) {
+    logger.warn({ issue: warning }, "Suspicious plugin configuration");
+  }
+  if (!validation.valid) {
+    throw new Error(
+      `Invalid plugin configuration — refusing to start:\n${validation.errors
+        .map((e) => `  - ${e}`)
+        .join(
+          "\n"
+        )}\nFix the configuration (env vars or ADAPTER_CONFIG_FILE), or dry-run it with POST /config/validate.`
+    );
+  }
 
   // Wire the source resiliently: a source whose backend is unreachable at
   // startup (e.g. the fleet connector or a DB being down) must NOT take the
@@ -221,6 +245,18 @@ async function startup(): Promise<void> {
       },
     });
   });
+
+  // Dry-run: report what the current (or a supplied) configuration WOULD
+  // activate, with a per-plugin reason for anything malformed. Mutates nothing
+  // and connects to nothing. With no body it re-resolves env + config file from
+  // scratch, so an operator can edit the file and re-check without a restart.
+  app.post(
+    "/config/validate",
+    createConfigValidateHandler({
+      manager: pluginManager,
+      resolveStartupConfig: () => loadConfig(),
+    })
+  );
 
   app.post("/config/source", async (req, res) => {
     const { type, config: pluginConfig } = req.body;

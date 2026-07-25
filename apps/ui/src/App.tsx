@@ -36,8 +36,11 @@ import ErrorBoundary, { SectionErrorFallback } from "./components/ErrorBoundary"
 import { useAnalytics } from "./hooks/useAnalytics";
 import { useNetwork } from "./hooks/useNetwork";
 import { useRoads } from "./hooks/useRoads";
-import { useDataReady } from "./data/useData";
+import { useDataReady, useOptionsContext } from "./data/useData";
 import LoadingOverlay from "./components/LoadingOverlay";
+import StartHint from "./components/StartHint";
+import { useVersionCheck } from "./hooks/useVersionCheck";
+import { toast } from "./lib/toast";
 import { Toaster } from "./components/ui/sonner";
 
 export default function App() {
@@ -180,6 +183,23 @@ export default function App() {
     setSelectedItem(null);
   }, [onUnselectVehicle, setSelectedItem]);
 
+  // ─── First-run start affordance ─────────────────────────────────
+  // The sim boots paused; StartHint owns its own (one-shot) visibility, this
+  // only supplies the action. Options come from the shared context rather than
+  // useOptions() so we don't add a second fetch/subscription for one button.
+  const { options } = useOptionsContext();
+  const onStartFromHint = useCallback(async () => {
+    const res = await client.start(options);
+    if (res?.error) {
+      toast.error(`Failed to start simulation: ${res.error}`);
+      return;
+    }
+    toast.success("Simulation started");
+  }, [options]);
+
+  // Long-open tabs keep running the bundle they loaded with; poll for redeploys.
+  useVersionCheck();
+
   const maxSpeedRef = useRef(60);
   useTracking(vehicles, filters.selected, status.interval);
 
@@ -244,6 +264,11 @@ export default function App() {
               onToggle={toggleFleetVisibility}
             />
             <TypeLegend hiddenVehicleTypes={hiddenVehicleTypes} onToggle={toggleVehicleType} />
+            <StartHint
+              running={status.running}
+              ready={!mapLoading && connected}
+              onStart={onStartFromHint}
+            />
             <Dock
               status={status}
               connected={connected}

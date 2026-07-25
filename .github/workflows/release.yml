@@ -72,6 +72,12 @@ jobs:
           context: .
           file: Dockerfile
           target: ${{ matrix.target }}
+          # Only the ui target reads BUILD_ID; it stamps dist/version.json so an
+          # open tab can detect it is running a superseded bundle. Pinning it to
+          # the release tag means the prompt fires on real releases rather than
+          # on every rebuild (the default is a build timestamp).
+          build-args: |
+            BUILD_ID=${{ needs.release-please.outputs.tag_name }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}

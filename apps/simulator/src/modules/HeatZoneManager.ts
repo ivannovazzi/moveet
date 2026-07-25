@@ -1,7 +1,12 @@
 import { point, destination, distance, lineString, bezierSpline } from "@turf/turf";
 import crypto from "crypto";
 import type { Edge, Node, HeatZone, HeatZoneFeature } from "../types";
-import { SPATIAL_GRID, HEAT_ZONE_DEFAULTS } from "../constants";
+import { SPATIAL_GRID, HEAT_ZONE_DEFAULTS, HEAT_ZONE_TIME } from "../constants";
+import {
+  DEFAULT_TRAFFIC_PROFILE,
+  getDemandMultiplier,
+  type TrafficProfile,
+} from "../utils/trafficProfiles";
 import logger from "../utils/logger";
 
 /**
@@ -25,6 +30,16 @@ export class HeatZoneManager {
   // typically 0-1 for most positions on the map.
   private spatialGrid: Map<string, HeatZone[]> = new Map();
   private static readonly GRID_CELL_SIZE = SPATIAL_GRID.CELL_SIZE;
+
+  /**
+   * Simulated hour the zone intensities are currently scaled for, or null when
+   * time-of-day scaling has never been applied. null keeps the legacy
+   * behaviour exactly: intensity is whatever the zone was created with.
+   */
+  private scaledHour: number | null = null;
+
+  /** Traffic profile the last `applyTimeOfDay` sampled its demand curve from. */
+  private profile: TrafficProfile = DEFAULT_TRAFFIC_PROFILE;
 
   constructor() {}
 
@@ -132,10 +147,17 @@ export class HeatZoneManager {
 
     // APPEND generated zones to any existing (drawn or previously-seeded)
     // zones instead of replacing them, and index each new zone into the grid.
+    // Generated zones are owned by the simulation, so they carry a
+    // `baseIntensity` and are immediately brought in line with whatever
+    // simulated hour the manager is currently scaled to (a zone seeded at
+    // 03:00 must not appear at full rush-hour intensity until the next hour
+    // boundary).
     const generated: HeatZone[] = this.smoothPolygons(newZones).map((zone) => ({
       id: zone.properties.id,
       polygon: zone.geometry.coordinates,
-      intensity: zone.properties.intensity,
+      intensity: this.scaleIntensity(zone.properties.intensity),
+      baseIntensity: zone.properties.intensity,
+      origin: "generated" as const,
       timestamp: zone.properties.timestamp,
       radius: this.deriveRadius(zone.geometry.coordinates),
     }));
@@ -152,6 +174,9 @@ export class HeatZoneManager {
    * Adds a single manually-drawn zone. Assigns a stable id (unless one is
    * supplied) and a creation timestamp, indexes it into the spatial grid, and
    * returns the exported GeoJSON feature.
+   *
+   * The zone is tagged `origin: "manual"`, which permanently exempts it from
+   * time-of-day scaling — see {@link applyTimeOfDay}.
    */
   public addZone(input: { polygon: number[][]; intensity: number; id?: string }): HeatZoneFeature {
     if (this.zones.length >= HEAT_ZONE_DEFAULTS.MAX_TOTAL) {
@@ -161,6 +186,8 @@ export class HeatZoneManager {
       id: input.id ?? crypto.randomUUID(),
       polygon: input.polygon,
       intensity: input.intensity,
+      baseIntensity: input.intensity,
+      origin: "manual",
       timestamp: new Date().toISOString(),
       radius: this.deriveRadius(input.polygon),
     };
@@ -173,6 +200,11 @@ export class HeatZoneManager {
    * Updates a zone's geometry and/or intensity. Re-indexes the spatial grid
    * only when the geometry changes. Returns the updated feature, or null if no
    * zone has the given id.
+   *
+   * An explicit intensity patch is an operator decision, so it also promotes
+   * the zone to `origin: "manual"`: from then on the clock leaves it alone.
+   * Without this, a generated zone an operator just dialled down would be
+   * silently overwritten at the next hour boundary.
    */
   public updateZone(
     id: string,
@@ -188,7 +220,11 @@ export class HeatZoneManager {
       zone.polygon = patch.polygon;
       zone.radius = this.deriveRadius(patch.polygon);
     }
-    if (patch.intensity !== undefined) zone.intensity = patch.intensity;
+    if (patch.intensity !== undefined) {
+      zone.intensity = patch.intensity;
+      zone.baseIntensity = patch.intensity;
+      zone.origin = "manual";
+    }
 
     if (geometryChanged) this.indexZone(zone);
     return this.zoneToFeature(zone);
@@ -211,6 +247,79 @@ export class HeatZoneManager {
   public clearZones(): void {
     this.zones = [];
     this.spatialGrid.clear();
+  }
+
+  // ─── Time-of-day intensity ──────────────────────────────────────────
+
+  /**
+   * Rescales generated zones for a simulated hour so heat zones bloom at rush
+   * hour and fade overnight.
+   *
+   * The curve is NOT a new one: it is the same `getDemandMultiplier` demand
+   * curve `TrafficManager.getCongestionFactor` uses, sampled with the same
+   * `TrafficProfile` and the arterial highway class generated zones sit on
+   * ({@link HEAT_ZONE_TIME.HIGHWAY}). One curve, two consumers — congestion and
+   * heat zones cannot drift apart, and editing a profile's `timeRanges` moves
+   * both.
+   *
+   * `intensity = clamp(baseIntensity * demand(hour), MIN_INTENSITY, 1)`.
+   * Scaling always derives from `baseIntensity`, never from the current
+   * (already-scaled) intensity, so repeated calls are idempotent and hour
+   * transitions never compound.
+   *
+   * Manually-drawn zones are deliberately excluded. An operator who drew a zone
+   * at 0.8 asserted a fact about the world ("this market is congested"); the
+   * clock re-deciding that for them would make the map disagree with the
+   * control that produced it, with no way for the operator to tell the two
+   * apart. Structural zones are the simulation's own artefact and are free to
+   * breathe; operator intent is not.
+   *
+   * @param hour - Simulated hour of day (0-23), typically `SimulationClock.getHour()`.
+   * @param profile - Traffic profile to sample; defaults to the built-in profile.
+   * @returns true if at least one zone's intensity moved by more than
+   *          {@link HEAT_ZONE_TIME.EPSILON} — i.e. whether a broadcast is warranted.
+   */
+  public applyTimeOfDay(hour: number, profile: TrafficProfile = DEFAULT_TRAFFIC_PROFILE): boolean {
+    this.scaledHour = hour;
+    this.profile = profile;
+
+    let changed = false;
+    for (const zone of this.zones) {
+      if (!this.isTimeScaled(zone)) continue;
+      const next = this.scaleIntensity(zone.baseIntensity as number);
+      if (Math.abs(next - zone.intensity) > HEAT_ZONE_TIME.EPSILON) changed = true;
+      zone.intensity = next;
+    }
+    return changed;
+  }
+
+  /**
+   * The demand multiplier currently applied to generated zones (1 when
+   * time-of-day scaling has not been applied). Exposed for diagnostics/tests.
+   */
+  public getTimeOfDayMultiplier(): number {
+    if (this.scaledHour === null) return 1;
+    return getDemandMultiplier(this.profile, this.scaledHour, HEAT_ZONE_TIME.HIGHWAY);
+  }
+
+  /**
+   * Only zones the simulation owns AND that carry a base intensity are scaled.
+   * Legacy/test-injected zones (no `baseIntensity`) and manual zones keep the
+   * intensity they were given.
+   */
+  private isTimeScaled(zone: HeatZone): boolean {
+    return zone.origin === "generated" && typeof zone.baseIntensity === "number";
+  }
+
+  /**
+   * Applies the current hour's demand multiplier to a base intensity. A no-op
+   * until `applyTimeOfDay` has been called at least once, which is what keeps
+   * the feature opt-in.
+   */
+  private scaleIntensity(baseIntensity: number): number {
+    if (this.scaledHour === null) return baseIntensity;
+    const demand = this.getTimeOfDayMultiplier();
+    return Math.min(1, Math.max(HEAT_ZONE_TIME.MIN_INTENSITY, baseIntensity * demand));
   }
 
   /**

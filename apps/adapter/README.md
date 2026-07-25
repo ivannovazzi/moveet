@@ -89,6 +89,7 @@ cp .env.example .env
 | `REDPANDA_BROKERS`    | `localhost:19092`               | Comma-separated Redpanda/Kafka broker addresses                                                                                                               |
 | `REDPANDA_TOPIC`      | `dispatch.vehicle.positions`    | Kafka topic for vehicle position updates                                                                                                                      |
 | `REALISM_CONFIG`      | `` (off)                        | JSON config for the telemetry realism engine (GPS noise / dropouts / cadence jitter). Off unless `enabled:true`. See [Telemetry realism](#telemetry-realism). |
+| `ADAPTER_CONFIG_FILE` | --                              | Path to a JSON file holding `{ source, sinks, realism }` — a readable alternative to the JSON-in-env-var form. **Environment variables take precedence**: `SOURCE_TYPE` / `SINK_TYPES` override the file's type and sink list, and `SOURCE_CONFIG` / `SINK_<TYPE>_CONFIG` / `REALISM_CONFIG` are shallow-merged over the file's objects key by key. A broken file aborts startup. |
 
 ## API Endpoints
 
@@ -121,6 +122,23 @@ cp .env.example .env
 ```json
 { "config": { "enabled": true, "reportingPeriodMs": 5000, "jitterMs": 800 } }
 ```
+
+**`POST /config/validate`** -- Dry run. Reports what the configuration *would* activate, with a precise per-plugin reason for anything malformed. It never mutates the running plugin set and never connects to a backend.
+
+```bash
+# Validate the current env + ADAPTER_CONFIG_FILE (re-resolved from scratch)
+curl -XPOST localhost:5011/config/validate -H 'content-type: application/json' -d '{}'
+
+# Validate a candidate before applying it
+curl -XPOST localhost:5011/config/validate -H 'content-type: application/json' \
+  -d '{"source":{"type":"rest","config":{"url":"http://x"}},"sinks":[{"type":"redpanda","config":{"brokers":"b:9092"}}]}'
+```
+
+Returns `{ valid, checked, configFile, source, sinks, wouldActivate, active, errors, warnings, backendConnectivity }`.
+`200` with `valid:false` means the configuration is invalid (fix it); `400` means the
+*request body* was malformed. `backendConnectivity.checked` is always `false` — a plugin
+reported valid here can still be skipped at startup if its backend is unreachable, which
+is intentional fail-soft behaviour visible in `GET /health`.
 
 **`GET /health`** -- Returns health check status for the active source and all sinks (plus a `realism` status block when the engine is active).
 
