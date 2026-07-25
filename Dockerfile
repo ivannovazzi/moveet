@@ -75,7 +75,16 @@ CMD ["node", "dist/index.js"]
 # ── ui: static SPA built by vite, served by Caddy ───────────────────────────
 # VITE_* vars are baked at build with localhost defaults; the browser reaches
 # the simulator/adapter via their published host ports, so no build args needed.
+#
+# BUILD_ID is the exception. The UI bakes it in and also emits it to
+# dist/version.json, which an open tab polls to detect that a new build is
+# being served (see apps/ui/src/lib/versionCheck.ts). Left unset it defaults to
+# a build timestamp, so every rebuild — including a no-op one — looks like a new
+# version and nags open tabs. Pass the git sha so the prompt tracks real code
+# changes: `docker build --build-arg BUILD_ID=$(git rev-parse --short HEAD)`.
 FROM source AS ui-build
+ARG BUILD_ID
+ENV BUILD_ID=${BUILD_ID}
 RUN npm run build -w @moveet/ui
 
 FROM caddy:2-alpine AS ui

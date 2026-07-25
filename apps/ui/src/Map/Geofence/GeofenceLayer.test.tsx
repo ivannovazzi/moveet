@@ -46,6 +46,10 @@ interface LayerLike {
     onClick?: (info: { object?: GeoFence }) => boolean;
     updateTriggers?: Record<string, unknown>;
     getLineWidth: (d: GeoFence) => number;
+    getSize?: number;
+    fontSettings?: { sdf?: boolean; radius?: number; buffer?: number };
+    outlineWidth?: number;
+    outlineColor?: number[];
   };
 }
 
@@ -110,6 +114,40 @@ describe("GeofenceLayer", () => {
     expect(layer.props.pickable).toBe(false);
     expect(layer.props.onClick!({ object: fence })).toBe(false);
     expect(onSelectFence).not.toHaveBeenCalled();
+  });
+
+  it("labels enable SDF fonts so the outline props actually render", () => {
+    // deck.gl warns "fontSettings.sdf is required to render outline" and drops
+    // the outline entirely unless the atlas is an SDF one.
+    render(<GeofenceLayer fences={[makeFence()]} />);
+
+    const { fontSettings, outlineWidth, outlineColor } = getLayer("geofence-labels").props;
+
+    expect(fontSettings?.sdf).toBe(true);
+    expect(outlineWidth).toBeGreaterThan(0);
+    expect(outlineColor).toEqual([0, 0, 0, 204]);
+  });
+
+  it("sizes the label halo so it stays inside the SDF atlas and is visible on screen", () => {
+    render(<GeofenceLayer fences={[makeFence()]} />);
+
+    const { fontSettings, outlineWidth, getSize } = getLayer("geofence-labels").props;
+    const radius = fontSettings?.radius ?? 12;
+    const buffer = fontSettings?.buffer ?? 4;
+    const atlasFontSize = 64; // fontSettings.fontSize default
+
+    // deck.gl divides outlineWidth by radius to get a 0..1 outline buffer, so
+    // anything above the radius is clamped and the halo stops growing.
+    expect(outlineWidth!).toBeLessThanOrEqual(radius);
+
+    // Halo extent in atlas pixels; the glyph padding must be able to hold it,
+    // otherwise the halo is clipped by the neighbouring glyph cell.
+    const haloAtlasPx = 0.75 * outlineWidth!;
+    expect(haloAtlasPx).toBeLessThanOrEqual(buffer);
+
+    // ...and it has to survive the atlas → screen downscale.
+    const haloScreenPx = haloAtlasPx * ((getSize ?? 0) / atlasFontSize);
+    expect(haloScreenPx).toBeGreaterThanOrEqual(1);
   });
 
   it("draws the selected fence with a thicker outline and pins it via updateTriggers", () => {

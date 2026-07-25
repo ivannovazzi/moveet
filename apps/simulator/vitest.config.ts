@@ -10,10 +10,16 @@ export default defineConfig({
       exclude: ["node_modules/", "dist/", "**/*.test.ts", "**/*.spec.ts", "vitest.config.ts"],
       thresholds: {
         // Global floor: the whole simulator must stay at least here.
-        lines: 50,
-        branches: 50,
-        functions: 50,
-        statements: 50,
+        //
+        // Locally measured 2026-07-25 over the full suite (1664 tests):
+        // lines 94.87%, statements 93.68%, functions 94.44%, branches 82.40%.
+        // Floors sit ~2-3 points under those numbers so ordinary churn (and the
+        // usual local/CI v8 branch-accounting drift) does not redden CI, while a
+        // real coverage regression still fails the build.
+        lines: 92,
+        branches: 79,
+        functions: 92,
+        statements: 91,
         // Per-file floors pin the hot/critical simulation paths well above the
         // global floor, so a regression that guts one of them reddens CI even
         // while the aggregate stays green. Glob keys are matched per file.

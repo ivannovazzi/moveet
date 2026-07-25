@@ -145,7 +145,13 @@ export default function POIs({ visible, onClick }: POIMarkerProps) {
         getPixelOffset: [0, 17],
         fontFamily: "inherit",
         fontWeight: "600",
-        outlineWidth: 2,
+        // SDF is required for deck.gl to draw an outline at all; see the fuller
+        // explanation on the geofence label layer. Halo is 0.75 * outlineWidth
+        // atlas px scaled by getSize / 64, so outlineWidth 8 → 6 atlas px →
+        // ~1.1px on screen at getSize 12. radius must be >= outlineWidth and
+        // buffer >= the halo's 6 atlas px, or the atlas clips it.
+        fontSettings: { sdf: true, radius: 16, buffer: 8 },
+        outlineWidth: 8,
         outlineColor: [8, 10, 12, 235],
         pickable: false,
       }),

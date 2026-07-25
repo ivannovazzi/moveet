@@ -2,6 +2,7 @@ import fs from "fs";
 import type { FeatureCollection } from "geojson";
 import type { Node, Edge, Route, HeatZoneFeature, POI, BoundingBox } from "../types";
 import { HEAT_ZONE_DEFAULTS } from "../constants";
+import type { TrafficProfile } from "../utils/trafficProfiles";
 import type { CacheStats } from "../utils/LRUCache";
 import { HeatZoneManager } from "./HeatZoneManager";
 import { PathfindingPool } from "./PathfindingPool";
@@ -400,6 +401,19 @@ export class RoadNetwork extends EventEmitter {
     const existed = this.heatZoneManager.removeZone(id);
     if (existed) this.emit("heatzones", this.exportHeatZones());
     return existed;
+  }
+
+  /**
+   * Rescales generated heat zones for the given simulated hour (see
+   * `HeatZoneManager.applyTimeOfDay`) and broadcasts the full list only when an
+   * intensity actually moved. Manually-drawn zones are untouched.
+   *
+   * @returns whether anything changed (and therefore whether "heatzones" was emitted).
+   */
+  public applyHeatZoneTimeOfDay(hour: number, profile?: TrafficProfile): boolean {
+    const changed = this.heatZoneManager.applyTimeOfDay(hour, profile);
+    if (changed) this.emit("heatzones", this.exportHeatZones());
+    return changed;
   }
 
   /**

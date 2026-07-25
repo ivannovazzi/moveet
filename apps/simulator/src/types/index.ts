@@ -153,7 +153,29 @@ export interface HeatZone {
    */
   id?: string;
   polygon: number[][];
+  /**
+   * Effective intensity (0-1) as broadcast/rendered. When time-of-day scaling
+   * is active this is `baseIntensity` scaled by the traffic demand curve for
+   * the current simulated hour; otherwise it equals `baseIntensity`.
+   */
   intensity: number; // 0-1 scale
+  /**
+   * Intrinsic intensity the zone was created with, before any time-of-day
+   * scaling. Kept separate so rescaling is idempotent (scaling always derives
+   * from the base, never from an already-scaled value). Optional for
+   * legacy/test-injected zones that bypass the create path.
+   */
+  baseIntensity?: number;
+  /**
+   * Where the zone came from:
+   *  - "generated" — derived from road-network intersection density; the
+   *    simulation owns its intensity, so it breathes with the clock.
+   *  - "manual" — drawn (or explicitly re-intensified) by an operator; its
+   *    intensity is left exactly as authored.
+   * Optional for legacy/test-injected zones; treated as "generated" only when
+   * a base intensity is present, so untagged zones are never rescaled.
+   */
+  origin?: "generated" | "manual";
   timestamp: string;
   /**
    * Representative radius (km) cached from the polygon bounding box when the

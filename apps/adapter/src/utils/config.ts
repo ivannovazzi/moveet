@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import { z } from "zod";
 import { createLogger } from "./logger";
+import { loadPluginConfigFile, type FileReader, type PluginConfigFile } from "./configFile";
 
 const logger = createLogger("config");
 
@@ -27,6 +28,13 @@ export const envSchema = z.object({
 
   /** JSON config for the realism engine (off by default). */
   REALISM_CONFIG: z.string().default(""),
+
+  /**
+   * Optional path to a JSON file holding the source/sink/realism configuration
+   * (the readable alternative to the JSON-in-env-var form). Environment
+   * variables take precedence over the file — see `loadConfig`.
+   */
+  ADAPTER_CONFIG_FILE: z.string().default(""),
 
   /**
    * Base URL of the simulator, used to fetch recordings for replay/emit.
@@ -80,22 +88,31 @@ function parseCorsOrigins(raw: string): string[] | "*" {
     .filter(Boolean);
 }
 
-function parseSinks(
-  env: Record<string, string | undefined>
-): Array<{ type: string; config: Record<string, unknown> }> {
-  const types = env.SINK_TYPES;
-  if (!types) return [];
-  return types
-    .split(",")
-    .map((t) => t.trim())
-    .filter(Boolean)
-    .map((type) => ({
-      type,
-      config: parseJSON(
-        env[`SINK_${type.toUpperCase()}_CONFIG`],
-        `SINK_${type.toUpperCase()}_CONFIG`
-      ),
-    }));
+/** Where a resolved piece of plugin configuration came from. */
+export type ConfigOrigin = "env" | "file" | "env+file" | "default";
+
+function originOf(fromEnv: boolean, fromFile: boolean): ConfigOrigin {
+  if (fromEnv && fromFile) return "env+file";
+  if (fromEnv) return "env";
+  if (fromFile) return "file";
+  return "default";
+}
+
+/** True when an env var is present and not blank (zod defaults hide this). */
+function isSet(value: string | undefined): boolean {
+  return typeof value === "string" && value.trim() !== "";
+}
+
+export interface ConfigOrigins {
+  /** Absolute path of the config file that contributed, or null when unused. */
+  configFile: string | null;
+  /** Provenance of the source entry. */
+  source: ConfigOrigin;
+  /** Provenance of the *list* of sink types. */
+  sinkList: ConfigOrigin;
+  /** Provenance of each sink's config object, keyed by sink type. */
+  sinks: Record<string, ConfigOrigin>;
+  realism: ConfigOrigin;
 }
 
 export interface StartupConfig {
@@ -105,31 +122,110 @@ export interface StartupConfig {
   sinks: Array<{ type: string; config: Record<string, unknown> }>;
   realism: Record<string, unknown>;
   simulatorUrl: string;
+  /** Provenance of each resolved piece, for logs and `POST /config/validate`. */
+  origins: ConfigOrigins;
 }
 
-export function loadConfig(env: Record<string, string | undefined> = process.env): StartupConfig {
+/**
+ * Resolve the startup configuration from environment variables and, when
+ * `ADAPTER_CONFIG_FILE` is set, a JSON config file.
+ *
+ * ## Precedence: environment variables win over the file
+ *
+ * The file is the readable base; env vars are the per-deployment override
+ * (12-factor: the environment is the last word, so a container can override a
+ * baked-in file without rewriting it). Concretely:
+ *
+ *  - `SOURCE_TYPE` overrides the file's `source.type`. When the two name
+ *    *different* types, the file's `source.config` is dropped: plugin configs
+ *    are type-specific, so carrying it over would be nonsense.
+ *  - `SOURCE_CONFIG` is **shallow-merged over** the file's `source.config`
+ *    (key by key, env wins), so a file can hold the bulk of the config while an
+ *    env var overrides a single key such as a URL or a secret.
+ *  - `SINK_TYPES` overrides the file's sink *list* wholesale. Otherwise the
+ *    list comes from the file.
+ *  - `SINK_<TYPE>_CONFIG` is shallow-merged over the file's config for the same
+ *    sink type, same rule as the source.
+ *  - `REALISM_CONFIG` is shallow-merged over the file's `realism`.
+ *
+ * Anything malformed (bad JSON in an env var, unreadable/malformed file)
+ * throws: that is a configuration error, not a fail-soft condition.
+ */
+export function loadConfig(
+  env: Record<string, string | undefined> = process.env,
+  readFile?: FileReader
+): StartupConfig {
   const parsed = parseEnv(env);
 
-  const sourceConfig = parseJSON(parsed.SOURCE_CONFIG, "SOURCE_CONFIG");
-  if (parsed.SOURCE_TYPE === "static" && !sourceConfig.count) {
+  const loadedFile = loadPluginConfigFile(parsed.ADAPTER_CONFIG_FILE, readFile);
+  const file: PluginConfigFile | null = loadedFile?.contents ?? null;
+
+  // --- source ---------------------------------------------------------
+  const envSourceTypeSet = isSet(env.SOURCE_TYPE);
+  const envSourceConfigSet = isSet(parsed.SOURCE_CONFIG);
+  const fileSource = file?.source ?? null;
+
+  const sourceType = envSourceTypeSet ? parsed.SOURCE_TYPE : (fileSource?.type ?? "static");
+  // Only inherit the file's config when it describes the same plugin type.
+  const fileSourceConfig = fileSource && fileSource.type === sourceType ? fileSource.config : {};
+  const sourceConfig: Record<string, unknown> = {
+    ...fileSourceConfig,
+    ...parseJSON(parsed.SOURCE_CONFIG, "SOURCE_CONFIG"),
+  };
+  if (sourceType === "static" && !sourceConfig.count) {
     sourceConfig.count = 20;
   }
 
-  const sinks = parseSinks(env);
+  // --- sinks ----------------------------------------------------------
+  const envSinkTypesSet = isSet(env.SINK_TYPES);
+  const fileSinks = file?.sinks ?? [];
 
-  if (sinks.length === 0 && !parsed.SINK_TYPES) {
-    sinks.push({ type: "console", config: {} });
+  let sinkTypes: string[];
+  let sinkListOrigin: ConfigOrigin;
+  if (envSinkTypesSet) {
+    sinkTypes = parsed.SINK_TYPES.split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+    sinkListOrigin = "env";
+  } else if (fileSinks.length > 0) {
+    sinkTypes = fileSinks.map((s) => s.type);
+    sinkListOrigin = "file";
+  } else {
+    sinkTypes = ["console"];
+    sinkListOrigin = "default";
   }
 
-  const realism = parseJSON(parsed.REALISM_CONFIG, "REALISM_CONFIG");
+  const sinkOrigins: Record<string, ConfigOrigin> = {};
+  const sinks = sinkTypes.map((type) => {
+    const envVar = `SINK_${type.toUpperCase()}_CONFIG`;
+    const envConfigSet = isSet(env[envVar]);
+    const fileEntry = fileSinks.find((s) => s.type === type);
+    sinkOrigins[type] = originOf(envConfigSet, fileEntry != null);
+    return {
+      type,
+      config: { ...(fileEntry?.config ?? {}), ...parseJSON(env[envVar], envVar) },
+    };
+  });
+
+  // --- realism --------------------------------------------------------
+  const envRealismSet = isSet(parsed.REALISM_CONFIG);
+  const fileRealism = file?.realism ?? {};
+  const realism = { ...fileRealism, ...parseJSON(parsed.REALISM_CONFIG, "REALISM_CONFIG") };
 
   return {
     port: parsed.PORT,
     corsOrigins: parseCorsOrigins(parsed.CORS_ORIGINS),
-    source: { type: parsed.SOURCE_TYPE, config: sourceConfig },
+    source: { type: sourceType, config: sourceConfig },
     sinks,
     realism,
     simulatorUrl: parsed.SIMULATOR_URL,
+    origins: {
+      configFile: loadedFile?.path ?? null,
+      source: originOf(envSourceTypeSet || envSourceConfigSet, fileSource != null),
+      sinkList: sinkListOrigin,
+      sinks: sinkOrigins,
+      realism: originOf(envRealismSet, Object.keys(fileRealism).length > 0),
+    },
   };
 }
 
@@ -143,6 +239,8 @@ export function logConfig(cfg: StartupConfig): void {
     port: cfg.port,
     source: { type: cfg.source.type, config: "••••••" },
     sinks: redactedSinks,
+    configFile: cfg.origins.configFile,
+    origins: { source: cfg.origins.source, sinks: cfg.origins.sinks },
   };
   logger.info({ config: redacted }, "Adapter config");
 }

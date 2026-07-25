@@ -29,6 +29,35 @@ export const HEAT_ZONE_DEFAULTS = {
   MAX_TOTAL: 100,
 } as const;
 
+/**
+ * Tuning for time-of-day heat-zone intensity scaling (see
+ * `HeatZoneManager.applyTimeOfDay`). The curve itself is NOT defined here — it
+ * is the traffic demand curve from `utils/trafficProfiles`, reused verbatim so
+ * congestion and heat zones can never drift apart.
+ */
+export const HEAT_ZONE_TIME = {
+  /**
+   * Highway class the demand curve is sampled with. Generated zones sit on
+   * high-connectivity intersections, i.e. arterial junctions, so the profile's
+   * `trunk`/`primary` rush-hour ranges are the ones that should apply. Sampling
+   * with a class the rush-hour ranges do not cover would silently flatten the
+   * curve to 1.0 during rush hour.
+   */
+  HIGHWAY: "primary",
+  /**
+   * Floor for a time-scaled intensity. Overnight demand (0.3x) must dim a zone,
+   * not erase it — a zone that renders as nothing is indistinguishable from a
+   * deleted zone on the map.
+   */
+  MIN_INTENSITY: 0.05,
+  /**
+   * Minimum absolute intensity change before a rescale counts as "changed" and
+   * triggers a broadcast. Guards against emitting a full zone list for
+   * floating-point noise when the hour advances inside the same demand range.
+   */
+  EPSILON: 0.001,
+} as const;
+
 // Vehicle state management
 export const VEHICLE_CONSTANTS = {
   /** Maximum number of visited edges to track per vehicle before clearing */

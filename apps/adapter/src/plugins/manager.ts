@@ -10,6 +10,11 @@ import type {
   PublishResult,
 } from "./types";
 import { PluginRegistry } from "./registry";
+import {
+  validatePluginSet,
+  type CandidatePluginSet,
+  type ConfigValidationReport,
+} from "./validation";
 import { HealthAggregator } from "./health-aggregator";
 import { Publisher } from "./publisher";
 import { RealismEngine } from "../realism/RealismEngine";
@@ -249,6 +254,18 @@ export class PluginManager {
       this.registry.getSourceInfos(),
       this.registry.getSinkInfos()
     );
+  }
+
+  /**
+   * Dry-run validation of a candidate plugin set against the registered
+   * plugins' `configSchema`s.
+   *
+   * Pure and side-effect free: nothing is instantiated, connected, replaced or
+   * removed, and no backend is contacted. It answers "is this configuration
+   * well-formed, and what would it activate?" — never "is the backend up?".
+   */
+  validateConfig(candidate: CandidatePluginSet): ConfigValidationReport {
+    return validatePluginSet(candidate, this.registry);
   }
 
   getConfig(): AdapterConfig {
