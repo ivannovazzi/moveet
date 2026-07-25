@@ -127,4 +127,72 @@ describe("loadConfig", () => {
     const cfg = loadConfig();
     expect(cfg.corsOrigins).toEqual(["http://a.com", "http://b.com"]);
   });
+
+  describe("delivery hardening", () => {
+    beforeEach(() => {
+      for (const key of Object.keys(process.env)) {
+        if (key.startsWith("SINK_OUTBOX_") || key.startsWith("SINK_BREAKER_")) {
+          delete process.env[key];
+        }
+      }
+    });
+
+    it("defaults to outbox OFF (at-most-once) and breaker ON", () => {
+      const cfg = loadConfig();
+
+      expect(cfg.delivery.outbox).toEqual({
+        enabled: false,
+        maxEntries: 1_000,
+        maxUpdates: 50_000,
+        maxAttempts: 5,
+        retryPartial: true,
+      });
+      expect(cfg.delivery.breaker).toEqual({
+        enabled: true,
+        failureThreshold: 5,
+        cooldownMs: 30_000,
+      });
+    });
+
+    it("reads the outbox and breaker env vars", () => {
+      process.env.SINK_OUTBOX_ENABLED = "true";
+      process.env.SINK_OUTBOX_MAX_ENTRIES = "10";
+      process.env.SINK_OUTBOX_MAX_UPDATES = "200";
+      process.env.SINK_OUTBOX_MAX_ATTEMPTS = "2";
+      process.env.SINK_OUTBOX_RETRY_PARTIAL = "false";
+      process.env.SINK_BREAKER_ENABLED = "0";
+      process.env.SINK_BREAKER_FAILURE_THRESHOLD = "9";
+      process.env.SINK_BREAKER_COOLDOWN_MS = "1500";
+
+      const cfg = loadConfig();
+
+      expect(cfg.delivery.outbox).toEqual({
+        enabled: true,
+        maxEntries: 10,
+        maxUpdates: 200,
+        maxAttempts: 2,
+        retryPartial: false,
+      });
+      expect(cfg.delivery.breaker).toEqual({
+        enabled: false,
+        failureThreshold: 9,
+        cooldownMs: 1_500,
+      });
+    });
+
+    it("treats a blank value as unset rather than as a parse error", () => {
+      process.env.SINK_OUTBOX_ENABLED = "";
+      process.env.SINK_OUTBOX_MAX_ENTRIES = "";
+
+      const cfg = loadConfig();
+
+      expect(cfg.delivery.outbox.enabled).toBe(false);
+      expect(cfg.delivery.outbox.maxEntries).toBe(1_000);
+    });
+
+    it("rejects a nonsensical bound instead of silently coercing it", () => {
+      process.env.SINK_OUTBOX_MAX_ENTRIES = "0";
+      expect(() => loadConfig()).toThrow(/SINK_OUTBOX_MAX_ENTRIES/);
+    });
+  });
 });

@@ -8,6 +8,22 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "json", "html"],
       exclude: ["node_modules/", "dist/", "**/*.test.ts", "**/*.spec.ts", "vitest.config.ts"],
+      // `all` is deliberately OFF (the v8 default here). Consequence, stated so
+      // nobody reads the headline number as more than it is: the report covers
+      // only files reachable from a test, so process entry points and wiring —
+      // `index.ts`, `ws-gateway.ts`, `setup/*`, `routes/{index,types}.ts`,
+      // `types/*` — are absent entirely rather than counted as uncovered.
+      //
+      // The percentages below therefore describe tested-and-imported code, not
+      // the package. That is self-consistent (CI runs this same config, so a
+      // regression in covered code still reddens the build) and it is the
+      // number the thresholds were tuned against.
+      //
+      // Turning `all` on is defensible but is its own change: the aggregate
+      // drops sharply, every threshold here needs re-tuning, and the entry
+      // points would need explicit exclusions to avoid permanently depressing
+      // the number for files that are covered by the docker-compose smoke E2E
+      // rather than by unit tests. Do that on its own, not as a rider.
       thresholds: {
         // Global floor: the whole simulator must stay at least here.
         //

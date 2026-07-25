@@ -5,6 +5,9 @@ import { CloseIcon } from "@/components/Icons";
 import { invertLatLng } from "@/utils/coordinates";
 import { Eyebrow, Hairline, PanelHead, StatusDot, Tag, mono } from "@/Dock/DockPanelKit";
 import VehicleDirections from "./VehicleDirections";
+import VehicleTelemetry from "./VehicleTelemetry";
+import VehicleEventTimeline from "./VehicleEventTimeline";
+import { useVehicleEventCapture } from "./useVehicleEventCapture";
 
 /**
  * On-demand right-side detail panel for the currently selected vehicle or POI.
@@ -13,6 +16,15 @@ import VehicleDirections from "./VehicleDirections";
  * borrows the dock family's glass surface and tight-technical density
  * (monospace numerics, hairline rows, micro uppercase eyebrows) so it reads as
  * the same instrument as the dock panels.
+ *
+ * Four sections for a vehicle: identity fields, live telemetry sparklines,
+ * turn-by-turn steps with route progress, and an event timeline.
+ *
+ * Performance note: this component is *not* wired to the vehicle hot path. Its
+ * `vehicle` prop comes from App's already-throttled (1 Hz) `useVehicles`
+ * snapshot, and the sparklines poll `vehicleStore` on their own 1 Hz timer from
+ * a leaf component rather than subscribing to it. Nothing here re-renders per
+ * position tick.
  */
 export interface InspectorProps {
   /** The selected vehicle, if any. */
@@ -41,6 +53,11 @@ function formatCoords([lng, lat]: Position): string {
 }
 
 export default function Inspector({ vehicle, poi, fleet, onClose }: InspectorProps) {
+  // App renders <Inspector/> unconditionally (it self-hides below), so this is
+  // the app-lifetime home for per-vehicle event capture — history exists for a
+  // vehicle selected long after the events happened.
+  useVehicleEventCapture();
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -89,7 +106,7 @@ export default function Inspector({ vehicle, poi, fleet, onClose }: InspectorPro
 
       {vehicle && (
         <div className="flex min-h-0 flex-1 flex-col">
-          {/* Vehicle stats stay pinned; only the directions list scrolls. */}
+          {/* Identity stays pinned; the analysis sections below it scroll. */}
           <div className="shrink-0">
             <Field label="ID">
               <span className={mono}>{vehicle.id}</span>
@@ -114,9 +131,13 @@ export default function Inspector({ vehicle, poi, fleet, onClose }: InspectorPro
               <span className={mono}>{formatCoords(vehicle.position)}</span>
             </Field>
           </div>
-          {/* Vehicle positions are [lng, lat] here; edge coords are [lat, lng].
-              Invert so the active-step lookup compares matching axes. */}
-          <VehicleDirections vehicleId={vehicle.id} position={invertLatLng(vehicle.position)} />
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+            <VehicleTelemetry vehicleId={vehicle.id} />
+            {/* Vehicle positions are [lng, lat] here; edge coords are [lat, lng].
+                Invert so the active-step lookup compares matching axes. */}
+            <VehicleDirections vehicleId={vehicle.id} position={invertLatLng(vehicle.position)} />
+            <VehicleEventTimeline vehicleId={vehicle.id} />
+          </div>
         </div>
       )}
 

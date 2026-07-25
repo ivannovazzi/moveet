@@ -16,7 +16,7 @@ import {
   type ConfigValidationReport,
 } from "./validation";
 import { HealthAggregator } from "./health-aggregator";
-import { Publisher } from "./publisher";
+import { Publisher, type DeliveryOptions } from "./publisher";
 import { RealismEngine } from "../realism/RealismEngine";
 import type { RealismConfig, RealismStatus } from "../realism/types";
 import { createLogger } from "../utils/logger";
@@ -63,6 +63,21 @@ export class PluginManager {
       publish: (updates) => this.publisher.publishUpdates(updates, this.activeSinks),
       config: realismConfig,
     });
+  }
+
+  /**
+   * Apply the delivery-hardening options (opt-in outbox/DLQ + per-sink circuit
+   * breaker) resolved from the startup configuration. Called once from
+   * `startup()`; with no options the defaults apply (breaker on, outbox off,
+   * i.e. the historical at-most-once behaviour).
+   */
+  setDeliveryOptions(options: DeliveryOptions): void {
+    this.publisher.configure(options);
+  }
+
+  /** Buffered-update counts per sink; empty unless the outbox is enabled. */
+  getPendingOutbox(): Record<string, number> {
+    return this.publisher.pendingOutbox();
   }
 
   registerSource(type: string, factory: () => DataSource): void {
@@ -166,6 +181,15 @@ export class PluginManager {
    * never overlaps the next tick. Errors are logged, never thrown — a sink whose
    * backend is still down simply stays unhealthy until the next sweep.
    *
+   * This sweep is also where the two delivery-hardening pieces are driven, so
+   * they compose with the existing loop instead of adding timers of their own:
+   *  - a sink that proves healthy (either straight away or after a successful
+   *    reconnect) gets its **circuit breaker closed**, so publishes resume on
+   *    the next `POST /sync` rather than waiting out the breaker cooldown;
+   *  - and its **outbox is flushed**, redelivering whatever was buffered while
+   *    it was down. Redelivery latency is therefore bounded by this loop's
+   *    interval.
+   *
    * Returns the list of sink types that were successfully reconnected (useful
    * for tests and for callers that want to observe recovery).
    */
@@ -185,7 +209,10 @@ export class PluginManager {
             "Sink health check threw during reconnect sweep — treating as unhealthy"
           );
         }
-        if (healthy) continue;
+        if (healthy) {
+          await this.resumeSink(type, sink, "sink health probe succeeded");
+          continue;
+        }
 
         const config = this.config.sinkConfig[type] ?? {};
         try {
@@ -194,6 +221,8 @@ export class PluginManager {
           await this.addSink(type, config);
           reconnected.push(type);
           logger.info({ sink: type }, "Reconnected previously-unhealthy sink");
+          const fresh = this.activeSinks.get(type);
+          if (fresh) await this.resumeSink(type, fresh, "sink reconnected");
         } catch (err) {
           logger.warn(
             { sink: type, err: err instanceof Error ? err.message : err },
@@ -205,6 +234,25 @@ export class PluginManager {
       this.reconnecting = false;
     }
     return reconnected;
+  }
+
+  /**
+   * A sink is confirmed reachable: close its circuit breaker and redeliver
+   * anything its outbox buffered while it was down. Both are no-ops in the
+   * default configuration (breaker already closed, outbox disabled), so a
+   * healthy stack pays nothing for them. Never throws — a flush that fails
+   * leaves the batches buffered for the next sweep.
+   */
+  private async resumeSink(type: string, sink: DataSink, reason: string): Promise<void> {
+    this.publisher.onSinkHealthy(type, reason);
+    try {
+      await this.publisher.flushOutbox(type, sink);
+    } catch (err) {
+      logger.warn(
+        { sink: type, err: err instanceof Error ? err.message : err },
+        "Outbox flush failed during reconnect sweep — buffered updates stay queued"
+      );
+    }
   }
 
   async getVehicles(): Promise<ExportVehicle[]> {
@@ -284,6 +332,15 @@ export class PluginManager {
   async shutdown(): Promise<void> {
     this.stopSinkReconnectLoop();
     this.realism.stop();
+    // The outbox is in-memory only: anything still buffered dies with the
+    // process. Say so loudly rather than pretending the data was delivered.
+    const pending = this.publisher.discardOutbox();
+    for (const [sink, updates] of Object.entries(pending)) {
+      logger.warn(
+        { sink, updates },
+        "Shutting down with updates still buffered in the in-memory outbox — they are lost (the outbox is not restart-durable)"
+      );
+    }
     if (this.activeSource) await this.activeSource.disconnect();
     for (const sink of this.activeSinks.values()) {
       await sink.disconnect();

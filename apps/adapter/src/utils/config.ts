@@ -2,10 +2,32 @@ import dotenv from "dotenv";
 import { z } from "zod";
 import { createLogger } from "./logger";
 import { loadPluginConfigFile, type FileReader, type PluginConfigFile } from "./configFile";
+import type { CircuitBreakerOptions } from "../plugins/circuit-breaker";
+import type { OutboxOptions } from "../plugins/outbox";
 
 const logger = createLogger("config");
 
 dotenv.config();
+
+/**
+ * Boolean env var. `z.coerce.boolean()` is useless here — it makes the string
+ * "false" truthy — so parse the usual textual spellings explicitly. Unset or
+ * blank falls back to `fallback`.
+ */
+function boolFromEnv(fallback: boolean) {
+  return z.preprocess((value) => {
+    if (value == null || String(value).trim() === "") return fallback;
+    return ["1", "true", "yes", "on"].includes(String(value).trim().toLowerCase());
+  }, z.boolean());
+}
+
+/** Integer env var with a default, tolerating an unset-or-blank value. */
+function intFromEnv(fallback: number, min: number) {
+  return z.preprocess(
+    (value) => (value == null || String(value).trim() === "" ? fallback : value),
+    z.coerce.number().int().min(min)
+  );
+}
 
 /**
  * Zod schema for all adapter environment variables.
@@ -47,6 +69,31 @@ export const envSchema = z.object({
    * Both are correct in their respective contexts; this is not a port mismatch.
    */
   SIMULATOR_URL: z.string().default("http://localhost:5010"),
+
+  // --- Delivery hardening (see src/plugins/outbox.ts / circuit-breaker.ts) ---
+
+  /**
+   * Opt-in outbox/DLQ. OFF by default: with it off, sink delivery is
+   * at-most-once exactly as before (a failed publish is reported and dropped).
+   * ON buffers failed batches in memory and redelivers them from the
+   * sink-reconnect sweep. NOT restart-durable — see the outbox docs.
+   */
+  SINK_OUTBOX_ENABLED: boolFromEnv(false),
+  /** Max buffered publish batches per sink (drop-oldest beyond this). */
+  SINK_OUTBOX_MAX_ENTRIES: intFromEnv(1_000, 1),
+  /** Max buffered vehicle updates per sink (drop-oldest beyond this). */
+  SINK_OUTBOX_MAX_UPDATES: intFromEnv(50_000, 1),
+  /** Redelivery attempts before a buffered batch is dropped as poison. */
+  SINK_OUTBOX_MAX_ATTEMPTS: intFromEnv(5, 1),
+  /** Also buffer partially-failed publishes (re-sends the whole batch; duplicates). */
+  SINK_OUTBOX_RETRY_PARTIAL: boolFromEnv(true),
+
+  /** Per-sink circuit breaker. ON by default — it only ever skips a sink that is already failing. */
+  SINK_BREAKER_ENABLED: boolFromEnv(true),
+  /** Consecutive whole-sink failures that open the breaker. */
+  SINK_BREAKER_FAILURE_THRESHOLD: intFromEnv(5, 1),
+  /** How long an open breaker waits before allowing one trial publish (ms). */
+  SINK_BREAKER_COOLDOWN_MS: intFromEnv(30_000, 0),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;
@@ -115,6 +162,12 @@ export interface ConfigOrigins {
   realism: ConfigOrigin;
 }
 
+/** Resolved delivery-hardening settings handed to `PluginManager.setDeliveryOptions`. */
+export interface DeliveryConfig {
+  outbox: OutboxOptions;
+  breaker: CircuitBreakerOptions;
+}
+
 export interface StartupConfig {
   port: number;
   corsOrigins: string[] | "*";
@@ -122,6 +175,8 @@ export interface StartupConfig {
   sinks: Array<{ type: string; config: Record<string, unknown> }>;
   realism: Record<string, unknown>;
   simulatorUrl: string;
+  /** Opt-in outbox/DLQ + per-sink circuit-breaker settings. */
+  delivery: DeliveryConfig;
   /** Provenance of each resolved piece, for logs and `POST /config/validate`. */
   origins: ConfigOrigins;
 }
@@ -219,6 +274,20 @@ export function loadConfig(
     sinks,
     realism,
     simulatorUrl: parsed.SIMULATOR_URL,
+    delivery: {
+      outbox: {
+        enabled: parsed.SINK_OUTBOX_ENABLED,
+        maxEntries: parsed.SINK_OUTBOX_MAX_ENTRIES,
+        maxUpdates: parsed.SINK_OUTBOX_MAX_UPDATES,
+        maxAttempts: parsed.SINK_OUTBOX_MAX_ATTEMPTS,
+        retryPartial: parsed.SINK_OUTBOX_RETRY_PARTIAL,
+      },
+      breaker: {
+        enabled: parsed.SINK_BREAKER_ENABLED,
+        failureThreshold: parsed.SINK_BREAKER_FAILURE_THRESHOLD,
+        cooldownMs: parsed.SINK_BREAKER_COOLDOWN_MS,
+      },
+    },
     origins: {
       configFile: loadedFile?.path ?? null,
       source: originOf(envSourceTypeSet || envSourceConfigSet, fileSource != null),
@@ -241,6 +310,14 @@ export function logConfig(cfg: StartupConfig): void {
     sinks: redactedSinks,
     configFile: cfg.origins.configFile,
     origins: { source: cfg.origins.source, sinks: cfg.origins.sinks },
+    delivery: {
+      outbox: cfg.delivery.outbox.enabled
+        ? `enabled (in-memory, ≤${cfg.delivery.outbox.maxEntries} batches / ${cfg.delivery.outbox.maxUpdates} updates per sink, drop-oldest; NOT restart-durable)`
+        : "disabled (at-most-once)",
+      breaker: cfg.delivery.breaker.enabled
+        ? `enabled (opens after ${cfg.delivery.breaker.failureThreshold} consecutive failures, ${cfg.delivery.breaker.cooldownMs}ms cooldown)`
+        : "disabled",
+    },
   };
   logger.info({ config: redacted }, "Adapter config");
 }

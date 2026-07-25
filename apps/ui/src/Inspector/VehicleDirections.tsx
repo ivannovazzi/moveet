@@ -97,7 +97,17 @@ export default function VehicleDirections({ vehicleId, position }: VehicleDirect
   // a stale segment never lingers after switching / closing the inspector.
   useEffect(() => clearDirectionHighlight, [vehicleId]);
 
-  if (!direction || steps.length === 0) return null;
+  if (!direction || steps.length === 0) {
+    return (
+      <div className="shrink-0">
+        <Hairline />
+        <div className="px-[15px] pb-[10px] pt-[10px]">
+          <Eyebrow>Directions</Eyebrow>
+          <div className="mt-1 text-[11px] text-muted-foreground">No active route.</div>
+        </div>
+      </div>
+    );
+  }
 
   const total = totalDistanceKm(direction.route);
   const remaining = activeStep >= 0 ? remainingDistanceKm(steps, activeStep) : total;
@@ -105,8 +115,16 @@ export default function VehicleDirections({ vehicleId, position }: VehicleDirect
   const turnCount = Math.max(0, steps.length - 1);
   const eta = formatEta(direction.eta ?? 0);
 
+  // Progress is measured against the summed step distances (not `route.distance`)
+  // so the bar and the "remaining" readout can never disagree.
+  const stepTotal = remainingDistanceKm(steps, 0);
+  const travelledPct =
+    activeStep >= 0 && stepTotal > 0
+      ? Math.min(100, Math.max(0, ((stepTotal - remaining) / stepTotal) * 100))
+      : 0;
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="shrink-0">
       <Hairline />
       <div className="flex shrink-0 items-baseline justify-between gap-3 px-[15px] pb-[6px] pt-[10px]">
         <Eyebrow>Directions</Eyebrow>
@@ -125,8 +143,29 @@ export default function VehicleDirections({ vehicleId, position }: VehicleDirect
         </div>
       </div>
 
+      {/* A div, not <progress>: the native element can't take the panel's 3px
+          hairline treatment without heavy UA-stylesheet overrides. */}
+      <div className="flex shrink-0 items-center gap-2.5 px-[15px] pb-[9px]">
+        <div
+          role="progressbar"
+          aria-label="Route progress"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(travelledPct)}
+          className="h-[3px] min-w-0 flex-1 overflow-hidden rounded-full bg-border-soft"
+        >
+          <div
+            className="h-full rounded-full bg-primary transition-[width] duration-normal ease-standard"
+            style={{ width: `${travelledPct}%` }}
+          />
+        </div>
+        <span className={cn(mono, "shrink-0 text-[10px] text-muted-foreground/70")}>
+          {activeStep >= 0 ? `Step ${activeStep + 1}/${steps.length}` : "Not started"}
+        </span>
+      </div>
+
       <ol
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2"
+        className="max-h-[min(34vh,260px)] overflow-y-auto overscroll-contain pb-2"
         aria-label="Turn-by-turn directions"
       >
         {steps.map((step, i) => {

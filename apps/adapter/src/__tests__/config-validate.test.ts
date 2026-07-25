@@ -5,6 +5,8 @@ import { PluginManager } from "../plugins/manager";
 import { createConfigValidateHandler } from "../routes/configValidate";
 import type { ConfigField, DataSink, DataSource } from "../plugins/types";
 import type { StartupConfig } from "../utils/config";
+import { DEFAULT_OUTBOX_OPTIONS } from "../plugins/outbox";
+import { DEFAULT_BREAKER_OPTIONS } from "../plugins/circuit-breaker";
 
 /**
  * Route test for the dry-run endpoint, driving the REAL handler and a REAL
@@ -74,6 +76,10 @@ function startupConfig(overrides: Partial<StartupConfig> = {}): StartupConfig {
     sinks: [{ type: "redpanda", config: { brokers: "b:9092" } }],
     realism: {},
     simulatorUrl: "http://localhost:5010",
+    delivery: {
+      outbox: DEFAULT_OUTBOX_OPTIONS,
+      breaker: DEFAULT_BREAKER_OPTIONS,
+    },
     origins: {
       configFile: "/etc/moveet/adapter.json",
       source: "file",

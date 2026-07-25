@@ -2,8 +2,47 @@ import * as fs from "fs";
 import * as readline from "readline";
 import { EventEmitter } from "events";
 import type { RecordingHeader, RecordingEvent, ReplayStatus } from "../types";
+import {
+  KeyframeStateAccumulator,
+  type KeyframeState,
+  type RecordingKeyframe,
+} from "./RecordingManager";
 
 type ReplayState = "idle" | "playing" | "paused";
+
+/** A keyframe as indexed at load time. */
+interface LoadedKeyframe {
+  /** Recording timestamp the keyframe was written at. */
+  timestamp: number;
+  /**
+   * Index into `events` of the first event NOT yet folded into `state`.
+   * Keyframes are written immediately after the event they include, so this is
+   * `events.length` at the moment the line was read.
+   */
+  eventIndex: number;
+  state: KeyframeState;
+}
+
+/**
+ * Diagnostics for the most recent {@link ReplayManager.seekTo} call.
+ *
+ * Exposed so the work a seek performs can be asserted directly (rather than
+ * timing it, which is flaky). `eventsRolledForward` is the whole cost that
+ * scales with anything: with keyframes it is bounded by the number of events
+ * inside one keyframe interval, independent of how long the recording is.
+ */
+export interface SeekStats {
+  /** Events folded to reconstruct state at the seek target. */
+  eventsRolledForward: number;
+  /** Whether a keyframe was found and used as the starting point. */
+  usedKeyframe: boolean;
+  /** Index of the keyframe used, or -1 when replaying the fold from the start. */
+  keyframeIndex: number;
+  /** Index in `events` the fold started from (0 without a keyframe). */
+  startIndex: number;
+  /** Index in `events` the fold stopped at (the new playback position). */
+  targetIndex: number;
+}
 
 type ReplayEventMap = {
   vehicle: [unknown];
@@ -25,6 +64,21 @@ export class ReplayManager extends EventEmitter<ReplayEventMap> {
   private events: RecordingEvent[] = [];
   private header: RecordingHeader | null = null;
   private filePath: string | null = null;
+
+  /**
+   * Full-state keyframes indexed by their position in `events`, in file order
+   * (therefore sorted by both `timestamp` and `eventIndex`). Empty for
+   * recordings made before keyframes existed — seek then folds from index 0.
+   */
+  private keyframes: LoadedKeyframe[] = [];
+
+  private lastSeekStats: SeekStats = {
+    eventsRolledForward: 0,
+    usedKeyframe: false,
+    keyframeIndex: -1,
+    startIndex: 0,
+    targetIndex: 0,
+  };
 
   private state: ReplayState = "idle";
   private speed: number = 1.0;
@@ -52,6 +106,7 @@ export class ReplayManager extends EventEmitter<ReplayEventMap> {
 
     this.filePath = filePath;
     this.events = [];
+    this.keyframes = [];
     this.header = null;
 
     const stream = fs.createReadStream(filePath, { encoding: "utf-8" });
@@ -73,6 +128,20 @@ export class ReplayManager extends EventEmitter<ReplayEventMap> {
           );
         }
         this.header = parsed as RecordingHeader;
+        continue;
+      }
+
+      // Keyframe lines are an index, not playback content: they never reach
+      // `events` and are never emitted during normal forward playback (which
+      // must stay byte-identical to pre-keyframe behaviour). Recordings written
+      // before this feature simply contain none.
+      if (parsed?.type === "keyframe") {
+        const kf = parsed as RecordingKeyframe;
+        this.keyframes.push({
+          timestamp: kf.timestamp,
+          eventIndex: this.events.length,
+          state: kf.state,
+        });
         continue;
       }
 
@@ -177,6 +246,7 @@ export class ReplayManager extends EventEmitter<ReplayEventMap> {
     this.state = "idle";
     this.currentIndex = 0;
     this.events = [];
+    this.keyframes = [];
     this.header = null;
     this.filePath = null;
     this.emitStatus();
@@ -184,7 +254,17 @@ export class ReplayManager extends EventEmitter<ReplayEventMap> {
 
   /**
    * Seeks to a specific timestamp (ms offset from recording start).
-   * Uses binary search on the pre-loaded events array.
+   *
+   * Restores the full render state at the target before resuming: it jumps to
+   * the nearest preceding full-state keyframe and rolls forward only the events
+   * between that keyframe and the target, then emits the reconstructed state on
+   * the ordinary replay channels. The rolled-forward span is bounded by the
+   * keyframe cadence, so the cost does not grow with the length of the
+   * recording.
+   *
+   * Recordings with no keyframes (anything written before keyframes existed)
+   * fall back to folding from the first event — the previous behaviour, and
+   * still correct, just O(session length).
    *
    * @param timestamp - Target timestamp in ms offset from the start of the recording
    */
@@ -218,6 +298,7 @@ export class ReplayManager extends EventEmitter<ReplayEventMap> {
     }
 
     this.currentIndex = lo;
+    this.restoreStateAt(lo);
 
     if (wasPlaying || this.state === "playing") {
       this.state = "playing";
@@ -232,6 +313,87 @@ export class ReplayManager extends EventEmitter<ReplayEventMap> {
     }
 
     this.emitStatus();
+  }
+
+  /**
+   * Diagnostics for the most recent {@link seekTo} call.
+   */
+  getSeekStats(): SeekStats {
+    return { ...this.lastSeekStats };
+  }
+
+  /** Number of full-state keyframes found in the loaded recording. */
+  getKeyframeCount(): number {
+    return this.keyframes.length;
+  }
+
+  /**
+   * Reconstructs the render state as of `targetIndex` (exclusive) and emits it
+   * on the ordinary replay channels.
+   *
+   * Starts from the newest keyframe whose covered span ends at or before
+   * `targetIndex`, then folds the remaining events. Without keyframes it folds
+   * from zero, which is exactly what a replay-from-start would converge to.
+   */
+  private restoreStateAt(targetIndex: number): void {
+    const accumulator = new KeyframeStateAccumulator();
+
+    // Binary search for the last keyframe with eventIndex <= targetIndex.
+    // Comparing indices (not timestamps) is what keeps this exact when several
+    // events share a timestamp.
+    let keyframeIndex = -1;
+    let lo = 0;
+    let hi = this.keyframes.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (this.keyframes[mid].eventIndex <= targetIndex) {
+        keyframeIndex = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+
+    let startIndex = 0;
+    if (keyframeIndex >= 0) {
+      accumulator.loadFrom(this.keyframes[keyframeIndex].state);
+      startIndex = this.keyframes[keyframeIndex].eventIndex;
+    }
+
+    let rolledForward = 0;
+    for (let i = startIndex; i < targetIndex; i++) {
+      const event = this.events[i];
+      accumulator.apply(event.type, event.data);
+      rolledForward++;
+    }
+
+    this.lastSeekStats = {
+      eventsRolledForward: rolledForward,
+      usedKeyframe: keyframeIndex >= 0,
+      keyframeIndex,
+      startIndex,
+      targetIndex,
+    };
+
+    if (accumulator.isEmpty()) return;
+
+    // Emit on the SAME channels with the SAME payload shapes normal playback
+    // uses — a client cannot tell a restored state apart from having received
+    // every earlier event.
+    const state = accumulator.toKeyframeState();
+
+    if (state.heatzones) {
+      this.emit("heatzones", state.heatzones);
+    }
+    for (const incident of state.incidents) {
+      this.emit("incident:created", incident);
+    }
+    if (state.vehicles.length > 0) {
+      this.emit("vehicle", { vehicles: state.vehicles });
+    }
+    for (const direction of state.directions) {
+      this.emit("direction", direction);
+    }
   }
 
   /**

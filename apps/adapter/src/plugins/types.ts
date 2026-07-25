@@ -38,6 +38,12 @@ export interface SinkResult {
   attempted?: number;
   /** Total items that succeeded. */
   succeeded?: number;
+  /**
+   * Updates buffered in the outbox for later redelivery instead of being
+   * dropped. Present ONLY when the opt-in outbox is enabled, so the
+   * at-most-once (default) result shape is byte-for-byte unchanged.
+   */
+  buffered?: number;
 }
 
 /** Result returned by sinks that support partial-failure reporting. */
