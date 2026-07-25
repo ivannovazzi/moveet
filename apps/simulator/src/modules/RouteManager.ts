@@ -20,6 +20,7 @@ import { rng } from "../utils/rng";
 import logger from "../utils/logger";
 import { setUnroutedVehicles } from "../metrics";
 import { config } from "../utils/config";
+import { HEAT_ZONE_DEFAULTS } from "../constants";
 
 /**
  * After the first "vehicle still unrouted" warning is logged for a vehicle,
@@ -28,6 +29,50 @@ import { config } from "../utils/config";
  * FAILURE_LOG_SAMPLE_RATE pattern.
  */
 export const UNROUTED_LOG_SAMPLE_RATE = 100;
+
+/**
+ * Intensity that `options.heatZoneSpeedFactor` is defined AT — the "typical"
+ * zone. A zone at exactly this intensity is slowed by exactly the configured
+ * factor, which is what keeps intensity scaling from being a stealth global
+ * speed change: only zones that are hotter/cooler than typical move.
+ *
+ * It is `HEAT_ZONE_DEFAULTS.DEFAULT_INTENSITY` (0.6) rather than a fresh
+ * number, for two reasons: it is the intensity a zone gets when a caller
+ * creates one without specifying (so it is literally "a zone, unqualified"),
+ * and it sits near the middle of the generated range
+ * (`MIN_INTENSITY` 0.3 … `MAX_INTENSITY` 1.0), so a seeded fleet's average
+ * heat-zone penalty stays where it is today.
+ */
+export const HEAT_ZONE_NEUTRAL_INTENSITY = HEAT_ZONE_DEFAULTS.DEFAULT_INTENSITY;
+
+/**
+ * Maps a heat zone's current intensity onto a speed multiplier.
+ *
+ *   factor(i) = baseFactor ^ (clamp(i, 0, 1) / NEUTRAL)
+ *
+ * Properties this shape was chosen for:
+ * - `i === NEUTRAL` reproduces `baseFactor` EXACTLY, so nothing changes for a
+ *   typical zone (no stealth global slowdown).
+ * - Monotonic: hotter zone → strictly lower factor. A 0.9 zone slows more than
+ *   a 0.3 zone, which is the whole point of the issue.
+ * - Intrinsically bounded in (0, 1] for any `baseFactor` in (0, 1], so an
+ *   intensity above neutral can never drive the factor negative or to a hard
+ *   zero. A linear `1 - penalty * i / NEUTRAL` mapping can, and a zero
+ *   effective max speed is a deadlock: the vehicle stops, and a stopped
+ *   vehicle can never leave the zone that stopped it.
+ * - `i === 0` yields 1 (no penalty), the correct limit for a zone with no heat.
+ *
+ * @param baseFactor - `options.heatZoneSpeedFactor`, the configured penalty at neutral intensity.
+ * @param intensity - The zone's current intensity, or null when unknown
+ *        (legacy or injected zones with no intensity). Unknown deliberately
+ *        returns `baseFactor` unchanged — today's behaviour — rather than
+ *        guessing zero or maximum penalty.
+ */
+export function heatZoneSpeedFactorFor(baseFactor: number, intensity: number | null): number {
+  if (intensity === null || !Number.isFinite(intensity)) return baseFactor;
+  const clamped = Math.min(1, Math.max(0, intensity));
+  return Math.min(1, baseFactor ** (clamped / HEAT_ZONE_NEUTRAL_INTENSITY));
+}
 
 /**
  * Manages route/waypoint tracking, pathfinding, and route-based movement.
@@ -399,6 +444,28 @@ export class RouteManager extends EventEmitter {
     }
   }
 
+  // ─── Heat-zone intensity ──────────────────────────────────────────
+
+  /**
+   * Intensity of the heat zone covering `position`, or null when no zone with a
+   * usable intensity covers it. Overlapping zones resolve to the hottest one —
+   * a vehicle inside two zones experiences the worse of them, not their sum.
+   *
+   * Delegates to `HeatZoneManager`, which already owns the spatial grid and the
+   * point-in-polygon test. A second implementation here would eventually
+   * disagree with the one deciding `isPositionInHeatZone`, and the speed model
+   * would then penalise a vehicle the zone index says is outside every zone.
+   *
+   * A network that cannot answer (test doubles, future transports) yields null,
+   * which is the legacy flat-penalty path.
+   *
+   * @param position - `[latitude, longitude]`.
+   */
+  private getHeatZoneIntensity(position: [number, number]): number | null {
+    if (typeof this.network.getHeatZoneIntensityAt !== "function") return null;
+    return this.network.getHeatZoneIntensityAt(position);
+  }
+
   // ─── Speed update ─────────────────────────────────────────────────
 
   updateSpeed(vehicle: Vehicle, deltaMs: number, options: StartOptions): void {
@@ -411,15 +478,46 @@ export class RouteManager extends EventEmitter {
     const timeSpeedModifier = (hour >= 22 || hour < 5) && isHighway ? 1.1 : 1.0;
     const adjustedEdgeMaxSpeed = edgeMaxSpeed * timeSpeedModifier;
 
-    const isInHeatZone = this.network.isPositionInHeatZone(vehicle.position);
-    const speedFactor = isInHeatZone && !profile.ignoreHeatZones ? options.heatZoneSpeedFactor : 1;
+    // Ambulances short-circuit before any intensity lookup: `ignoreHeatZones`
+    // means heat zones do not exist for them, at ANY intensity.
+    const inHeatZone =
+      !profile.ignoreHeatZones && this.network.isPositionInHeatZone(vehicle.position);
+    const speedFactor = inHeatZone
+      ? heatZoneSpeedFactorFor(
+          options.heatZoneSpeedFactor,
+          this.getHeatZoneIntensity(vehicle.position)
+        )
+      : 1;
     const congestion = this.traffic.getCongestionFactor(
       vehicle.currentEdge.id,
       vehicle.currentEdge.distance,
       vehicle.currentEdge.highway
     );
-    const effectiveMax =
-      Math.min(profile.maxSpeed, adjustedEdgeMaxSpeed) * speedFactor * congestion;
+
+    // ─── Heat zone vs BPR composition: MIN, not product ───────────────
+    // These two terms are not independent. `TrafficManager.getCongestionFactor`
+    // scales edge occupancy by `getDemandMultiplier(profile, hour, highway)`,
+    // and heat-zone intensity is now `baseIntensity * getDemandMultiplier(...)`
+    // from that SAME curve (see HeatZoneManager.applyTimeOfDay). Multiplying
+    // them would apply the identical rush-hour demand signal twice — at 17:00
+    // (demand 2.5 on arterials) a vehicle on a busy arterial inside a blooming
+    // zone would eat a squared demand penalty that neither model claims.
+    //
+    // So they compose as the strongest binding constraint rather than a
+    // product: whichever mechanism says "slower" governs. Each model keeps its
+    // full individual range (heat zones alone still slow to their factor;
+    // congestion alone still slows to its factor), the shared demand term is
+    // counted exactly once, and — because both are <= 1 — the composed factor
+    // is never weaker than either term alone.
+    //
+    // The rejected alternative was de-trending: dividing the demand multiplier
+    // back out of the intensity before applying it. That leaves the product
+    // intact but requires RouteManager to know the traffic profile, the zone's
+    // baseIntensity (which the wire format does not carry) and the exact
+    // clamping applyTimeOfDay used — three couplings that silently produce
+    // wrong numbers the moment any of them drifts.
+    const environmentFactor = Math.min(speedFactor, congestion);
+    const effectiveMax = Math.min(profile.maxSpeed, adjustedEdgeMaxSpeed) * environmentFactor;
 
     if (!vehicle.targetSpeed || rng() < deltaMs / 5000) {
       const variation = 1 + (rng() * 2 - 1) * options.speedVariation;

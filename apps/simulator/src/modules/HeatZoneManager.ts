@@ -411,6 +411,32 @@ export class HeatZoneManager {
   }
 
   /**
+   * Intensity of the hottest zone containing this position, or null when the
+   * position is in no zone.
+   *
+   * The speed model needs "how hot?", not just "inside?" — a vehicle in a
+   * blooming rush-hour zone should be slowed more than one in the same zone
+   * faded overnight. This shares the grid and the ray-cast with
+   * `isPositionInHeatZone` rather than rebuilding a parallel index elsewhere;
+   * two point-in-polygon implementations would eventually disagree.
+   *
+   * Overlapping zones resolve to the maximum, matching how the speed model
+   * composes constraints: the strongest binding one wins.
+   */
+  public getIntensityAt(position: [number, number]): number | null {
+    const px = position[1]; // longitude
+    const py = position[0]; // latitude
+    let hottest: number | null = null;
+    for (const zone of this.getCandidateZones(position)) {
+      if (!this.raycastPIP(px, py, zone.polygon)) continue;
+      const intensity = zone.intensity;
+      if (typeof intensity !== "number" || !Number.isFinite(intensity)) continue;
+      if (hottest === null || intensity > hottest) hottest = intensity;
+    }
+    return hottest;
+  }
+
+  /**
    * Computes a polygon's bounding box. Coords are [longitude, latitude]
    * (GeoJSON convention). Returns null for an empty polygon.
    */

@@ -58,6 +58,9 @@ const TrafficZones = lazy(() => import("./TrafficZones"));
 const TrafficOverlay = lazy(() => import("./TrafficOverlay"));
 const BreadcrumbLayer = lazy(() => import("./Breadcrumb/BreadcrumbLayer"));
 const SpeedLimitSigns = lazy(() => import("./SpeedLimitSigns"));
+// Pulls in @deck.gl/aggregation-layers — lazy so the hexagon binning code
+// isn't in the main deck chunk for the (default) non-density case.
+const VehicleDensityLayer = lazy(() => import("./Vehicle/VehicleDensityLayer"));
 
 interface MapProps {
   network: RoadNetwork;
@@ -244,7 +247,17 @@ export default function Map({
             hoveredId={filters.hovered}
             onClick={onClick}
             onHover={onHoverVehicle}
+            densityMode={modifiers.showDensity}
           />
+        )}
+        {modifiers.showDensity && (
+          <Suspense fallback={null}>
+            <VehicleDensityLayer
+              vehicleFleetMap={vehicleFleetMap}
+              hiddenFleetIds={hiddenFleetIds}
+              hiddenVehicleTypes={hiddenVehicleTypes}
+            />
+          </Suspense>
         )}
         {modifiers.showHeatmap && (
           <Suspense fallback={null}>

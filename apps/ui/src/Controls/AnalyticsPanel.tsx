@@ -1,10 +1,30 @@
-import { useCallback, useId, useMemo, type ReactNode } from "react";
-import client from "@/utils/client";
+import { useCallback, useMemo, useState } from "react";
 import { Button } from "@/components/Inputs";
-import { cn } from "@/lib/utils";
-import { Eyebrow, StatusDot, mono } from "@/Dock/DockPanelKit";
-import { PanelBody, PanelLoadingState, PanelHeader } from "./PanelPrimitives";
+import {
+  SeriesTable,
+  SmallMultiples,
+  Sparkline,
+  StatTile,
+  type FacetSeries,
+  type StatDelta,
+} from "@/components/charts";
+import { Eyebrow, SegTabs, StatusDot, mono, type SegTab } from "@/Dock/DockPanelKit";
 import type { AnalyticsSummary, FleetAnalytics } from "@/hooks/analyticsStore";
+import {
+  ANALYTICS_RANGES,
+  useAnalyticsSeries,
+  type AnalyticsHistoryFetcher,
+  type AnalyticsRange,
+} from "@/hooks/useAnalytics";
+import { cn } from "@/lib/utils";
+import client from "@/utils/client";
+import {
+  PanelBody,
+  PanelEmptyState,
+  PanelErrorState,
+  PanelHeader,
+  PanelLoadingState,
+} from "./PanelPrimitives";
 
 // ─── Formatting helpers ──────────────────────────────────────────────
 
@@ -22,125 +42,42 @@ function formatPercent(ratio: number): string {
   return `${(ratio * 100).toFixed(0)}%`;
 }
 
-const UNIT = "text-[13px] font-normal text-muted-foreground";
+/** Axis-grade formatters: short enough for a 34px y gutter. */
+const axisCount = (v: number) => String(Math.round(v));
+const axisSpeed = (v: number) => v.toFixed(1);
+const axisDistance = (v: number) =>
+  v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v >= 10 ? v.toFixed(0) : v.toFixed(1);
+const axisPercent = (v: number) => (v * 100).toFixed(0);
 
-// ─── Sparkline ───────────────────────────────────────────────────────
+const RANGE_LABEL: Record<AnalyticsRange, string> = {
+  live: "Live",
+  "1h": "1h",
+  "6h": "6h",
+  "24h": "24h",
+};
 
-interface SparklineProps {
-  data: number[];
-  width?: number;
-  height?: number;
-  /** A CSS var (accent by default, status-ok for a secondary series). */
-  color?: string;
+const RANGE_TABS: SegTab<AnalyticsRange>[] = ANALYTICS_RANGES.map((r) => ({
+  value: r,
+  label: RANGE_LABEL[r],
+}));
+
+/** Trend samples shown in a KPI tile's sparkline. */
+const SPARK_POINTS = 24;
+
+function tail(values: number[], count: number): number[] {
+  return values.length > count ? values.slice(-count) : values;
 }
 
-/**
- * A considered micro-chart: a faint gradient area fill under the trend line
- * plus an emphasized dot at the latest value, so the spark reads as a chart
- * and not just a squiggle. The dot is a CSS-positioned element (not an SVG
- * circle) so it stays perfectly round under the non-scaling viewBox stretch.
- */
-function Sparkline({
-  data,
-  width = 120,
-  height = 40,
-  color = "var(--color-accent)",
-}: SparklineProps) {
-  const gradientId = useId();
-  const geom = useMemo(() => {
-    if (data.length < 2) return null;
-
-    const xMax = data.length - 1;
-    const x0 = 1;
-    const x1 = width - 1;
-    const xScale = (i: number) => x0 + (i / xMax) * (x1 - x0);
-
-    let lo = data[0];
-    let hi = data[0];
-    for (const v of data) {
-      if (v < lo) lo = v;
-      if (v > hi) hi = v;
-    }
-    if (hi === lo) hi = lo + 1;
-    const yBottom = height - 2;
-    const yTop = 2;
-    const yScale = (v: number) => yBottom + ((v - lo) / (hi - lo)) * (yTop - yBottom);
-
-    const pts = data.map((d, i) => [xScale(i), yScale(d)] as const);
-    const line = `M${pts.map((p) => `${p[0]},${p[1]}`).join("L")}`;
-    const last = pts[pts.length - 1];
-    const area = `${line}L${last[0]},${height}L${pts[0][0]},${height}Z`;
-
-    return {
-      line,
-      area,
-      dotLeft: (last[0] / width) * 100,
-      dotTop: (last[1] / height) * 100,
-    };
-  }, [data, width, height]);
-
-  if (!geom) return null;
-
-  return (
-    <div className="relative block min-w-0 flex-1">
-      <svg
-        className="block w-full overflow-visible"
-        width="100%"
-        height={height}
-        viewBox={`0 0 ${width} ${height}`}
-        preserveAspectRatio="none"
-        aria-hidden="true"
-      >
-        <defs>
-          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity={0.26} />
-            <stop offset="100%" stopColor={color} stopOpacity={0} />
-          </linearGradient>
-        </defs>
-        <path d={geom.area} fill={`url(#${gradientId})`} stroke="none" />
-        <path
-          className="fill-none [stroke-linecap:round] [stroke-linejoin:round] [stroke-width:1.5]"
-          d={geom.line}
-          stroke={color}
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-      <span
-        className="pointer-events-none absolute size-[5px] -translate-x-1/2 -translate-y-1/2 rounded-full"
-        style={{
-          left: `${geom.dotLeft}%`,
-          top: `${geom.dotTop}%`,
-          backgroundColor: color,
-          boxShadow: `0 0 5px ${color}`,
-        }}
-      />
-    </div>
-  );
-}
-
-// ─── Stat ────────────────────────────────────────────────────────────
-
-interface StatProps {
-  label: string;
-  value: ReactNode;
-  className?: string;
-}
-
-/** A bare numeric readout: eyebrow label over a big mono value, no card. */
-function Stat({ label, value, className }: StatProps) {
-  return (
-    <div className={cn("flex flex-col gap-1.5 px-1 py-2.5", className)}>
-      <Eyebrow>{label}</Eyebrow>
-      <div
-        className={cn(
-          mono,
-          "text-[21px] font-semibold leading-none tracking-[-0.01em] text-foreground"
-        )}
-      >
-        {value}
-      </div>
-    </div>
-  );
+/** Change across the visible window, formatted with the measure's own unit. */
+function windowDelta(
+  values: number[],
+  format: (v: number) => string,
+  polarity: StatDelta["polarity"],
+  since: string
+): StatDelta | null {
+  if (values.length < 2) return null;
+  const change = values[values.length - 1] - values[0];
+  return { value: change, text: format(Math.abs(change)), polarity, since };
 }
 
 // ─── Fleet row ───────────────────────────────────────────────────────
@@ -157,7 +94,7 @@ function FleetCard({ fleetId, history }: FleetCardProps) {
   if (!latest) return null;
 
   return (
-    <div className="flex flex-col gap-2.5 py-2.5">
+    <div className="flex flex-col gap-2.5 py-2.5" data-testid={`fleet-${fleetId}`}>
       <div className="flex items-center gap-2.5">
         <StatusDot tone="ok" />
         <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-foreground">
@@ -183,7 +120,7 @@ function FleetCard({ fleetId, history }: FleetCardProps) {
       {speedHistory.length >= 2 && (
         <div className="flex items-center gap-3">
           <Eyebrow className="shrink-0">Speed</Eyebrow>
-          <Sparkline data={speedHistory} color="var(--color-status-ok)" />
+          <Sparkline data={speedHistory} height={24} />
           <span className={cn(mono, "shrink-0 text-[12px] font-semibold text-foreground")}>
             {formatSpeed(latest.avgSpeed)}
           </span>
@@ -195,105 +132,218 @@ function FleetCard({ fleetId, history }: FleetCardProps) {
 
 // ─── AnalyticsPanel ──────────────────────────────────────────────────
 
-interface AnalyticsPanelProps {
+export interface AnalyticsPanelProps {
   summary: AnalyticsSummary | null;
   fleetHistory: Map<string, FleetAnalytics[]>;
   summaryHistory: AnalyticsSummary[];
+  /**
+   * Persisted-history source. Defaults to `GET /analytics/history` on the
+   * simulator; injected in tests and swappable if the series ever moves behind
+   * a different endpoint.
+   */
+  fetchHistory?: AnalyticsHistoryFetcher;
 }
 
 export default function AnalyticsPanel({
   summary,
   fleetHistory,
   summaryHistory,
+  fetchHistory,
 }: AnalyticsPanelProps) {
+  const [range, setRange] = useState<AnalyticsRange>("live");
+  const [view, setView] = useState<"chart" | "table">("chart");
+
+  const series = useAnalyticsSeries({
+    range,
+    summary,
+    summaryHistory,
+    fleetHistory,
+    fetchHistory,
+  });
+
   const handleReset = useCallback(() => {
     client.resetAnalytics();
   }, []);
 
-  const fleetIds = useMemo(() => Array.from(fleetHistory.keys()), [fleetHistory]);
+  const { summaries, latest, status } = series;
 
-  const speedHistory = useMemo(() => summaryHistory.map((s) => s.avgSpeed), [summaryHistory]);
+  const timestamps = useMemo(() => summaries.map((s) => s.timestamp), [summaries]);
 
-  if (!summary) {
-    return (
-      <>
-        <PanelHeader title="Analytics" />
-        <PanelBody>
-          <PanelLoadingState>Waiting for analytics data…</PanelLoadingState>
-        </PanelBody>
-      </>
-    );
-  }
+  const columns = useMemo<{
+    speed: number[];
+    active: number[];
+    distance: number[];
+    efficiency: number[];
+  }>(
+    () => ({
+      active: summaries.map((s) => s.activeVehicles),
+      speed: summaries.map((s) => s.avgSpeed),
+      distance: summaries.map((s) => s.totalDistanceTraveled),
+      efficiency: summaries.map((s) => s.avgRouteEfficiency),
+    }),
+    [summaries]
+  );
+
+  /**
+   * One facet per measure over the shared time axis. Four single-series plots
+   * rather than one plot with four y scales — measures this different (a count,
+   * a rate, a cumulative distance, a ratio) share no axis honestly.
+   */
+  const facets = useMemo<FacetSeries[]>(
+    () => [
+      {
+        id: "active",
+        label: "Active vehicles",
+        unit: "veh",
+        values: columns.active,
+        format: axisCount,
+      },
+      { id: "speed", label: "Avg speed", unit: "km/h", values: columns.speed, format: axisSpeed },
+      {
+        id: "distance",
+        label: "Distance travelled",
+        unit: "km",
+        values: columns.distance,
+        format: axisDistance,
+      },
+      {
+        id: "efficiency",
+        label: "Route efficiency",
+        unit: "%",
+        values: columns.efficiency,
+        format: axisPercent,
+      },
+    ],
+    [columns]
+  );
+
+  const sinceLabel = range === "live" ? "over window" : `over ${RANGE_LABEL[range]}`;
+  const fleetIds = useMemo(() => Array.from(series.fleetHistory.keys()), [series.fleetHistory]);
+
+  const subtitle = latest
+    ? `${latest.activeVehicles} of ${latest.totalVehicles} vehicles active`
+    : undefined;
 
   return (
     <>
-      <PanelHeader
-        title="Analytics"
-        subtitle={`${summary.activeVehicles} of ${summary.totalVehicles} vehicles active`}
-      />
+      <PanelHeader title="Analytics" subtitle={subtitle} />
       <PanelBody className="gap-4">
-        <div className="flex justify-end">
-          <Button className="h-8 px-4 text-sm" onClick={handleReset} type="button">
-            Reset
-          </Button>
-        </div>
-
-        <div className="grid grid-cols-2">
-          <Stat
-            label="Vehicles"
-            value={
-              <>
-                {summary.activeVehicles}
-                <span className={UNIT}> / {summary.totalVehicles}</span>
-              </>
-            }
+        {/* One filter row, above everything it scopes: the range drives the
+            stats, the charts and the table alike. */}
+        <div className="flex flex-col gap-2">
+          <SegTabs
+            tabs={RANGE_TABS}
+            value={range}
+            onChange={setRange}
+            ariaLabel="Analytics time range"
           />
-          <Stat
-            className="border-l border-border-soft"
-            label="Avg Speed"
-            value={
-              <>
-                {formatSpeed(summary.avgSpeed)}
-                <span className={UNIT}> km/h</span>
-              </>
-            }
-          />
-          <Stat
-            className="border-t border-border-soft"
-            label="Distance"
-            value={
-              <>
-                {formatDistance(summary.totalDistanceTraveled)}
-                <span className={UNIT}> km</span>
-              </>
-            }
-          />
-          <Stat
-            className="border-l border-t border-border-soft"
-            label="Efficiency"
-            value={formatPercent(summary.avgRouteEfficiency)}
-          />
-        </div>
-
-        {speedHistory.length >= 2 && (
-          <div>
-            <Eyebrow className="mb-2">Speed trend</Eyebrow>
-            <div className="flex items-center gap-3">
-              <Sparkline data={speedHistory} width={160} height={40} />
-              <span className={cn(mono, "shrink-0 text-[13px] font-semibold text-foreground")}>
-                {formatSpeed(summary.avgSpeed)}
-                <span className="ml-0.5 text-[10px] font-normal text-muted-foreground">km/h</span>
-              </span>
+          <div className="flex items-center justify-between gap-2">
+            <span className="truncate text-[10px] text-muted-foreground">
+              {series.source === "live" ? "In-memory window" : "Stored history"}
+              {summaries.length > 0 ? ` · ${summaries.length} samples` : ""}
+            </span>
+            <div className="flex items-center gap-1.5">
+              <div className="flex gap-0.5" role="group" aria-label="Analytics view">
+                {(["chart", "table"] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    aria-pressed={view === v}
+                    onClick={() => setView(v)}
+                    className={cn(
+                      "rounded-md px-2 py-1 text-[10.5px] font-medium capitalize",
+                      "transition-colors duration-fast ease-standard",
+                      view === v
+                        ? "bg-foreground/[0.06] text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+              <Button className="h-7 px-3 text-xs" onClick={handleReset} type="button">
+                Reset
+              </Button>
             </div>
           </div>
-        )}
+        </div>
+
+        {status === "error" ? (
+          <PanelErrorState>{series.message ?? "Could not load analytics history."}</PanelErrorState>
+        ) : null}
+
+        {status === "unavailable" ? (
+          <PanelEmptyState>
+            {series.message} Switch to <strong className="font-medium">Live</strong> to read the
+            in-memory window instead.
+          </PanelEmptyState>
+        ) : null}
+
+        {status === "loading" ? (
+          <PanelLoadingState>{series.message ?? "Loading analytics…"}</PanelLoadingState>
+        ) : null}
+
+        {latest ? (
+          <div className="grid grid-cols-2 divide-x divide-y divide-border-soft [&>*:nth-child(-n+2)]:border-t-0 [&>*:nth-child(odd)]:border-l-0">
+            <StatTile
+              label="Vehicles"
+              value={latest.activeVehicles}
+              unit={`/ ${latest.totalVehicles}`}
+              delta={windowDelta(columns.active, axisCount, "neutral", sinceLabel)}
+              trend={tail(columns.active, SPARK_POINTS)}
+            />
+            <StatTile
+              label="Avg Speed"
+              value={formatSpeed(latest.avgSpeed)}
+              unit="km/h"
+              delta={windowDelta(columns.speed, axisSpeed, "up-is-good", sinceLabel)}
+              trend={tail(columns.speed, SPARK_POINTS)}
+            />
+            <StatTile
+              label="Distance"
+              value={formatDistance(latest.totalDistanceTraveled)}
+              unit="km"
+              delta={windowDelta(columns.distance, axisDistance, "neutral", sinceLabel)}
+              trend={tail(columns.distance, SPARK_POINTS)}
+            />
+            <StatTile
+              label="Efficiency"
+              value={formatPercent(latest.avgRouteEfficiency)}
+              delta={windowDelta(
+                columns.efficiency,
+                (v) => `${axisPercent(v)}pp`,
+                "up-is-good",
+                sinceLabel
+              )}
+              trend={tail(columns.efficiency, SPARK_POINTS)}
+            />
+          </div>
+        ) : null}
+
+        {status === "collecting" ? <PanelEmptyState>{series.message}</PanelEmptyState> : null}
+
+        {status === "ready" && view === "chart" ? (
+          <SmallMultiples title="Fleet over time" timestamps={timestamps} series={facets} />
+        ) : null}
+
+        {status === "ready" && view === "table" ? (
+          <section>
+            <Eyebrow className="mb-1">Fleet over time</Eyebrow>
+            <SeriesTable
+              timestamps={timestamps}
+              series={facets}
+              caption="Fleet analytics samples over the selected range"
+            />
+          </section>
+        ) : null}
 
         {fleetIds.length > 0 && (
           <div>
             <Eyebrow className="mb-1">Fleets</Eyebrow>
             <div className="flex flex-col divide-y divide-border-soft">
               {fleetIds.map((id) => (
-                <FleetCard key={id} fleetId={id} history={fleetHistory.get(id) ?? []} />
+                <FleetCard key={id} fleetId={id} history={series.fleetHistory.get(id) ?? []} />
               ))}
             </div>
           </div>

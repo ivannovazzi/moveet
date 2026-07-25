@@ -61,6 +61,11 @@ export interface Modifiers {
   showTrafficOverlay: boolean;
   showBreadcrumbs: boolean;
   showSpeedLimits: boolean;
+  /**
+   * Aggregated (hexagon) density view for high vehicle counts. Optional so
+   * existing default-modifier objects stay valid; absent reads as off.
+   */
+  showDensity?: boolean;
 }
 
 interface VehicleUIFlags {

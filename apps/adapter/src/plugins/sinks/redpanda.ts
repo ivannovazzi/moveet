@@ -731,7 +731,7 @@ export class RedpandaSink implements DataSink {
           messagesTotal: total,
           messagesNotDelivered: dropped,
         },
-        `Partial failure: ${chunks.length - failures.length}/${chunks.length} chunks sent (${succeeded}/${total} messages); failed chunks dropped (at-most-once, no DLQ)`
+        `Partial failure: ${chunks.length - failures.length}/${chunks.length} chunks sent (${succeeded}/${total} messages); the sink does not retry failed chunks — they are dropped unless the publisher's opt-in outbox is enabled (SINK_OUTBOX_ENABLED)`
       );
     }
 

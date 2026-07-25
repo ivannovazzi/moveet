@@ -36,7 +36,8 @@ import ErrorBoundary, { SectionErrorFallback } from "./components/ErrorBoundary"
 import { useAnalytics } from "./hooks/useAnalytics";
 import { useNetwork } from "./hooks/useNetwork";
 import { useRoads } from "./hooks/useRoads";
-import { useDataReady, useOptionsContext } from "./data/useData";
+import { useDataReady, useOptionsContext, usePOIContext } from "./data/useData";
+import CommandPalette, { buildCommands } from "./components/CommandPalette";
 import LoadingOverlay from "./components/LoadingOverlay";
 import StartHint from "./components/StartHint";
 import { useVersionCheck } from "./hooks/useVersionCheck";
@@ -79,7 +80,10 @@ export default function App() {
   const onBboxChange = useCallback((bbox: BoundingBox | null) => setViewportBbox(bbox), []);
 
   const { network, loading: networkLoading } = useNetwork();
-  const { loading: roadsLoading } = useRoads();
+  const { roads, loading: roadsLoading } = useRoads();
+  // Read-only context view of the POIs `SearchBar` already fetches — the
+  // command palette searches them without adding a second request.
+  const { pois } = usePOIContext();
   // The map can't render (and the SearchBar has nothing to search) until the
   // road network + roads have loaded. Drives both the loading overlay and the
   // SearchBar's visibility.
@@ -204,7 +208,78 @@ export default function App() {
   useTracking(vehicles, filters.selected, status.interval);
 
   // Keyboard shortcuts while in dispatch mode: Enter dispatches, Esc exits.
+  // Modal shortcuts stay here; the palette exposes the same actions by name.
   useDispatchShortcuts(dispatch);
+
+  // ─── Command palette (⌘K) ───────────────────────────────────────
+  // Every dock action, built from the handlers already wired above. Deps are
+  // the individual fields (not the `dispatch`/`recording` objects, which are
+  // fresh literals each render) so this list only rebuilds when it changes.
+  const {
+    dispatchMode,
+    dispatchState,
+    toggleDispatchMode,
+    handleDone,
+    handleDispatch,
+    handleRetryFailed,
+  } = dispatch;
+  const assignmentCount = dispatch.assignments.length;
+  const hasFailedDispatches = dispatch.results.some((r) => r.status === "error");
+  const paletteActions = useMemo(
+    () =>
+      buildCommands({
+        running: status.running,
+        options,
+        isRecording: recording.isRecording,
+        onStartRecording: recording.startRecording,
+        onStopRecording: recording.stopRecording,
+        replayStatus: replay.replayStatus,
+        onPauseReplay: replay.pauseReplay,
+        onResumeReplay: replay.resumeReplay,
+        onStopReplay: replay.stopReplay,
+        onSetReplaySpeed: replay.setReplaySpeed,
+        dispatchMode,
+        dispatchState,
+        assignmentCount,
+        hasFailedDispatches,
+        onToggleDispatchMode: toggleDispatchMode,
+        onExitDispatchMode: handleDone,
+        onDispatch: handleDispatch,
+        onRetryFailedDispatches: handleRetryFailed,
+        onCreateRandomIncident: incidents.createRandom,
+        onStartGeofenceDrawing: geofences.startDrawing,
+        heatzones: heatzoneEditor,
+        modifiers,
+        onChangeModifiers,
+        onClearSelection: resetSelection,
+      }),
+    [
+      status.running,
+      options,
+      recording.isRecording,
+      recording.startRecording,
+      recording.stopRecording,
+      replay.replayStatus,
+      replay.pauseReplay,
+      replay.resumeReplay,
+      replay.stopReplay,
+      replay.setReplaySpeed,
+      dispatchMode,
+      dispatchState,
+      assignmentCount,
+      hasFailedDispatches,
+      toggleDispatchMode,
+      handleDone,
+      handleDispatch,
+      handleRetryFailed,
+      incidents.createRandom,
+      geofences.startDrawing,
+      heatzoneEditor,
+      modifiers,
+      onChangeModifiers,
+      resetSelection,
+    ]
+  );
 
   return (
     <div className="flex h-screen max-h-screen flex-col overflow-hidden bg-background">
@@ -343,6 +418,18 @@ export default function App() {
           </div>
         </ErrorBoundary>
       </div>
+      {/* Keyboard-first surface over the same entities and dock actions.
+          `setSelectedItem` / `onSelectVehicle` are the very handlers the
+          SearchBar and vehicle list use, so selecting from here flies the
+          camera and opens the Inspector exactly as clicking would. */}
+      <CommandPalette
+        vehicles={vehicles}
+        roads={roads}
+        pois={pois}
+        actions={paletteActions}
+        onSelectVehicle={onSelectVehicle}
+        onSelectItem={setSelectedItem}
+      />
       <ContextMenu position={contextMenuXY} onClose={closeContextMenu}>
         <MapContextMenu
           state={dispatch.dispatchState}

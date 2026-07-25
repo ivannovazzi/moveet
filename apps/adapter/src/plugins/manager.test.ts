@@ -520,6 +520,126 @@ describe("PluginManager", () => {
       expect(created).toBe(2);
     });
 
+    it("redelivers outbox-buffered updates through the sweep once the sink reconnects", async () => {
+      manager.setDeliveryOptions({ outbox: { enabled: true } });
+
+      let created = 0;
+      const instances: DataSink[] = [];
+      manager.registerSink("rp", () => {
+        created++;
+        const broken = created === 1;
+        const sink = createMockSink({
+          type: "rp",
+          publishUpdates: broken
+            ? vi.fn().mockRejectedValue(new Error("broker down"))
+            : vi.fn().mockResolvedValue(undefined),
+          healthCheck: vi.fn().mockResolvedValue({ healthy: !broken }),
+        });
+        instances.push(sink);
+        return sink;
+      });
+      await manager.addSink("rp", { brokers: "b:9092" });
+
+      const updates: VehicleUpdate[] = [{ id: "v1", latitude: -1.28, longitude: 36.8 }];
+      const result = await manager.publishUpdates(updates);
+      assertPublishResult(result);
+      expect(result.status).toBe("failure");
+      // The failed batch is buffered rather than dropped.
+      expect(manager.getPendingOutbox()).toEqual({ rp: 1 });
+
+      // The sweep reconnects the sink and drains its outbox into the fresh instance.
+      const reconnected = await manager.reconnectUnhealthySinks();
+
+      expect(reconnected).toEqual(["rp"]);
+      expect(instances[1].publishUpdates).toHaveBeenCalledWith(updates);
+      expect(manager.getPendingOutbox()).toEqual({});
+    });
+
+    it("keeps updates buffered when the sink is still down at the next sweep", async () => {
+      manager.setDeliveryOptions({ outbox: { enabled: true } });
+      manager.registerSink("rp", () =>
+        createMockSink({
+          type: "rp",
+          publishUpdates: vi.fn().mockRejectedValue(new Error("broker down")),
+          healthCheck: vi.fn().mockResolvedValue({ healthy: false }),
+        })
+      );
+      await manager.addSink("rp", {});
+
+      await manager.publishUpdates([{ id: "v1", latitude: -1.28, longitude: 36.8 }]);
+      await manager.reconnectUnhealthySinks();
+
+      // Reconnect "succeeded" (a fresh broken instance), the flush did not:
+      // the batch survives for the next sweep instead of being lost.
+      expect(manager.getPendingOutbox()).toEqual({ rp: 1 });
+    });
+
+    it("buffers nothing and replays nothing with the outbox off (default)", async () => {
+      let created = 0;
+      const instances: DataSink[] = [];
+      manager.registerSink("rp", () => {
+        created++;
+        const broken = created === 1;
+        const sink = createMockSink({
+          type: "rp",
+          publishUpdates: broken
+            ? vi.fn().mockRejectedValue(new Error("broker down"))
+            : vi.fn().mockResolvedValue(undefined),
+          healthCheck: vi.fn().mockResolvedValue({ healthy: !broken }),
+        });
+        instances.push(sink);
+        return sink;
+      });
+      await manager.addSink("rp", {});
+
+      await manager.publishUpdates([{ id: "v1", latitude: -1.28, longitude: 36.8 }]);
+      await manager.reconnectUnhealthySinks();
+
+      expect(manager.getPendingOutbox()).toEqual({});
+      // At-most-once: the reconnected instance gets nothing replayed to it.
+      expect(instances[1].publishUpdates).not.toHaveBeenCalled();
+    });
+
+    it("closes an open circuit breaker when the sweep finds the sink healthy", async () => {
+      manager.setDeliveryOptions({ breaker: { failureThreshold: 2, cooldownMs: 60_000 } });
+
+      // One long-lived sink whose publishes fail until `broken` is flipped, and
+      // whose health check tracks the same flag — so the sweep sees it healthy
+      // without replacing the instance.
+      let broken = true;
+      const publishUpdates = vi.fn(async () => {
+        if (broken) throw new Error("broker down");
+      });
+      const sink = createMockSink({
+        type: "rp",
+        publishUpdates,
+        healthCheck: vi.fn(async () => ({ healthy: !broken })),
+      });
+      manager.registerSink("rp", () => sink);
+      await manager.addSink("rp", {});
+
+      const updates: VehicleUpdate[] = [{ id: "v1", latitude: -1.28, longitude: 36.8 }];
+      await manager.publishUpdates(updates);
+      await manager.publishUpdates(updates);
+      expect(publishUpdates).toHaveBeenCalledTimes(2);
+
+      // Breaker is open: this publish never reaches the sink.
+      const skipped = await manager.publishUpdates(updates);
+      assertPublishResult(skipped);
+      expect(publishUpdates).toHaveBeenCalledTimes(2);
+      expect(skipped.sinks[0].error).toContain("circuit breaker open");
+
+      // The backend comes back; the existing reconnect sweep closes the breaker
+      // (no need to wait out the 60s cooldown).
+      broken = false;
+      await manager.reconnectUnhealthySinks();
+
+      const resumed = await manager.publishUpdates(updates);
+      assertPublishResult(resumed);
+      expect(resumed.status).toBe("success");
+      expect(publishUpdates).toHaveBeenCalledTimes(3);
+    });
+
     it("start/stop loop is idempotent and stops on shutdown", async () => {
       manager.startSinkReconnectLoop(60_000);
       // Second call is a no-op (no throw, no duplicate timer leak).

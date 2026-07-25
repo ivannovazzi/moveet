@@ -72,6 +72,11 @@ async function startup(): Promise<void> {
     );
   }
 
+  // Delivery hardening: the per-sink circuit breaker (on by default — it only
+  // skips a sink that is already failing) and the opt-in outbox/DLQ (off by
+  // default, so delivery stays at-most-once unless SINK_OUTBOX_ENABLED is set).
+  pluginManager.setDeliveryOptions(config.delivery);
+
   // Wire the source resiliently: a source whose backend is unreachable at
   // startup (e.g. the fleet connector or a DB being down) must NOT take the
   // adapter down. It is logged and left unset; it can be (re)configured via the
