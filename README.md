@@ -443,12 +443,6 @@ All three images build from the single workspace-aware root `Dockerfile` (target
 docker compose up --build
 ```
 
-For the Flare dev environment (real fleet roster + dev Redpanda), layer the override:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.flare-dev.yml up --build
-```
-
 To scale the WebSocket fan-out onto a standalone `ws-gateway` process backed by Redis, enable the optional `scale` profile (off by default):
 
 ```bash
