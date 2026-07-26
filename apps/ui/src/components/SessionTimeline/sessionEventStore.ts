@@ -56,11 +56,19 @@ class SessionEventStore {
   private timeline: TimelineKey = LIVE_TIMELINE;
   private listeners = new Set<() => void>();
   private nextId = 1;
+  /**
+   * How many events this timeline has dropped off the old end. The strip shows
+   * it, because a bounded window that silently discards its own history is a
+   * chart that lies about its extent — the same failure just fixed server-side
+   * in the analytics history endpoint.
+   */
+  private evicted = 0;
 
   record(input: SessionEventInput): void {
     const event: SessionEvent = { ...input, id: this.nextId++ };
     const next = [...this.events, event];
     if (next.length > MAX_SESSION_EVENTS) {
+      this.evicted += next.length - MAX_SESSION_EVENTS;
       next.splice(0, next.length - MAX_SESSION_EVENTS);
     }
     this.events = next;
@@ -74,6 +82,11 @@ class SessionEventStore {
 
   size(): number {
     return this.events.length;
+  }
+
+  /** Events dropped off the old end of the current timeline; 0 when nothing was lost. */
+  evictedCount(): number {
+    return this.evicted;
   }
 
   /**
@@ -93,7 +106,14 @@ class SessionEventStore {
   }
 
   clear(): void {
-    if (this.events.length === 0) return;
+    const hadEvicted = this.evicted > 0;
+    this.evicted = 0;
+    if (this.events.length === 0) {
+      // Still notify if the eviction badge was showing — it must not survive a
+      // timeline switch that dropped the events it was counting.
+      if (hadEvicted) this.notify();
+      return;
+    }
     this.events = EMPTY;
     this.notify();
   }
@@ -121,8 +141,14 @@ export const sessionEventStore = new SessionEventStore();
 
 const subscribe = (callback: () => void) => sessionEventStore.subscribe(callback);
 const getSnapshot = () => sessionEventStore.all();
+const getEvictedSnapshot = () => sessionEventStore.evictedCount();
 
 /** Every retained session event, oldest → newest. */
 export function useSessionEvents(): readonly SessionEvent[] {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+}
+
+/** How many events fell off the old end of the retained window. */
+export function useEvictedSessionEvents(): number {
+  return useSyncExternalStore(subscribe, getEvictedSnapshot, getEvictedSnapshot);
 }

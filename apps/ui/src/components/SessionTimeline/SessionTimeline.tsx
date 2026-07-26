@@ -1,9 +1,11 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { AlertTriangle, Send, Waypoints, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { mono } from "@/Dock/DockPanelKit";
 import type { ReplayStatus } from "@/types";
 import {
+  MAX_SESSION_EVENTS,
+  useEvictedSessionEvents,
   useSessionEvents,
   type SessionEvent,
   type SessionEventCategory,
@@ -82,12 +84,28 @@ function offsetTime(ms: number): string {
 }
 
 /**
+ * Granularity the live axis grows in. The span is rounded UP to a multiple of
+ * this, so it changes in discrete jumps rather than continuously.
+ */
+export const LIVE_SPAN_QUANTUM_MS = 60_000;
+
+/**
  * Where each event sits on the axis, as a 0–1 fraction.
  *
  * Replay: the recording's own [0, duration] axis, which is what makes a tick
- * directly seekable. Live: the retained window — oldest kept event on the left,
- * newest on the right. The live axis therefore only moves when something
- * happens, so the strip needs no ticking clock.
+ * directly seekable.
+ *
+ * Live: anchored at the oldest retained event and spanning a QUANTIZED window.
+ * The obvious normalisation — `(at - min) / (max - min)` — rescales on every
+ * single event, so every existing tick slides left as the session runs and a
+ * position stops meaning anything ("the incident was about a third along" is
+ * false a minute later). Rounding the span up to the next quantum instead
+ * pins positions until the session actually outgrows the window, at which
+ * point everything reflows once, visibly, rather than continuously.
+ *
+ * The span is derived from the newest event rather than wall-clock `now`, so
+ * the axis still only moves when something happens and the strip needs no
+ * ticking clock.
  */
 export function tickOffsets(
   events: readonly SessionEvent[],
@@ -101,15 +119,76 @@ export function tickOffsets(
     }
     return out;
   }
+  if (events.length === 0) return out;
+
   let min = Number.POSITIVE_INFINITY;
   let max = Number.NEGATIVE_INFINITY;
   for (const e of events) {
     if (e.at < min) min = e.at;
     if (e.at > max) max = e.at;
   }
-  const span = max - min;
-  for (const e of events) out.set(e.id, span > 0 ? (e.at - min) / span : 1);
+  const elapsed = max - min;
+  const span = Math.max(
+    LIVE_SPAN_QUANTUM_MS,
+    Math.ceil(elapsed / LIVE_SPAN_QUANTUM_MS) * LIVE_SPAN_QUANTUM_MS
+  );
+  for (const e of events) out.set(e.id, Math.min((e.at - min) / span, 1));
   return out;
+}
+
+/**
+ * Fraction of the strip's width within which two ticks are treated as
+ * overlapping. ~1.2% is roughly the 12px hit target at a typical strip width,
+ * i.e. the point at which two buttons would sit on top of each other and the
+ * lower one would become unclickable.
+ */
+export const CLUSTER_THRESHOLD = 0.012;
+
+/** Which category a merged marker takes its colour from — worst news wins. */
+const CATEGORY_RANK: Record<SessionEventCategory, number> = {
+  incident: 3,
+  "geofence-enter": 2,
+  "geofence-exit": 2,
+  dispatch: 1,
+};
+
+export interface TickCluster {
+  /** Cluster identity; stable across renders while its membership holds. */
+  key: string;
+  offset: number;
+  events: SessionEvent[];
+  /** Highest-ranked category present, which drives the marker's colour. */
+  category: SessionEventCategory;
+}
+
+/**
+ * Collapses ticks that would render on top of each other into one marker.
+ *
+ * Without this, a burst — twenty geofence crossings in two seconds — stacks
+ * twenty absolutely-positioned buttons at nearly the same offset: the last one
+ * rendered swallows every click and the rest are unreachable, while the group
+ * reads as a single undifferentiated blob anyway.
+ */
+export function clusterTicks(
+  events: readonly SessionEvent[],
+  offsets: Map<number, number>,
+  threshold = CLUSTER_THRESHOLD
+): TickCluster[] {
+  const positioned = events
+    .map((e) => ({ e, offset: offsets.get(e.id) ?? 0 }))
+    .sort((a, b) => a.offset - b.offset);
+
+  const clusters: TickCluster[] = [];
+  for (const { e, offset } of positioned) {
+    const open = clusters[clusters.length - 1];
+    if (open && offset - open.offset <= threshold) {
+      open.events.push(e);
+      if (CATEGORY_RANK[e.category] > CATEGORY_RANK[open.category]) open.category = e.category;
+      continue;
+    }
+    clusters.push({ key: `c${e.id}`, offset, events: [e], category: e.category });
+  }
+  return clusters;
 }
 
 export default function SessionTimeline({
@@ -119,6 +198,7 @@ export default function SessionTimeline({
   className,
 }: SessionTimelineProps) {
   const events = useSessionEvents();
+  const evicted = useEvictedSessionEvents();
   const duration = replayStatus.duration ?? 0;
   const seekable = replayStatus.mode === "replay" && duration > 0;
 
@@ -126,6 +206,14 @@ export default function SessionTimeline({
     () => tickOffsets(events, seekable, duration),
     [events, seekable, duration]
   );
+  const clusters = useMemo(() => clusterTicks(events, offsets), [events, offsets]);
+
+  /**
+   * Which member of a merged marker the next click targets. Cycling is what
+   * makes every event in a burst reachable — without it the cluster would only
+   * ever act on one of them, which is the bug this replaces.
+   */
+  const cycleRef = useRef(new Map<string, number>());
 
   const activate = useCallback(
     (event: SessionEvent) => {
@@ -136,6 +224,23 @@ export default function SessionTimeline({
       if (event.vehicleId) onSelectVehicle(event.vehicleId);
     },
     [seekable, onSeek, onSelectVehicle]
+  );
+
+  const isActionable = useCallback(
+    (event: SessionEvent) => (seekable ? event.replayTime != null : event.vehicleId != null),
+    [seekable]
+  );
+
+  const activateCluster = useCallback(
+    (cluster: TickCluster) => {
+      const reachable = cluster.events.filter(isActionable);
+      if (reachable.length === 0) return;
+      const seen = cycleRef.current.get(cluster.key) ?? 0;
+      const target = reachable[seen % reachable.length];
+      cycleRef.current.set(cluster.key, seen + 1);
+      activate(target);
+    },
+    [activate, isActionable]
   );
 
   const playhead = seekable ? Math.min((replayStatus.currentTime ?? 0) / duration, 1) : null;
@@ -153,6 +258,21 @@ export default function SessionTimeline({
       <span className="shrink-0 text-[9px] font-semibold uppercase leading-none tracking-[0.08em] text-muted-foreground">
         Session
       </span>
+
+      {evicted > 0 && (
+        <span
+          data-testid="session-timeline-evicted"
+          title={`${evicted} earlier event${
+            evicted === 1 ? "" : "s"
+          } are no longer retained — the strip keeps the most recent ${MAX_SESSION_EVENTS}.`}
+          className={cn(
+            mono,
+            "shrink-0 rounded-sm bg-muted/50 px-1 py-px text-[9px] leading-none text-muted-foreground"
+          )}
+        >
+          +{evicted} earlier
+        </span>
+      )}
 
       <div
         role="group"
@@ -176,39 +296,57 @@ export default function SessionTimeline({
           </span>
         )}
 
-        {events.map((event) => {
-          const actionable = seekable ? event.replayTime != null : event.vehicleId != null;
-          const when = seekable ? offsetTime(event.replayTime ?? 0) : clockTime(event.at);
-          const label = `${CATEGORY_NAME[event.category]} · ${when} — ${event.label}${
-            seekable ? " (seek here)" : ""
-          }`;
+        {clusters.map((cluster) => {
+          const merged = cluster.events.length > 1;
+          const actionable = cluster.events.some(isActionable);
+          const describe = (e: SessionEvent) =>
+            `${CATEGORY_NAME[e.category]} · ${
+              seekable ? offsetTime(e.replayTime ?? 0) : clockTime(e.at)
+            } — ${e.label}`;
+          const label = merged
+            ? `${cluster.events.length} events${
+                seekable ? " (click to step through them)" : ""
+              }: ${cluster.events.map(describe).join("; ")}`
+            : `${describe(cluster.events[0])}${seekable ? " (seek here)" : ""}`;
           return (
             <button
-              key={event.id}
+              key={cluster.key}
               type="button"
-              data-category={event.category}
+              data-category={cluster.category}
               data-actionable={actionable ? "" : undefined}
+              data-count={merged ? cluster.events.length : undefined}
               aria-disabled={actionable ? undefined : "true"}
               aria-label={label}
               title={label}
               onClick={() => {
-                if (actionable) activate(event);
+                if (actionable) activateCluster(cluster);
               }}
               className={cn(
                 "group absolute top-1/2 flex h-full w-3 -translate-x-1/2 -translate-y-1/2 items-center justify-center",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 actionable ? "cursor-pointer" : "cursor-default"
               )}
-              style={{ left: `${(offsets.get(event.id) ?? 0) * 100}%` }}
+              style={{ left: `${cluster.offset * 100}%` }}
             >
               <span
                 className={cn(
-                  "w-[3px] rounded-full transition-[transform,opacity] duration-fast ease-standard",
-                  CATEGORY_TICK[event.category],
-                  CATEGORY_HEIGHT[event.category],
+                  "rounded-full transition-[transform,opacity] duration-fast ease-standard",
+                  // A merged marker is wider, not taller: height already encodes
+                  // category, so widening is the only free channel left.
+                  merged ? "w-[7px]" : "w-[3px]",
+                  CATEGORY_TICK[cluster.category],
+                  CATEGORY_HEIGHT[cluster.category],
                   actionable ? "opacity-90 group-hover:scale-y-125" : "opacity-40"
                 )}
               />
+              {merged && (
+                <span
+                  aria-hidden
+                  className="absolute -top-px left-1/2 -translate-x-1/2 text-[8px] font-semibold leading-none text-muted-foreground"
+                >
+                  {cluster.events.length}
+                </span>
+              )}
             </button>
           );
         })}
