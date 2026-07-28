@@ -54,7 +54,7 @@
     "@types/node": "^26.0.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@types/react-window": "^1.8.8",
+    "@types/react-window": "^2.0.0",
     "@vitejs/plugin-react": "^6.0.1",
     "@vitest/coverage-v8": "^4.1.9",
     "@vitest/ui": "^4.1.9",
