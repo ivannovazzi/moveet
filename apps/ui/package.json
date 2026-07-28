@@ -28,7 +28,7 @@
     "@deck.gl/extensions": "^9.2.11",
     "@deck.gl/geo-layers": "^9.3.5",
     "@deck.gl/layers": "^9.2.11",
-    "@deck.gl/react": "^9.2.11",
+    "@deck.gl/react": "^9.3.6",
     "@deck.gl/widgets": "^9.2.11",
     "@luma.gl/core": "^9.2.6",
     "@luma.gl/webgl": "^9.2.6",
