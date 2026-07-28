@@ -34,6 +34,8 @@ tags:
     description: Traffic congestion data and profiles
   - name: Fleets
     description: Fleet grouping and vehicle assignment
+  - name: Jobs
+    description: Trip/job dispatch lifecycle — create, assign, cancel, and track jobs
   - name: Analytics
     description: Fleet and vehicle performance analytics
   - name: Geofences
@@ -1471,6 +1473,159 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  # ─── Jobs ───────────────────────────────────────────────────────────
+  /jobs:
+    get:
+      operationId: getJobs
+      summary: List every job on the board
+      tags: [Jobs]
+      responses:
+        "200":
+          description: Array of jobs, in creation order
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Job"
+    post:
+      operationId: createJob
+      summary: Create a job and assign it to a vehicle
+      description: >
+        Creates a pickup/dropoff job and immediately attempts assignment. The
+        response body is post-assignment, so a successful call usually returns a
+        job already `en_route`. A job with no eligible vehicle stays `pending`
+        and is retried automatically once one frees up.
+      tags: [Jobs]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pickup, dropoff]
+              properties:
+                pickup:
+                  $ref: "#/components/schemas/JobStopRequest"
+                dropoff:
+                  $ref: "#/components/schemas/JobStopRequest"
+                strategy:
+                  $ref: "#/components/schemas/JobAssignmentStrategy"
+                vehicleId:
+                  type: string
+                  description: >
+                    Assign this specific vehicle. Implies (and is required by)
+                    the `manual` strategy.
+                slaSeconds:
+                  type: integer
+                  minimum: 1
+                  maximum: 86400
+                  description: SLA budget in seconds. Defaults to JOB_SLA_SECONDS.
+      responses:
+        "201":
+          description: Job created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "400":
+          description: Validation error, or a stop outside the road network bounds
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /jobs/{id}/assign:
+    post:
+      operationId: assignJob
+      summary: Re-assign a job that has not been picked up yet
+      tags: [Jobs]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                strategy:
+                  $ref: "#/components/schemas/JobAssignmentStrategy"
+                vehicleId:
+                  type: string
+      responses:
+        "200":
+          description: Job re-assigned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "400":
+          description: Job not found, already picked up, or already finished
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /jobs/{id}/cancel:
+    post:
+      operationId: cancelJob
+      summary: Cancel a live job and release its vehicle
+      tags: [Jobs]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Job cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "400":
+          description: Job not found or already finished
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /jobs/{id}:
+    delete:
+      operationId: deleteJob
+      summary: Remove a finished job from the board
+      tags: [Jobs]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Job deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [deleted]
+        "400":
+          description: Job not found, or still live (cancel it first)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   # ─── State Persistence ──────────────────────────────────────────────
   /state/save:
     post:
@@ -2682,6 +2837,97 @@ components:
           type: array
           items:
             type: string
+
+    # ─── Jobs ────────────────────────────────────────────────────────
+    JobStopRequest:
+      type: object
+      required: [lat, lng]
+      properties:
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lng:
+          type: number
+          minimum: -180
+          maximum: 180
+        label:
+          type: string
+          maxLength: 80
+
+    JobStop:
+      type: object
+      required: [position]
+      properties:
+        position:
+          type: array
+          description: "[latitude, longitude]"
+          minItems: 2
+          maxItems: 2
+          items:
+            type: number
+        label:
+          type: string
+
+    JobAssignmentStrategy:
+      type: string
+      enum: [nearest, best_eta, manual]
+      default: nearest
+      description: >
+        `nearest` picks the closest free vehicle by great-circle distance.
+        `best_eta` pathfinds from the closest few and takes the lowest driving
+        time. `manual` uses the vehicle named in `vehicleId`.
+
+    JobStatus:
+      type: string
+      enum: [pending, assigned, en_route, on_scene, transporting, complete, cancelled, failed]
+
+    Job:
+      type: object
+      required: [id, reference, status, pickup, dropoff, strategy, createdAt, slaSeconds, slaDeadline, slaBreached]
+      properties:
+        id:
+          type: string
+        reference:
+          type: string
+          description: Short operator-facing handle, e.g. JOB-4F2A
+        status:
+          $ref: "#/components/schemas/JobStatus"
+        pickup:
+          $ref: "#/components/schemas/JobStop"
+        dropoff:
+          $ref: "#/components/schemas/JobStop"
+        strategy:
+          $ref: "#/components/schemas/JobAssignmentStrategy"
+        vehicleId:
+          type: string
+        vehicleName:
+          type: string
+        createdAt:
+          type: number
+          description: Epoch ms
+        assignedAt:
+          type: number
+        pickedUpAt:
+          type: number
+        completedAt:
+          type: number
+        etaToPickupSeconds:
+          type: number
+        etaToDropoffSeconds:
+          type: number
+        slaSeconds:
+          type: number
+        slaDeadline:
+          type: number
+          description: Epoch ms — createdAt + slaSeconds * 1000
+        slaBreached:
+          type: boolean
+        routeDistanceKm:
+          type: number
+        error:
+          type: string
+          description: Populated when status is `failed`, or while a job waits in the queue
 
     # ─── Analytics ───────────────────────────────────────────────────
     AnalyticsSummary:

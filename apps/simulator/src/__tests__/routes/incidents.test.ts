@@ -44,6 +44,7 @@ const mockIncidentDTO = {
 
 function createMockContext(): RouteContext {
   return {
+    jobManager: {} as RouteContext["jobManager"],
     network: {
       getEdge: vi.fn().mockReturnValue({
         id: "e1",

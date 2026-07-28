@@ -17,6 +17,11 @@ export type {
   POI,
   IncidentType,
   IncidentDTO,
+  JobDTO,
+  JobStatus,
+  JobStop,
+  JobAssignmentStrategy,
+  CreateJobRequest,
   RecordingMetadata,
   ReplayStatus,
   // Moved from this file into shared-types (single cross-service source of truth).
@@ -66,6 +71,11 @@ export interface Modifiers {
    * existing default-modifier objects stay valid; absent reads as off.
    */
   showDensity?: boolean;
+  /**
+   * Pickup/dropoff markers and their link line for live jobs. Optional so
+   * existing default-modifier objects stay valid; absent reads as off.
+   */
+  showJobs?: boolean;
 }
 
 interface VehicleUIFlags {

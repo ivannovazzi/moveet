@@ -40,6 +40,9 @@ const LAYER_ORDER: Record<string, number> = {
   directions: 50,
   "selected-road": 55,
   "pending-dispatch": 60,
+  // Job stops sit just under the vehicle sprites: they are static geography the
+  // units move against, and must never occlude a unit.
+  jobs: 65,
   vehicles: 70,
   // Heatzone editing overlays sit above vehicles so handles/preview stay
   // grabbable; the committed zone fill stays low at "traffic-zones" (35).

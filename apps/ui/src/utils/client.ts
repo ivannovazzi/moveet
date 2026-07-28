@@ -10,6 +10,7 @@ import type { ClientDeps } from "./client/types";
 import { ConnectionSegment } from "./client/connection";
 import { SimulationSegment } from "./client/simulation";
 import { FleetSegment } from "./client/fleets";
+import { JobSegment } from "./client/jobs";
 import { IncidentSegment } from "./client/incidents";
 import { RecordingSegment } from "./client/recording";
 import { TelemetrySegment } from "./client/telemetry";
@@ -79,6 +80,21 @@ class SimulationService {
   offWaypointReached: FleetSegment["offWaypointReached"];
   onRouteCompleted: FleetSegment["onRouteCompleted"];
   offRouteCompleted: FleetSegment["offRouteCompleted"];
+
+  // ─── Jobs ───────────────────────────────────────────────────────
+  getJobs: JobSegment["getJobs"];
+  createJob: JobSegment["createJob"];
+  assignJob: JobSegment["assignJob"];
+  cancelJob: JobSegment["cancelJob"];
+  deleteJob: JobSegment["deleteJob"];
+  onJobCreated: JobSegment["onJobCreated"];
+  offJobCreated: JobSegment["offJobCreated"];
+  onJobUpdated: JobSegment["onJobUpdated"];
+  offJobUpdated: JobSegment["offJobUpdated"];
+  onJobSlaBreach: JobSegment["onJobSlaBreach"];
+  offJobSlaBreach: JobSegment["offJobSlaBreach"];
+  onJobDeleted: JobSegment["onJobDeleted"];
+  offJobDeleted: JobSegment["offJobDeleted"];
 
   // ─── Incidents ──────────────────────────────────────────────────
   getIncidents: IncidentSegment["getIncidents"];
@@ -154,6 +170,7 @@ class SimulationService {
     const connection = new ConnectionSegment(deps);
     const simulation = new SimulationSegment(deps);
     const fleets = new FleetSegment(deps);
+    const jobs = new JobSegment(deps);
     const incidents = new IncidentSegment(deps);
     const recording = new RecordingSegment(deps);
     const telemetry = new TelemetrySegment(deps);
@@ -222,6 +239,20 @@ class SimulationService {
     this.offWaypointReached = fleets.offWaypointReached;
     this.onRouteCompleted = fleets.onRouteCompleted;
     this.offRouteCompleted = fleets.offRouteCompleted;
+
+    this.getJobs = jobs.getJobs;
+    this.createJob = jobs.createJob;
+    this.assignJob = jobs.assignJob;
+    this.cancelJob = jobs.cancelJob;
+    this.deleteJob = jobs.deleteJob;
+    this.onJobCreated = jobs.onJobCreated;
+    this.offJobCreated = jobs.offJobCreated;
+    this.onJobUpdated = jobs.onJobUpdated;
+    this.offJobUpdated = jobs.offJobUpdated;
+    this.onJobSlaBreach = jobs.onJobSlaBreach;
+    this.offJobSlaBreach = jobs.offJobSlaBreach;
+    this.onJobDeleted = jobs.onJobDeleted;
+    this.offJobDeleted = jobs.offJobDeleted;
 
     this.getIncidents = incidents.getIncidents;
     this.createRandomIncident = incidents.createRandomIncident;

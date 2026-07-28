@@ -4,6 +4,7 @@ import type {
   DispatchAssignment,
   Fleet,
   IncidentDTO,
+  JobDTO,
   Modifiers,
   POI,
   Position,
@@ -61,6 +62,7 @@ const SpeedLimitSigns = lazy(() => import("./SpeedLimitSigns"));
 // Pulls in @deck.gl/aggregation-layers — lazy so the hexagon binning code
 // isn't in the main deck chunk for the (default) non-density case.
 const VehicleDensityLayer = lazy(() => import("./Vehicle/VehicleDensityLayer"));
+const JobsLayer = lazy(() => import("./Jobs/JobsLayer"));
 
 interface MapProps {
   network: RoadNetwork;
@@ -83,6 +85,12 @@ interface MapProps {
   onMoveWaypointGroup?: (refs: WaypointRef[], newLat: number, newLng: number) => void;
   onRemoveWaypointGroup?: (refs: WaypointRef[]) => void;
   incidents?: IncidentDTO[];
+  /** Live jobs, drawn as pickup/dropoff pairs behind the `showJobs` toggle. */
+  jobs?: JobDTO[];
+  /** Pickup of an in-progress two-click job placement. */
+  jobDraftPickup?: Position | null;
+  /** True while a job is being placed — shows a crosshair and the placement hint. */
+  jobPlacementActive?: boolean;
   fences?: GeoFence[];
   selectedFenceId?: string;
   onSelectFence?: (id: string) => void;
@@ -119,6 +127,9 @@ export default function Map({
   onMoveWaypointGroup,
   onRemoveWaypointGroup,
   incidents,
+  jobs = [],
+  jobDraftPickup,
+  jobPlacementActive = false,
   fences = [],
   selectedFenceId,
   onSelectFence,
@@ -131,12 +142,14 @@ export default function Map({
   panLocked = false,
   zoneDrawActive = false,
 }: MapProps) {
-  // Derive cursor: heat-zone draw wins (crosshair), then dispatchState, else grab.
-  const cursor = zoneDrawActive
-    ? "crosshair"
-    : dispatchState
-      ? cursorForDispatchState(dispatchState)
-      : "grab";
+  // Derive cursor: the two modal point-picking modes win (crosshair), then
+  // dispatchState, else grab.
+  const cursor =
+    zoneDrawActive || jobPlacementActive
+      ? "crosshair"
+      : dispatchState
+        ? cursorForDispatchState(dispatchState)
+        : "grab";
 
   // Native deck.gl tooltip for GL-picked layers (currently just vehicles —
   // POIs/incidents render their own styled HTML markers instead). Hover is
@@ -194,7 +207,11 @@ export default function Map({
         {/* POIs & speed-limit signs — GPU-rendered via IconLayer */}
         {modifiers.showPOIs && (
           <Suspense fallback={null}>
-            <POIs visible={modifiers.showPOIs} onClick={onPOIClick} />
+            <POIs
+              visible={modifiers.showPOIs}
+              onClick={onPOIClick}
+              selectable={!jobPlacementActive}
+            />
           </Suspense>
         )}
         {modifiers.showSpeedLimits && (
@@ -211,7 +228,9 @@ export default function Map({
             selectedFenceId={selectedFenceId}
             onSelectFence={onSelectFence}
             selectable={
-              !drawingActive && (!dispatchState || dispatchState === DispatchState.BROWSE)
+              !drawingActive &&
+              !jobPlacementActive &&
+              (!dispatchState || dispatchState === DispatchState.BROWSE)
             }
           />
         )}
@@ -248,6 +267,9 @@ export default function Map({
             onClick={onClick}
             onHover={onHoverVehicle}
             densityMode={modifiers.showDensity}
+            // A pickup/dropoff click that lands on a sprite must place the point,
+            // not select the vehicle and silently swallow the click.
+            selectable={!jobPlacementActive}
           />
         )}
         {modifiers.showDensity && (
@@ -256,6 +278,16 @@ export default function Map({
               vehicleFleetMap={vehicleFleetMap}
               hiddenFleetIds={hiddenFleetIds}
               hiddenVehicleTypes={hiddenVehicleTypes}
+            />
+          </Suspense>
+        )}
+        {/* Mounted while placing too, so the first click's pickup marker shows
+            even with the Jobs overlay toggled off. */}
+        {(modifiers.showJobs || jobPlacementActive) && (
+          <Suspense fallback={null}>
+            <JobsLayer
+              jobs={modifiers.showJobs ? jobs : []}
+              draftPickup={jobPlacementActive ? jobDraftPickup : null}
             />
           </Suspense>
         )}

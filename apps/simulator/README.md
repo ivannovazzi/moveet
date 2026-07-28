@@ -11,6 +11,7 @@ Vehicle location simulator for fleet management systems. Simulates multiple vehi
 - **Incidents**: accidents/closures/construction that re-cost the network and trigger reroutes
 - **Geofences**: enter/exit detection with events
 - **Fleets**: fleet definitions and vehicle assignment
+- **Jobs**: pickup/dropoff work orders with vehicle assignment (nearest / best-ETA / manual), a full status lifecycle driven by the vehicle's own routing events, per-leg ETAs, and SLA-breach tracking
 - **Recording & Replay**: capture a live run to NDJSON and replay it
 - **Headless Generation**: deterministic fast-forward generation of recordings
 - **Analytics**: per-tick fleet/vehicle stats, broadcast and persisted as a time-series
@@ -239,7 +240,7 @@ Connect to `ws://localhost:5010` for real-time updates.
 
 **Message Types** (non-exhaustive): `vehicle`/`vehicles`, `status`, `clock`, `options`, `heatzones`, `direction`, `traffic`, `analytics`, `waypoint:reached`, `route:completed`, `vehicle:rerouted`, `incident:created`, `incident:cleared`, `geofence:event`, `fleet:created`/`fleet:deleted`/`fleet:assigned`, `scenario:*`, `replay:status`, `generate:progress`/`generate:complete`/`generate:error`, `reset`.
 
-Beyond the endpoints shown above, the API also exposes incidents (`/incidents`), geofences (`/geofences`), fleets (`/fleets`), analytics (`/analytics/*`), traffic (`/traffic`, `/traffic-profile`), clock (`/clock`), speed limits (`/speed-limits`), recording, replay (`/replay/status`), scenarios, and state persistence (`/state/save`, `/state/restore`, `/state/snapshots`). See the OpenAPI/Scalar reference served by the app for the full set.
+Beyond the endpoints shown above, the API also exposes incidents (`/incidents`), geofences (`/geofences`), fleets (`/fleets`), jobs (`/jobs`), analytics (`/analytics/*`), traffic (`/traffic`, `/traffic-profile`), clock (`/clock`), speed limits (`/speed-limits`), recording, replay (`/replay/status`), scenarios, and state persistence (`/state/save`, `/state/restore`, `/state/snapshots`). See the OpenAPI/Scalar reference served by the app for the full set.
 
 ## Docker Usage
 

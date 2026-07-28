@@ -281,6 +281,91 @@ export interface UpdateGeoFenceRequest {
   active?: boolean;
 }
 
+// ─── Jobs (trip / dispatch lifecycle) ───────────────────────────────
+
+/**
+ * A job's position in the dispatch lifecycle.
+ *
+ * `pending` is the queue: the job exists but no vehicle has been committed to
+ * it yet (either none was free, or routing failed and it was re-queued). The
+ * three middle states mirror what the vehicle is physically doing, so the map
+ * and the panel can never disagree about whether a unit is inbound to the
+ * pickup or already carrying the load.
+ */
+export type JobStatus =
+  | "pending"
+  | "assigned"
+  | "en_route"
+  | "on_scene"
+  | "transporting"
+  | "complete"
+  | "cancelled"
+  | "failed";
+
+/** Job statuses that no longer move on their own. */
+export const TERMINAL_JOB_STATUSES: readonly JobStatus[] = [
+  "complete",
+  "cancelled",
+  "failed",
+] as const;
+
+/**
+ * How a job picks its vehicle.
+ *  - `nearest`: smallest great-circle distance to the pickup. Cheap, no pathfinding.
+ *  - `best_eta`: pathfinds from the closest few candidates and takes the lowest
+ *    driving ETA, so a nearby unit behind a closure loses to a farther one on
+ *    open road.
+ *  - `manual`: the operator named the vehicle; no candidate search runs.
+ */
+export type JobAssignmentStrategy = "nearest" | "best_eta" | "manual";
+
+/** One end of a job. `position` is `[latitude, longitude]`, like `Position`. */
+export interface JobStop {
+  position: Position;
+  label?: string;
+}
+
+export interface JobDTO {
+  id: string;
+  /** Short operator-facing handle, e.g. `JOB-4F2A`. Unique per simulator run. */
+  reference: string;
+  status: JobStatus;
+  pickup: JobStop;
+  dropoff: JobStop;
+  strategy: JobAssignmentStrategy;
+  vehicleId?: string;
+  vehicleName?: string;
+  /** Epoch ms. */
+  createdAt: number;
+  assignedAt?: number;
+  /** Epoch ms the vehicle reached the pickup. */
+  pickedUpAt?: number;
+  completedAt?: number;
+  /** Seconds of driving from the assigned vehicle's position to the pickup. */
+  etaToPickupSeconds?: number;
+  /** Seconds of driving for the whole job (to pickup, then to dropoff). */
+  etaToDropoffSeconds?: number;
+  /** Budget, in seconds from creation to completion, before the job is late. */
+  slaSeconds: number;
+  /** Epoch ms: `createdAt + slaSeconds * 1000`. */
+  slaDeadline: number;
+  slaBreached: boolean;
+  /** Driving distance (km) of the assigned two-leg route. */
+  routeDistanceKm?: number;
+  /** Populated when `status === "failed"`. */
+  error?: string;
+}
+
+/** REST body for `POST /jobs`. */
+export interface CreateJobRequest {
+  pickup: { lat: number; lng: number; label?: string };
+  dropoff: { lat: number; lng: number; label?: string };
+  strategy?: JobAssignmentStrategy;
+  /** Required when `strategy` is `manual`. */
+  vehicleId?: string;
+  slaSeconds?: number;
+}
+
 // ─── WebSocket Subscribe Filters ─────────────────────────────────────
 
 /** Geographic bounding box for spatial filtering. */

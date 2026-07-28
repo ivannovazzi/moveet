@@ -4,6 +4,7 @@ import { ConnectionSegment } from "./connection";
 import { SimulationSegment } from "./simulation";
 import { FleetSegment } from "./fleets";
 import { IncidentSegment } from "./incidents";
+import { JobSegment } from "./jobs";
 import { RecordingSegment } from "./recording";
 import { TelemetrySegment } from "./telemetry";
 import { GeofenceSegment } from "./geofences";
@@ -266,6 +267,48 @@ describe("IncidentSegment", () => {
     seg.onVehicleRerouted(fn);
     seg.offVehicleRerouted();
     for (const e of ["incident:created", "incident:cleared", "vehicle:rerouted"]) {
+      expect(h.ws.on).toHaveBeenCalledWith(e, fn);
+      expect(h.ws.off).toHaveBeenCalledWith(e, undefined);
+    }
+  });
+});
+
+describe("JobSegment", () => {
+  let h: ReturnType<typeof makeDeps>;
+  let seg: JobSegment;
+  beforeEach(() => {
+    h = makeDeps();
+    seg = new JobSegment(h.deps);
+  });
+
+  it("routes job endpoints", async () => {
+    const request = {
+      pickup: { lat: -1.3, lng: 36.8 },
+      dropoff: { lat: -1.31, lng: 36.85 },
+    };
+    await seg.getJobs();
+    await seg.createJob(request);
+    await seg.assignJob("j1", { vehicleId: "v2" });
+    await seg.cancelJob("j1");
+    await seg.deleteJob("j1");
+    expect(h.http.get).toHaveBeenCalledWith("/jobs");
+    expect(h.http.post).toHaveBeenCalledWith("/jobs", request);
+    expect(h.http.post).toHaveBeenCalledWith("/jobs/j1/assign", { vehicleId: "v2" });
+    expect(h.http.post).toHaveBeenCalledWith("/jobs/j1/cancel");
+    expect(h.http.delete).toHaveBeenCalledWith("/jobs/j1");
+  });
+
+  it("wires the job lifecycle ws events", () => {
+    const fn = vi.fn();
+    seg.onJobCreated(fn);
+    seg.offJobCreated();
+    seg.onJobUpdated(fn);
+    seg.offJobUpdated();
+    seg.onJobSlaBreach(fn);
+    seg.offJobSlaBreach();
+    seg.onJobDeleted(fn);
+    seg.offJobDeleted();
+    for (const e of ["job:created", "job:updated", "job:sla-breach", "job:deleted"]) {
       expect(h.ws.on).toHaveBeenCalledWith(e, fn);
       expect(h.ws.off).toHaveBeenCalledWith(e, undefined);
     }

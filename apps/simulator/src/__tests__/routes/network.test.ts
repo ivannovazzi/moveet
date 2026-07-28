@@ -46,6 +46,7 @@ const validGeometry = {
 
 function createMockContext(): RouteContext {
   return {
+    jobManager: {} as RouteContext["jobManager"],
     network: {
       getFeatures: vi.fn().mockReturnValue({ type: "FeatureCollection", features: [] }),
       getAllRoads: vi.fn().mockReturnValue([{ id: "r1", name: "Main Street" }]),

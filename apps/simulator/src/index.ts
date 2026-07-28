@@ -6,6 +6,7 @@ import fs from "fs";
 import { RoadNetwork } from "./modules/RoadNetwork";
 import { VehicleManager } from "./modules/VehicleManager";
 import { FleetManager } from "./modules/FleetManager";
+import { JobManager } from "./modules/JobManager";
 import { IncidentManager } from "./modules/IncidentManager";
 import { RecordingManager } from "./modules/RecordingManager";
 import { GenerationManager } from "./modules/GenerationManager";
@@ -27,6 +28,7 @@ import {
   createRecordingRoutes,
   createReplayRoutes,
   createFleetRoutes,
+  createJobRoutes,
   createAnalyticsRoutes,
   createScenarioRoutes,
   createStateRoutes,
@@ -68,6 +70,7 @@ const recordingManager = new RecordingManager();
 const generationManager = new GenerationManager();
 const scenarioManager = new ScenarioManager(vehicleManager, incidentManager, simulationController);
 const geoFenceManager = new GeoFenceManager();
+const jobManager = new JobManager(vehicleManager);
 
 // ─── Persistence (optional) ─────────────────────────────────────────
 
@@ -91,6 +94,7 @@ const ctx: RouteContext = {
   network,
   vehicleManager,
   fleetManager,
+  jobManager,
   incidentManager,
   recordingManager,
   simulationController,
@@ -124,6 +128,7 @@ app.use(createIncidentRoutes(ctx));
 app.use(createRecordingRoutes(ctx));
 app.use(createReplayRoutes(ctx));
 app.use(createFleetRoutes(ctx));
+app.use(createJobRoutes(ctx));
 app.use(createAnalyticsRoutes(ctx));
 app.use(createScenarioRoutes(ctx));
 app.use(createGeofenceRoutes(geoFenceManager));

@@ -113,6 +113,15 @@ const envObjectSchema = z.object({
   /** How often (ms) to broadcast/persist the analytics snapshot */
   ANALYTICS_INTERVAL: z.coerce.number().int().min(1).default(5000),
 
+  /**
+   * Default SLA budget (seconds from job creation to completion) applied to a
+   * job whose REST body doesn't specify one.
+   */
+  JOB_SLA_SECONDS: z.coerce.number().int().min(1).default(900),
+
+  /** Seconds a vehicle spends on scene at the pickup before it starts transporting. */
+  JOB_PICKUP_DWELL_SECONDS: z.coerce.number().int().min(0).default(30),
+
   /** Pino log level */
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
 
@@ -205,6 +214,8 @@ function buildConfig(env: EnvConfig) {
     restoreState: env.RESTORE_STATE,
     stateDbPath: env.STATE_DB_PATH,
     analyticsInterval: env.ANALYTICS_INTERVAL,
+    jobSlaSeconds: env.JOB_SLA_SECONDS,
+    jobPickupDwellSeconds: env.JOB_PICKUP_DWELL_SECONDS,
     logLevel: env.LOG_LEVEL,
     wsTransport: env.WS_TRANSPORT,
     redisUrl: env.REDIS_URL,

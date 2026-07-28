@@ -21,6 +21,9 @@ import { useFleets } from "./hooks/useFleets";
 import { useVehicleTypeFilter } from "./hooks/useVehicleTypeFilter";
 import { useSubscribeFilter } from "./hooks/useSubscribeFilter";
 import { useIncidents } from "./hooks/useIncidents";
+import { useJobs } from "./hooks/useJobs";
+import { useJobDraft } from "./hooks/useJobDraft";
+import { useJobsAutoReveal } from "./hooks/useJobsAutoReveal";
 import { useRecording } from "./hooks/useRecording";
 import { useReplay } from "./hooks/useReplay";
 import { useDispatchFlow } from "./hooks/useDispatchFlow";
@@ -90,6 +93,15 @@ export default function App() {
   const mapLoading = networkLoading || roadsLoading;
   const dataReady = useDataReady();
   const incidents = useIncidents();
+
+  // ─── Jobs (trip/dispatch lifecycle) ─────────────────────────────
+  // `useJobs` owns the board; `useJobDraft` owns the two-click pickup/dropoff
+  // placement that creates one. Split because the board is live-updating state
+  // and the draft is transient modal input over the map.
+  const jobs = useJobs();
+  const jobDraft = useJobDraft(jobs.createJob);
+  useJobsAutoReveal(jobs.liveJobs.length, setModifiers);
+
   const recording = useRecording();
   const replay = useReplay();
   const analytics = useAnalytics();
@@ -125,6 +137,7 @@ export default function App() {
     selectedVehicleId: filters.selected,
     onUnselectVehicle,
     createIncidentAtPosition: incidents.createAtPosition,
+    onJobPlacementClick: jobDraft.handleMapClick,
   });
 
   // Stable so the POI IconLayer's onClick-keyed useMemo isn't rebuilt each render
@@ -143,9 +156,16 @@ export default function App() {
   // this one; without this guard a single Escape press while the map has
   // focus would both exit that mode AND clear the current selection.
   const onMapEscape = useCallback(() => {
+    // Job placement is the one modal mode without its own window-level Escape
+    // handler, so cancel it here and stop — a single press must not also clear
+    // the selection.
+    if (jobDraft.active) {
+      jobDraft.cancel();
+      return;
+    }
     if (dispatch.dispatchMode || geofences.drawingActive) return;
     resetSelection();
-  }, [dispatch.dispatchMode, geofences.drawingActive, resetSelection]);
+  }, [jobDraft, dispatch.dispatchMode, geofences.drawingActive, resetSelection]);
 
   // ─── WebSocket connection / simulation status ───────────────────
   const { connected, status } = useSimulationConnection({
@@ -246,6 +266,9 @@ export default function App() {
         onExitDispatchMode: handleDone,
         onDispatch: handleDispatch,
         onRetryFailedDispatches: handleRetryFailed,
+        jobPlacementActive: jobDraft.active,
+        onStartJob: jobDraft.start,
+        onCancelJobPlacement: jobDraft.cancel,
         onCreateRandomIncident: incidents.createRandom,
         onStartGeofenceDrawing: geofences.startDrawing,
         heatzones: heatzoneEditor,
@@ -272,6 +295,9 @@ export default function App() {
       handleDone,
       handleDispatch,
       handleRetryFailed,
+      jobDraft.active,
+      jobDraft.start,
+      jobDraft.cancel,
       incidents.createRandom,
       geofences.startDrawing,
       heatzoneEditor,
@@ -312,6 +338,9 @@ export default function App() {
               onMoveWaypointGroup={dispatch.moveWaypointGroup}
               onRemoveWaypointGroup={dispatch.removeWaypointGroup}
               incidents={incidents.incidents}
+              jobs={jobs.liveJobs}
+              jobDraftPickup={jobDraft.pickup}
+              jobPlacementActive={jobDraft.active}
               fences={geofences.fences}
               selectedFenceId={geofences.selectedFenceId}
               onSelectFence={geofences.onSelectFence}
@@ -372,6 +401,14 @@ export default function App() {
               onUnassignVehicle={unassignVehicle}
               fleetsError={fleetsError}
               dispatch={dispatch}
+              jobs={{
+                jobs: jobs.jobs,
+                counts: jobs.counts,
+                draft: jobDraft,
+                onCancelJob: jobs.cancelJob,
+                onDeleteJob: jobs.deleteJob,
+                error: jobs.error,
+              }}
               incidents={{
                 incidents: incidents.incidents,
                 createRandom: incidents.createRandom,

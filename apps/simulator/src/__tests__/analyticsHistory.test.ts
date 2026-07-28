@@ -25,6 +25,7 @@ function makeSummary(overrides?: Partial<AnalyticsSummary>): AnalyticsSummary {
 function createMockContext(stateStore?: StateStore): RouteContext {
   return {
     network: {} as RouteContext["network"],
+    jobManager: {} as RouteContext["jobManager"],
     vehicleManager: {
       analytics: {
         getSummary: () => makeSummary(),

@@ -44,6 +44,13 @@ interface VehiclesLayerProps {
    * read per animation frame in that case.
    */
   densityMode?: boolean;
+  /**
+   * Whether sprites respond to map clicks. Defaults to true. Set false when
+   * another interaction owns map clicks (e.g. placing a job's pickup): a sprite
+   * pick returns true and would otherwise swallow the map-level click, so a
+   * point landing on a vehicle would silently do nothing.
+   */
+  selectable?: boolean;
 }
 
 /** Interpolated vehicle data for the deck.gl IconLayer. */
@@ -204,6 +211,7 @@ export default function VehiclesLayer({
   onClick,
   onHover,
   densityMode = false,
+  selectable = true,
 }: VehiclesLayerProps) {
   const { getZoom, getBoundingBox } = useMapContext();
   const [vehicleData, setVehicleData] = useState<VehicleIconDatum[]>([]);
@@ -253,6 +261,8 @@ export default function VehiclesLayer({
   getBoundingBoxRef.current = getBoundingBox;
   const densityModeRef = useRef(densityMode);
   densityModeRef.current = densityMode;
+  const selectableRef = useRef(selectable);
+  selectableRef.current = selectable;
 
   // RAF interpolation loop: reads from vehicleStore, updates React state
   // Throttled to ~60fps to keep motion smooth without unbounded re-renders
@@ -563,12 +573,16 @@ export default function VehiclesLayer({
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, []);
 
-  // Stable click handler
+  // Stable click handler. Reads `selectable` through a ref so the handler stays
+  // stable (it is baked into the IconLayer) while still honouring a mode change.
   const handleClick = useCallback((info: { object?: VehicleIconDatum }) => {
-    if (info.object) {
+    if (selectableRef.current && info.object) {
       onClickRef.current(info.object.id);
       return true; // mark handled so DeckGL.onClick (clearMap) doesn't fire
     }
+    // Not handled: the click falls through to DeckGL's map-level onClick, so a
+    // modal point-picking mode still receives a point that lands on a sprite.
+    return false;
   }, []);
 
   // Stable hover handler — mirrors sidebar list hover so mousing over a

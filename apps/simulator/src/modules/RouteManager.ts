@@ -565,6 +565,42 @@ export class RouteManager extends EventEmitter {
 
   // ─── Pathfinding API ──────────────────────────────────────────────
 
+  /**
+   * Driving cost from a vehicle's current position to `destination`, WITHOUT
+   * touching its route, edge or progress. Returns `null` when no route exists.
+   *
+   * This is the probe `JobManager`'s `best_eta` strategy runs against a handful
+   * of candidate vehicles before committing one: assignment needs to compare
+   * candidates, and `findAndSetRoutes` can't be used for that because it
+   * teleports the vehicle onto the first edge of the route it finds.
+   *
+   * The ETA is computed against the vehicle's profile cruise speed rather than
+   * its instantaneous `speed`, because an idle candidate has `speed === 0` and
+   * would otherwise price out at infinity — exactly backwards, since idle
+   * vehicles are the ones worth dispatching.
+   */
+  async estimateTo(
+    vehicleId: string,
+    destination: [number, number]
+  ): Promise<{ etaSeconds: number; distanceKm: number } | null> {
+    const vehicle = this.registry.get(vehicleId);
+    if (!vehicle) return null;
+
+    const startNode = this.network.findNearestNode(vehicle.position);
+    const endNode = this.network.findNearestNode(destination);
+    if (startNode.connections.length === 0 || endNode.connections.length === 0) return null;
+
+    const profile = getProfile(vehicle.type);
+    const route = await this.network.findRouteAsync(startNode, endNode, profile.restrictedHighways);
+    if (!route || route.edges.length === 0) return null;
+
+    const cruise = (profile.minSpeed + profile.maxSpeed) / 2;
+    return {
+      etaSeconds: utils.estimateRouteDuration(route, cruise),
+      distanceKm: route.distance,
+    };
+  }
+
   async findAndSetRoutes(
     vehicleId: string,
     destination: [number, number]

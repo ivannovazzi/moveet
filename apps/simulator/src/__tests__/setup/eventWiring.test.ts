@@ -53,6 +53,9 @@ describe("wireEvents", () => {
         getTrafficSnapshot: vi.fn().mockReturnValue({ edges: {} }),
       }) as unknown as EventWiringContext["vehicleManager"],
       fleetManager: fleetManager as unknown as EventWiringContext["fleetManager"],
+      jobManager: Object.assign(createMockEmitter(), {
+        reset: vi.fn(),
+      }) as unknown as EventWiringContext["jobManager"],
       incidentManager: incidentManager as unknown as EventWiringContext["incidentManager"],
       recordingManager: recordingManager as unknown as EventWiringContext["recordingManager"],
       simulationController:
