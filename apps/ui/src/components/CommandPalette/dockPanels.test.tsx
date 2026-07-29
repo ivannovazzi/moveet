@@ -35,6 +35,7 @@ vi.mock("@/Controls/Adapter/adapterClient", () => ({
 
 // Imported after the mocks so the hoisted factories are in place.
 import Dock, { type DockProps } from "@/Dock/Dock";
+import type { JobsPanelProps } from "@/Controls/JobsPanel";
 import type { DispatchFlow } from "@/hooks/useDispatchFlow";
 import { DispatchState } from "@/hooks/useDispatchState";
 import { useDockNavigation } from "@/hooks/useDockNavigation";
@@ -72,7 +73,7 @@ function otherDeps(): Omit<CommandDeps, "dock"> {
   };
 }
 
-function dockProps(): Omit<DockProps, "nav"> {
+function dockProps(): Omit<DockProps, "navigation"> {
   return {
     connected: true,
     status: createStatus({ running: true }),
@@ -105,7 +106,33 @@ function dockProps(): Omit<DockProps, "nav"> {
       assignments: [],
       results: [],
     } as unknown as DispatchFlow,
+    // Only `counts` is read by the dock bar itself (the Fleet badge); the Fleet
+    // panel — and so the job board — is never opened in these tests.
+    jobs: {
+      jobs: [],
+      counts: { total: 0, live: 0, queued: 0, breached: 0 },
+      draft: { active: false } as unknown as JobsPanelProps["draft"],
+      onCancelJob: async () => {},
+      onDeleteJob: async () => {},
+      onAssignJob: async () => {},
+      vehicles: [],
+      jobByVehicleId: new Map(),
+      error: null,
+    },
     incidents: { incidents: [], createRandom: async () => {}, remove: async () => {}, error: null },
+    faults: {
+      faults: {
+        config: null,
+        status: null,
+        loading: false,
+        error: null,
+        configure: async () => {},
+        setVehicleProfile: async () => {},
+        clearVehicleProfile: async () => {},
+        reset: async () => {},
+      },
+      vehicles: [],
+    },
     geofences: {
       fences: [],
       onFenceToggle: () => {},
@@ -134,7 +161,7 @@ function Harness() {
   const nav = useDockNavigation();
   return (
     <>
-      <Dock nav={nav} {...dockProps()} />
+      <Dock navigation={nav} {...dockProps()} />
       <CommandPalette
         vehicles={[]}
         roads={[]}

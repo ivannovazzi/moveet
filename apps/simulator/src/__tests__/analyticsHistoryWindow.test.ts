@@ -62,6 +62,7 @@ function createMockContext(stateStore?: StateStore): RouteContext {
     simulationController: {} as RouteContext["simulationController"],
     scenarioManager: {} as RouteContext["scenarioManager"],
     generationManager: {} as RouteContext["generationManager"],
+    jobManager: {} as RouteContext["jobManager"],
     stateStore,
   };
 }
