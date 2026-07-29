@@ -24,6 +24,7 @@ import { useIncidents } from "./hooks/useIncidents";
 import { useJobs } from "./hooks/useJobs";
 import { useJobDraft } from "./hooks/useJobDraft";
 import { useJobsAutoReveal } from "./hooks/useJobsAutoReveal";
+import { useFaults } from "./hooks/useFaults";
 import { useRecording } from "./hooks/useRecording";
 import { useReplay } from "./hooks/useReplay";
 import { useDispatchFlow } from "./hooks/useDispatchFlow";
@@ -125,6 +126,18 @@ export default function App() {
 
   const recording = useRecording();
   const analytics = useAnalytics();
+
+  // ─── Device faults ──────────────────────────────────────────────
+  // Status counters are polled only while the Monitor drawer is open; the
+  // configuration itself arrives on `faults:config` either way, so the dock
+  // badge stays honest with the panel closed.
+  const faults = useFaults(dockNavigation.openCluster === "monitor");
+  const faultsEnabled = faults.config?.enabled ?? false;
+  const toggleFaults = useCallback(
+    () => void faults.configure({ enabled: !faultsEnabled }),
+    [faults, faultsEnabled]
+  );
+  const clearFaultState = useCallback(() => void faults.reset(), [faults]);
 
   // ─── Geofencing ─────────────────────────────────────────────────
   const geofences = useGeofenceManager({
@@ -316,6 +329,9 @@ export default function App() {
         jobPlacementActive: jobDraft.active,
         onStartJob: jobDraft.start,
         onCancelJobPlacement: jobDraft.cancel,
+        faultsArmed: faultsEnabled,
+        onToggleFaults: toggleFaults,
+        onClearFaultState: clearFaultState,
         onCreateRandomIncident: incidents.createRandom,
         onStartGeofenceDrawing: geofences.startDrawing,
         heatzones: heatzoneEditor,
@@ -345,6 +361,9 @@ export default function App() {
       jobDraft.active,
       jobDraft.start,
       jobDraft.cancel,
+      faultsEnabled,
+      toggleFaults,
+      clearFaultState,
       incidents.createRandom,
       geofences.startDrawing,
       heatzoneEditor,
@@ -411,6 +430,7 @@ export default function App() {
             )}
             <ModeBanner
               mode={interaction.mode}
+              jobPlacementStage={jobDraft.stage}
               dispatchState={dispatch.dispatchState}
               selectedCount={dispatch.selectedForDispatch.length}
               stopCount={dispatch.assignments.reduce((sum, a) => sum + a.waypoints.length, 0)}
@@ -464,6 +484,9 @@ export default function App() {
                 draft: jobDraft,
                 onCancelJob: jobs.cancelJob,
                 onDeleteJob: jobs.deleteJob,
+                onAssignJob: jobs.assignJob,
+                vehicles,
+                jobByVehicleId: jobs.jobByVehicleId,
                 error: jobs.error,
               }}
               incidents={{
@@ -471,6 +494,11 @@ export default function App() {
                 createRandom: incidents.createRandom,
                 remove: incidents.remove,
                 error: incidents.error,
+              }}
+              faults={{
+                faults,
+                vehicles,
+                selectedVehicleId: filters.selected,
               }}
               geofences={{
                 fences: geofences.fences,
@@ -501,6 +529,7 @@ export default function App() {
               vehicle={selectedVehicle}
               poi={selectedPoi ?? undefined}
               fleet={selectedVehicle ? vehicleFleetMap.get(selectedVehicle.id) : undefined}
+              job={selectedVehicle ? jobs.jobByVehicleId.get(selectedVehicle.id) : undefined}
               onClose={closeInspector}
             />
             <CreateZoneDialog

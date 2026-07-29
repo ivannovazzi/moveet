@@ -1,4 +1,5 @@
 import { Router } from "express";
+import type { DeviceFaultState } from "@moveet/shared-types";
 import type { RouteContext } from "./types";
 import { validateBody } from "../middleware/validate";
 import { faultConfigSchema, faultProfileSchema } from "../modules/faults";
@@ -16,7 +17,8 @@ export function createFaultRoutes(ctx: RouteContext): Router {
   const { faults } = ctx.vehicleManager;
 
   router.get("/faults", (_req, res) => {
-    res.json({ ...faults.getConfig(), status: faults.getStatus() });
+    const state: DeviceFaultState = { ...faults.getConfig(), status: faults.getStatus() };
+    res.json(state);
   });
 
   router.post("/faults", validateBody(faultConfigSchema), (req, res) => {

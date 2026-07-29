@@ -136,6 +136,14 @@ export interface DeviceFaultStatus {
 }
 
 /**
+ * `GET /faults`: the configuration plus a live status snapshot, so an operator
+ * surface can render "what is armed" and "what is happening" from one request.
+ */
+export interface DeviceFaultState extends DeviceFaultConfig {
+  status: DeviceFaultStatus;
+}
+
+/**
  * Vehicle data exported from a data source (adapter) or consumed by the simulator.
  * Known as `DataVehicle` in the simulator and `ExportVehicle` in the adapter.
  */

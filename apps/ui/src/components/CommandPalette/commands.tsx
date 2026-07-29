@@ -106,6 +106,15 @@ export interface CommandDeps {
   onStartJob: () => void;
   onCancelJobPlacement: () => void;
 
+  /**
+   * Device fault injection. `faultsArmed` flips the entry between arming and
+   * disarming; `onClearFaultState` is always offered so a run can be restarted
+   * from a known device state without opening the panel.
+   */
+  faultsArmed: boolean;
+  onToggleFaults: () => void;
+  onClearFaultState: () => void;
+
   /** Monitor panel. */
   onCreateRandomIncident: () => Promise<void>;
   onStartGeofenceDrawing: () => void;
@@ -151,6 +160,9 @@ export function buildCommands(deps: CommandDeps): PaletteAction[] {
     jobPlacementActive,
     onStartJob,
     onCancelJobPlacement,
+    faultsArmed,
+    onToggleFaults,
+    onClearFaultState,
     onCreateRandomIncident,
     onStartGeofenceDrawing,
     heatzones,
@@ -350,6 +362,26 @@ export function buildCommands(deps: CommandDeps): PaletteAction[] {
           icon: <JobIcon />,
           run: onStartJob,
         }
+  );
+
+  // ── Device faults ──────────────────────────────────────────────────
+  actions.push(
+    {
+      id: "faults-toggle",
+      label: faultsArmed ? "Disarm device faults" : "Arm device faults",
+      keywords: "fault injection gps clock battery spoof device broken",
+      hint: "Faults",
+      icon: <WarningTriangle />,
+      run: onToggleFaults,
+    },
+    {
+      id: "faults-clear-state",
+      label: "Clear device fault state",
+      keywords: "reset battery frozen queue faults device",
+      hint: "Faults",
+      icon: <Reset />,
+      run: onClearFaultState,
+    }
   );
 
   // ── Monitor panel actions ──────────────────────────────────────────

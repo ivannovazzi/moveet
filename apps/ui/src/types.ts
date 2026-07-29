@@ -22,6 +22,12 @@ export type {
   JobStop,
   JobAssignmentStrategy,
   CreateJobRequest,
+  DeviceFaultKind,
+  DeviceFaultInfo,
+  DeviceFaultProfile,
+  DeviceFaultConfig,
+  DeviceFaultStatus,
+  DeviceFaultState,
   RecordingMetadata,
   ReplayStatus,
   // Moved from this file into shared-types (single cross-service source of truth).

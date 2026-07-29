@@ -32,6 +32,14 @@ class FakeVehicles extends EventEmitter implements JobVehicleGateway {
     if (this.unroutable.has(vehicleId)) {
       return { vehicleId, status: "error", error: "No route found for leg 0" };
     }
+    // RouteManager emits the direction from inside this call, before returning.
+    this.emit("direction", {
+      vehicleId,
+      route: { edges: [], distance: 12 },
+      waypoints,
+      currentWaypointIndex: 0,
+      reason: "waypoints",
+    });
     return {
       vehicleId,
       status: "ok",
@@ -55,6 +63,24 @@ class FakeVehicles extends EventEmitter implements JobVehicleGateway {
 
   finishRoute(vehicleId: string): void {
     this.emit("route:completed", { vehicleId });
+  }
+
+  /** Someone else (operator dispatch, scenario) points the vehicle elsewhere. */
+  redispatch(vehicleId: string): void {
+    this.emit("direction", {
+      vehicleId,
+      route: { edges: [], distance: 3 },
+      reason: "dispatch",
+    });
+  }
+
+  /** Same trip, new path around an incident. */
+  reroute(vehicleId: string): void {
+    this.emit("direction", {
+      vehicleId,
+      route: { edges: [], distance: 9 },
+      reason: "reroute",
+    });
   }
 }
 
@@ -150,6 +176,42 @@ describe("JobManager", () => {
 
       expect(job.strategy).toBe("manual");
       expect(job.vehicleId).toBe("far");
+    });
+
+    it("names the vehicle and the job a manual assignment is queued behind", async () => {
+      const first = await manager.createJob({
+        pickup: PICKUP,
+        dropoff: DROPOFF,
+        vehicleId: "near",
+      });
+      const queued = await manager.createJob({
+        pickup: PICKUP,
+        dropoff: DROPOFF,
+        vehicleId: "near",
+      });
+
+      expect(queued.status).toBe("pending");
+      expect(queued.error).toBe(`Waiting for Unit near to finish ${first.reference}`);
+    });
+
+    it("fails a manual job whose vehicle has left the fleet", async () => {
+      const job = await manager.createJob({ pickup: PICKUP, dropoff: DROPOFF, vehicleId: "ghost" });
+
+      expect(job.status).toBe("failed");
+      expect(job.error).toBe("Vehicle ghost is no longer in the fleet");
+    });
+
+    it("fails a manual job whose named vehicle cannot reach the pickup", async () => {
+      vehicles.unroutable.add("far");
+
+      const job = await manager.createJob({ pickup: PICKUP, dropoff: DROPOFF, vehicleId: "far" });
+      expect(job.status).toBe("pending");
+
+      // No fallback candidate exists under `manual`, so the retry is terminal.
+      await manager.sweep();
+
+      expect(manager.getJob(job.id)?.status).toBe("failed");
+      expect(manager.getJob(job.id)?.error).toBe("Unit far could not reach this pickup");
     });
 
     it("never assigns a vehicle that already holds a job", async () => {
@@ -292,6 +354,84 @@ describe("JobManager", () => {
       expect(requeued?.status).toBe("pending");
       expect(requeued?.vehicleId).toBeUndefined();
       expect(requeued?.error).toBe("Vehicle was re-dispatched before pickup; job re-queued");
+    });
+  });
+
+  /**
+   * A job's vehicle can be taken off it at any moment by something that isn't
+   * the job board: an operator dispatch, a scenario, a re-route. The job must
+   * say so rather than sitting en_route behind a vehicle that is driving
+   * somewhere else — or, worse, reporting a delivery that never happened.
+   */
+  describe("vehicle taken off a job", () => {
+    it("re-queues a job whose vehicle is dispatched away before the pickup", async () => {
+      const job = await manager.createJob({ pickup: PICKUP, dropoff: DROPOFF });
+      expect(job.status).toBe("en_route");
+
+      vehicles.redispatch("near");
+
+      const requeued = manager.getJob(job.id);
+      expect(requeued?.status).toBe("pending");
+      expect(requeued?.vehicleId).toBeUndefined();
+      expect(requeued?.error).toBe("Vehicle was re-dispatched before pickup; job re-queued");
+    });
+
+    it("fails a job whose vehicle is dispatched away with the load on board", async () => {
+      const job = await manager.createJob({ pickup: PICKUP, dropoff: DROPOFF });
+      vehicles.arriveAtPickup("near");
+      expect(manager.getJob(job.id)?.status).toBe("on_scene");
+
+      vehicles.redispatch("near");
+
+      const failed = manager.getJob(job.id);
+      expect(failed?.status).toBe("failed");
+      expect(failed?.error).toBe("Vehicle was re-dispatched mid-trip; the load was not delivered");
+      // The unit that had it stays on the record, but is free for new work.
+      expect(failed?.vehicleId).toBe("near");
+      expect(manager.jobForVehicleId("near")).toBeUndefined();
+    });
+
+    it("does not mistake the job's own assignment for a re-dispatch", async () => {
+      // The assignment route emits a `waypoints` direction from inside
+      // findAndSetWaypointRoutes; that is the job's own doing.
+      const job = await manager.createJob({ pickup: PICKUP, dropoff: DROPOFF });
+      expect(manager.getJob(job.id)?.status).toBe("en_route");
+      expect(manager.jobForVehicleId("near")?.id).toBe(job.id);
+    });
+
+    it("treats an incident re-route as the same trip", async () => {
+      const job = await manager.createJob({ pickup: PICKUP, dropoff: DROPOFF });
+
+      vehicles.reroute("near");
+
+      expect(manager.getJob(job.id)?.status).toBe("en_route");
+      expect(manager.jobForVehicleId("near")?.id).toBe(job.id);
+    });
+
+    it("ignores route changes for vehicles that hold no job", async () => {
+      await manager.createJob({ pickup: PICKUP, dropoff: DROPOFF });
+      const before = updates.length;
+
+      vehicles.redispatch("far");
+
+      expect(updates).toHaveLength(before);
+    });
+  });
+
+  describe("jobForVehicleId", () => {
+    it("reports the job a vehicle is currently holding", async () => {
+      const job = await manager.createJob({ pickup: PICKUP, dropoff: DROPOFF });
+
+      expect(manager.jobForVehicleId("near")?.id).toBe(job.id);
+      expect(manager.jobForVehicleId("far")).toBeUndefined();
+      expect(manager.jobForVehicleId("nobody")).toBeUndefined();
+    });
+
+    it("stops reporting a vehicle once its job is cancelled", async () => {
+      const job = await manager.createJob({ pickup: PICKUP, dropoff: DROPOFF });
+      manager.cancelJob(job.id);
+
+      expect(manager.jobForVehicleId("near")).toBeUndefined();
     });
   });
 

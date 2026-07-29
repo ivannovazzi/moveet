@@ -9,6 +9,7 @@ import { RecordingSegment } from "./recording";
 import { TelemetrySegment } from "./telemetry";
 import { GeofenceSegment } from "./geofences";
 import { ScenarioSegment } from "./scenarios";
+import { FaultSegment } from "./faults";
 
 // Per-segment delegation tests. The facade test (../client.test.ts) drives the
 // singleton, but the per-segment source modules (utils/client/*.ts) are mostly
@@ -21,6 +22,7 @@ function makeDeps() {
     get: vi.fn().mockResolvedValue({ data: undefined }),
     post: vi.fn().mockResolvedValue({ data: undefined }),
     patch: vi.fn().mockResolvedValue({ data: undefined }),
+    put: vi.fn().mockResolvedValue({ data: undefined }),
     delete: vi.fn().mockResolvedValue({ data: undefined }),
   };
   const ws = {
@@ -312,6 +314,44 @@ describe("JobSegment", () => {
       expect(h.ws.on).toHaveBeenCalledWith(e, fn);
       expect(h.ws.off).toHaveBeenCalledWith(e, undefined);
     }
+  });
+});
+
+describe("FaultSegment", () => {
+  let h: ReturnType<typeof makeDeps>;
+  let seg: FaultSegment;
+  beforeEach(() => {
+    h = makeDeps();
+    seg = new FaultSegment(h.deps);
+  });
+
+  it("routes the device-fault endpoints", async () => {
+    const profile = { duplicate: { probability: 0.2, maxCopies: 2 } };
+    await seg.getFaults();
+    await seg.getFaultStatus();
+    await seg.configureFaults({ enabled: true, seed: 7 });
+    await seg.resetFaults();
+    await seg.setVehicleFaultProfile("v1", profile);
+    await seg.clearVehicleFaultProfile("v1");
+    expect(h.http.get).toHaveBeenCalledWith("/faults");
+    expect(h.http.get).toHaveBeenCalledWith("/faults/status");
+    expect(h.http.post).toHaveBeenCalledWith("/faults", { enabled: true, seed: 7 });
+    expect(h.http.post).toHaveBeenCalledWith("/faults/reset");
+    expect(h.http.put).toHaveBeenCalledWith("/faults/vehicles/v1", profile);
+    expect(h.http.delete).toHaveBeenCalledWith("/faults/vehicles/v1");
+  });
+
+  it("clears the fleet-wide profile with an explicit null", async () => {
+    await seg.configureFaults({ default: null });
+    expect(h.http.post).toHaveBeenCalledWith("/faults", { default: null });
+  });
+
+  it("wires the faults:config ws channel", () => {
+    const fn = vi.fn();
+    seg.onFaultsConfig(fn);
+    seg.offFaultsConfig();
+    expect(h.ws.on).toHaveBeenCalledWith("faults:config", fn);
+    expect(h.ws.off).toHaveBeenCalledWith("faults:config", undefined);
   });
 });
 

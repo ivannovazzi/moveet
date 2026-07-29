@@ -32,7 +32,9 @@ function createMockContext(): RouteContext {
     network: {
       getBoundingBox: vi.fn().mockReturnValue(BBOX),
     } as unknown as RouteContext["network"],
-    vehicleManager: {} as RouteContext["vehicleManager"],
+    vehicleManager: {
+      hasVehicle: vi.fn().mockReturnValue(true),
+    } as unknown as RouteContext["vehicleManager"],
     fleetManager: {} as RouteContext["fleetManager"],
     jobManager: {
       getJobs: vi.fn().mockReturnValue([job()]),
@@ -40,6 +42,7 @@ function createMockContext(): RouteContext {
       reassignJob: vi.fn().mockResolvedValue(job({ vehicleId: "v2" })),
       cancelJob: vi.fn().mockReturnValue(job({ status: "cancelled" })),
       deleteJob: vi.fn(),
+      jobForVehicleId: vi.fn().mockReturnValue(undefined),
     } as unknown as RouteContext["jobManager"],
     incidentManager: {} as RouteContext["incidentManager"],
     recordingManager: {} as RouteContext["recordingManager"],
@@ -152,6 +155,39 @@ describe("Job routes", () => {
       expect(res.status).toBe(400);
       expect(res.body.error).toBe("Validation failed");
     });
+
+    it("404s a manual job naming a vehicle that does not exist", async () => {
+      vi.mocked(ctx.vehicleManager.hasVehicle).mockReturnValue(false);
+
+      const res = await request(app)
+        .post("/jobs")
+        .send({ pickup: IN_BOUNDS, dropoff: { lat: -1.31, lng: 36.9 }, vehicleId: "ghost" });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Vehicle "ghost" not found');
+      expect(ctx.jobManager.createJob).not.toHaveBeenCalled();
+    });
+
+    it("409s a manual job naming a vehicle that is already on a job", async () => {
+      vi.mocked(ctx.jobManager.jobForVehicleId).mockReturnValue(job({ id: "job-9" }));
+
+      const res = await request(app)
+        .post("/jobs")
+        .send({ pickup: IN_BOUNDS, dropoff: { lat: -1.31, lng: 36.9 }, vehicleId: "v2" });
+
+      expect(res.status).toBe(409);
+      expect(res.body.error).toBe('Vehicle "v2" is already on JOB-0001');
+      expect(res.body.job).toEqual({ id: "job-9", reference: "JOB-0001", status: "en_route" });
+      expect(ctx.jobManager.createJob).not.toHaveBeenCalled();
+    });
+
+    it("does not look up a vehicle when none was named", async () => {
+      await request(app)
+        .post("/jobs")
+        .send({ pickup: IN_BOUNDS, dropoff: { lat: -1.31, lng: 36.9 } });
+
+      expect(ctx.vehicleManager.hasVehicle).not.toHaveBeenCalled();
+    });
   });
 
   describe("POST /jobs/:id/assign", () => {
@@ -179,6 +215,33 @@ describe("Job routes", () => {
 
       expect(res.status).toBe(400);
       expect(ctx.jobManager.reassignJob).not.toHaveBeenCalled();
+    });
+
+    it("404s an unknown vehicle", async () => {
+      vi.mocked(ctx.vehicleManager.hasVehicle).mockReturnValue(false);
+
+      const res = await request(app).post("/jobs/job-1/assign").send({ vehicleId: "ghost" });
+
+      expect(res.status).toBe(404);
+      expect(ctx.jobManager.reassignJob).not.toHaveBeenCalled();
+    });
+
+    it("409s a vehicle already on a DIFFERENT job", async () => {
+      vi.mocked(ctx.jobManager.jobForVehicleId).mockReturnValue(job({ id: "job-9" }));
+
+      const res = await request(app).post("/jobs/job-1/assign").send({ vehicleId: "v2" });
+
+      expect(res.status).toBe(409);
+      expect(ctx.jobManager.reassignJob).not.toHaveBeenCalled();
+    });
+
+    it("allows re-assigning to the vehicle already on THIS job", async () => {
+      vi.mocked(ctx.jobManager.jobForVehicleId).mockReturnValue(job({ id: "job-1" }));
+
+      const res = await request(app).post("/jobs/job-1/assign").send({ vehicleId: "v2" });
+
+      expect(res.status).toBe(200);
+      expect(ctx.jobManager.reassignJob).toHaveBeenCalledWith("job-1", { vehicleId: "v2" });
     });
   });
 

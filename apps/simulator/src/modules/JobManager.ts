@@ -8,6 +8,7 @@ import type {
   JobStatus,
   Position,
   RouteCompletedPayload,
+  VehicleDirection,
   VehicleDTO,
   Waypoint,
   WaypointReachedPayload,
@@ -33,6 +34,7 @@ export interface JobVehicleGateway {
   ): Promise<{ etaSeconds: number; distanceKm: number } | null>;
   on(event: "waypoint:reached", listener: (payload: WaypointReachedPayload) => void): unknown;
   on(event: "route:completed", listener: (payload: RouteCompletedPayload) => void): unknown;
+  on(event: "direction", listener: (payload: VehicleDirection) => void): unknown;
 }
 
 /**
@@ -102,6 +104,7 @@ export class JobManager extends EventEmitter {
     super();
     this.vehicles.on("waypoint:reached", (payload) => this.onWaypointReached(payload));
     this.vehicles.on("route:completed", (payload) => this.onRouteCompleted(payload));
+    this.vehicles.on("direction", (payload) => this.onDirection(payload));
   }
 
   // ─── Public API ───────────────────────────────────────────────────
@@ -112,6 +115,16 @@ export class JobManager extends EventEmitter {
 
   getJob(id: string): JobDTO | undefined {
     return this.jobs.get(id);
+  }
+
+  /**
+   * The job a vehicle is currently holding, if any. This is the "is this unit
+   * busy" question the REST layer asks before accepting a manual assignment,
+   * and the UI asks to label a vehicle with the job it is carrying.
+   */
+  jobForVehicleId(vehicleId: string): JobDTO | undefined {
+    const job = this.jobForVehicle(vehicleId);
+    return job ? { ...job } : undefined;
   }
 
   /**
@@ -261,9 +274,19 @@ export class JobManager extends EventEmitter {
 
     try {
       const state = this.requireRuntime(id);
-      const { vehicle, rosterSize } = await this.pickVehicle(job, state);
+      const { vehicle, rosterSize, blocked } = await this.pickVehicle(job, state);
 
       if (!vehicle) {
+        // A named vehicle that has left the fleet is never coming back, and the
+        // manual path never grows `attempted` — so without this the job would
+        // pend forever behind a unit that no longer exists.
+        if (blocked?.fatal) {
+          job.status = "failed";
+          job.error = blocked.message;
+          this.publish(job);
+          this.maybeStopSweep();
+          return;
+        }
         // A small fleet exhausts its candidates before MAX_ASSIGN_ATTEMPTS, so
         // the give-up point is whichever comes first — otherwise a two-vehicle
         // fleet that both fail to route would retry the same pair forever.
@@ -277,7 +300,7 @@ export class JobManager extends EventEmitter {
         }
         // Nothing free yet. Say so once — the sweep retries every second and
         // re-emitting the same message each time is pure noise.
-        const message = "Waiting for an available vehicle";
+        const message = blocked?.message ?? "Waiting for an available vehicle";
         if (job.error !== message) {
           job.error = message;
           this.publish(job);
@@ -340,7 +363,12 @@ export class JobManager extends EventEmitter {
   private async pickVehicle(
     job: JobDTO,
     state: JobRuntime
-  ): Promise<{ vehicle: VehicleDTO | null; rosterSize: number }> {
+  ): Promise<{
+    vehicle: VehicleDTO | null;
+    rosterSize: number;
+    /** Why no vehicle came back, when the reason is specific enough to say. */
+    blocked?: { message: string; fatal: boolean };
+  }> {
     const roster = this.vehicles.getVehicles();
     const available = roster.filter((v) => {
       if (this.busyVehicles.has(v.id)) return false;
@@ -352,7 +380,33 @@ export class JobManager extends EventEmitter {
 
     if (job.strategy === "manual") {
       const wanted = state.manualVehicleId;
-      return { vehicle: available.find((v) => v.id === wanted) ?? null, rosterSize };
+      const picked = available.find((v) => v.id === wanted) ?? null;
+      if (picked || !wanted) return { vehicle: picked, rosterSize };
+
+      // Say WHICH vehicle the job is waiting for, and distinguish "busy" (worth
+      // waiting for) from "gone" (never resolving).
+      const inRoster = roster.find((v) => v.id === wanted);
+      if (!inRoster) {
+        return {
+          vehicle: null,
+          rosterSize,
+          blocked: { message: `Vehicle ${wanted} is no longer in the fleet`, fatal: true },
+        };
+      }
+      if (state.attempted.has(wanted)) {
+        // The operator named this unit and it could not route to the pickup.
+        // There is no second candidate to fall back to under `manual`.
+        return {
+          vehicle: null,
+          rosterSize,
+          blocked: { message: `${inRoster.name} could not reach this pickup`, fatal: true },
+        };
+      }
+      const holder = this.jobForVehicle(wanted);
+      const message = holder
+        ? `Waiting for ${inRoster.name} to finish ${holder.reference}`
+        : `Waiting for ${inRoster.name}`;
+      return { vehicle: null, rosterSize, blocked: { message, fatal: false } };
     }
 
     if (available.length === 0) return { vehicle: null, rosterSize };
@@ -406,6 +460,55 @@ export class JobManager extends EventEmitter {
     }, this.options.pickupDwellSeconds * 1000);
     timer.unref?.();
     state.dwellTimer = timer;
+  }
+
+  /**
+   * A route change for a vehicle that is holding a job.
+   *
+   * `JobManager` sets exactly one route per assignment, labelled with the job's
+   * reference; any other route change means something else — an operator
+   * dispatch, a scenario, a replay — has taken the unit off its job. Waiting for
+   * `route:completed` to notice is not enough: that fires wherever the new route
+   * happens to end, which for a job past its pickup would read as a delivery.
+   */
+  private onDirection(payload: VehicleDirection): void {
+    // A reroute is the same trip on a new path; a payload with no reason is a
+    // snapshot of an existing route (reset), not a change.
+    if (!payload.reason || payload.reason === "reroute") return;
+
+    const job = this.jobForVehicle(payload.vehicleId);
+    if (!job) return;
+    if (payload.reason === "waypoints" && this.ownsWaypoints(job, payload.waypoints)) return;
+
+    const state = this.runtime.get(job.id);
+    if (state) this.clearDwell(state);
+
+    if (job.status === "on_scene" || job.status === "transporting") {
+      // The load is on board and the unit is no longer taking it anywhere. This
+      // is a failure, not a re-queue: re-running the pickup leg would collect a
+      // load that has already been collected.
+      job.status = "failed";
+      job.error = "Vehicle was re-dispatched mid-trip; the load was not delivered";
+      this.releaseVehicle(job);
+      this.publish(job);
+      this.maybeStopSweep();
+      return;
+    }
+
+    this.releaseVehicle(job);
+    job.status = "pending";
+    job.assignedAt = undefined;
+    job.etaToPickupSeconds = undefined;
+    job.etaToDropoffSeconds = undefined;
+    job.routeDistanceKm = undefined;
+    job.error = "Vehicle was re-dispatched before pickup; job re-queued";
+    this.publish(job);
+    this.ensureSweep();
+  }
+
+  /** Whether a multi-stop route is the one this job asked for. */
+  private ownsWaypoints(job: JobDTO, waypoints?: Waypoint[]): boolean {
+    return waypoints?.[0]?.label === `${job.reference} pickup`;
   }
 
   private onRouteCompleted(payload: RouteCompletedPayload): void {

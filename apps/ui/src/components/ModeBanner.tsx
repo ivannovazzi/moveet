@@ -1,11 +1,18 @@
 import { cn } from "@/lib/utils";
-import { Directions, GeofenceIcon } from "@/components/Icons";
+import { Directions, GeofenceIcon, JobIcon } from "@/components/Icons";
 import { DispatchState } from "@/hooks/useDispatchState";
 import type { InteractionMode } from "@/hooks/useInteractionMode";
 import { drawProgressHint } from "@/lib/geofenceHints";
+import type { JobDraftStage } from "@/hooks/useJobDraft";
 
 interface ModeBannerProps {
   mode: InteractionMode;
+  /**
+   * A two-click job placement is in flight. Not a member of the mode union (see
+   * useJobDraft), but it IS a modal map mode that owns Escape first, so it owns
+   * the banner first too.
+   */
+  jobPlacementStage?: JobDraftStage;
   /** Dispatch sub-state, drives the per-phase hint while `mode` is dispatch. */
   dispatchState: DispatchState;
   selectedCount: number;
@@ -55,6 +62,12 @@ function drawHint(vertexCount: number): string {
   );
 }
 
+function jobHint(stage: JobDraftStage): string {
+  return stage === "pickup"
+    ? "Click the map to set the pickup"
+    : "Click the map to set the dropoff — this creates the job";
+}
+
 /**
  * The single top-center banner for the active interaction mode. Replaces the
  * dispatch flow's DispatchHint and the geofence draw tool's inline banner,
@@ -64,20 +77,27 @@ function drawHint(vertexCount: number): string {
  */
 export default function ModeBanner({
   mode,
+  jobPlacementStage = "idle",
   dispatchState,
   selectedCount,
   stopCount,
   drawVertexCount,
   onExit,
 }: ModeBannerProps) {
-  if (mode.kind === "browse") return null;
+  const placingJob = jobPlacementStage !== "idle";
+  if (mode.kind === "browse" && !placingJob) return null;
 
-  const isDraw = mode.kind === "draw-geofence";
-  const { text, busy } = isDraw
-    ? { text: drawHint(drawVertexCount), busy: false }
-    : dispatchHint(dispatchState, selectedCount, stopCount);
-  const Icon = isDraw ? GeofenceIcon : Directions;
-  const label = isDraw ? "Draw zone" : "Dispatch";
+  // Job placement outranks the mode union: it is the most modal thing on screen
+  // and takes Escape first, so the banner must describe it rather than whatever
+  // mode is (or isn't) active underneath.
+  const isDraw = !placingJob && mode.kind === "draw-geofence";
+  const { text, busy } = placingJob
+    ? { text: jobHint(jobPlacementStage), busy: false }
+    : isDraw
+      ? { text: drawHint(drawVertexCount), busy: false }
+      : dispatchHint(dispatchState, selectedCount, stopCount);
+  const Icon = placingJob ? JobIcon : isDraw ? GeofenceIcon : Directions;
+  const label = placingJob ? "New job" : isDraw ? "Draw zone" : "Dispatch";
 
   return (
     <div

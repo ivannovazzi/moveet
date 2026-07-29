@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import type { Fleet, POI, Position, Vehicle } from "@/types";
+import type { Fleet, JobDTO, POI, Position, Vehicle } from "@/types";
 import { CloseIcon } from "@/components/Icons";
 import { invertLatLng } from "@/utils/coordinates";
 import { Eyebrow, Hairline, PanelHead, StatusDot, Tag, mono } from "@/Dock/DockPanelKit";
@@ -7,6 +7,8 @@ import VehicleDirections from "./VehicleDirections";
 import VehicleTelemetry from "./VehicleTelemetry";
 import VehicleEventTimeline from "./VehicleEventTimeline";
 import { useVehicleEventCapture } from "./useVehicleEventCapture";
+import { FAULT_KIND_LABEL } from "@/lib/faultPresets";
+import type { DeviceFaultInfo } from "@/types";
 
 /**
  * On-demand right-side detail panel for the currently selected vehicle or POI.
@@ -32,6 +34,8 @@ export interface InspectorProps {
   poi?: POI;
   /** Resolved fleet for the selected vehicle (App resolves it from `fleetId`). */
   fleet?: Fleet;
+  /** The live job this vehicle is carrying, if any (App resolves it from the board). */
+  job?: JobDTO;
   /** Close the inspector (clears selection upstream). */
   onClose: () => void;
 }
@@ -51,7 +55,60 @@ function formatCoords([lng, lat]: Position): string {
   return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 }
 
-export default function Inspector({ vehicle, poi, fleet, onClose }: InspectorProps) {
+/**
+ * What the simulated DEVICE is doing to this vehicle's telemetry.
+ *
+ * Renders nothing for a device with no fault profile (the common case), so the
+ * inspector is unchanged unless faults are actually armed. When they are, this
+ * is the difference between "the map looks wrong" and "this tracker is frozen".
+ */
+function DeviceFaults({ faults, timestamp }: { faults?: DeviceFaultInfo; timestamp?: number }) {
+  if (!faults) return null;
+
+  const active = faults.active;
+  const battery = faults.battery;
+  const skewSeconds = faults.skewMs != null ? Math.round(faults.skewMs / 1000) : undefined;
+
+  return (
+    <div className="shrink-0 border-t border-border-soft pt-2">
+      <div className="flex items-center justify-between gap-2 px-[15px] pb-1.5">
+        <Eyebrow>Device</Eyebrow>
+        {active.length === 0 ? (
+          <Tag tone="ok">Reporting clean</Tag>
+        ) : (
+          <span className="flex flex-wrap justify-end gap-1">
+            {active.map((kind) => (
+              <Tag key={kind} tone={kind === "battery_dead" ? "error" : "warn"}>
+                {FAULT_KIND_LABEL[kind]}
+              </Tag>
+            ))}
+          </span>
+        )}
+      </div>
+      {battery != null && (
+        <Field label="Battery">
+          <span
+            className={cn(mono, battery <= 10 ? "text-status-error" : undefined)}
+          >{`${Math.round(battery)}%`}</span>
+        </Field>
+      )}
+      {skewSeconds != null && skewSeconds !== 0 && (
+        <Field label="Clock skew">
+          <span className={cn(mono, "text-status-warn")}>
+            {skewSeconds > 0 ? `+${skewSeconds}s` : `${skewSeconds}s`}
+          </span>
+        </Field>
+      )}
+      {timestamp != null && (
+        <Field label="Device time">
+          <span className={mono}>{new Date(timestamp).toLocaleTimeString()}</span>
+        </Field>
+      )}
+    </div>
+  );
+}
+
+export default function Inspector({ vehicle, poi, fleet, job, onClose }: InspectorProps) {
   // App renders <Inspector/> unconditionally (it self-hides below), so this is
   // the app-lifetime home for per-vehicle event capture — history exists for a
   // vehicle selected long after the events happened.
@@ -113,6 +170,14 @@ export default function Inspector({ vehicle, poi, fleet, onClose }: InspectorPro
                 {moving ? "En route" : "Idle"}
               </span>
             </Field>
+            {job && (
+              <Field label="Job">
+                <span className="inline-flex items-center gap-1.5">
+                  {job.slaBreached && <Tag tone="error">Late</Tag>}
+                  <span className={mono}>{job.reference}</span>
+                </span>
+              </Field>
+            )}
             <Field label="Type">
               <Tag tone="accent">{vehicle.type}</Tag>
             </Field>
@@ -128,6 +193,7 @@ export default function Inspector({ vehicle, poi, fleet, onClose }: InspectorPro
             </Field>
           </div>
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+            <DeviceFaults faults={vehicle.faults} timestamp={vehicle.timestamp} />
             <VehicleTelemetry vehicleId={vehicle.id} />
             {/* Vehicle positions are [lng, lat] here; edge coords are [lat, lng].
                 Invert so the active-step lookup compares matching axes. */}

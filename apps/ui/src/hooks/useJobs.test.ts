@@ -180,6 +180,46 @@ describe("useJobs", () => {
     expect(result.current.liveJobs.map((j) => j.id)).toEqual(["a", "b"]);
   });
 
+  it("indexes live jobs by the vehicle carrying them", async () => {
+    vi.mocked(client.getJobs).mockResolvedValue({
+      data: [
+        createJob({ id: "a", status: "en_route", vehicleId: "v1" }),
+        createJob({ id: "b", status: "transporting", vehicleId: "v2" }),
+      ],
+    });
+
+    const { result } = renderHook(() => useJobs());
+
+    await vi.waitFor(() => expect(result.current.jobs).toHaveLength(2));
+    expect(result.current.jobByVehicleId.get("v1")?.id).toBe("a");
+    expect(result.current.jobByVehicleId.get("v2")?.id).toBe("b");
+    expect(result.current.jobByVehicleId.has("v3")).toBe(false);
+  });
+
+  it("stops claiming a vehicle once its job is finished", async () => {
+    // A terminal job keeps its vehicle on the record for the audit trail, but
+    // the unit is free — the vehicle list must not still show it as busy.
+    vi.mocked(client.getJobs).mockResolvedValue({
+      data: [createJob({ id: "a", status: "complete", vehicleId: "v1" })],
+    });
+
+    const { result } = renderHook(() => useJobs());
+
+    await vi.waitFor(() => expect(result.current.jobs).toHaveLength(1));
+    expect(result.current.jobByVehicleId.size).toBe(0);
+  });
+
+  it("leaves an unassigned pending job out of the index", async () => {
+    vi.mocked(client.getJobs).mockResolvedValue({
+      data: [createJob({ id: "a", status: "pending", vehicleId: undefined })],
+    });
+
+    const { result } = renderHook(() => useJobs());
+
+    await vi.waitFor(() => expect(result.current.jobs).toHaveLength(1));
+    expect(result.current.jobByVehicleId.size).toBe(0);
+  });
+
   it("reports an assigned vehicle after a successful create", async () => {
     const { result } = renderHook(() => useJobs());
 

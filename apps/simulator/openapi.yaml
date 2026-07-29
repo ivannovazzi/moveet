@@ -1536,6 +1536,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "404":
+          description: The named `vehicleId` is not in the fleet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: The named `vehicleId` is already carrying another job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VehicleJobConflict"
 
   /jobs/{id}/assign:
     post:
@@ -1572,6 +1584,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "404":
+          description: The named `vehicleId` is not in the fleet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: >
+            The named `vehicleId` is already carrying a DIFFERENT job (naming the
+            vehicle that already holds this one is accepted).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VehicleJobConflict"
 
   /jobs/{id}/cancel:
     post:
@@ -2317,6 +2343,25 @@ components:
       properties:
         error:
           type: string
+
+    VehicleJobConflict:
+      type: object
+      required: [error, job]
+      description: A vehicle was named for a job while it is already carrying another one.
+      properties:
+        error:
+          type: string
+        job:
+          type: object
+          description: The job that currently holds the vehicle.
+          required: [id, reference, status]
+          properties:
+            id:
+              type: string
+            reference:
+              type: string
+            status:
+              $ref: "#/components/schemas/JobStatus"
 
     ValidationError:
       type: object
