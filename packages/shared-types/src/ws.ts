@@ -46,6 +46,24 @@ export interface Heatzone {
 }
 
 /**
+ * Why a vehicle's route changed.
+ *
+ * Needed because "this vehicle got a new route" is ambiguous on its own: an
+ * incident reroute keeps driving the same trip, whereas an operator dispatch
+ * replaces it. `JobManager` uses this to tell its own assignment apart from a
+ * vehicle being taken off its job mid-trip.
+ */
+export type DirectionReason =
+  /** Single-destination dispatch (`POST /direction`). */
+  | "dispatch"
+  /** Multi-stop route set, including a job assignment. */
+  | "waypoints"
+  /** The simulator picked the next wander destination itself. */
+  | "random"
+  /** Same trip, new path around an incident. */
+  | "reroute";
+
+/**
  * A vehicle's active route + ETA, broadcast on the `direction` channel and
  * carried in `ResetPayload.directions`. `eta` is optional because the
  * simulator's reset-time direction snapshot may omit it.
@@ -56,6 +74,11 @@ export interface VehicleDirection {
   eta?: number;
   waypoints?: Waypoint[];
   currentWaypointIndex?: number;
+  /**
+   * Why this route was set. Optional for backward compatibility: a reset-time
+   * snapshot describes an existing route rather than a change.
+   */
+  reason?: DirectionReason;
 }
 
 /**

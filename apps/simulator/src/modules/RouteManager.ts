@@ -192,6 +192,9 @@ export class RouteManager extends EventEmitter {
         if (!this.registry.has(vehicleId)) return;
 
         if (route) {
+          // Same reasoning as findAndSetRoutes: a wander destination replaces a
+          // multi-stop route, so its legs must not outlive it.
+          this.clearWaypointState(vehicle);
           this.setRouteFor(vehicleId, route);
           vehicle.edgeIndex = -1;
           if (this.unroutedAttempts.delete(vehicleId)) {
@@ -201,6 +204,7 @@ export class RouteManager extends EventEmitter {
             vehicleId,
             route: this.getSerializedRoute(vehicleId, route),
             eta: utils.estimateRouteDuration(route, vehicle.speed),
+            reason: "random",
           });
         }
       })
@@ -413,7 +417,12 @@ export class RouteManager extends EventEmitter {
     if (vehicle.dwellUntil) {
       if (Date.now() < vehicle.dwellUntil) return;
       vehicle.dwellUntil = undefined;
-      this.setRandomDestination(vehicle.id);
+      // A dwell at an INTERMEDIATE stop already has the next leg loaded (see
+      // handleRouteCompleted), so the vehicle resumes its trip. Only a dwell
+      // with nothing left to drive — the end of a route, where the route was
+      // deleted — means the vehicle needs somewhere new to go. Wandering off
+      // here regardless is what used to strand a job's dropoff leg.
+      if (!this.routes.has(vehicle.id)) this.setRandomDestination(vehicle.id);
       return;
     }
 
@@ -639,11 +648,17 @@ export class RouteManager extends EventEmitter {
 
     const eta = utils.estimateRouteDuration(route, vehicle.speed);
 
+    // A single-destination route replaces any multi-stop one outright. Without
+    // this the stale legs survive: `handleRouteCompleted` would take the
+    // multi-stop branch when THIS route finishes, emit a `waypoint:reached` for
+    // the abandoned trip, and put the vehicle back onto its next leg.
+    this.clearWaypointState(vehicle);
     this.setRouteFor(vehicleId, route);
     this.emit("direction", {
       vehicleId,
       route: this.getSerializedRoute(vehicleId, route),
       eta,
+      reason: "dispatch",
     });
     const previousEdgeId = vehicle.currentEdge.id;
     this.traffic.leave(previousEdgeId);
@@ -766,6 +781,7 @@ export class RouteManager extends EventEmitter {
       eta,
       waypoints,
       currentWaypointIndex: 0,
+      reason: "waypoints",
     });
 
     return {
@@ -865,6 +881,7 @@ export class RouteManager extends EventEmitter {
             vehicleId,
             route: serialized,
             eta: utils.estimateRouteDuration(newRoute, vehicle.speed),
+            reason: "reroute",
           });
         }
       })

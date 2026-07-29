@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button, SquaredButton } from "@/components/Inputs";
 import { Input } from "@/components/ui/input";
 import { Eyebrow, LList, LRow, Tag, mono, type SevTone } from "@/Dock/DockPanelKit";
 import { PanelEmptyState, PanelErrorState } from "./PanelPrimitives";
-import { JobIcon } from "@/components/Icons";
+import { JobIcon, Reset } from "@/components/Icons";
 import type { JobAssignmentStrategy, JobDTO, JobStatus } from "@/types";
 import type { JobDraft } from "@/hooks/useJobDraft";
 import type { JobCounts } from "@/hooks/useJobs";
@@ -91,8 +91,27 @@ export interface JobsPanelProps {
   draft: JobDraft;
   onCancelJob: (id: string) => Promise<void>;
   onDeleteJob: (id: string) => Promise<void>;
+  /** Re-target a job: re-run a strategy, or name a vehicle (manual). */
+  onAssignJob: (
+    id: string,
+    body: { vehicleId?: string; strategy?: JobAssignmentStrategy }
+  ) => Promise<void>;
+  /** Roster used to offer a specific vehicle when reassigning. */
+  vehicles: { id: string; name: string }[];
+  /** vehicleId → the live job it is carrying, so busy units aren't offered. */
+  jobByVehicleId: Map<string, JobDTO>;
   error?: string | null;
 }
+
+/**
+ * Statuses that can still be re-targeted. Once the load is on board, swapping
+ * units would be a different job — the simulator rejects it, so don't offer it.
+ */
+const REASSIGNABLE: ReadonlySet<JobStatus> = new Set<JobStatus>([
+  "pending",
+  "assigned",
+  "en_route",
+]);
 
 /**
  * The job board: create a pickup/dropoff job by clicking the map twice, then
@@ -108,9 +127,14 @@ export default function JobsPanel({
   draft,
   onCancelJob,
   onDeleteJob,
+  onAssignJob,
+  vehicles,
+  jobByVehicleId,
   error,
 }: JobsPanelProps) {
   const [now, setNow] = useState(() => Date.now());
+  /** Job whose reassign control is expanded, if any. */
+  const [reassigningId, setReassigningId] = useState<string | null>(null);
 
   // One shared 1 Hz tick drives every countdown; no timer per row.
   useEffect(() => {
@@ -218,58 +242,142 @@ export default function JobsPanel({
         {ordered.map((job) => {
           const live = isJobLive(job);
           const tone: SevTone = job.slaBreached && live ? "error" : STATUS_TONE[job.status];
+          const reassignable = REASSIGNABLE.has(job.status);
           return (
-            <LRow
-              key={job.id}
-              tone={tone}
-              primary={
-                <span className="flex items-center gap-1.5">
-                  <span className={mono}>{job.reference}</span>
-                  {job.slaBreached && <Tag tone="error">Late</Tag>}
-                </span>
-              }
-              secondary={jobSecondary(job)}
-              meta={
-                <>
-                  <Tag tone={tone}>{STATUS_LABEL[job.status]}</Tag>
-                  {live && (
-                    <span
-                      className={cn(
-                        mono,
-                        "whitespace-nowrap text-[11px]",
-                        job.slaBreached ? "text-status-error" : "text-muted-foreground"
-                      )}
-                      title="Time remaining against the SLA deadline"
-                    >
-                      {formatCountdown(job.slaDeadline, now)}
-                    </span>
-                  )}
-                  {live ? (
-                    <SquaredButton
-                      className="flex-shrink-0"
-                      icon={<span aria-hidden="true">×</span>}
-                      variant="ghost"
-                      tone="danger"
-                      aria-label={`Cancel job ${job.reference}`}
-                      title="Cancel job"
-                      onClick={() => onCancelJob(job.id)}
-                    />
-                  ) : (
-                    <SquaredButton
-                      className="flex-shrink-0"
-                      icon={<span aria-hidden="true">×</span>}
-                      variant="ghost"
-                      aria-label={`Remove job ${job.reference}`}
-                      title="Remove from board"
-                      onClick={() => onDeleteJob(job.id)}
-                    />
-                  )}
-                </>
-              }
-            />
+            <Fragment key={job.id}>
+              <LRow
+                tone={tone}
+                primary={
+                  <span className="flex items-center gap-1.5">
+                    <span className={mono}>{job.reference}</span>
+                    {job.slaBreached && <Tag tone="error">Late</Tag>}
+                  </span>
+                }
+                secondary={jobSecondary(job)}
+                meta={
+                  <>
+                    <Tag tone={tone}>{STATUS_LABEL[job.status]}</Tag>
+                    {live && (
+                      <span
+                        className={cn(
+                          mono,
+                          "whitespace-nowrap text-[11px]",
+                          job.slaBreached ? "text-status-error" : "text-muted-foreground"
+                        )}
+                        title="Time remaining against the SLA deadline"
+                      >
+                        {formatCountdown(job.slaDeadline, now)}
+                      </span>
+                    )}
+                    {reassignable && (
+                      <SquaredButton
+                        className="flex-shrink-0"
+                        icon={<Reset />}
+                        variant="ghost"
+                        active={reassigningId === job.id}
+                        aria-label={`Reassign job ${job.reference}`}
+                        aria-expanded={reassigningId === job.id}
+                        title="Reassign to another vehicle or re-run the search"
+                        onClick={() =>
+                          setReassigningId((prev) => (prev === job.id ? null : job.id))
+                        }
+                      />
+                    )}
+                    {live ? (
+                      <SquaredButton
+                        className="flex-shrink-0"
+                        icon={<span aria-hidden="true">×</span>}
+                        variant="ghost"
+                        tone="danger"
+                        aria-label={`Cancel job ${job.reference}`}
+                        title="Cancel job"
+                        onClick={() => onCancelJob(job.id)}
+                      />
+                    ) : (
+                      <SquaredButton
+                        className="flex-shrink-0"
+                        icon={<span aria-hidden="true">×</span>}
+                        variant="ghost"
+                        aria-label={`Remove job ${job.reference}`}
+                        title="Remove from board"
+                        onClick={() => onDeleteJob(job.id)}
+                      />
+                    )}
+                  </>
+                }
+              />
+              {reassigningId === job.id && (
+                <ReassignRow
+                  job={job}
+                  vehicles={vehicles}
+                  jobByVehicleId={jobByVehicleId}
+                  onAssign={async (body) => {
+                    setReassigningId(null);
+                    await onAssignJob(job.id, body);
+                  }}
+                />
+              )}
+            </Fragment>
           );
         })}
       </LList>
+    </div>
+  );
+}
+
+/**
+ * Inline reassign control for a job that hasn't been picked up yet.
+ *
+ * Offers both shapes the API accepts: re-run a strategy (the simulator picks),
+ * or name a vehicle (`manual`). Vehicles already carrying another job are left
+ * out — the simulator answers those with a 409, and offering a choice that is
+ * guaranteed to fail is worse than not offering it.
+ */
+function ReassignRow({
+  job,
+  vehicles,
+  jobByVehicleId,
+  onAssign,
+}: {
+  job: JobDTO;
+  vehicles: { id: string; name: string }[];
+  jobByVehicleId: Map<string, JobDTO>;
+  onAssign: (body: { vehicleId?: string; strategy?: JobAssignmentStrategy }) => Promise<void>;
+}) {
+  const free = vehicles.filter((v) => {
+    const holder = jobByVehicleId.get(v.id);
+    return !holder || holder.id === job.id;
+  });
+
+  return (
+    <div className="flex items-center gap-1.5 border-t border-border-soft px-2 py-2 pl-[13px]">
+      <span className="text-[10.5px] text-muted-foreground">Reassign</span>
+      <select
+        defaultValue=""
+        aria-label={`Reassign ${job.reference}`}
+        onChange={(e) => {
+          const value = e.target.value;
+          if (!value) return;
+          const strategy = STRATEGIES.find((s) => s.value === value);
+          void onAssign(strategy ? { strategy: strategy.value } : { vehicleId: value });
+        }}
+        className={cn(
+          "h-7 min-w-0 flex-1 rounded-md border border-border bg-transparent px-1.5 text-[11px] text-foreground",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        )}
+      >
+        <option value="">Choose…</option>
+        {STRATEGIES.map((option) => (
+          <option key={option.value} value={option.value}>
+            Re-run {option.label}
+          </option>
+        ))}
+        {free.map((v) => (
+          <option key={v.id} value={v.id}>
+            {v.name}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

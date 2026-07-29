@@ -1,13 +1,21 @@
 import { cn } from "@/lib/utils";
 import { memo, useCallback, useMemo } from "react";
 import { FixedSizeList, type ListChildComponentProps } from "react-window";
-import type { Fleet, Vehicle, DispatchAssignment, DirectionResult } from "@/types";
+import type {
+  Fleet,
+  Vehicle,
+  DispatchAssignment,
+  DirectionResult,
+  DeviceFaultInfo,
+  JobDTO,
+} from "@/types";
 import { DispatchState } from "@/hooks/useDispatchState";
 import { useDirectionContext } from "@/data/useData";
 import { useResizeObserver } from "@/hooks/useResizeObserver";
 import { PanelBadge, PanelBody, PanelEmptyState, PanelHeader } from "./PanelPrimitives";
 import { StatusDot, mono } from "@/Dock/DockPanelKit";
 import { Search } from "@/components/Icons";
+import { FAULT_KIND_LABEL } from "@/lib/faultPresets";
 import { Input } from "@/components/ui/input";
 
 // Row height (px) for the virtualized list — must match the rendered row's
@@ -45,6 +53,8 @@ interface VehicleListProps {
   onToggleVehicleForDispatch?: (id: string) => void;
   assignments?: DispatchAssignment[];
   results?: DirectionResult[];
+  /** vehicleId → the live job it is carrying (from `useJobs`). */
+  jobByVehicleId?: Map<string, JobDTO>;
 }
 
 function formatRouteDistance(distance?: number) {
@@ -101,6 +111,17 @@ function ResultBadge({ result }: { result: DirectionResult }) {
 }
 
 /**
+ * Compact label for the fault kinds shaping a vehicle's last sample, or
+ * `undefined` when the device reported clean (or has no fault profile at all).
+ */
+function summarizeFaults(faults: DeviceFaultInfo | undefined): string | undefined {
+  const active = faults?.active;
+  if (!active || active.length === 0) return undefined;
+  if (active.length === 1) return FAULT_KIND_LABEL[active[0]];
+  return `${FAULT_KIND_LABEL[active[0]]} +${active.length - 1}`;
+}
+
+/**
  * A single vehicle row. Kept as a leaf `React.memo` component with a narrow,
  * mostly-primitive prop shape so a position/heading tick on ONE vehicle
  * (which changes `vehicles` array identity in the parent) does not force
@@ -122,6 +143,10 @@ interface VehicleRowProps {
   isRouteState: boolean;
   assignment: DispatchAssignment | undefined;
   result: DirectionResult | undefined;
+  /** Reference of the job this unit is carrying, if any. */
+  jobReference: string | undefined;
+  /** Device faults shaping this vehicle's last sample, if its device has a profile. */
+  faults: DeviceFaultInfo | undefined;
   style: React.CSSProperties;
   onSelect: (id: string) => void;
   onToggleForDispatch: ((id: string) => void) | undefined;
@@ -144,6 +169,8 @@ const VehicleRow = memo(function VehicleRow({
   isRouteState,
   assignment,
   result,
+  jobReference,
+  faults,
   style,
   onSelect,
   onToggleForDispatch,
@@ -153,6 +180,7 @@ const VehicleRow = memo(function VehicleRow({
   const isSelected = !showCheckbox && !isResults && isRowSelected;
   const isDispatchSelected = showCheckbox && isChecked;
   const moving = speed > 0;
+  const faultSummary = summarizeFaults(faults);
 
   const handleClick = () => {
     if (showCheckbox && onToggleForDispatch) {
@@ -227,13 +255,31 @@ const VehicleRow = memo(function VehicleRow({
               {VEHICLE_TYPE_LABELS[type] ?? type}
             </span>
           )}
+          {faultSummary && (
+            <span
+              className="flex-shrink-0 rounded-sm bg-status-warn/15 px-1 py-px text-[9px] font-medium uppercase tracking-wide text-status-warn"
+              title={`Device fault: ${faultSummary}`}
+            >
+              {faultSummary}
+            </span>
+          )}
         </span>
 
-        {/* Status: dot + label */}
-        <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <StatusDot tone={moving ? "ok" : "idle"} />
-          {moving ? "enroute" : "idle"}
-        </span>
+        {/* Status: what this unit is doing — its job, if it has one, else motion */}
+        {jobReference ? (
+          <span
+            className={cn(mono, "flex items-center gap-1.5 text-[11px] text-accent")}
+            title={`Carrying ${jobReference}`}
+          >
+            <StatusDot tone="accent" />
+            {jobReference}
+          </span>
+        ) : (
+          <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <StatusDot tone={moving ? "ok" : "idle"} />
+            {moving ? "enroute" : "idle"}
+          </span>
+        )}
 
         {/* km/h (unit lives in the header) */}
         <span
@@ -260,6 +306,7 @@ interface RowData {
   selectedForDispatchSet: Set<string>;
   assignments: DispatchAssignment[] | undefined;
   results: DirectionResult[] | undefined;
+  jobByVehicleId: Map<string, JobDTO> | undefined;
   selectedId: string | undefined;
   maxSpeed: number;
   showCheckbox: boolean;
@@ -285,6 +332,7 @@ function Row({ index, style, data }: ListChildComponentProps<RowData>) {
     selectedForDispatchSet,
     assignments,
     results,
+    jobByVehicleId,
     selectedId,
     showCheckbox,
     isDispatch,
@@ -327,6 +375,8 @@ function Row({ index, style, data }: ListChildComponentProps<RowData>) {
       isRouteState={isRouteState}
       assignment={assignment}
       result={result}
+      jobReference={jobByVehicleId?.get(vehicle.id)?.reference}
+      faults={vehicle.faults}
       style={insetStyle}
       onSelect={onSelectVehicle}
       onToggleForDispatch={onToggleVehicleForDispatch}
@@ -351,6 +401,7 @@ export default function VehicleList({
   onToggleVehicleForDispatch,
   assignments,
   results,
+  jobByVehicleId,
 }: VehicleListProps) {
   const { directions } = useDirectionContext();
   const visibleVehicles = useMemo(() => vehicles.filter((v) => v.visible), [vehicles]);
@@ -381,6 +432,7 @@ export default function VehicleList({
       selectedForDispatchSet,
       assignments,
       results,
+      jobByVehicleId,
       selectedId,
       maxSpeed,
       showCheckbox,
@@ -399,6 +451,7 @@ export default function VehicleList({
       selectedForDispatchSet,
       assignments,
       results,
+      jobByVehicleId,
       selectedId,
       maxSpeed,
       showCheckbox,

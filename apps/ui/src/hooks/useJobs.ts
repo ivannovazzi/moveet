@@ -22,6 +22,12 @@ export interface UseJobs {
   jobs: JobDTO[];
   /** Live jobs only — what the map draws and the header counts. */
   liveJobs: JobDTO[];
+  /**
+   * vehicleId → the live job it is carrying. Lets the vehicle list and the
+   * inspector answer "is this unit busy, and on what" without each row
+   * scanning the board.
+   */
+  jobByVehicleId: Map<string, JobDTO>;
   counts: JobCounts;
   createJob: (request: CreateJobRequest) => Promise<JobDTO | null>;
   assignJob: (
@@ -109,6 +115,16 @@ export function useJobs(): UseJobs {
 
   const liveJobs = useMemo(() => jobs.filter(isJobLive), [jobs]);
 
+  const jobByVehicleId = useMemo(() => {
+    const map = new Map<string, JobDTO>();
+    // Terminal jobs keep their vehicle on the record for the audit trail, so
+    // only live ones can claim a unit.
+    for (const job of liveJobs) {
+      if (job.vehicleId) map.set(job.vehicleId, job);
+    }
+    return map;
+  }, [liveJobs]);
+
   const counts = useMemo<JobCounts>(
     () => ({
       total: jobs.length,
@@ -167,5 +183,15 @@ export function useJobs(): UseJobs {
     }
   }, []);
 
-  return { jobs, liveJobs, counts, createJob, assignJob, cancelJob, deleteJob, error };
+  return {
+    jobs,
+    liveJobs,
+    jobByVehicleId,
+    counts,
+    createJob,
+    assignJob,
+    cancelJob,
+    deleteJob,
+    error,
+  };
 }

@@ -101,4 +101,41 @@ describe("ModeBanner", () => {
     fireEvent.click(screen.getByRole("button", { name: /exit/i }));
     expect(onExit).toHaveBeenCalledOnce();
   });
+
+  /**
+   * Job placement isn't a member of the mode union, but it IS a modal map mode
+   * that takes Escape first — so it must own the banner too, including when it
+   * was started from the command palette with no mode active underneath.
+   */
+  describe("job placement", () => {
+    it("announces the pickup step from browse mode", () => {
+      renderBanner({ mode: BROWSE, jobPlacementStage: "pickup" });
+
+      expect(screen.getByText("New job")).toBeInTheDocument();
+      expect(screen.getByText(/click the map to set the pickup/i)).toBeInTheDocument();
+    });
+
+    it("announces the dropoff step", () => {
+      renderBanner({ mode: BROWSE, jobPlacementStage: "dropoff" });
+
+      expect(screen.getByText(/click the map to set the dropoff/i)).toBeInTheDocument();
+    });
+
+    it("outranks an active mode's own hint", () => {
+      renderBanner({
+        mode: DRAW,
+        jobPlacementStage: "pickup",
+        drawVertexCount: 3,
+      });
+
+      expect(screen.getByText("New job")).toBeInTheDocument();
+      expect(screen.queryByText("Draw zone")).not.toBeInTheDocument();
+    });
+
+    it("goes back to the mode hint once placement ends", () => {
+      renderBanner({ mode: DRAW, jobPlacementStage: "idle", drawVertexCount: 3 });
+
+      expect(screen.getByText("Draw zone")).toBeInTheDocument();
+    });
+  });
 });

@@ -243,6 +243,15 @@ SLA breach along the way.
 | `POST`   | `/jobs/:id/cancel`   | Cancel a live job and release its vehicle         |
 | `DELETE` | `/jobs/:id`          | Remove a finished job from the board              |
 
+Naming a `vehicleId` that is not in the fleet answers `404`; one that is already
+carrying another job answers `409` naming that job. A vehicle taken off its job by
+something else (an operator dispatch, a scenario) re-queues the job if the load was
+not yet collected, and fails it — rather than reporting a delivery — if it was.
+
+In the UI the board is the Fleet dock panel's **Jobs** tab: place a pickup/dropoff
+with two map clicks, watch the SLA countdown, reassign a job that has not been
+picked up, and see which unit is carrying what in the vehicle list and inspector.
+
 ### Device faults
 
 Faults injected as properties of the simulated **device** (frozen GPS, clock skew,
@@ -259,6 +268,12 @@ shape and per-fault semantics.
 | `POST`   | `/faults/reset`          | Clear latched device state, keeping the config      |
 | `PUT`    | `/faults/vehicles/:id`   | Set one vehicle's fault profile                     |
 | `DELETE` | `/faults/vehicles/:id`   | Remove one vehicle's fault profile                  |
+
+The UI surfaces this as **Monitor → Faults**: arm the layer, set a seed, apply a
+profile preset fleet-wide or to one device, watch the live device counters, and
+clear latched state. Vehicles whose device is misbehaving carry a fault badge in
+the vehicle list, and the inspector shows the active faults, remaining battery and
+clock skew for the selected one.
 
 ### Incidents
 
@@ -314,7 +329,7 @@ Connect to `ws://localhost:5010`. On connect the server sends a `status` and `op
 | `status`           | server → client | `SimulationStatus` (running, ready, interval)             |
 | `options`          | server → client | Current `StartOptions`                                    |
 | `heatzones`        | server → client | `HeatZoneFeature[]`                                       |
-| `direction`        | server → client | Active dispatch assignment                                |
+| `direction`        | server → client | Active route + ETA, with a `reason` (`dispatch`/`waypoints`/`random`/`reroute`) |
 | `waypoint:reached` | server → client | Vehicle reached a waypoint                                |
 | `route:completed`  | server → client | Vehicle completed its full route                          |
 | `reset`            | server → client | Simulation was reset                                      |

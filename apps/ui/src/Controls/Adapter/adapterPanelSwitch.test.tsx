@@ -128,6 +128,9 @@ function dockProps(): Omit<DockProps, "navigation"> {
       draft: { active: false } as unknown as JobsPanelProps["draft"],
       onCancelJob: async () => {},
       onDeleteJob: async () => {},
+      onAssignJob: async () => {},
+      vehicles: [],
+      jobByVehicleId: new Map(),
       error: null,
     },
 
@@ -136,6 +139,21 @@ function dockProps(): Omit<DockProps, "navigation"> {
       createRandom: async () => {},
       remove: async () => {},
       error: null,
+    },
+    // The dock bar reads only the fault status counters (the Monitor badge);
+    // the panel itself is opened in one test, where an unarmed layer is enough.
+    faults: {
+      faults: {
+        config: null,
+        status: null,
+        loading: false,
+        error: null,
+        configure: async () => {},
+        setVehicleProfile: async () => {},
+        clearVehicleProfile: async () => {},
+        reset: async () => {},
+      },
+      vehicles: [],
     },
     geofences: {
       fences: [],

@@ -77,6 +77,22 @@ export class HttpClient {
     }
   }
 
+  async put<TBody, TReturn = void>(path: string, body?: TBody): Promise<ApiResponse<TReturn>> {
+    try {
+      const res = await fetch(`${this.baseUrl}${path}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (!res.ok) return { data: undefined, error: await readErrorMessage(res, `PUT ${path}`) };
+      const data = await res.json();
+      return { data };
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { data: undefined, error: errorMessage };
+    }
+  }
+
   async patch<TBody, TReturn = void>(path: string, body?: TBody): Promise<ApiResponse<TReturn>> {
     try {
       const res = await fetch(`${this.baseUrl}${path}`, {

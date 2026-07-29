@@ -362,6 +362,7 @@ export default function FleetPanel({
               onToggleVehicleForDispatch={dispatch.onToggleVehicleForDispatch}
               assignments={dispatch.assignments}
               results={dispatch.results}
+              jobByVehicleId={jobs.jobByVehicleId}
             />
           </SuppressPanelHeader>
         </div>

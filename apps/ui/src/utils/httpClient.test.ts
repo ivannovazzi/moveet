@@ -208,5 +208,45 @@ describe("HttpClient", () => {
 
       expect(result.error).toBe("intensity must be between 0 and 1");
     });
+
+    it("reports the server's message on a rejected PUT", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: () => Promise.resolve({ error: "maxDurationMs must be >= minDurationMs" }),
+      });
+
+      const result = await client.put("/faults/vehicles/v1", {});
+
+      expect(result.error).toBe("maxDurationMs must be >= minDurationMs");
+    });
+  });
+
+  describe("put", () => {
+    it("sends a JSON body and returns the parsed response", async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ enabled: true, vehicles: {} }),
+      });
+
+      const result = await client.put("/faults/vehicles/v1", { clockSkew: { offsetMs: 1000 } });
+
+      expect(mockFetch).toHaveBeenCalledWith("http://localhost:5010/faults/vehicles/v1", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clockSkew: { offsetMs: 1000 } }),
+      });
+      expect(result.data).toEqual({ enabled: true, vehicles: {} });
+    });
+
+    it("returns a transport failure as an error rather than throwing", async () => {
+      mockFetch.mockRejectedValue(new Error("Network down"));
+
+      const result = await client.put("/faults/vehicles/v1", {});
+
+      expect(result.error).toBe("Network down");
+      expect(result.data).toBeUndefined();
+    });
   });
 });

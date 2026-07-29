@@ -17,6 +17,7 @@ import FleetPanel from "./FleetPanel";
 import TempoPanel from "./TempoPanel";
 import SinksPanel from "./SinksPanel";
 import MonitorPanel from "./MonitorPanel";
+import { countMisbehavingDevices } from "@/lib/faultPresets";
 import SettingsPanel from "./SettingsPanel";
 import type { StatusTone } from "./DockPanelKit";
 import type Incidents from "@/Controls/Incidents";
@@ -84,6 +85,7 @@ export interface DockProps {
 
   // Monitor
   incidents: ComponentProps<typeof Incidents>;
+  faults: ComponentProps<typeof MonitorPanel>["faults"];
   geofences: ComponentProps<typeof GeofencePanel>;
   analytics: ComponentProps<typeof AnalyticsPanel>;
   toggles: ComponentProps<typeof TogglesPanel>;
@@ -140,6 +142,7 @@ export default function Dock({
   dispatch,
   jobs,
   incidents,
+  faults,
   geofences,
   analytics,
   toggles,
@@ -150,6 +153,7 @@ export default function Dock({
   const { openCluster, panelOpen, toggle, close, isOpen } = navigation;
   const { clock, setSpeedMultiplier } = useClock();
   const adapter = useAdapterConfig(openCluster === "sinks-source");
+  const faultyDevices = countMisbehavingDevices(faults.faults.config, faults.faults.status);
   const dockRef = useRef<HTMLDivElement>(null);
   const tempoBtnRef = useRef<HTMLButtonElement>(null);
 
@@ -226,7 +230,12 @@ export default function Dock({
         )}
         {openCluster === "sinks-source" && <SinksPanel adapter={adapter} />}
         {openCluster === "monitor" && (
-          <MonitorPanel incidents={incidents} analytics={analytics} geofences={geofences} />
+          <MonitorPanel
+            incidents={incidents}
+            analytics={analytics}
+            geofences={geofences}
+            faults={faults}
+          />
         )}
         {openCluster === "settings" && (
           <SettingsPanel toggles={toggles} recordings={recordings} advanced={advanced} />
@@ -286,7 +295,13 @@ export default function Dock({
             icon={<ChartIcon />}
             label="Monitor"
             active={isOpen("monitor")}
-            badge={countBadge(incidentCount, "err")}
+            // Incidents are the louder signal; a silently misbehaving device is
+            // still worth a badge when there are no incidents to report.
+            badge={
+              incidentCount > 0
+                ? countBadge(incidentCount, "err")
+                : countBadge(faultyDevices, "err")
+            }
             aria-label="Monitor"
             onClick={() => toggle("monitor")}
           />

@@ -16,6 +16,7 @@ import { RecordingSegment } from "./client/recording";
 import { TelemetrySegment } from "./client/telemetry";
 import { GeofenceSegment } from "./client/geofences";
 import { ScenarioSegment } from "./client/scenarios";
+import { FaultSegment } from "./client/faults";
 
 class SimulationService {
   // ─── Connection / core real-time channels ──────────────────────
@@ -95,6 +96,16 @@ class SimulationService {
   offJobSlaBreach: JobSegment["offJobSlaBreach"];
   onJobDeleted: JobSegment["onJobDeleted"];
   offJobDeleted: JobSegment["offJobDeleted"];
+
+  // ─── Device faults ──────────────────────────────────────────────
+  getFaults: FaultSegment["getFaults"];
+  configureFaults: FaultSegment["configureFaults"];
+  getFaultStatus: FaultSegment["getFaultStatus"];
+  resetFaults: FaultSegment["resetFaults"];
+  setVehicleFaultProfile: FaultSegment["setVehicleFaultProfile"];
+  clearVehicleFaultProfile: FaultSegment["clearVehicleFaultProfile"];
+  onFaultsConfig: FaultSegment["onFaultsConfig"];
+  offFaultsConfig: FaultSegment["offFaultsConfig"];
 
   // ─── Incidents ──────────────────────────────────────────────────
   getIncidents: IncidentSegment["getIncidents"];
@@ -176,6 +187,7 @@ class SimulationService {
     const telemetry = new TelemetrySegment(deps);
     const geofences = new GeofenceSegment(deps);
     const scenarios = new ScenarioSegment(deps);
+    const faults = new FaultSegment(deps);
 
     // Re-expose each segment's bound methods. They are already bound in their
     // segment constructors, so assigning the references keeps them safe to
@@ -253,6 +265,15 @@ class SimulationService {
     this.offJobSlaBreach = jobs.offJobSlaBreach;
     this.onJobDeleted = jobs.onJobDeleted;
     this.offJobDeleted = jobs.offJobDeleted;
+
+    this.getFaults = faults.getFaults;
+    this.configureFaults = faults.configureFaults;
+    this.getFaultStatus = faults.getFaultStatus;
+    this.resetFaults = faults.resetFaults;
+    this.setVehicleFaultProfile = faults.setVehicleFaultProfile;
+    this.clearVehicleFaultProfile = faults.clearVehicleFaultProfile;
+    this.onFaultsConfig = faults.onFaultsConfig;
+    this.offFaultsConfig = faults.offFaultsConfig;
 
     this.getIncidents = incidents.getIncidents;
     this.createRandomIncident = incidents.createRandomIncident;
