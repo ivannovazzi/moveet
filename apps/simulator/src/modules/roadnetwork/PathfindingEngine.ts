@@ -15,6 +15,7 @@ import * as utils from "../../utils/helpers";
 import { LRUCache, type CacheStats } from "../../utils/LRUCache";
 import { applyDynamicCost } from "../pathfinding/cost";
 import { PathNodeHeap } from "../pathfinding/heap";
+import { AltHeuristic, type AltIndexed, type LandmarkIndex } from "../pathfinding/landmarks";
 
 export interface PathfindingEngineDeps {
   nodes: Map<string, Node>;
@@ -24,6 +25,8 @@ export interface PathfindingEngineDeps {
   turnRestrictions: Map<string, Set<string>>;
   turnRestrictionTypes: Map<string, "prohibitory" | "mandatory">;
   maxNetworkSpeed: number;
+  /** ALT landmark tables from GraphBuilder; omit/null to use the haversine bound alone. */
+  landmarks?: LandmarkIndex | null;
 }
 
 export class PathfindingEngine {
@@ -33,6 +36,18 @@ export class PathfindingEngine {
   private readonly turnRestrictions: Map<string, Set<string>>;
   private readonly turnRestrictionTypes: Map<string, "prohibitory" | "mandatory">;
   private readonly maxNetworkSpeed: number;
+
+  /**
+   * Reusable ALT heuristic (null when landmark preprocessing is disabled).
+   * A single instance is safe because `findRoute` is synchronous — the target
+   * is re-pinned at the top of every search.
+   */
+  private readonly alt: AltHeuristic | null;
+  /** Whether the ALT bound applies to the search currently in progress. */
+  private altActive = false;
+
+  /** Nodes expanded (heap pops that were not stale) by the last `findRoute` call. */
+  private lastExpandedNodes = 0;
 
   // Incident-based edge cost penalties: edge ID → speedFactor (lowest wins; 0 = blocked)
   private incidentEdges: Map<string, number> = new Map();
@@ -51,6 +66,7 @@ export class PathfindingEngine {
     this.turnRestrictions = deps.turnRestrictions;
     this.turnRestrictionTypes = deps.turnRestrictionTypes;
     this.maxNetworkSpeed = deps.maxNetworkSpeed;
+    this.alt = deps.landmarks ? new AltHeuristic(deps.landmarks) : null;
 
     this.routeCache = new LRUCache<Route>({
       maxSize: cacheOptions?.maxSize ?? 500,
@@ -105,6 +121,12 @@ export class PathfindingEngine {
     // Shared binary min-heap for O(log n) extraction instead of O(n) linear scan
     const heap = new PathNodeHeap();
 
+    // Pin the ALT heuristic to this target. It stays inactive when landmarks are
+    // disabled or when no landmark bounds this target, in which case the
+    // heuristic degrades to exactly the previous haversine bound.
+    this.altActive = this.alt ? this.alt.setTarget((end as Node & AltIndexed).altIndex) : false;
+    this.lastExpandedNodes = 0;
+
     gScore.set(start.id, 0);
     const initialH = this.calculateHeuristic(start, end);
     heap.push({ id: start.id, gScore: 0, fScore: initialH });
@@ -113,6 +135,7 @@ export class PathfindingEngine {
       const current = heap.pop();
 
       if (closedSet.has(current.id)) continue;
+      this.lastExpandedNodes++;
 
       if (current.id === end.id) {
         const route = this.reconstructPath(start.id, end.id, cameFrom);
@@ -250,8 +273,27 @@ export class PathfindingEngine {
     return { edges: reversedPath, distance: totalDistance };
   }
 
+  /**
+   * Nodes expanded by the most recent `findRoute` call — the number of heap pops
+   * that were not stale duplicates. Exposed so tests can assert that the ALT
+   * heuristic actually shrinks the search, not just that it stays correct.
+   */
+  public get expandedNodes(): number {
+    return this.lastExpandedNodes;
+  }
+
   private calculateHeuristic(from: Node, to: Node): number {
-    // Optimistic estimate: straight-line distance at max possible speed in this network
-    return utils.calculateDistance(from.coordinates, to.coordinates) / this.maxNetworkSpeed;
+    // Optimistic estimate: straight-line distance at max possible speed in this network.
+    const geographic =
+      utils.calculateDistance(from.coordinates, to.coordinates) / this.maxNetworkSpeed;
+    if (!this.altActive) return geographic;
+
+    // The ALT triangle-inequality bound is usually far tighter than the
+    // straight-line one (maxNetworkSpeed is the network-wide maximum, so the
+    // geographic bound is very loose). Both are admissible and consistent, and
+    // the max of two consistent heuristics is consistent — so taking the larger
+    // is safe and strictly better.
+    const landmark = this.alt!.bound((from as Node & AltIndexed).altIndex ?? -1);
+    return landmark > geographic ? landmark : geographic;
   }
 }

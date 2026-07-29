@@ -1,8 +1,8 @@
 import { useMemo } from "react";
+import { Sparkline, type SparkPoint } from "@/components/charts";
 import { cn } from "@/lib/utils";
 import { useDirectionContext } from "@/data/useData";
 import { Eyebrow, Hairline, mono } from "@/Dock/DockPanelKit";
-import Sparkline, { type SparkPoint } from "./Sparkline";
 import { TELEMETRY_CAPACITY, TELEMETRY_SAMPLE_MS, useVehicleTelemetry } from "./telemetry";
 
 /**
@@ -78,6 +78,7 @@ export default function VehicleTelemetry({ vehicleId }: VehicleTelemetryProps) {
                 data={speedSeries}
                 label="Speed over the last minute"
                 color="var(--color-status-ok)"
+                height={26}
                 floor={0}
               />
             }
@@ -86,7 +87,11 @@ export default function VehicleTelemetry({ vehicleId }: VehicleTelemetryProps) {
           <Row
             label="ETA"
             chart={
-              <Sparkline data={etaSeries} label="Estimated time of arrival over the last minute" />
+              <Sparkline
+                data={etaSeries}
+                label="Estimated time of arrival over the last minute"
+                height={26}
+              />
             }
             value={formatEta(latest?.eta ?? null)}
           />

@@ -146,8 +146,10 @@ is intentional fail-soft behaviour visible in `GET /health`.
 
 **`GET /metrics`** -- Prometheus exposition (text format) for scraping, served via `prom-client` (`src/metrics.ts`). It uses a dedicated registry and exposes the default Node/process collectors (event-loop lag, GC, heap, etc.) alongside two custom collectors:
 
-- `adapter_sink_delivery_total{sink,outcome}` -- per-sink delivery outcome counter. `outcome` is one of `success`, `drop` (a per-item/per-chunk delivery that was attempted but not delivered, reflecting the at-most-once, no-DLQ semantics), or `failure` (a whole-sink publish error). Counts are mirrored from each publish's per-sink result.
+- `adapter_sink_delivery_total{sink,outcome}` -- per-sink delivery outcome counter. `outcome` is one of `success`, `drop` (a per-item/per-chunk delivery that was attempted but not delivered), or `failure` (a whole-sink publish error). Counts are mirrored from each publish's per-sink result.
 - `adapter_publish_duration_seconds{path,outcome}` -- a latency histogram for publish operations (e.g. the `POST /sync` handler), bucketed from a few milliseconds up to multiple seconds.
+
+Delivery is **at-most-once by default**: a failed write is reported and dropped. The opt-in outbox (`SINK_OUTBOX_ENABLED`) and the per-sink circuit breaker add further `adapter_outbox_*` / `adapter_sink_breaker_*` series; see the metrics table and "Resilience & delivery semantics" in `CLAUDE.md`. Note that the outbox is **in-memory only** — it redelivers across a sink outage but not across an adapter restart, and that is a deliberate decision, not a gap.
 
 `/metrics` (like `/health`) is exempt from the readiness gate that returns 503 while plugins are still initializing, so a scraper sees the service come up.
 

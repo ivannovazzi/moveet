@@ -17,6 +17,14 @@ import type { Node, Edge, POI, HighwayType } from "../../types";
 import * as utils from "../../utils/helpers";
 import { computeBaseTravelTime } from "../pathfinding/cost";
 import {
+  type AltIndexed,
+  type LandmarkIndex,
+  buildCsrPair,
+  buildLandmarkIndex,
+  resolveLandmarkCount,
+  sortedNodeIds,
+} from "../pathfinding/landmarks";
+import {
   type Road,
   type Street,
   parseSmoothness,
@@ -48,6 +56,12 @@ export interface BuiltNetwork {
   speedLimits: SpeedLimitSign[];
   /** LineString-only feature collection (the /network view), with streetId stamped. */
   lineStringFeatures: FeatureCollection;
+  /**
+   * Precomputed ALT landmark distance tables, or `null` when landmarks are
+   * disabled (`PATHFINDING_LANDMARKS=0`) or the graph is empty. Every `Node` in
+   * `nodes` is stamped with its `altIndex` into these tables.
+   */
+  landmarks: LandmarkIndex | null;
 }
 
 const COORD_SNAP_EPSILON = 1e-7;
@@ -92,6 +106,11 @@ export class GraphBuilder {
     }
     const maxNetworkSpeed = maxSpeed > 0 ? maxSpeed : 110;
 
+    // ALT landmark preprocessing. Runs on the STATIC base costs only, so the
+    // bounds it yields stay admissible under the dynamic incident/signal terms
+    // A* adds at query time (see pathfinding/landmarks.ts).
+    const landmarks = this.buildLandmarks();
+
     // Eagerly derive the data-backed collections so the raw FeatureCollection
     // can be released by the caller.
     const pois = this.extractPOIs(data);
@@ -110,7 +129,49 @@ export class GraphBuilder {
       pois,
       speedLimits,
       lineStringFeatures,
+      landmarks,
     };
+  }
+
+  /**
+   * Assigns each node its ALT array index (sorted-node-id order, so the worker
+   * derives the identical mapping from the same GeoJSON), builds the transient
+   * forward/reverse CSR adjacency over the base edge costs, and runs the
+   * landmark Dijkstras.
+   *
+   * Edges with `smoothnessFactor === 0` are excluded, exactly as the A* loop
+   * excludes them, which tightens the bound without threatening admissibility.
+   */
+  private buildLandmarks(): LandmarkIndex | null {
+    const requested = resolveLandmarkCount();
+    const nodeCount = this.nodes.size;
+    if (requested <= 0 || nodeCount === 0) return null;
+
+    // Sorted-id indexing: identical on the main thread and in every worker.
+    // The index is stamped straight onto the Node objects, so the CSR pass below
+    // needs no side table (a 300k-entry string→int Map is a real GC cost here).
+    const order = sortedNodeIds(this.nodes.keys());
+    for (let i = 0; i < order.length; i++) {
+      (this.nodes.get(order[i]) as Node & AltIndexed).altIndex = i;
+    }
+
+    const capacity = this.edges.size;
+    const from = new Int32Array(capacity);
+    const to = new Int32Array(capacity);
+    const weight = new Float64Array(capacity);
+    let edgeCount = 0;
+    for (const edge of this.edges.values()) {
+      if (edge.smoothnessFactor === 0) continue;
+      const cost = this.edgeBaseCost.get(edge.id);
+      if (cost === undefined) continue;
+      from[edgeCount] = (edge.start as Node & AltIndexed).altIndex!;
+      to[edgeCount] = (edge.end as Node & AltIndexed).altIndex!;
+      weight[edgeCount] = cost;
+      edgeCount++;
+    }
+
+    const { forward, reverse } = buildCsrPair(nodeCount, from, to, weight, edgeCount);
+    return buildLandmarkIndex(forward, reverse, requested);
   }
 
   private buildGraph(data: FeatureCollection): void {

@@ -2,19 +2,47 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { AdapterSyncManager } from "../modules/AdapterSyncManager";
 import { config } from "../utils/config";
 
+/**
+ * A deliberately unroutable adapter URL.
+ *
+ * These tests only need `config.adapterURL` to be non-empty so the manager
+ * reads as "adapter configured"; every actual adapter call is stubbed at the
+ * transport (`adapter.get` / `adapter.sync`). Pointing at a real port such as
+ * `http://localhost:5011` was a trap: `.env` ships `ADAPTER_URL=http://localhost:5011`
+ * and `docker compose up` publishes the adapter there, so any call that slipped
+ * past a stub would quietly hit a live service instead of failing. `.invalid`
+ * is reserved by RFC 6761 and can never resolve, so a slipped call fails fast
+ * and locally instead of depending on what happens to be listening.
+ */
+const STUB_ADAPTER_URL = "http://adapter.invalid";
+
 describe("AdapterSyncManager", () => {
   let syncManager: AdapterSyncManager;
   let origAdapterURL: string;
+  let fetchGuard: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     origAdapterURL = config.adapterURL;
     (config as any).adapterURL = "";
+    // Stub the transport outright. This suite asserts on the manager's
+    // scheduling/backoff/health logic, never on real I/O, so a fetch escaping
+    // to the network is by definition a bug in the test — make it loud rather
+    // than let it silently succeed against a running adapter.
+    fetchGuard = vi.fn(() => {
+      throw new Error(
+        "AdapterSyncManager tests must not perform real HTTP requests; stub adapter.get/adapter.sync instead"
+      );
+    });
+    vi.stubGlobal("fetch", fetchGuard);
     syncManager = new AdapterSyncManager();
   });
 
   afterEach(() => {
     (config as any).adapterURL = origAdapterURL;
     syncManager.stopLocationUpdates();
+    // Fail the test if anything reached for the network.
+    expect(fetchGuard).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
   });
 
   // ─── initFromAdapter ──────────────────────────────────────────────
@@ -31,7 +59,7 @@ describe("AdapterSyncManager", () => {
     });
 
     it("should call loadFallback when adapter returns no vehicles", async () => {
-      (config as any).adapterURL = "http://localhost:5011";
+      (config as any).adapterURL = STUB_ADAPTER_URL;
       syncManager = new AdapterSyncManager();
 
       // Mock the adapter.get to return empty array
@@ -48,7 +76,7 @@ describe("AdapterSyncManager", () => {
     });
 
     it("should call addVehicle for each adapter vehicle", async () => {
-      (config as any).adapterURL = "http://localhost:5011";
+      (config as any).adapterURL = STUB_ADAPTER_URL;
       syncManager = new AdapterSyncManager();
 
       const adapter = (syncManager as any).adapter;
@@ -77,7 +105,7 @@ describe("AdapterSyncManager", () => {
     });
 
     it("should pass source metadata through to addVehicle", async () => {
-      (config as any).adapterURL = "http://localhost:5011";
+      (config as any).adapterURL = STUB_ADAPTER_URL;
       syncManager = new AdapterSyncManager();
 
       const adapter = (syncManager as any).adapter;
@@ -102,7 +130,7 @@ describe("AdapterSyncManager", () => {
     });
 
     it("should call loadFallback when adapter throws", async () => {
-      (config as any).adapterURL = "http://localhost:5011";
+      (config as any).adapterURL = STUB_ADAPTER_URL;
       syncManager = new AdapterSyncManager();
 
       const adapter = (syncManager as any).adapter;
@@ -127,7 +155,7 @@ describe("AdapterSyncManager", () => {
     });
 
     it("should return vehicles when adapter succeeds", async () => {
-      (config as any).adapterURL = "http://localhost:5011";
+      (config as any).adapterURL = STUB_ADAPTER_URL;
       syncManager = new AdapterSyncManager();
 
       const adapter = (syncManager as any).adapter;
@@ -139,7 +167,7 @@ describe("AdapterSyncManager", () => {
     });
 
     it("should return null when adapter returns empty array", async () => {
-      (config as any).adapterURL = "http://localhost:5011";
+      (config as any).adapterURL = STUB_ADAPTER_URL;
       syncManager = new AdapterSyncManager();
 
       const adapter = (syncManager as any).adapter;
@@ -150,7 +178,7 @@ describe("AdapterSyncManager", () => {
     });
 
     it("should return null when adapter throws", async () => {
-      (config as any).adapterURL = "http://localhost:5011";
+      (config as any).adapterURL = STUB_ADAPTER_URL;
       syncManager = new AdapterSyncManager();
 
       const adapter = (syncManager as any).adapter;
@@ -435,19 +463,19 @@ describe("AdapterSyncManager", () => {
     });
 
     it("should report enabled when adapterURL is configured", () => {
-      (config as any).adapterURL = "http://localhost:5011";
+      (config as any).adapterURL = STUB_ADAPTER_URL;
       syncManager = new AdapterSyncManager();
       expect(syncManager.isEnabled()).toBe(true);
     });
 
     it("should report connected (optimistically) before any sync attempt has settled", () => {
-      (config as any).adapterURL = "http://localhost:5011";
+      (config as any).adapterURL = STUB_ADAPTER_URL;
       syncManager = new AdapterSyncManager();
       expect(syncManager.isConnected()).toBe(true);
     });
 
     it("should report connected after a successful sync", async () => {
-      (config as any).adapterURL = "http://localhost:5011";
+      (config as any).adapterURL = STUB_ADAPTER_URL;
       syncManager = new AdapterSyncManager();
       const adapter = (syncManager as any).adapter;
       vi.spyOn(adapter, "sync").mockResolvedValue(undefined);
@@ -465,7 +493,7 @@ describe("AdapterSyncManager", () => {
     });
 
     it("should report disconnected after a failed sync", async () => {
-      (config as any).adapterURL = "http://localhost:5011";
+      (config as any).adapterURL = STUB_ADAPTER_URL;
       syncManager = new AdapterSyncManager();
       const adapter = (syncManager as any).adapter;
       vi.spyOn(adapter, "sync").mockRejectedValue(new Error("adapter down"));
@@ -483,7 +511,7 @@ describe("AdapterSyncManager", () => {
     });
 
     it("should recover to connected after a subsequent successful sync", async () => {
-      (config as any).adapterURL = "http://localhost:5011";
+      (config as any).adapterURL = STUB_ADAPTER_URL;
       syncManager = new AdapterSyncManager();
       const adapter = (syncManager as any).adapter;
       const syncSpy = vi

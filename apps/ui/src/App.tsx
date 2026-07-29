@@ -46,6 +46,7 @@ import { useNetwork } from "./hooks/useNetwork";
 import { useRoads } from "./hooks/useRoads";
 import { useDataReady, useOptionsContext, usePOIContext } from "./data/useData";
 import CommandPalette, { buildCommands } from "./components/CommandPalette";
+import SessionTimeline, { useSessionEventCapture } from "./components/SessionTimeline";
 import LoadingOverlay from "./components/LoadingOverlay";
 import StartHint from "./components/StartHint";
 import { useVersionCheck } from "./hooks/useVersionCheck";
@@ -70,8 +71,11 @@ export default function App() {
     onExit: interaction.exitToBrowse,
   });
 
-  // Owned here (not inside Dock) so Escape can close the open drawer as the
-  // lowest-priority branch of the one keyboard dispatcher.
+  // Which dock panel is open. Owned here (not inside Dock) so Escape can close
+  // the open drawer as the lowest-priority branch of the one keyboard
+  // dispatcher, and so the command palette can open/close the same panels by
+  // calling this contract rather than looking up the dock's cluster buttons by
+  // aria-label and clicking them.
   const dockNavigation = useDockNavigation();
 
   const {
@@ -241,6 +245,15 @@ export default function App() {
     toast.success("Simulation started");
   }, [options]);
 
+  // ─── Session timeline ───────────────────────────────────────────
+  // Retain incidents / geofence crossings / dispatches in a bounded buffer so
+  // the bottom strip can mark them for the whole session, not just as they
+  // happen. Capture lives here because the dispatch outcomes are App's.
+  useSessionEventCapture({
+    replayStatus: replay.replayStatus,
+    dispatchResults: dispatch.results,
+  });
+
   // Long-open tabs keep running the bundle they loaded with; poll for redeploys.
   useVersionCheck();
 
@@ -308,6 +321,7 @@ export default function App() {
   const paletteActions = useMemo(
     () =>
       buildCommands({
+        dock: dockNavigation,
         running: status.running,
         options,
         isRecording: recording.isRecording,
@@ -340,6 +354,7 @@ export default function App() {
         onClearSelection: resetSelection,
       }),
     [
+      dockNavigation,
       status.running,
       options,
       recording.isRecording,
@@ -541,6 +556,14 @@ export default function App() {
           </div>
         </ErrorBoundary>
       </div>
+      {/* Below the map container, so it takes real layout space instead of
+          covering the canvas or crowding the dock (both of which are absolutely
+          positioned inside that container). */}
+      <SessionTimeline
+        replayStatus={replay.replayStatus}
+        onSeek={replay.seekReplay}
+        onSelectVehicle={onSelectVehicle}
+      />
       {/* Keyboard-first surface over the same entities and dock actions.
           `setSelectedItem` / `onSelectVehicle` are the very handlers the
           SearchBar and vehicle list use, so selecting from here flies the

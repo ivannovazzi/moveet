@@ -23,6 +23,14 @@
  * builds a flat, non-circular node/edge shape that differs from GraphBuilder's
  * circular `Edge` objects, so sharing it is not worth the entanglement (see the
  * deferred note in apps/simulator/CLAUDE.md).
+ *
+ * The A* heuristic is ALT (landmarks + triangle inequality) with the original
+ * haversine bound as a floor; the preprocessing itself is shared with the main
+ * thread via `../modules/pathfinding/landmarks`. Because `PathfindingPool` sends
+ * workers nothing but `{ geojsonPath }`, each worker recomputes its own landmark
+ * tables from the same GeoJSON. Selection is deterministic, so all copies are
+ * identical — but they are also duplicated per worker (see the memory note in
+ * apps/simulator/CLAUDE.md).
  */
 
 import { parentPort, workerData } from "worker_threads";
@@ -30,6 +38,14 @@ import fs from "fs";
 import type { FeatureCollection, LineString } from "geojson";
 import { computeBaseTravelTime, applyDynamicCost } from "../modules/pathfinding/cost";
 import { PathNodeHeap } from "../modules/pathfinding/heap";
+import {
+  AltHeuristic,
+  type LandmarkIndex,
+  buildCsrPair,
+  buildLandmarkIndex,
+  resolveLandmarkCount,
+  sortedNodeIds,
+} from "../modules/pathfinding/landmarks";
 import {
   parseSmoothness,
   parseMaxSpeed,
@@ -63,6 +79,12 @@ interface WorkerNode {
   lon: number;
   edges: WorkerEdge[];
   trafficSignal?: boolean;
+  /**
+   * Index into the ALT landmark distance tables, assigned in sorted-node-id
+   * order so it matches the main thread's assignment for the same GeoJSON.
+   * -1 when landmark preprocessing is disabled.
+   */
+  altIndex: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -71,6 +93,22 @@ interface WorkerNode {
 
 // Module-level max network speed for admissible heuristic (set by buildGraph)
 let _maxNetworkSpeed = 110;
+
+/**
+ * Module-level ALT heuristic (set by buildGraph), following the same pattern as
+ * `_maxNetworkSpeed`: a worker builds exactly one graph for its lifetime. Null
+ * when landmarks are disabled, in which case the A* below uses the previous
+ * pure-haversine bound.
+ *
+ * The worker computes its OWN landmark tables rather than receiving them from
+ * the main thread: `PathfindingPool` passes workers nothing but `{ geojsonPath }`.
+ * Selection is deterministic (sorted node ids + lowest-index tie-breaks), so
+ * every worker and the main thread independently pick the same landmarks and
+ * therefore run the identical search.
+ */
+let _alt: AltHeuristic | null = null;
+/** Nodes expanded by the most recent `findRoute` call (non-stale heap pops). */
+let _lastExpandedNodes = 0;
 
 // Coordinate snapping to deduplicate near-identical intersection nodes
 const COORD_SNAP_EPSILON = 1e-7;
@@ -102,7 +140,7 @@ function buildGraph(geojsonPath: string): Map<string, WorkerNode> {
   function getOrCreate(id: string, lat: number, lon: number): WorkerNode {
     let node = nodes.get(id);
     if (!node) {
-      node = { id, lat, lon, edges: [] };
+      node = { id, lat, lon, edges: [], altIndex: -1 };
       nodes.set(id, node);
     }
     return node;
@@ -224,7 +262,57 @@ function buildGraph(geojsonPath: string): Map<string, WorkerNode> {
     if (nearest) nearest.trafficSignal = true;
   }
 
+  // ALT landmark preprocessing over the static base costs (see
+  // ../modules/pathfinding/landmarks.ts for the admissibility argument).
+  _alt = buildWorkerLandmarks(nodes);
+
   return nodes;
+}
+
+/**
+ * Assigns sorted-order ALT indices to `nodes`, builds the transient
+ * forward/reverse CSR adjacency over the precomputed base travel times, and
+ * runs the landmark Dijkstras.
+ *
+ * Mirrors `GraphBuilder.buildLandmarks` — same index order, same edge filter
+ * (`smoothnessFactor === 0` excluded, exactly as the A* loop excludes them),
+ * same selection — so both sides derive identical tables from identical GeoJSON.
+ */
+function buildWorkerLandmarks(nodes: Map<string, WorkerNode>): AltHeuristic | null {
+  const requested = resolveLandmarkCount();
+  const nodeCount = nodes.size;
+  if (requested <= 0 || nodeCount === 0) return null;
+
+  // Stamp the index onto the nodes themselves; the CSR pass then resolves an
+  // edge's target through the existing node map instead of a second side table.
+  const order = sortedNodeIds(nodes.keys());
+  for (let i = 0; i < order.length; i++) {
+    nodes.get(order[i])!.altIndex = i;
+  }
+
+  let capacity = 0;
+  for (const node of nodes.values()) capacity += node.edges.length;
+
+  const from = new Int32Array(capacity);
+  const to = new Int32Array(capacity);
+  const weight = new Float64Array(capacity);
+  let edgeCount = 0;
+  for (const node of nodes.values()) {
+    const sourceIndex = node.altIndex;
+    for (const edge of node.edges) {
+      if (edge.smoothnessFactor === 0) continue;
+      const target = nodes.get(edge.endNodeId);
+      if (target === undefined) continue;
+      from[edgeCount] = sourceIndex;
+      to[edgeCount] = target.altIndex;
+      weight[edgeCount] = edge.baseTravelTime;
+      edgeCount++;
+    }
+  }
+
+  const { forward, reverse } = buildCsrPair(nodeCount, from, to, weight, edgeCount);
+  const index: LandmarkIndex | null = buildLandmarkIndex(forward, reverse, requested);
+  return index ? new AltHeuristic(index) : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -261,18 +349,29 @@ function findRoute(
   const heap = new PathNodeHeap();
 
   const maxNetworkSpeed = _maxNetworkSpeed;
+  // Pin the ALT heuristic to this target; falls back to pure haversine when
+  // landmarks are disabled or no landmark bounds the target.
+  const alt = _alt;
+  const altActive = alt ? alt.setTarget(endNode.altIndex) : false;
   const heuristic = (nodeId: string): number => {
     const n = nodes.get(nodeId)!;
-    return calculateDistance([n.lat, n.lon], [endNode.lat, endNode.lon]) / maxNetworkSpeed;
+    const geographic =
+      calculateDistance([n.lat, n.lon], [endNode.lat, endNode.lon]) / maxNetworkSpeed;
+    if (!altActive) return geographic;
+    // max of two admissible+consistent bounds is admissible+consistent.
+    const landmark = alt!.bound(n.altIndex);
+    return landmark > geographic ? landmark : geographic;
   };
 
   gScore.set(startId, 0);
   heap.push({ id: startId, gScore: 0, fScore: heuristic(startId) });
+  _lastExpandedNodes = 0;
 
   while (heap.size > 0) {
     const current = heap.pop();
 
     if (closedSet.has(current.id)) continue;
+    _lastExpandedNodes++;
 
     if (current.id === endId) {
       // Reconstruct path (push + reverse is O(n) vs unshift's O(n²))
@@ -407,3 +506,13 @@ if (parentPort) {
 // reference, not a hand-synced copy).
 export { buildGraph, findRoute, calculateDistance, computeBaseTravelTime, applyDynamicCost };
 export type { WorkerNode, WorkerEdge };
+
+/** Nodes expanded by the most recent `findRoute` call. Test/benchmark hook. */
+export function lastExpandedNodes(): number {
+  return _lastExpandedNodes;
+}
+
+/** The ALT heuristic built by the last `buildGraph` call, if any. Test hook. */
+export function landmarkHeuristic(): AltHeuristic | null {
+  return _alt;
+}

@@ -302,7 +302,7 @@ describe("StateStore — analytics_history", () => {
     expect(history[1].summary.totalVehicles).toBe(3);
   });
 
-  it("respects limit parameter", () => {
+  it("respects limit parameter, keeping the most recent rows", () => {
     for (let i = 0; i < 10; i++) {
       store.insertAnalytics({
         summary: makeSummary({ totalVehicles: i }),
@@ -313,8 +313,9 @@ describe("StateStore — analytics_history", () => {
 
     const history = store.getAnalyticsHistory(undefined, undefined, 3);
     expect(history).toHaveLength(3);
-    expect(history[0].summary.totalVehicles).toBe(0);
-    expect(history[2].summary.totalVehicles).toBe(2);
+    // A limit truncates the OLD end: the payload still reaches "now".
+    expect(history[0].summary.totalVehicles).toBe(7);
+    expect(history[2].summary.totalVehicles).toBe(9);
   });
 
   it("clamps limit to [1, 10000]", () => {

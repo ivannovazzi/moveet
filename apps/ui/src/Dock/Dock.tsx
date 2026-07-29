@@ -47,10 +47,14 @@ const PANEL_LABEL: Record<string, string> = {
 
 export interface DockProps {
   /**
-   * Drawer state, owned by App so the app-level keyboard dispatcher can close
-   * the open panel on Escape (see useInteractionKeyboard).
+   * Which cluster's panel is open, and how to change it. Owned by `App.tsx` so
+   * the command palette can open/close the very same panels by calling this
+   * contract instead of clicking the dock's buttons through the DOM, and so the
+   * app-level keyboard dispatcher can close the open panel on Escape (see
+   * useInteractionKeyboard).
    */
   navigation: DockNavigation;
+
   connected: boolean;
   status: SimulationStatus;
   isRecording: boolean;
@@ -107,9 +111,11 @@ function adapterTone(health: ReturnType<typeof useAdapterConfig>["health"]): Sta
 /**
  * Root dock: one persistent transport bar plus a single morphing panel that
  * opens in a fixed spot above it (see the approved mockup). Owns the shared
- * `useDockNavigation`, `useClock`, and `useAdapterConfig` state so the inline
- * tempo scrubber / details panel stay in sync and the adapter health dot keeps
- * polling while its panel is closed. Swaps to `ReplayDock` during replay.
+ * `useClock` and `useAdapterConfig` state so the inline tempo scrubber /
+ * details panel stay in sync and the adapter health dot keeps polling while
+ * its panel is closed. Panel navigation is *not* owned here — it arrives as
+ * `nav` from `App.tsx`, which shares it with the command palette. Swaps to
+ * `ReplayDock` during replay.
  */
 export default function Dock({
   navigation,

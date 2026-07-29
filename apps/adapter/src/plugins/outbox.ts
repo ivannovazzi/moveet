@@ -21,10 +21,54 @@ const logger = createLogger("SinkOutbox");
  *
  * That is a real limitation, not an oversight: the honest at-least-once story
  * here is "at-least-once across a sink outage", not "at-least-once across a
- * process restart". Do not build a durability claim on top of this. If you need
- * restart-durable delivery, the buffer has to move to disk (an append-only
- * journal fsync'd before the publish is acked) or to a local broker; the
- * {@link SinkOutbox} interface is deliberately small enough to swap out.
+ * process restart". Do not build a durability claim on top of this.
+ *
+ * ### Why it stays in-memory (decision, fleetsim-all-vtwk.9)
+ *
+ * Restart durability was evaluated and **deliberately rejected**. It is not a
+ * backlog item waiting for someone with time; adding an fsync'd journal here is
+ * expected to make the system worse, for four reasons:
+ *
+ *  1. **Stale position telemetry is worse than no telemetry.** A fix is worth
+ *     something for a few seconds. The outbox only fills while a sink is down,
+ *     so anything a journal would replay is, by construction, older than the
+ *     outage plus the restart. Emitting a 40-minute-old position into a
+ *     downstream system moves a vehicle backwards in time and trips its
+ *     geofence/idle/speed logic — it corrupts the very test environment this
+ *     adapter exists to feed. A journal would therefore need a max-age discard
+ *     measured in seconds, at which point it discards nearly everything it
+ *     persisted. A durability mechanism that must throw away its own contents
+ *     on the only path that exercises it is not worth its failure modes.
+ *  2. **The container has nowhere to write it.** The `adapter` target in the
+ *     root `Dockerfile` declares no `VOLUME`, and neither `docker-compose.yml`
+ *     nor `docker-compose.ghcr.yml` mounts anything writable into the adapter
+ *     service. A journal on the container's writable layer survives `docker
+ *     restart` but not `docker compose down`, an image rebuild, or a GHCR
+ *     redeploy — so it would fix the least interesting of the three loss cases
+ *     and none of the rest, unless operators also provision and maintain a
+ *     named volume for a simulator's retry buffer.
+ *  3. **fsync lands exactly where the system is already hurting.** To be
+ *     crash-durable the journal must be fsync'd before the publish is acked.
+ *     The outbox is only written on failure, so the steady-state cost is zero —
+ *     but during a broker outage *every* publish fails, so it would be a
+ *     blocking disk sync on every tick precisely when the adapter is degraded.
+ *  4. **It adds boot-time failure modes to a service that has none.** Corrupt
+ *     or half-written journals, disk-full as a third bound alongside
+ *     `maxEntries`/`maxUpdates`, entries addressed to a sink type the current
+ *     config no longer has, and `VehicleUpdate` shapes from an older build all
+ *     become new ways for the adapter to refuse to start or to emit garbage.
+ *
+ * The loss is already *accounted for* rather than silent, which is the property
+ * that actually matters for a test harness: graceful shutdown warns with the
+ * sink and the count, and `adapter_outbox_dropped_total{reason="shutdown"}`
+ * records it (see `PluginManager.shutdown` → `Publisher.discardOutbox`).
+ *
+ * **What would reverse this:** a consumer that genuinely needs delivery across
+ * an adapter restart. The answer then is still not a bespoke journal — it is to
+ * put a durable broker between the adapter and the consumer (Redpanda is
+ * already in the stack) and let it own persistence. If the buffer really must
+ * move, the {@link SinkOutbox} interface is deliberately small enough to swap
+ * out, and any replacement must ship a max-age policy per (1).
  *
  * ## Duplicates
  *

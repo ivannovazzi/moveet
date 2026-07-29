@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 /**
  * Identifiers for the dock clusters (see
@@ -48,8 +48,15 @@ export interface DockNavigation {
  * `usePanelNavigation`'s shape, simplified since the dock has no side-panel
  * routing — just single-open-at-a-time drawer state.
  *
- * Called by App (not by `Dock`) so the app's keyboard dispatcher can route
- * Escape to `close()` as the lowest-priority branch.
+ * Called once in `App.tsx` (not by `Dock`) and handed to *both* `Dock` and the
+ * command palette's action list, so the two share one source of truth and the
+ * app's keyboard dispatcher can route Escape to `close()` as its
+ * lowest-priority branch. (It used to be called inside `Dock.tsx`; the palette
+ * had no handler to call and drove the dock's buttons through
+ * `document.querySelector` on their aria-labels.)
+ *
+ * The returned object is memoized on `openCluster` so callers can put it
+ * straight into a `useMemo`/`useCallback` dependency list.
  */
 export function useDockNavigation(): DockNavigation {
   const [openCluster, setOpenCluster] = useState<DockClusterId | null>(null);
@@ -68,12 +75,15 @@ export function useDockNavigation(): DockNavigation {
 
   const isOpen = useCallback((cluster: DockClusterId) => openCluster === cluster, [openCluster]);
 
-  return {
-    openCluster,
-    panelOpen: openCluster != null && PANEL_CLUSTERS.has(openCluster),
-    open,
-    close,
-    toggle,
-    isOpen,
-  };
+  return useMemo(
+    () => ({
+      openCluster,
+      panelOpen: openCluster != null && PANEL_CLUSTERS.has(openCluster),
+      open,
+      close,
+      toggle,
+      isOpen,
+    }),
+    [openCluster, open, close, toggle, isOpen]
+  );
 }
