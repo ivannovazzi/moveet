@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import type { Fleet, POI, Position, Vehicle } from "@/types";
 import { CloseIcon } from "@/components/Icons";
@@ -58,13 +57,10 @@ export default function Inspector({ vehicle, poi, fleet, onClose }: InspectorPro
   // vehicle selected long after the events happened.
   useVehicleEventCapture();
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  // Escape is deliberately NOT handled here. The inspector is driven by the
+  // selection, and Escape-to-clear-selection is one branch of the app's single
+  // keyboard dispatcher (useInteractionKeyboard) — a listener here would also
+  // fire on the press that exits dispatch or cancels a geofence draw.
 
   if (!vehicle && !poi) return null;
 

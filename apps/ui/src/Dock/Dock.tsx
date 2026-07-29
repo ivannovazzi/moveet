@@ -2,7 +2,7 @@ import { useRef, type ComponentProps } from "react";
 import { cn } from "@/lib/utils";
 import type { Fleet, ReplayStatus, SimulationStatus, Vehicle } from "@/types";
 import type { DispatchFlow } from "@/hooks/useDispatchFlow";
-import { useDockNavigation, type DockClusterId } from "@/hooks/useDockNavigation";
+import type { DockNavigation } from "@/hooks/useDockNavigation";
 import { useClock } from "@/hooks/useClock";
 import { useAdapterConfig } from "@/Controls/Adapter/useAdapterConfig";
 import { DispatchState } from "@/hooks/useDispatchState";
@@ -36,15 +36,6 @@ const DOCK_CLASS = cn(
 
 const Divider = () => <div className="mx-0.5 my-2 w-px self-stretch bg-border-soft" />;
 
-/** Cluster ids that own a panel (playback is one-click-only, no panel). */
-const PANEL_CLUSTERS = new Set<DockClusterId>([
-  "tempo",
-  "fleet-dispatch",
-  "sinks-source",
-  "monitor",
-  "settings",
-]);
-
 const PANEL_LABEL: Record<string, string> = {
   tempo: "Tempo",
   "fleet-dispatch": "Fleet & Dispatch",
@@ -54,6 +45,11 @@ const PANEL_LABEL: Record<string, string> = {
 };
 
 export interface DockProps {
+  /**
+   * Drawer state, owned by App so the app-level keyboard dispatcher can close
+   * the open panel on Escape (see useInteractionKeyboard).
+   */
+  navigation: DockNavigation;
   connected: boolean;
   status: SimulationStatus;
   isRecording: boolean;
@@ -114,6 +110,7 @@ function adapterTone(health: ReturnType<typeof useAdapterConfig>["health"]): Sta
  * polling while its panel is closed. Swaps to `ReplayDock` during replay.
  */
 export default function Dock({
+  navigation,
   connected,
   status,
   isRecording,
@@ -150,7 +147,7 @@ export default function Dock({
   advanced,
   className,
 }: DockProps) {
-  const { openCluster, toggle, close, isOpen } = useDockNavigation();
+  const { openCluster, panelOpen, toggle, close, isOpen } = navigation;
   const { clock, setSpeedMultiplier } = useClock();
   const adapter = useAdapterConfig(openCluster === "sinks-source");
   const dockRef = useRef<HTMLDivElement>(null);
@@ -172,7 +169,6 @@ export default function Dock({
   const dispatchCount =
     dispatch.dispatchState !== DispatchState.BROWSE ? dispatch.selectedForDispatch.length : 0;
   const incidentCount = incidents.incidents.length;
-  const panelOpen = openCluster != null && PANEL_CLUSTERS.has(openCluster);
 
   const countBadge = (count: number, tone: "accent" | "err") =>
     count > 0 ? (

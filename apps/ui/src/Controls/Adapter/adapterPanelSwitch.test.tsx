@@ -17,7 +17,9 @@ import type { ConfigResponse, HealthResponse } from "./adapterClient";
  * into the single shared `DockPanel`, and switching clusters is one
  * `setOpenCluster` call. These tests pin that behaviour so the race cannot be
  * reintroduced: a close handler must never run as a side effect of a panel
- * switch, while a genuine outside click / Escape must still close.
+ * switch, while a genuine outside click must still close. (Escape now closes
+ * the panel through the app's single keyboard dispatcher — see
+ * useInteractionMode.test.ts — not through DockPanel.)
  */
 
 vi.mock("@/utils/client", async () => {
@@ -56,6 +58,7 @@ vi.mock("./adapterClient", () => ({
 
 // Imported after the mocks so the hoisted factories are in place.
 import Dock, { type DockProps } from "@/Dock/Dock";
+import { useDockNavigation } from "@/hooks/useDockNavigation";
 import type { DispatchFlow } from "@/hooks/useDispatchFlow";
 import type { JobsPanelProps } from "@/Controls/JobsPanel";
 import { DispatchState } from "@/hooks/useDispatchState";
@@ -73,7 +76,16 @@ const modifiers: Modifiers = {
   showSpeedLimits: false,
 };
 
-function dockProps(): DockProps {
+/**
+ * Drawer state lives in App now (so Escape can route through the one keyboard
+ * dispatcher), so supply it the same way App does.
+ */
+function DockHarness(props: Omit<DockProps, "navigation">) {
+  const navigation = useDockNavigation();
+  return <Dock {...props} navigation={navigation} />;
+}
+
+function dockProps(): Omit<DockProps, "navigation"> {
   return {
     connected: true,
     status: createStatus({ running: true }),
@@ -161,7 +173,7 @@ describe("adapter panel <-> other panel switching", () => {
 
   it("switches from the adapter panel to Monitor in a single click", async () => {
     const user = userEvent.setup();
-    render(<Dock {...dockProps()} />);
+    render(<DockHarness {...dockProps()} />);
 
     await openAdapterPanel(user);
     expect(screen.getByRole("button", { name: "Sinks & Source" })).toHaveAttribute(
@@ -189,7 +201,7 @@ describe("adapter panel <-> other panel switching", () => {
 
   it("switches from the adapter panel to Tempo details in a single click", async () => {
     const user = userEvent.setup();
-    render(<Dock {...dockProps()} />);
+    render(<DockHarness {...dockProps()} />);
 
     await openAdapterPanel(user);
 
@@ -201,7 +213,7 @@ describe("adapter panel <-> other panel switching", () => {
 
   it("switches back into the adapter panel from another panel in a single click", async () => {
     const user = userEvent.setup();
-    render(<Dock {...dockProps()} />);
+    render(<DockHarness {...dockProps()} />);
 
     await user.click(screen.getByRole("button", { name: "Settings" }));
     expect(await screen.findByRole("region", { name: "Settings" })).toBeInTheDocument();
@@ -214,7 +226,7 @@ describe("adapter panel <-> other panel switching", () => {
 
   it("still closes the adapter panel when its own cluster is clicked again", async () => {
     const user = userEvent.setup();
-    render(<Dock {...dockProps()} />);
+    render(<DockHarness {...dockProps()} />);
 
     await openAdapterPanel(user);
     await user.click(screen.getByRole("button", { name: "Sinks & Source" }));
@@ -229,7 +241,7 @@ describe("adapter panel <-> other panel switching", () => {
     render(
       <div>
         <button type="button">outside</button>
-        <Dock {...dockProps()} />
+        <DockHarness {...dockProps()} />
       </div>
     );
 

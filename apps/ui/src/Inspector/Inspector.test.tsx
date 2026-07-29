@@ -72,11 +72,14 @@ describe("Inspector", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("calls onClose when Escape is pressed", async () => {
+  // Escape-to-close is not the inspector's own listener any more: it is the
+  // `clear-selection` branch of the app's single keyboard dispatcher, covered
+  // by useInteractionMode.test.ts.
+  it("does not install its own Escape listener", async () => {
     const onClose = vi.fn();
     render(<Inspector vehicle={createVehicle()} onClose={onClose} />);
     await userEvent.keyboard("{Escape}");
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it("renders the telemetry, directions and events sections for a vehicle", () => {

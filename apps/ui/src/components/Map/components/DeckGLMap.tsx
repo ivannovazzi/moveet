@@ -44,8 +44,6 @@ interface DeckGLMapProps {
   htmlMarkers?: React.ReactNode;
   onClick?: (event: React.MouseEvent, position: Position) => void;
   onContextClick?: (event: React.MouseEvent, position: Position) => void;
-  /** Escape key — typically wired to clear the current selection. */
-  onEscape?: () => void;
   cursor?: string;
   getTooltip?: (info: PickingInfo) => TooltipContent;
   /**
@@ -197,7 +195,6 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
   children,
   onClick,
   onContextClick,
-  onEscape,
   htmlMarkers,
   cursor = "grab",
   getTooltip,
@@ -322,17 +319,16 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
   );
 
   // Keyboard shortcuts, active while the map container has focus (click it
-  // first, or Tab to it): Escape clears the current selection; +/- mirror
-  // the on-screen zoom buttons. `onEscape` is expected to no-op for modes
-  // that already own Escape (dispatch flow, geofence drawing) — see App.tsx.
+  // first, or Tab to it): +/- mirror the on-screen zoom buttons. Escape is NOT
+  // handled here — it belongs to the app's single keyboard dispatcher
+  // (useInteractionKeyboard), which knows whether a mode, a selection or the
+  // dock panel should absorb the press.
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
     const onKeyDown = (evt: KeyboardEvent) => {
-      if (evt.key === "Escape") {
-        onEscape?.();
-      } else if (evt.key === "+" || evt.key === "=") {
+      if (evt.key === "+" || evt.key === "=") {
         controls.zoomIn();
       } else if (evt.key === "-" || evt.key === "_") {
         controls.zoomOut();
@@ -341,7 +337,7 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
 
     container.addEventListener("keydown", onKeyDown);
     return () => container.removeEventListener("keydown", onKeyDown);
-  }, [containerRef, controls, onEscape]);
+  }, [containerRef, controls]);
 
   // Controller config lives on the view (single source of truth — do not also
   // pass `controller` to <DeckGL>): the map is strictly 2D so rotation is

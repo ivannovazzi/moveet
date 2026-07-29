@@ -5,7 +5,12 @@ export interface DockPanelProps {
   /** Whether the panel is open. Kept mounted while closed so morphing between
    * clusters animates the content, not the whole surface. */
   open: boolean;
-  /** Called on Escape or an outside click (clicks inside `dockRef` excluded). */
+  /**
+   * Called on an outside click (clicks inside `dockRef` excluded). Escape is
+   * NOT handled here — it routes through the app's single keyboard dispatcher
+   * (useInteractionKeyboard), which closes the panel only when no mode or
+   * selection is claiming the key first.
+   */
   onClose: () => void;
   /**
    * Ref to the dock bar. Clicks on it are excluded from the outside-click
@@ -23,8 +28,9 @@ export interface DockPanelProps {
  * The single morphing surface that opens in one fixed spot centered above the
  * dock (see the approved mockup). Every cluster renders into this same panel;
  * only the contents change, so the surface never jumps position or width. A
- * small down-notch visually ties it to the dock. Closes on Escape / outside
- * click; entrance is the app's `animate-scale-in` from a bottom origin.
+ * small down-notch visually ties it to the dock. Closes on an outside click
+ * (Escape is the app dispatcher's call); entrance is the app's
+ * `animate-scale-in` from a bottom origin.
  */
 export default function DockPanel({
   open,
@@ -44,14 +50,9 @@ export default function DockPanel({
       if (dockRef.current?.contains(target)) return;
       onClose();
     };
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
     document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
     return () => {
       document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
     };
   }, [open, onClose, dockRef]);
 

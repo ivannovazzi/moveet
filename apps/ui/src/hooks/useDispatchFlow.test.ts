@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import React from "react";
 import { renderHook, act } from "@testing-library/react";
 import { useDispatchFlow, computeNetworkBounds } from "./useDispatchFlow";
+import { useInteractionMode } from "./useInteractionMode";
 import { DispatchState } from "./useDispatchState";
 import { NetworkContext } from "@/data/context";
 import type { RoadNetwork, Vehicle } from "@/types";
@@ -19,9 +20,22 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+/**
+ * useDispatchFlow no longer owns its on/off flag — the interaction-mode hook
+ * does. Compose the two exactly the way App.tsx wires them.
+ */
+function useDispatchFlowHarness() {
+  const interaction = useInteractionMode({ replayActive: false });
+  return useDispatchFlow({
+    active: interaction.mode.kind === "dispatch",
+    onEnter: interaction.enterDispatch,
+    onExit: interaction.exitToBrowse,
+  });
+}
+
 describe("useDispatchFlow", () => {
   it("initializes in BROWSE state with empty collections", () => {
-    const { result } = renderHook(() => useDispatchFlow());
+    const { result } = renderHook(() => useDispatchFlowHarness());
 
     expect(result.current.dispatchMode).toBe(false);
     expect(result.current.assignments).toEqual([]);
@@ -32,7 +46,7 @@ describe("useDispatchFlow", () => {
   });
 
   it("toggleDispatchMode enters SELECT state", () => {
-    const { result } = renderHook(() => useDispatchFlow());
+    const { result } = renderHook(() => useDispatchFlowHarness());
 
     act(() => {
       result.current.toggleDispatchMode();
@@ -43,7 +57,7 @@ describe("useDispatchFlow", () => {
   });
 
   it("toggleDispatchMode off clears all dispatch state", () => {
-    const { result } = renderHook(() => useDispatchFlow());
+    const { result } = renderHook(() => useDispatchFlowHarness());
 
     // Enter dispatch mode and build up some state
     act(() => {
@@ -68,7 +82,7 @@ describe("useDispatchFlow", () => {
   });
 
   it("onToggleVehicleForDispatch adds and removes vehicle IDs", () => {
-    const { result } = renderHook(() => useDispatchFlow());
+    const { result } = renderHook(() => useDispatchFlowHarness());
 
     act(() => {
       result.current.toggleDispatchMode();
@@ -94,7 +108,7 @@ describe("useDispatchFlow", () => {
   });
 
   it("transitions to ROUTE state when vehicles are selected", () => {
-    const { result } = renderHook(() => useDispatchFlow());
+    const { result } = renderHook(() => useDispatchFlowHarness());
 
     act(() => {
       result.current.toggleDispatchMode();
@@ -107,7 +121,7 @@ describe("useDispatchFlow", () => {
   });
 
   it("onAddWaypoint appends a waypoint to an existing assignment", () => {
-    const { result } = renderHook(() => useDispatchFlow());
+    const { result } = renderHook(() => useDispatchFlowHarness());
 
     // Set up an initial assignment
     act(() => {
@@ -130,7 +144,7 @@ describe("useDispatchFlow", () => {
   });
 
   it("onAddWaypoint does not modify assignments for other vehicles", () => {
-    const { result } = renderHook(() => useDispatchFlow());
+    const { result } = renderHook(() => useDispatchFlowHarness());
 
     act(() => {
       result.current.setAssignments([
@@ -156,7 +170,7 @@ describe("useDispatchFlow", () => {
   });
 
   it("addWaypointForSelected creates assignments for new vehicles and appends to existing", () => {
-    const { result } = renderHook(() => useDispatchFlow());
+    const { result } = renderHook(() => useDispatchFlowHarness());
     const vehicles: Vehicle[] = [
       createVehicle({ id: "v1", name: "Alpha" }),
       createVehicle({ id: "v2", name: "Beta" }),
@@ -198,7 +212,7 @@ describe("useDispatchFlow", () => {
   });
 
   it("moveWaypointGroup updates positions for the referenced waypoints only", () => {
-    const { result } = renderHook(() => useDispatchFlow());
+    const { result } = renderHook(() => useDispatchFlowHarness());
 
     act(() => {
       result.current.toggleDispatchMode();
@@ -236,7 +250,7 @@ describe("useDispatchFlow", () => {
   });
 
   it("removeWaypointGroup drops the referenced waypoints and empty assignments", () => {
-    const { result } = renderHook(() => useDispatchFlow());
+    const { result } = renderHook(() => useDispatchFlowHarness());
 
     act(() => {
       result.current.toggleDispatchMode();
@@ -275,7 +289,7 @@ describe("useDispatchFlow", () => {
       data: { status: "ok", results: mockResults },
     });
 
-    const { result } = renderHook(() => useDispatchFlow());
+    const { result } = renderHook(() => useDispatchFlowHarness());
 
     act(() => {
       result.current.toggleDispatchMode();
@@ -301,7 +315,7 @@ describe("useDispatchFlow", () => {
   });
 
   it("handleDispatch does nothing when assignments are empty", async () => {
-    const { result } = renderHook(() => useDispatchFlow());
+    const { result } = renderHook(() => useDispatchFlowHarness());
 
     await act(async () => {
       await result.current.handleDispatch();
@@ -314,7 +328,7 @@ describe("useDispatchFlow", () => {
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(client.batchDirection).mockRejectedValue(new Error("Network error"));
 
-    const { result } = renderHook(() => useDispatchFlow());
+    const { result } = renderHook(() => useDispatchFlowHarness());
 
     act(() => {
       result.current.setAssignments([
@@ -336,8 +350,83 @@ describe("useDispatchFlow", () => {
     consoleSpy.mockRestore();
   });
 
+  it("drops an in-flight dispatch result if the user exits before it resolves", async () => {
+    // A batchDirection that resolves only when we tell it to, so we can exit
+    // dispatch while the request is still pending.
+    let resolve!: (value: {
+      data: { status: string; results: { vehicleId: string; status: "ok" }[] };
+    }) => void;
+    vi.mocked(client.batchDirection).mockReturnValue(
+      new Promise((r) => {
+        resolve = r;
+      })
+    );
+
+    const { result } = renderHook(() => useDispatchFlowHarness());
+
+    act(() => {
+      result.current.toggleDispatchMode();
+    });
+    act(() => {
+      result.current.onToggleVehicleForDispatch("v1");
+    });
+    act(() => {
+      result.current.setAssignments([
+        { vehicleId: "v1", vehicleName: "Truck", waypoints: [{ position: [-1.29, 36.82] }] },
+      ]);
+    });
+
+    // Fire the dispatch (do not await — leave it pending).
+    let dispatchPromise!: Promise<void>;
+    act(() => {
+      dispatchPromise = result.current.handleDispatch();
+    });
+    expect(result.current.dispatching).toBe(true);
+
+    // User exits dispatch (Escape → handleDone) while the request is in flight.
+    act(() => {
+      result.current.handleDone();
+    });
+    expect(result.current.dispatchState).toBe(DispatchState.BROWSE);
+
+    // Now the stale request resolves — it must NOT resurrect the results.
+    await act(async () => {
+      resolve({ data: { status: "ok", results: [{ vehicleId: "v1", status: "ok" }] } });
+      await dispatchPromise;
+    });
+
+    expect(result.current.results).toEqual([]);
+    expect(result.current.dispatching).toBe(false);
+    expect(result.current.dispatchState).toBe(DispatchState.BROWSE);
+  });
+
+  it("clears the flow when the mode is exited from outside the hook", () => {
+    // Entering geofence drawing (or a replay starting) exits dispatch without
+    // going through handleDone — the falling edge must still reset the flow.
+    const { result } = renderHook(() => {
+      const interaction = useInteractionMode({ replayActive: false });
+      const flow = useDispatchFlow({
+        active: interaction.mode.kind === "dispatch",
+        onEnter: interaction.enterDispatch,
+        onExit: interaction.exitToBrowse,
+      });
+      return { interaction, flow };
+    });
+
+    act(() => result.current.flow.toggleDispatchMode());
+    act(() => result.current.flow.onToggleVehicleForDispatch("v1"));
+    expect(result.current.flow.selectedForDispatch).toEqual(["v1"]);
+
+    act(() => result.current.interaction.enterDrawGeofence());
+
+    expect(result.current.flow.dispatchMode).toBe(false);
+    expect(result.current.flow.selectedForDispatch).toEqual([]);
+    expect(result.current.flow.assignments).toEqual([]);
+    expect(result.current.flow.dispatchState).toBe(DispatchState.BROWSE);
+  });
+
   it("handleDone resets all dispatch state", () => {
-    const { result } = renderHook(() => useDispatchFlow());
+    const { result } = renderHook(() => useDispatchFlowHarness());
 
     // Build up state
     act(() => {
@@ -379,7 +468,7 @@ describe("useDispatchFlow", () => {
       },
     });
 
-    const { result } = renderHook(() => useDispatchFlow());
+    const { result } = renderHook(() => useDispatchFlowHarness());
 
     act(() => {
       result.current.toggleDispatchMode();
@@ -423,7 +512,7 @@ describe("useDispatchFlow", () => {
       },
     });
 
-    const { result } = renderHook(() => useDispatchFlow());
+    const { result } = renderHook(() => useDispatchFlowHarness());
 
     act(() => {
       result.current.setAssignments([
@@ -498,7 +587,7 @@ describe("useDispatchFlow waypoint validation", () => {
   });
 
   it("rejects dispatch with a waypoint outside the network bounds without calling the server", async () => {
-    const { result } = renderHook(() => useDispatchFlow(), {
+    const { result } = renderHook(() => useDispatchFlowHarness(), {
       wrapper: createNetworkWrapper(makeNetwork()),
     });
 
@@ -538,7 +627,7 @@ describe("useDispatchFlow waypoint validation", () => {
       },
     });
 
-    const { result } = renderHook(() => useDispatchFlow(), {
+    const { result } = renderHook(() => useDispatchFlowHarness(), {
       wrapper: createNetworkWrapper(makeNetwork()),
     });
 
@@ -566,7 +655,7 @@ describe("useDispatchFlow waypoint validation", () => {
     });
 
     // No wrapper — default context has an empty network
-    const { result } = renderHook(() => useDispatchFlow());
+    const { result } = renderHook(() => useDispatchFlowHarness());
 
     act(() => {
       result.current.setAssignments([
@@ -586,7 +675,7 @@ describe("useDispatchFlow waypoint validation", () => {
   });
 
   it("clears a validation error on handleDone", async () => {
-    const { result } = renderHook(() => useDispatchFlow(), {
+    const { result } = renderHook(() => useDispatchFlowHarness(), {
       wrapper: createNetworkWrapper(makeNetwork()),
     });
 
