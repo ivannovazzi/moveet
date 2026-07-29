@@ -1,14 +1,17 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from "react";
-import { createPortal } from "react-dom";
 import { PolygonLayer, ScatterplotLayer, PathLayer } from "@deck.gl/layers";
 import { useMapContext, useOverlay } from "@/components/Map/hooks";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
-import { drawProgressHint } from "@/lib/geofenceHints";
 
+/**
+ * Keyboard (Escape to cancel, Enter to close the polygon) is handled by the
+ * app-level dispatcher (useInteractionKeyboard) — Enter routes here through
+ * `confirmRequestId`, and cancellation arrives as `active` dropping to false.
+ * The hint banner lives in the shared <ModeBanner>, not in this component.
+ */
 interface GeofenceDrawToolProps {
   active: boolean;
   onComplete: (polygon: [number, number][]) => void;
-  onCancel: () => void;
   /** Called whenever the vertex count changes (0 when idle/cancelled). */
   onVertexCountChange?: (count: number) => void;
   /**
@@ -58,7 +61,6 @@ function pixSegDist(
 export default function GeofenceDrawTool({
   active,
   onComplete,
-  onCancel,
   onVertexCountChange,
   confirmRequestId,
 }: GeofenceDrawToolProps) {
@@ -81,8 +83,6 @@ export default function GeofenceDrawTool({
   onVertexCountChangeRef.current = onVertexCountChange;
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
-  const onCancelRef = useRef(onCancel);
-  onCancelRef.current = onCancel;
 
   const completeDrawing = useCallback(() => {
     const verts = verticesRef.current;
@@ -301,22 +301,6 @@ export default function GeofenceDrawTool({
       }
     };
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setVertices([]);
-        setCursorGeo(null);
-        setHover(null);
-        setDragging(null);
-        onVertexCountChangeRef.current?.(0);
-        onCancelRef.current();
-      } else if (e.key === "Enter") {
-        if (verticesRef.current.length >= 3) {
-          e.preventDefault();
-          completeRef.current();
-        }
-      }
-    };
-
     // Use capture phase for mousedown so we can stopPropagation before
     // deck.gl's controller starts handling the pan.
     mapHTMLElement.addEventListener("mousedown", handleMouseDown, true);
@@ -324,7 +308,6 @@ export default function GeofenceDrawTool({
     mapHTMLElement.addEventListener("mouseleave", handleMouseLeave);
     mapHTMLElement.addEventListener("click", handleClick);
     mapHTMLElement.addEventListener("contextmenu", handleContextMenu);
-    window.addEventListener("keydown", handleKeyDown);
 
     return () => {
       mapHTMLElement.removeEventListener("mousedown", handleMouseDown, true);
@@ -332,7 +315,6 @@ export default function GeofenceDrawTool({
       mapHTMLElement.removeEventListener("mouseleave", handleMouseLeave);
       mapHTMLElement.removeEventListener("click", handleClick);
       mapHTMLElement.removeEventListener("contextmenu", handleContextMenu);
-      window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("mousemove", handleWindowMouseMove, true);
       window.removeEventListener("mouseup", handleWindowMouseUp, true);
     };
@@ -481,38 +463,6 @@ export default function GeofenceDrawTool({
 
   useRegisterLayers("geofence-draw", layers);
 
-  // Hint overlay rendered over the map, outside the side panel.
-  if (!active || !mapHTMLElement) return null;
-
-  // Vertex-count phase copy comes from the shared helper; once the polygon has
-  // enough vertices (helper returns null) show the ready-state instructions.
-  const hint =
-    drawProgressHint(vertices.length) ??
-    "Click the first point or press Enter to finish • drag to move • click an edge to insert • right-click to delete";
-
-  return createPortal(
-    <div
-      style={{
-        position: "absolute",
-        top: 12,
-        left: "50%",
-        transform: "translateX(-50%)",
-        background: "rgba(17, 24, 39, 0.92)",
-        color: "#f3f4f6",
-        padding: "8px 14px",
-        borderRadius: 8,
-        fontSize: 12,
-        fontWeight: 500,
-        letterSpacing: 0.2,
-        pointerEvents: "none",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
-        zIndex: 10,
-        maxWidth: "90%",
-        textAlign: "center",
-      }}
-    >
-      {hint}
-    </div>,
-    mapHTMLElement
-  );
+  // Layers only — the mode's hint banner is <ModeBanner>, rendered by App.
+  return null;
 }

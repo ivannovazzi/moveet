@@ -31,7 +31,6 @@ import VehiclesLayer from "./Vehicle/VehiclesLayer";
 import Direction from "./Direction";
 import RoadRenderer from "./Road";
 import PendingDispatch from "./PendingDispatch";
-import DispatchHint from "./DispatchHint";
 import IncidentMarkers from "./IncidentMarkers";
 import { isPOI, isRoad } from "@/utils/typeGuards";
 import POIMarker from "./POI/POI";
@@ -75,13 +74,11 @@ interface MapProps {
   onMapContextClick: (evt: React.MouseEvent, position: Position) => void;
   onPOIClick: (poi: POI) => void;
   onHoverVehicle?: (id: string | undefined) => void;
-  onEscape?: () => void;
   vehicleFleetMap: Map<string, Fleet>;
   hiddenFleetIds: Set<string>;
   hiddenVehicleTypes: Set<VehicleType>;
   dispatchState?: DispatchState;
   assignments?: DispatchAssignment[];
-  selectedForDispatchCount?: number;
   onMoveWaypointGroup?: (refs: WaypointRef[], newLat: number, newLng: number) => void;
   onRemoveWaypointGroup?: (refs: WaypointRef[]) => void;
   incidents?: IncidentDTO[];
@@ -94,9 +91,14 @@ interface MapProps {
   fences?: GeoFence[];
   selectedFenceId?: string;
   onSelectFence?: (id: string) => void;
+  /**
+   * Whether fence outlines pick clicks. Derived by App from the interaction
+   * mode (browse only) so a dispatch/draw/job click is never swallowed by a
+   * fence sitting under the cursor.
+   */
+  fencesSelectable?: boolean;
   drawingActive?: boolean;
   onDrawComplete?: (polygon: [number, number][]) => void;
-  onDrawCancel?: () => void;
   onDrawVertexCountChange?: (count: number) => void;
   drawConfirmId?: number;
   onBboxChange?: (bbox: BoundingBox | null) => void;
@@ -117,13 +119,11 @@ export default function Map({
   onMapContextClick,
   onPOIClick,
   onHoverVehicle,
-  onEscape,
   vehicleFleetMap,
   hiddenFleetIds,
   hiddenVehicleTypes,
   dispatchState,
   assignments = [],
-  selectedForDispatchCount = 0,
   onMoveWaypointGroup,
   onRemoveWaypointGroup,
   incidents,
@@ -133,9 +133,9 @@ export default function Map({
   fences = [],
   selectedFenceId,
   onSelectFence,
+  fencesSelectable = true,
   drawingActive = false,
   onDrawComplete,
-  onDrawCancel,
   onDrawVertexCountChange,
   drawConfirmId,
   onBboxChange,
@@ -198,7 +198,6 @@ export default function Map({
         strokeWidth={1.5}
         onClick={onMapClick}
         onContextClick={onMapContextClick}
-        onEscape={onEscape}
         cursor={cursor}
         panLocked={panLocked}
         htmlMarkers={htmlMarkers}
@@ -220,18 +219,15 @@ export default function Map({
           </Suspense>
         )}
         {/* Geofence zones — rendered between roads and vehicles. Fence clicks
-            select/deselect; disabled while drawing or dispatching so those
-            interactions own the map click. */}
+            select/deselect only in browse mode (`fencesSelectable`, derived
+            from the interaction mode) plus outside job placement, so a modal
+            click always reaches the mode that asked for it. */}
         {fences.length > 0 && (
           <GeofenceLayer
             fences={fences}
             selectedFenceId={selectedFenceId}
             onSelectFence={onSelectFence}
-            selectable={
-              !drawingActive &&
-              !jobPlacementActive &&
-              (!dispatchState || dispatchState === DispatchState.BROWSE)
-            }
+            selectable={fencesSelectable && !jobPlacementActive}
           />
         )}
         <Direction selected={filters.selected} hovered={filters.hovered} />
@@ -306,17 +302,9 @@ export default function Map({
             onRemoveWaypointGroup={onRemoveWaypointGroup ?? NOOP}
           />
         )}
-        {dispatchState && dispatchState !== DispatchState.BROWSE && (
-          <DispatchHint
-            state={dispatchState}
-            selectedCount={selectedForDispatchCount}
-            stopCount={assignments.reduce((sum, a) => sum + a.waypoints.length, 0)}
-          />
-        )}
         <GeofenceDrawTool
           active={drawingActive}
           onComplete={onDrawComplete ?? NOOP}
-          onCancel={onDrawCancel ?? NOOP}
           onVertexCountChange={onDrawVertexCountChange}
           confirmRequestId={drawConfirmId}
         />

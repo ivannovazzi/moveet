@@ -15,9 +15,24 @@ export type DockClusterId =
   | "monitor"
   | "settings";
 
+/**
+ * Cluster ids that own a panel (playback is one-click-only, no panel). Lives
+ * here rather than in `Dock.tsx` because App needs the same predicate to tell
+ * the keyboard dispatcher whether Escape has a panel to close.
+ */
+export const PANEL_CLUSTERS = new Set<DockClusterId>([
+  "tempo",
+  "fleet-dispatch",
+  "sinks-source",
+  "monitor",
+  "settings",
+]);
+
 export interface DockNavigation {
   /** The single cluster whose drawer is currently open, or `null`. */
   openCluster: DockClusterId | null;
+  /** True when the open cluster actually renders a panel surface. */
+  panelOpen: boolean;
   /** Open a specific cluster's drawer, closing any other. */
   open: (cluster: DockClusterId) => void;
   /** Close whichever drawer is open. */
@@ -32,6 +47,9 @@ export interface DockNavigation {
  * Tracks which single dock cluster's drawer is open. Modeled on
  * `usePanelNavigation`'s shape, simplified since the dock has no side-panel
  * routing — just single-open-at-a-time drawer state.
+ *
+ * Called by App (not by `Dock`) so the app's keyboard dispatcher can route
+ * Escape to `close()` as the lowest-priority branch.
  */
 export function useDockNavigation(): DockNavigation {
   const [openCluster, setOpenCluster] = useState<DockClusterId | null>(null);
@@ -50,5 +68,12 @@ export function useDockNavigation(): DockNavigation {
 
   const isOpen = useCallback((cluster: DockClusterId) => openCluster === cluster, [openCluster]);
 
-  return { openCluster, open, close, toggle, isOpen };
+  return {
+    openCluster,
+    panelOpen: openCluster != null && PANEL_CLUSTERS.has(openCluster),
+    open,
+    close,
+    toggle,
+    isOpen,
+  };
 }

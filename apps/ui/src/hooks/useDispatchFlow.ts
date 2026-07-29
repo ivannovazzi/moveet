@@ -1,5 +1,6 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import client from "@/utils/client";
+import { useFallingEdge } from "./useFallingEdge";
 import { toast, toErrorMessage } from "@/lib/toast";
 import { useNetworkContext } from "@/data/useData";
 import type {
@@ -61,8 +62,23 @@ export interface WaypointRef {
   waypointIndex: number;
 }
 
+/**
+ * Mode wiring: dispatch no longer owns its own on/off boolean — the
+ * interaction-mode union (useInteractionMode) is the single owner. `active`
+ * is derived from it; `onEnter`/`onExit` request mode transitions.
+ */
+export interface DispatchFlowOptions {
+  /** True while the interaction mode is `dispatch`. */
+  active: boolean;
+  /** Request entering dispatch mode (refused during replay by the mode hook). */
+  onEnter: () => void;
+  /** Request exiting to browse mode. */
+  onExit: () => void;
+}
+
 export interface DispatchFlow {
   // State
+  /** Mirror of the mode-derived `active` flag, kept for existing consumers. */
   dispatchMode: boolean;
   assignments: DispatchAssignment[];
   dispatching: boolean;
@@ -84,8 +100,7 @@ export interface DispatchFlow {
   setAssignments: React.Dispatch<React.SetStateAction<DispatchAssignment[]>>;
 }
 
-export function useDispatchFlow(): DispatchFlow {
-  const [dispatchMode, setDispatchMode] = useState(false);
+export function useDispatchFlow({ active, onEnter, onExit }: DispatchFlowOptions): DispatchFlow {
   const [assignments, setAssignments] = useState<DispatchAssignment[]>([]);
   const [dispatching, setDispatching] = useState(false);
   const [results, setResults] = useState<DirectionResult[]>([]);
@@ -96,25 +111,34 @@ export function useDispatchFlow(): DispatchFlow {
   const bounds = useMemo(() => computeNetworkBounds(network), [network]);
 
   const dispatchState = useDispatchState({
-    dispatchMode,
+    dispatchMode: active,
     selectedForDispatch,
     assignments,
     dispatching,
     results,
   });
 
-  const toggleDispatchMode = useCallback(() => {
-    // Reset sibling state outside the updater — updaters must stay pure
-    // (StrictMode double-invokes them), so branch on the current value here.
-    if (dispatchMode) {
-      setSelectedForDispatch([]);
-      setAssignments([]);
-      setResults([]);
-      setDispatching(false);
-      setError(null);
-    }
-    setDispatchMode(!dispatchMode);
-  }, [dispatchMode]);
+  // Cancellation token for in-flight dispatches. resetFlow bumps it so a
+  // batchDirection continuation that resolves AFTER the user exited (Escape /
+  // mode switch) can detect it was superseded and skip setResults/setDispatching
+  // — otherwise the next dispatch session would open straight into a phantom
+  // RESULTS state built from the stale response.
+  const sessionRef = useRef(0);
+
+  /** Clear all flow state back to a pristine SELECT-ready slate. */
+  const resetFlow = useCallback(() => {
+    sessionRef.current += 1;
+    setSelectedForDispatch([]);
+    setAssignments([]);
+    setResults([]);
+    setDispatching(false);
+    setError(null);
+  }, []);
+
+  // Mode exit can also happen outside this hook (entering geofence drawing,
+  // a replay starting, …) — clear the flow on any active → inactive edge so
+  // stale assignments never survive a mode switch.
+  useFallingEdge(active, resetFlow);
 
   const onAddWaypoint = useCallback((vehicleId: string, position: Position) => {
     const newWaypoint: Waypoint = { position: toLatLng(position) };
@@ -178,6 +202,10 @@ export function useDispatchFlow(): DispatchFlow {
     setResults([]);
     setError(null);
 
+    // Snapshot the session; if resetFlow runs while the request is in flight
+    // (exit dispatch / mode switch), the continuation below no-ops.
+    const session = sessionRef.current;
+
     const body = assignments.map((a) => {
       const dest = a.waypoints[a.waypoints.length - 1];
       return {
@@ -199,6 +227,9 @@ export function useDispatchFlow(): DispatchFlow {
 
     try {
       const response = await client.batchDirection(body);
+      // Superseded by an exit/reset while awaiting — drop this stale result so
+      // it can't resurrect a finished session.
+      if (session !== sessionRef.current) return;
       if (response.error) {
         setError(response.error);
         toast.error(`Dispatch failed: ${response.error}`);
@@ -218,23 +249,28 @@ export function useDispatchFlow(): DispatchFlow {
         toast.success(`Dispatched ${succeeded} ${succeeded === 1 ? "vehicle" : "vehicles"}`);
       }
     } catch (err) {
+      if (session !== sessionRef.current) return;
       const message = toErrorMessage(err, "Dispatch failed");
       setError(message);
       toast.error(`Dispatch failed: ${message}`);
       console.error("Dispatch failed:", err);
     } finally {
-      setDispatching(false);
+      // Only clear the busy flag for the still-current session — resetFlow has
+      // already cleared it for a superseded one, and a NEW session may now be
+      // dispatching.
+      if (session === sessionRef.current) setDispatching(false);
     }
   }, [assignments, bounds]);
 
   const handleDone = useCallback(() => {
-    setDispatchMode(false);
-    setSelectedForDispatch([]);
-    setAssignments([]);
-    setResults([]);
-    setDispatching(false);
-    setError(null);
-  }, []);
+    resetFlow();
+    onExit();
+  }, [resetFlow, onExit]);
+
+  const toggleDispatchMode = useCallback(() => {
+    if (active) handleDone();
+    else onEnter();
+  }, [active, handleDone, onEnter]);
 
   const handleRetryFailed = useCallback(() => {
     const failedIds = results.filter((r) => r.status === "error").map((r) => r.vehicleId);
@@ -302,7 +338,7 @@ export function useDispatchFlow(): DispatchFlow {
   }, []);
 
   return {
-    dispatchMode,
+    dispatchMode: active,
     assignments,
     dispatching,
     results,

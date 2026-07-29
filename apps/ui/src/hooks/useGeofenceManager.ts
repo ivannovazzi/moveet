@@ -1,24 +1,39 @@
 import { useCallback, useEffect, useState } from "react";
 import client from "@/utils/client";
 import { toast } from "@/lib/toast";
+import { useFallingEdge } from "./useFallingEdge";
 import type { GeoFence, GeoFenceEvent, CreateGeoFenceRequest } from "@moveet/shared-types";
 
 /** Cap on retained geofence alert events (newest first). */
 const MAX_ALERTS = 200;
 
 /**
+ * Mode wiring: drawing no longer owns its own on/off boolean — the
+ * interaction-mode union (useInteractionMode) is the single owner.
+ */
+export interface GeofenceManagerOptions {
+  /** True while the interaction mode is `draw-geofence`. */
+  drawingActive: boolean;
+  /** Request entering draw mode (refused during replay by the mode hook). */
+  onEnterDrawing: () => void;
+  /** Request exiting to browse mode. */
+  onExitDrawing: () => void;
+}
+
+/**
  * Geofencing domain state: fence CRUD (with optimistic updates), live alert
  * events from the WebSocket, and polygon-drawing UI state.
- *
- * Extracted from App.tsx — behavior preserved verbatim.
  */
-export function useGeofenceManager() {
+export function useGeofenceManager({
+  drawingActive,
+  onEnterDrawing,
+  onExitDrawing,
+}: GeofenceManagerOptions) {
   const [fences, setFences] = useState<GeoFence[]>([]);
   const [alerts, setAlerts] = useState<GeoFenceEvent[]>([]);
   // Fence selection is deliberately panel-local (NOT part of vehicle/POI
   // selection): it only drives the map outline emphasis.
   const [selectedFenceId, setSelectedFenceId] = useState<string | undefined>(undefined);
-  const [drawingActive, setDrawingActive] = useState(false);
   const [drawingVertexCount, setDrawingVertexCount] = useState(0);
   const [drawConfirmId, setDrawConfirmId] = useState(0);
   const [pendingPolygon, setPendingPolygon] = useState<[number, number][] | null>(null);
@@ -91,19 +106,27 @@ export function useGeofenceManager() {
   }, []);
 
   // ─── Drawing ──────────────────────────────────────────────────────
-  const startDrawing = useCallback(() => setDrawingActive(true), []);
+  const startDrawing = onEnterDrawing;
 
-  const onDrawComplete = useCallback((polygon: [number, number][]) => {
-    setDrawingActive(false);
-    setDrawingVertexCount(0);
-    setPendingPolygon(polygon);
-  }, []);
+  const onDrawComplete = useCallback(
+    (polygon: [number, number][]) => {
+      setDrawingVertexCount(0);
+      setPendingPolygon(polygon);
+      onExitDrawing();
+    },
+    [onExitDrawing]
+  );
 
   const onDrawCancel = useCallback(() => {
-    setDrawingActive(false);
     setDrawingVertexCount(0);
     setPendingPolygon(null);
-  }, []);
+    onExitDrawing();
+  }, [onExitDrawing]);
+
+  // Draw mode can also end outside this hook (entering dispatch, a replay
+  // starting, …) — GeofenceDrawTool discards its vertices when `active`
+  // drops, so mirror that by zeroing the reported count on the falling edge.
+  useFallingEdge(drawingActive, () => setDrawingVertexCount(0));
 
   const onConfirmDraw = useCallback(() => {
     setDrawConfirmId((n) => n + 1);
@@ -128,6 +151,7 @@ export function useGeofenceManager() {
     alerts,
     selectedFenceId,
     onSelectFence,
+    /** Pass-through of the mode-derived flag so consumers keep one source. */
     drawingActive,
     drawingVertexCount,
     setDrawingVertexCount,
