@@ -2,7 +2,7 @@ import type { DataVehicle } from "../types";
 import { config } from "../utils/config";
 import logger from "../utils/logger";
 
-interface SyncVehicle {
+export interface SyncVehicle {
   id: string;
   name: string;
   latitude: number;
@@ -12,6 +12,11 @@ interface SyncVehicle {
   speed?: number;
   /** Heading / course over ground in degrees. */
   heading?: number;
+  /**
+   * Device fix timestamp (epoch ms), distinct from the batch timestamp. Sent
+   * only by a simulated device with a fault profile, whose clock may be skewed.
+   */
+  timestamp?: number;
   /** Arbitrary source-provided metadata, carried opaquely through to the sinks. */
   metadata?: Record<string, unknown>;
 }

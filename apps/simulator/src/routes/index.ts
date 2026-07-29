@@ -6,6 +6,7 @@ export { createRecordingRoutes } from "./recording";
 export { createReplayRoutes } from "./replay";
 export { createFleetRoutes } from "./fleets";
 export { createJobRoutes } from "./jobs";
+export { createFaultRoutes } from "./faults";
 export { createAnalyticsRoutes } from "./analytics";
 export { createScenarioRoutes } from "./scenarios";
 export { createStateRoutes } from "./state";

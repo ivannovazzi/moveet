@@ -165,6 +165,32 @@ const envObjectSchema = z.object({
    * more (smaller) sector buckets.
    */
   SECTORS_N: z.coerce.number().int().min(1).default(10),
+
+  /**
+   * Device-level fault injection (frozen GPS, clock skew, duplicates,
+   * reordering, battery death, teleport/spoofing). Opt-in: with this off, or
+   * with no profile configured, telemetry is byte-for-byte what it was.
+   */
+  FAULTS_ENABLED: z
+    .enum(["true", "false", "1", "0", ""])
+    .default("false")
+    .transform((v) => v === "true" || v === "1"),
+
+  /**
+   * Seed for the per-device fault RNG streams. Every fault type is reproducible
+   * only when this is set; unset means `Math.random` per device.
+   */
+  FAULT_SEED: z.preprocess(
+    (v) => (v === "" || v === undefined ? undefined : v),
+    z.coerce.number().int().optional()
+  ),
+
+  /**
+   * Fault profiles as a JSON string: `{"default":{...},"vehicles":{"id":{...}}}`.
+   * Validated by `modules/faults/schema.ts` (the same schema the REST API uses);
+   * a malformed value aborts startup rather than silently arming nothing.
+   */
+  FAULT_PROFILES: z.string().default(""),
 });
 
 export const envSchema = envObjectSchema
@@ -224,6 +250,9 @@ function buildConfig(env: EnvConfig) {
     pathfindCooldownMs: env.PATHFIND_COOLDOWN_MS,
     maxSyncBackoffMs: env.MAX_SYNC_BACKOFF_MS,
     sectorsN: env.SECTORS_N,
+    faultsEnabled: env.FAULTS_ENABLED,
+    faultSeed: env.FAULT_SEED,
+    faultProfiles: env.FAULT_PROFILES,
   } as const;
 }
 

@@ -36,6 +36,8 @@ tags:
     description: Fleet grouping and vehicle assignment
   - name: Jobs
     description: Trip/job dispatch lifecycle — create, assign, cancel, and track jobs
+  - name: Faults
+    description: Device-level fault injection — per-vehicle fault profiles and live device state
   - name: Analytics
     description: Fleet and vehicle performance analytics
   - name: Geofences
@@ -1626,6 +1628,160 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  # ─── Device Fault Injection ─────────────────────────────────────────
+  /faults:
+    get:
+      operationId: getFaults
+      summary: Get the device fault-injection configuration and live device state
+      description: >
+        Faults are properties of the simulated DEVICE (frozen GPS, skewed clock,
+        duplicate and out-of-order messages, dead battery, teleport/spoofing),
+        injected before telemetry leaves the simulator. This is distinct from the
+        adapter's realism engine, which models the transport; the two compose.
+      tags: [Faults]
+      responses:
+        "200":
+          description: Configuration plus a live status snapshot
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/DeviceFaultConfig"
+                  - type: object
+                    properties:
+                      status:
+                        $ref: "#/components/schemas/DeviceFaultStatus"
+    post:
+      operationId: configureFaults
+      summary: Update the fault-injection configuration at runtime
+      description: >
+        Every field is optional, so `enabled` can be flipped without restating
+        the profiles. `default: null` clears the fleet-wide profile. Toggling
+        `enabled` or changing `seed` discards all per-device state, so a reseeded
+        run starts from a clean device.
+      tags: [Faults]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                seed:
+                  type: integer
+                  description: Seed for the per-device RNG streams; required for reproducibility
+                default:
+                  nullable: true
+                  allOf:
+                    - $ref: "#/components/schemas/DeviceFaultProfile"
+                vehicles:
+                  type: object
+                  additionalProperties:
+                    $ref: "#/components/schemas/DeviceFaultProfile"
+      responses:
+        "200":
+          description: Resolved configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceFaultConfig"
+        "400":
+          description: Validation failed (unknown key, or a value out of range)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /faults/status:
+    get:
+      operationId: getFaultStatus
+      summary: Live per-device fault state
+      tags: [Faults]
+      responses:
+        "200":
+          description: Device counts, queue depth, and cumulative trigger counts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceFaultStatus"
+
+  /faults/reset:
+    post:
+      operationId: resetFaults
+      summary: Clear latched device state, keeping the configuration
+      description: >
+        Discards drained batteries, open frozen windows, withheld samples,
+        queued telemetry and the trigger counters. Used to start a repeatable
+        run over from a known device state.
+      tags: [Faults]
+      responses:
+        "200":
+          description: Status after the reset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceFaultStatus"
+
+  /faults/vehicles/{id}:
+    put:
+      operationId: setVehicleFaultProfile
+      summary: Set one vehicle's fault profile
+      description: >
+        A per-vehicle profile replaces the fleet-wide default outright for that
+        vehicle; it is not merged with it. The vehicle's latched device state is
+        dropped so the new profile starts from a clean device.
+      tags: [Faults]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceFaultProfile"
+      responses:
+        "200":
+          description: Resolved configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceFaultConfig"
+        "400":
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: clearVehicleFaultProfile
+      summary: Remove one vehicle's fault profile
+      tags: [Faults]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Resolved configuration after removal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceFaultConfig"
+        "404":
+          description: The vehicle had no fault profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   # ─── State Persistence ──────────────────────────────────────────────
   /state/save:
     post:
@@ -3177,3 +3333,151 @@ components:
                 type: number
               type:
                 type: string
+
+    # ─── Device Fault Injection ──────────────────────────────────────
+    DeviceFaultKind:
+      type: string
+      enum: [frozen_gps, clock_skew, duplicate, out_of_order, battery_dead, teleport]
+
+    DeviceFaultProfile:
+      type: object
+      description: >
+        Per-fault tuning for one simulated device. Every group is opt-in; an
+        omitted group means that fault is not armed. Unknown keys are rejected,
+        so a typo cannot silently arm nothing.
+      additionalProperties: false
+      properties:
+        frozenGps:
+          type: object
+          description: The device latches its last fix and keeps reporting it
+          additionalProperties: false
+          required: [probability, minDurationMs, maxDurationMs]
+          properties:
+            probability:
+              type: number
+              minimum: 0
+              maximum: 1
+              description: Chance per report of entering a frozen window
+            minDurationMs:
+              type: integer
+              minimum: 0
+            maxDurationMs:
+              type: integer
+              minimum: 0
+        clockSkew:
+          type: object
+          description: The device stamps its fixes with the wrong time
+          additionalProperties: false
+          required: [offsetMs]
+          properties:
+            offsetMs:
+              type: integer
+            driftMsPerMinute:
+              type: number
+              description: Extra skew accumulated per minute of device uptime
+        duplicate:
+          type: object
+          description: The device retransmits a sample it already sent
+          additionalProperties: false
+          required: [probability, maxCopies]
+          properties:
+            probability:
+              type: number
+              minimum: 0
+              maximum: 1
+            maxCopies:
+              type: integer
+              minimum: 1
+              maximum: 10
+              description: Maximum extra copies emitted alongside the original
+        outOfOrder:
+          type: object
+          description: The device withholds a sample so a newer one overtakes it
+          additionalProperties: false
+          required: [probability, holdMs]
+          properties:
+            probability:
+              type: number
+              minimum: 0
+              maximum: 1
+            holdMs:
+              type: integer
+              minimum: 0
+        battery:
+          type: object
+          description: The device runs on a battery and goes silent when it dies
+          additionalProperties: false
+          required: [initialPercent, drainPercentPerHour, dieAtPercent]
+          properties:
+            initialPercent:
+              type: number
+              minimum: 0
+              maximum: 100
+            drainPercentPerHour:
+              type: number
+              minimum: 0
+            dieAtPercent:
+              type: number
+              minimum: 0
+              maximum: 100
+        teleport:
+          type: object
+          description: The reported position jumps somewhere it cannot be
+          additionalProperties: false
+          required: [probability, radiusMeters, holdMs]
+          properties:
+            probability:
+              type: number
+              minimum: 0
+              maximum: 1
+            radiusMeters:
+              type: number
+              minimum: 0
+            holdMs:
+              type: integer
+              minimum: 0
+              description: How long the bogus offset persists; 0 = single-sample glitch
+
+    DeviceFaultConfig:
+      type: object
+      required: [enabled, vehicles]
+      properties:
+        enabled:
+          type: boolean
+        seed:
+          type: integer
+          description: Omitted means unseeded (Math.random) — nothing is reproducible
+        default:
+          $ref: "#/components/schemas/DeviceFaultProfile"
+        vehicles:
+          type: object
+          description: Per-vehicle overrides keyed by vehicle id
+          additionalProperties:
+            $ref: "#/components/schemas/DeviceFaultProfile"
+
+    DeviceFaultStatus:
+      type: object
+      required: [enabled, devices, frozen, teleporting, dead, held, queued, counts]
+      properties:
+        enabled:
+          type: boolean
+        devices:
+          type: integer
+          description: Devices the fault layer currently holds state for
+        frozen:
+          type: integer
+        teleporting:
+          type: integer
+        dead:
+          type: integer
+        held:
+          type: integer
+          description: Samples withheld by the out-of-order fault, awaiting release
+        queued:
+          type: integer
+          description: Faulted samples queued for the next adapter push
+        counts:
+          type: object
+          description: Cumulative per-kind trigger counts since the last reset
+          additionalProperties:
+            type: integer

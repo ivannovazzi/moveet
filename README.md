@@ -46,6 +46,7 @@ A real-time vehicle fleet simulator that runs vehicles on actual road networks w
 | 🚘 **Breadcrumb trails**     | Per-vehicle position history rendered as fading path overlays on the map                                                                                                                                                      |
 | 🚦 **Fleet management**      | Group vehicles into named, colour-coded fleets; assign/unassign at runtime                                                                                                                                                    |
 | 📦 **Job dispatch lifecycle** | Pickup/dropoff jobs assigned by nearest / best-ETA / named vehicle, driven through the full status lifecycle with per-leg ETAs and SLA-breach tracking; placed with two map clicks                                            |
+| 🔌 **Device fault injection** | Per-vehicle device faults injected in the simulator — frozen GPS, clock skew/drift, duplicate and out-of-order messages, battery death, teleport/spoofing — reproducible under a fixed seed, editable at runtime, visible on the WebSocket feed and the adapter push            |
 | 🔍 **POI + road search**     | Typeahead combining road names and points of interest; dispatches selected vehicles to result                                                                                                                                 |
 | 🖥 **Operator UI**           | Icon-rail sidebar (Vehicles · Fleets · Incidents · Geofences · Recordings · Visibility · Speed · Adapter) + bottom dock with live and replay controls                                                                         |
 | 🔌 **Adapter plugins**       | Hot-swappable source and sink plugins; configure via env vars or REST API at runtime                                                                                                                                          |
@@ -242,6 +243,23 @@ SLA breach along the way.
 | `POST`   | `/jobs/:id/cancel`   | Cancel a live job and release its vehicle         |
 | `DELETE` | `/jobs/:id`          | Remove a finished job from the board              |
 
+### Device faults
+
+Faults injected as properties of the simulated **device** (frozen GPS, clock skew,
+duplicate and out-of-order messages, battery death, teleport/spoofing), as opposed
+to the adapter's realism engine, which degrades the **transport**. Off by default;
+reproducible under a fixed seed. See `apps/simulator/README.md` for the profile
+shape and per-fault semantics.
+
+| Method   | Path                     | Description                                        |
+| -------- | ------------------------ | -------------------------------------------------- |
+| `GET`    | `/faults`                | Configuration plus a live device-state snapshot     |
+| `POST`   | `/faults`                | Update the configuration at runtime                 |
+| `GET`    | `/faults/status`         | Live per-device state and trigger counts            |
+| `POST`   | `/faults/reset`          | Clear latched device state, keeping the config      |
+| `PUT`    | `/faults/vehicles/:id`   | Set one vehicle's fault profile                     |
+| `DELETE` | `/faults/vehicles/:id`   | Remove one vehicle's fault profile                  |
+
 ### Incidents
 
 | Method   | Path                | Description                             |
@@ -311,6 +329,7 @@ Connect to `ws://localhost:5010`. On connect the server sends a `status` and `op
 | `incident:cleared` | server → client | Incident resolved                                         |
 | `vehicle:rerouted` | server → client | Vehicle rerouted around incident                          |
 | `geofence:event`   | server → client | Vehicle entered or exited a geofence zone                 |
+| `faults:config`    | server → client | Device fault-injection configuration changed              |
 
 ---
 

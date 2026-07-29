@@ -22,6 +22,7 @@ import { RouteManager } from "./RouteManager";
 import { GameLoop, FAILURE_LOG_SAMPLE_RATE } from "./GameLoop";
 import { AdapterSyncManager } from "./AdapterSyncManager";
 import { AnalyticsAccumulator } from "./AnalyticsAccumulator";
+import { DeviceFaultManager, parseFaultProfilesEnv } from "./faults";
 import logger from "../utils/logger";
 
 /**
@@ -30,6 +31,7 @@ import logger from "../utils/logger";
  * - RouteManager: route/waypoint tracking, pathfinding, movement physics
  * - GameLoop: tick/timing logic
  * - AdapterSyncManager: adapter integration
+ * - DeviceFaultManager: per-vehicle device fault injection at telemetry egress
  *
  * Maintains the same public API as the original monolithic class for backward compatibility.
  */
@@ -40,6 +42,7 @@ export class VehicleManager extends EventEmitter {
   public readonly gameLoop: GameLoop;
   public readonly adapterSync: AdapterSyncManager;
   public readonly analytics: AnalyticsAccumulator;
+  public readonly faults: DeviceFaultManager;
 
   public readonly clock = new SimulationClock({
     startHour: 7,
@@ -88,6 +91,13 @@ export class VehicleManager extends EventEmitter {
     );
     this.adapterSync = new AdapterSyncManager();
     this.analytics = new AnalyticsAccumulator(this.registry, fleetManager);
+    // Throws on a malformed FAULT_PROFILES, aborting startup: a fault layer
+    // that armed nothing because of a typo is worse than a boot failure.
+    this.faults = new DeviceFaultManager({
+      enabled: config.faultsEnabled,
+      seed: config.faultSeed,
+      ...parseFaultProfilesEnv(config.faultProfiles),
+    });
 
     // Attach analytics accumulator to game loop so stats update each tick
     this.gameLoop.analyticsAccumulator = this.analytics;
@@ -109,7 +119,20 @@ export class VehicleManager extends EventEmitter {
     });
     this.routeManager.on("route:completed", (data) => this.emit("route:completed", data));
     this.routeManager.on("vehicle:rerouted", (data) => this.emit("vehicle:rerouted", data));
-    this.gameLoop.on("update", (data) => this.emit("update", data));
+    // The game-loop tick IS the device's report, so it is the one place device
+    // faults are injected: a report can become several samples (duplicate, or
+    // a withheld sample released after a newer one) or none at all (dead
+    // battery). With no fault profile armed the DTO is forwarded untouched.
+    this.gameLoop.on("update", (data: VehicleDTO) => {
+      if (!this.faults.isActive()) {
+        this.emit("update", data);
+        return;
+      }
+      const now = Date.now();
+      for (const sample of this.faults.report(data, now)) {
+        this.emit("update", sample);
+      }
+    });
 
     this.init();
   }
@@ -195,6 +218,9 @@ export class VehicleManager extends EventEmitter {
     this.gameLoop.reset();
     this.adapterSync.stopLocationUpdates();
     this.advanceFailureCounts.clear();
+    // Device state (drained batteries, open frozen windows, queued samples) is
+    // tied to the previous vehicle roster; the fault CONFIG survives the reset.
+    this.faults.reset();
   }
 
   // ─── Game loop delegation ─────────────────────────────────────────
@@ -248,7 +274,14 @@ export class VehicleManager extends EventEmitter {
   // ─── Adapter sync delegation ──────────────────────────────────────
 
   public startLocationUpdates(intervalMs: number): void {
-    this.adapterSync.startLocationUpdates(intervalMs, () => this.registry.getAll().values());
+    this.adapterSync.startLocationUpdates(
+      intervalMs,
+      () => this.registry.getAll().values(),
+      // With faults armed the push carries the DEVICE's samples (in emission
+      // order, duplicates and reordering intact) instead of a snapshot of true
+      // positions. Returning null keeps the original snapshot behavior.
+      () => (this.faults.isActive() ? this.faults.drainTelemetry() : null)
+    );
   }
 
   public stopLocationUpdates(): void {
@@ -301,7 +334,12 @@ export class VehicleManager extends EventEmitter {
   }
 
   public getVehicles(): VehicleDTO[] {
-    return this.registry.getAllSerialized();
+    const vehicles = this.registry.getAllSerialized();
+    if (!this.faults.isActive()) return vehicles;
+    // Project each device's currently-reported fix so a polling reader sees the
+    // frozen/teleported/stale position the stream is reporting, not the truth.
+    const now = Date.now();
+    return vehicles.map((vehicle) => this.faults.view(vehicle, now));
   }
 
   /**
@@ -356,7 +394,7 @@ export class VehicleManager extends EventEmitter {
     try {
       this.fleets.assignVehicles(fleetId, [vehicleId]);
       vehicle.fleetId = fleetId;
-      this.emit("update", serializeVehicle(vehicle));
+      this.emit("update", this.reportedFix(vehicle));
       return true;
     } catch {
       return false;
@@ -371,7 +409,7 @@ export class VehicleManager extends EventEmitter {
     try {
       this.fleets.unassignVehicles(fleetId, [vehicleId]);
       vehicle.fleetId = undefined;
-      this.emit("update", serializeVehicle(vehicle));
+      this.emit("update", this.reportedFix(vehicle));
       return true;
     } catch {
       return false;
@@ -407,6 +445,17 @@ export class VehicleManager extends EventEmitter {
   }
 
   // ─── Internal helpers ─────────────────────────────────────────────
+
+  /**
+   * DTO for an out-of-band `update` frame (e.g. a fleet reassignment), carrying
+   * the device's currently-reported fix rather than the true one. Without this
+   * a frozen or dead device would appear to jump back to reality whenever
+   * something other than the game loop emitted a frame for it.
+   */
+  private reportedFix(vehicle: Vehicle): VehicleDTO {
+    const dto = serializeVehicle(vehicle);
+    return this.faults.isActive() ? this.faults.view(dto, Date.now()) : dto;
+  }
 
   private setRandomDestination(vehicleId: string): void {
     this.routeManager.setRandomDestination(vehicleId);

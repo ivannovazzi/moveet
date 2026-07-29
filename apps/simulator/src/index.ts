@@ -29,6 +29,7 @@ import {
   createReplayRoutes,
   createFleetRoutes,
   createJobRoutes,
+  createFaultRoutes,
   createAnalyticsRoutes,
   createScenarioRoutes,
   createStateRoutes,
@@ -129,6 +130,7 @@ app.use(createRecordingRoutes(ctx));
 app.use(createReplayRoutes(ctx));
 app.use(createFleetRoutes(ctx));
 app.use(createJobRoutes(ctx));
+app.use(createFaultRoutes(ctx));
 app.use(createAnalyticsRoutes(ctx));
 app.use(createScenarioRoutes(ctx));
 app.use(createGeofenceRoutes(geoFenceManager));

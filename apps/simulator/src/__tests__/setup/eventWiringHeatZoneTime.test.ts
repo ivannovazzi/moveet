@@ -86,6 +86,7 @@ describe("wireEvents — heat-zone time-of-day scaling", () => {
       getTrafficProfile: vi.fn(() => DEFAULT_TRAFFIC_PROFILE),
       getTrafficSnapshot: vi.fn().mockReturnValue({ edges: {} }),
       analytics: { getSnapshot: vi.fn().mockReturnValue({}) },
+      faults: new EventEmitter(),
     });
 
     const ctx = {
