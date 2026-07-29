@@ -135,6 +135,9 @@ export function wireEvents(ctx: EventWiringContext): {
   incidentManager.on("incident:created", (data) => broadcaster.broadcast("incident:created", data));
   incidentManager.on("incident:cleared", (data) => broadcaster.broadcast("incident:cleared", data));
   vehicleManager.on("vehicle:rerouted", (data) => broadcaster.broadcast("vehicle:rerouted", data));
+  // Device fault config changed (a runtime edit through /faults) — push it so an
+  // operator UI does not have to poll to learn which faults are armed.
+  vehicleManager.faults.on("faults:config", (data) => broadcaster.broadcast("faults:config", data));
 
   // ─── Traffic congestion snapshot + geofence checks every 2 seconds ──
   const trafficBroadcastInterval = setInterval(() => {

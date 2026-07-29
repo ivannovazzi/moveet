@@ -27,6 +27,11 @@ export type {
   FleetAnalytics,
   AnalyticsSnapshot,
   SubscribeFilter,
+  DeviceFaultKind,
+  DeviceFaultInfo,
+  DeviceFaultProfile,
+  DeviceFaultConfig,
+  DeviceFaultStatus,
 } from "@moveet/shared-types";
 
 // Re-export ExportVehicle under its old name for backwards compatibility

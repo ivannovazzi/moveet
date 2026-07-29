@@ -12,6 +12,7 @@ Vehicle location simulator for fleet management systems. Simulates multiple vehi
 - **Geofences**: enter/exit detection with events
 - **Fleets**: fleet definitions and vehicle assignment
 - **Jobs**: pickup/dropoff work orders with vehicle assignment (nearest / best-ETA / manual), a full status lifecycle driven by the vehicle's own routing events, per-leg ETAs, and SLA-breach tracking
+- **Device Fault Injection**: per-vehicle device faults — frozen GPS, clock skew/drift, duplicate and out-of-order messages, battery death, teleport/spoofing — reproducible under a fixed seed and configurable at runtime
 - **Recording & Replay**: capture a live run to NDJSON and replay it
 - **Headless Generation**: deterministic fast-forward generation of recordings
 - **Analytics**: per-tick fleet/vehicle stats, broadcast and persisted as a time-series
@@ -83,6 +84,9 @@ All config is parsed and validated through a single zod schema in `src/utils/con
 | `REDIS_URL`                   | Redis connection URL; **required when `WS_TRANSPORT=redis`** (and by the gateway)        | (empty)                |
 | `WS_PUBSUB_CHANNEL`           | Redis pub/sub channel the simulator publishes to and the gateway subscribes to           | moveet:ws:broadcast    |
 | `WS_GATEWAY_PORT`             | Port the standalone WS gateway listens on                                                | 5020                   |
+| `FAULTS_ENABLED`              | Enable device-level fault injection                                                      | false                  |
+| `FAULT_SEED`                  | Seed for the per-device fault RNG streams; empty = unseeded (`Math.random`)               | (empty)                |
+| `FAULT_PROFILES`              | Fault profiles as JSON: `{"default":{...},"vehicles":{"<id>":{...}}}`                     | (empty)                |
 
 > Note: there is no `USE_ADAPTER` or `SYNC_ADAPTER` flag. The adapter is enabled simply by setting `ADAPTER_URL`.
 
@@ -220,6 +224,90 @@ Get current simulation options.
 
 Update simulation options.
 
+### Device Fault Injection
+
+Faults are properties of the simulated **device** — a GPS tracker whose fix freezes, whose
+clock is wrong, that retransmits, that reorders, that teleports, that runs out of battery.
+That is a different concern from the adapter's realism engine, which models the **transport**
+(correlated GPS noise, connectivity dropouts, jittered cadence). The two compose: a device
+fault is injected before the telemetry ever leaves the simulator, so it is visible on the
+WebSocket feed *and* in the adapter push.
+
+Off by default. With `FAULTS_ENABLED=false`, or with no profile configured, the telemetry is
+byte-for-byte what it was — no `timestamp` or `faults` fields appear on the wire.
+
+| Fault           | What the device does                                                          |
+| --------------- | ----------------------------------------------------------------------------- |
+| `frozen_gps`    | Latches its last fix and replays it for a window while the vehicle moves on    |
+| `clock_skew`    | Stamps fixes with a wrong (and optionally drifting) clock                      |
+| `duplicate`     | Retransmits a sample it already sent, timestamp and all                        |
+| `out_of_order`  | Withholds a sample so a newer one overtakes it on the wire                     |
+| `battery_dead`  | Drains a battery and goes completely silent when it dies                       |
+| `teleport`      | Reports a position it cannot be at, as a glitch or a sustained spoofing window |
+
+Each fault is reproducible under a fixed `FAULT_SEED`: every device draws from its **own**
+`mulberry32` stream seeded from `(seed, vehicleId)`, so a fault sequence does not depend on
+how many other vehicles exist or in what order they tick.
+
+**Where the faults show up**
+
+- `update` WebSocket frames and recordings carry the device's sample, not the truth. One
+  report can become several frames (a duplicate, or a withheld sample released behind a
+  newer one) or none at all (dead battery). Note the broadcaster coalesces to the latest
+  frame per vehicle per 100 ms flush, so duplicates and reordering are best observed on the
+  adapter push.
+- `GET /vehicles` serves each device's currently-reported fix, so a frozen or dead device
+  does not appear to un-freeze whenever something polls it.
+- The adapter push (`POST /sync`) carries the device samples **in emission order**, with
+  duplicates and reordering intact, each with its own device `timestamp` and the applied
+  faults under `metadata.faults`. This is the fidelity path for a downstream consumer
+  testing against the stream.
+
+#### `GET /faults`
+
+Current configuration plus a live status snapshot.
+
+#### `POST /faults`
+
+Update the configuration at runtime. Every field is optional, so `enabled` can be flipped
+without restating the profiles; `default: null` clears the fleet-wide profile. Toggling
+`enabled` or changing `seed` discards all per-device state, so a reseeded run starts from a
+clean device.
+
+```bash
+curl -XPOST localhost:5010/faults -H 'content-type: application/json' -d '{
+  "enabled": true,
+  "seed": 1337,
+  "default": {
+    "frozenGps": { "probability": 0.02, "minDurationMs": 5000, "maxDurationMs": 30000 },
+    "clockSkew": { "offsetMs": 1500, "driftMsPerMinute": 10 }
+  }
+}'
+```
+
+#### `PUT /faults/vehicles/:id` · `DELETE /faults/vehicles/:id`
+
+Set or remove one vehicle's profile. A per-vehicle profile **replaces** the fleet-wide
+default for that vehicle rather than merging with it.
+
+```bash
+curl -XPUT localhost:5010/faults/vehicles/vehicle-7 -H 'content-type: application/json' -d '{
+  "battery": { "initialPercent": 40, "drainPercentPerHour": 30, "dieAtPercent": 5 },
+  "teleport": { "probability": 0.01, "radiusMeters": 2000, "holdMs": 10000 }
+}'
+```
+
+#### `GET /faults/status` · `POST /faults/reset`
+
+Live per-device state (frozen/teleporting/dead counts, withheld samples, queue depth,
+cumulative trigger counts), and a reset that clears that state while keeping the
+configuration — how a repeatable run is started over from a known device state.
+
+Profile bodies go through the same zod schemas that validate `FAULT_PROFILES` at startup,
+and unknown keys are **rejected**: a mistyped fault name would otherwise leave an operator
+believing a fault was armed when it was not. A malformed `FAULT_PROFILES` aborts startup for
+the same reason.
+
 ### Observability
 
 #### `GET /metrics`
@@ -238,9 +326,9 @@ continuous across the simulator → adapter hop.
 
 Connect to `ws://localhost:5010` for real-time updates.
 
-**Message Types** (non-exhaustive): `vehicle`/`vehicles`, `status`, `clock`, `options`, `heatzones`, `direction`, `traffic`, `analytics`, `waypoint:reached`, `route:completed`, `vehicle:rerouted`, `incident:created`, `incident:cleared`, `geofence:event`, `fleet:created`/`fleet:deleted`/`fleet:assigned`, `scenario:*`, `replay:status`, `generate:progress`/`generate:complete`/`generate:error`, `reset`.
+**Message Types** (non-exhaustive): `vehicle`/`vehicles`, `status`, `clock`, `options`, `heatzones`, `direction`, `traffic`, `analytics`, `waypoint:reached`, `route:completed`, `vehicle:rerouted`, `incident:created`, `incident:cleared`, `geofence:event`, `fleet:created`/`fleet:deleted`/`fleet:assigned`, `scenario:*`, `replay:status`, `generate:progress`/`generate:complete`/`generate:error`, `faults:config`, `reset`.
 
-Beyond the endpoints shown above, the API also exposes incidents (`/incidents`), geofences (`/geofences`), fleets (`/fleets`), jobs (`/jobs`), analytics (`/analytics/*`), traffic (`/traffic`, `/traffic-profile`), clock (`/clock`), speed limits (`/speed-limits`), recording, replay (`/replay/status`), scenarios, and state persistence (`/state/save`, `/state/restore`, `/state/snapshots`). See the OpenAPI/Scalar reference served by the app for the full set.
+Beyond the endpoints shown above, the API also exposes incidents (`/incidents`), geofences (`/geofences`), fleets (`/fleets`), jobs (`/jobs`), device faults (`/faults`), analytics (`/analytics/*`), traffic (`/traffic`, `/traffic-profile`), clock (`/clock`), speed limits (`/speed-limits`), recording, replay (`/replay/status`), scenarios, and state persistence (`/state/save`, `/state/restore`, `/state/snapshots`). See the OpenAPI/Scalar reference served by the app for the full set.
 
 ## Docker Usage
 

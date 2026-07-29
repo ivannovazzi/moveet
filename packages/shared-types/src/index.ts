@@ -22,6 +22,117 @@ export interface VehicleDTO {
   speed: number;
   heading: number;
   fleetId?: string;
+  /**
+   * Device fix timestamp (epoch ms), as reported by the simulated device.
+   * Present only for a vehicle whose device has a fault profile — a skewed
+   * device clock is only observable if the sample carries its own timestamp.
+   */
+  timestamp?: number;
+  /**
+   * Device faults that shaped this sample. Present only for a vehicle whose
+   * device has a fault profile, so the default (fault-free) wire shape is
+   * unchanged.
+   */
+  faults?: DeviceFaultInfo;
+}
+
+// ─── Device fault injection ─────────────────────────────────────────
+// Faults are properties of the simulated DEVICE (a GPS tracker that freezes,
+// skews its clock, retransmits, or runs out of battery). This is a different
+// concern from the adapter's realism engine, which models the TRANSPORT
+// (correlated GPS noise, connectivity dropouts, jittered cadence). The two
+// compose: a device fault is injected before the telemetry ever leaves the
+// simulator, so it is visible on the WebSocket feed and in the adapter push.
+
+export type DeviceFaultKind =
+  | "frozen_gps"
+  | "clock_skew"
+  | "duplicate"
+  | "out_of_order"
+  | "battery_dead"
+  | "teleport";
+
+/** Fault annotation carried by a single telemetry sample. */
+export interface DeviceFaultInfo {
+  /** Fault kinds that shaped this sample. Empty when the device reported clean. */
+  active: DeviceFaultKind[];
+  /** Remaining battery (%), when the profile models a battery. */
+  battery?: number;
+  /** Applied clock offset (ms): sample timestamp minus true emit time. */
+  skewMs?: number;
+}
+
+/** Per-fault tuning for one simulated device. Every fault group is opt-in. */
+export interface DeviceFaultProfile {
+  /** The device latches its last fix and keeps reporting it while frozen. */
+  frozenGps?: {
+    /** Chance per report of entering a frozen window, 0-1. */
+    probability: number;
+    minDurationMs: number;
+    maxDurationMs: number;
+  };
+  /** The device's clock is wrong, and optionally drifts as it runs. */
+  clockSkew?: {
+    offsetMs: number;
+    /** Extra skew accumulated per minute of device uptime. */
+    driftMsPerMinute?: number;
+  };
+  /** The device retransmits a sample it has already sent. */
+  duplicate?: {
+    probability: number;
+    /** Maximum extra copies emitted alongside the original. */
+    maxCopies: number;
+  };
+  /** The device withholds a sample so a newer one overtakes it on the wire. */
+  outOfOrder?: {
+    probability: number;
+    /** How long the withheld sample is held before it is released. */
+    holdMs: number;
+  };
+  /** The device runs on a battery and goes silent when it dies. */
+  battery?: {
+    initialPercent: number;
+    drainPercentPerHour: number;
+    /** Level at or below which the device stops reporting entirely. */
+    dieAtPercent: number;
+  };
+  /** The reported position jumps somewhere it cannot be (bad fix / spoofing). */
+  teleport?: {
+    probability: number;
+    radiusMeters: number;
+    /** How long the bogus offset persists. 0 = a single-sample glitch. */
+    holdMs: number;
+  };
+}
+
+/** The fault layer's whole configuration, as read and written over REST/WS. */
+export interface DeviceFaultConfig {
+  enabled: boolean;
+  /**
+   * Seed for the per-device RNG streams. Omitted = unseeded (`Math.random`);
+   * every fault type is reproducible only when a seed is set.
+   */
+  seed?: number;
+  /** Applied to every vehicle without an explicit profile. */
+  default?: DeviceFaultProfile;
+  /** Per-vehicle overrides keyed by vehicle id. Replaces the default outright. */
+  vehicles: Record<string, DeviceFaultProfile>;
+}
+
+/** Live per-device fault state, for observability. */
+export interface DeviceFaultStatus {
+  enabled: boolean;
+  /** Devices the fault layer currently holds state for. */
+  devices: number;
+  frozen: number;
+  teleporting: number;
+  dead: number;
+  /** Samples withheld by the out-of-order fault, awaiting release. */
+  held: number;
+  /** Faulted samples queued for the next adapter push. */
+  queued: number;
+  /** Cumulative per-kind trigger counts since the last fault-layer reset. */
+  counts: Record<DeviceFaultKind, number>;
 }
 
 /**

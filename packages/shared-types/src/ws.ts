@@ -20,6 +20,7 @@ import type {
   Waypoint,
   SubscribeFilter,
   BoundingBox,
+  DeviceFaultConfig,
 } from "./index";
 
 // ─── UI/producer-shared payload shapes ──────────────────────────────
@@ -212,6 +213,8 @@ export interface WsMessageMap {
   "scenario:resumed": ScenarioEventPayload;
   "scenario:completed": ScenarioEventPayload;
   "scenario:stopped": ScenarioEventPayload;
+  /** Device fault-injection configuration changed (startup or runtime edit). */
+  "faults:config": DeviceFaultConfig;
 }
 
 /** Every data-carrying WS message type. */
@@ -269,6 +272,7 @@ const DATA_MESSAGE_TYPES: ReadonlySet<string> = new Set<WsDataMessageType>([
   "scenario:resumed",
   "scenario:completed",
   "scenario:stopped",
+  "faults:config",
 ]);
 
 /**

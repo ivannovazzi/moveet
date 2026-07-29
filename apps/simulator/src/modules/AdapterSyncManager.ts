@@ -1,11 +1,58 @@
-import type { DataVehicle, Vehicle, VehicleType } from "../types";
+import type { DataVehicle, Vehicle, VehicleDTO, VehicleType } from "../types";
 import { config } from "../utils/config";
-import Adapter from "./Adapter";
+import Adapter, { type SyncVehicle } from "./Adapter";
 import { recordAdapterSync } from "../metrics";
 import logger from "../utils/logger";
 
 /** Consecutive-failure count at which a persistent-failure error is logged. */
 const PERSISTENT_FAILURE_THRESHOLD = 5;
+
+/** One update per vehicle, from the vehicle's true current state. */
+function buildSnapshotPayload(vehicles: Vehicle[]): SyncVehicle[] {
+  return vehicles.map((v) => ({
+    id: v.id,
+    name: v.name,
+    type: v.type,
+    latitude: v.position[0],
+    longitude: v.position[1],
+    speed: v.speed, // km/h
+    heading: v.bearing, // degrees
+    // Carry source-provided metadata opaquely back to the adapter/sinks.
+    ...(v.sourceMetadata !== undefined ? { metadata: v.sourceMetadata } : {}),
+  }));
+}
+
+/**
+ * The simulated devices' own samples, in emission order. There may be several
+ * (or zero) per vehicle, so this is not a snapshot: it is the device telemetry
+ * stream, with the injected faults intact. The applied faults ride along under
+ * `metadata.faults` so a downstream consumer can tell an injected fault from a
+ * real one while testing against it.
+ */
+function buildFaultedPayload(samples: VehicleDTO[], vehicles: Vehicle[]): SyncVehicle[] {
+  const sourceMetadata = new Map<string, Record<string, unknown>>();
+  for (const v of vehicles) {
+    if (v.sourceMetadata !== undefined) sourceMetadata.set(v.id, v.sourceMetadata);
+  }
+  return samples.map((s) => {
+    const source = sourceMetadata.get(s.id);
+    const metadata =
+      source !== undefined || s.faults !== undefined
+        ? { ...(source ?? {}), ...(s.faults !== undefined ? { faults: s.faults } : {}) }
+        : undefined;
+    return {
+      id: s.id,
+      name: s.name,
+      type: s.type,
+      latitude: s.position[0],
+      longitude: s.position[1],
+      speed: s.speed,
+      heading: s.heading,
+      ...(s.timestamp !== undefined ? { timestamp: s.timestamp } : {}),
+      ...(metadata !== undefined ? { metadata } : {}),
+    };
+  });
+}
 
 /**
  * Manages adapter integration: fetching vehicles from external adapter
@@ -113,8 +160,20 @@ export class AdapterSyncManager {
    * failures back off exponentially (with jitter, capped at config.maxSyncBackoffMs)
    * instead of hammering an unhealthy adapter at the fixed cadence. The delay
    * resets to `intervalMs` on the first successful sync.
+   *
+   * @param getFaultedTelemetry - Optional device-fault egress. When it returns
+   * an array, THAT is pushed: the simulated devices' own samples in emission
+   * order, so duplicates and reordering reach the downstream sinks instead of
+   * being coalesced into one position per vehicle. An empty array means every
+   * device was silent this window (dead battery, withheld sample) and nothing
+   * is pushed at all. Returning `null` — or omitting the callback — keeps the
+   * original "snapshot of current true positions" behavior.
    */
-  startLocationUpdates(intervalMs: number, getVehicles: () => IterableIterator<Vehicle>): void {
+  startLocationUpdates(
+    intervalMs: number,
+    getVehicles: () => IterableIterator<Vehicle>,
+    getFaultedTelemetry?: () => VehicleDTO[] | null
+  ): void {
     this.stopLocationUpdates();
     const session = this.syncSession;
     // Consecutive-failure counter scoped to this session so a stale sync
@@ -124,6 +183,12 @@ export class AdapterSyncManager {
 
     const syncOnce = async (): Promise<void> => {
       const vehicles = Array.from(getVehicles());
+      const faulted = getFaultedTelemetry?.() ?? null;
+      // Every device silent this window: emitting nothing is the correct
+      // behavior, not an error, so skip the push entirely.
+      if (faulted !== null && faulted.length === 0) return;
+      const payload =
+        faulted !== null ? buildFaultedPayload(faulted, vehicles) : buildSnapshotPayload(vehicles);
       // The periodic sync runs outside any HTTP request, so generate a fresh
       // correlation id per push cycle and forward it as x-request-id so the
       // adapter can thread it into its telemetry envelope.
@@ -132,17 +197,7 @@ export class AdapterSyncManager {
       try {
         await this.adapter.sync(
           {
-            vehicles: vehicles.map((v) => ({
-              id: v.id,
-              name: v.name,
-              type: v.type,
-              latitude: v.position[0],
-              longitude: v.position[1],
-              speed: v.speed, // km/h
-              heading: v.bearing, // degrees
-              // Carry source-provided metadata opaquely back to the adapter/sinks.
-              ...(v.sourceMetadata !== undefined ? { metadata: v.sourceMetadata } : {}),
-            })),
+            vehicles: payload,
             timestamp: Date.now(),
           },
           correlationId
