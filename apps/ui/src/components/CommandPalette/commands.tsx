@@ -17,6 +17,7 @@ import {
   Gear,
   GeofenceIcon,
   HeatZone,
+  JobIcon,
   Pause,
   Play,
   Record,
@@ -96,6 +97,15 @@ export interface CommandDeps {
   onDispatch: () => Promise<void>;
   onRetryFailedDispatches: () => void;
 
+  /**
+   * Job board. `jobPlacementActive` flips the entry between starting and
+   * abandoning a placement, so the palette never offers a second "New job"
+   * while one is half-placed.
+   */
+  jobPlacementActive: boolean;
+  onStartJob: () => void;
+  onCancelJobPlacement: () => void;
+
   /** Monitor panel. */
   onCreateRandomIncident: () => Promise<void>;
   onStartGeofenceDrawing: () => void;
@@ -138,6 +148,9 @@ export function buildCommands(deps: CommandDeps): PaletteAction[] {
     onExitDispatchMode,
     onDispatch,
     onRetryFailedDispatches,
+    jobPlacementActive,
+    onStartJob,
+    onCancelJobPlacement,
     onCreateRandomIncident,
     onStartGeofenceDrawing,
     heatzones,
@@ -317,6 +330,27 @@ export function buildCommands(deps: CommandDeps): PaletteAction[] {
       run: onRetryFailedDispatches,
     });
   }
+
+  // ── Job board ──────────────────────────────────────────────────────
+  actions.push(
+    jobPlacementActive
+      ? {
+          id: "job-cancel-placement",
+          label: "Cancel job placement",
+          keywords: "abort stop pickup dropoff",
+          hint: "Jobs",
+          icon: <JobIcon />,
+          run: onCancelJobPlacement,
+        }
+      : {
+          id: "job-new",
+          label: "New job",
+          keywords: "trip order pickup dropoff dispatch delivery",
+          hint: "Jobs",
+          icon: <JobIcon />,
+          run: onStartJob,
+        }
+  );
 
   // ── Monitor panel actions ──────────────────────────────────────────
   actions.push(

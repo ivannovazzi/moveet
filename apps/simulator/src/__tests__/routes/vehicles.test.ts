@@ -27,6 +27,7 @@ vi.mock("../../middleware/rateLimiter", () => ({
 
 function createMockContext(): RouteContext {
   return {
+    jobManager: {} as RouteContext["jobManager"],
     network: {
       getBoundingBox: vi.fn().mockReturnValue({ minLat: -2, maxLat: 0, minLon: 36, maxLon: 38 }),
       findNearestNode: vi.fn().mockReturnValue({

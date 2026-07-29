@@ -84,6 +84,7 @@ export interface DockProps {
   onUnassignVehicle: (fleetId: string, vehicleId: string) => Promise<void>;
   fleetsError?: string | null;
   dispatch: DispatchFlow;
+  jobs: ComponentProps<typeof FleetPanel>["jobs"];
 
   // Monitor
   incidents: ComponentProps<typeof Incidents>;
@@ -140,6 +141,7 @@ export default function Dock({
   onUnassignVehicle,
   fleetsError,
   dispatch,
+  jobs,
   incidents,
   geofences,
   analytics,
@@ -220,6 +222,7 @@ export default function Dock({
             onUnassignVehicle={onUnassignVehicle}
             fleetsError={fleetsError}
             dispatch={dispatch}
+            jobs={jobs}
           />
         )}
         {openCluster === "tempo" && (
@@ -258,7 +261,13 @@ export default function Dock({
             icon={<CarIcon />}
             label="Fleet"
             active={isOpen("fleet-dispatch")}
-            badge={countBadge(dispatchCount, "accent")}
+            // An SLA breach is the loudest thing the Fleet cluster can be
+            // holding, so it outranks the (informational) dispatch selection count.
+            badge={
+              jobs.counts.breached > 0
+                ? countBadge(jobs.counts.breached, "err")
+                : countBadge(dispatchCount, "accent")
+            }
             aria-label="Fleet & Dispatch"
             onClick={() => toggle("fleet-dispatch")}
           />

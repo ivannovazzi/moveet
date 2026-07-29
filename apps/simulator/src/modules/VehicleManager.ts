@@ -340,6 +340,14 @@ export class VehicleManager extends EventEmitter {
     return this.routeManager.findAndSetWaypointRoutes(vehicleId, waypoints);
   }
 
+  /** Non-mutating routing probe used for job-assignment scoring. */
+  public async estimateTo(
+    vehicleId: string,
+    destination: [number, number]
+  ): Promise<{ etaSeconds: number; distanceKm: number } | null> {
+    return this.routeManager.estimateTo(vehicleId, destination);
+  }
+
   // ─── Fleet assignment ─────────────────────────────────────────────
 
   public assignVehicleToFleet(vehicleId: string, fleetId: string): boolean {

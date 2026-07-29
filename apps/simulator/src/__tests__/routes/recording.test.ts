@@ -53,6 +53,7 @@ vi.mock("fs", async (importOriginal) => {
 function createMockContext(withStateStore = false): RouteContext {
   const ctx: RouteContext = {
     network: {} as RouteContext["network"],
+    jobManager: {} as RouteContext["jobManager"],
     vehicleManager: {} as RouteContext["vehicleManager"],
     fleetManager: {} as RouteContext["fleetManager"],
     incidentManager: {} as RouteContext["incidentManager"],

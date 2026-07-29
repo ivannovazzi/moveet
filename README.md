@@ -45,6 +45,7 @@ A real-time vehicle fleet simulator that runs vehicles on actual road networks w
 | 🎬 **Recording & replay**    | NDJSON session recording; replay with pause, seek, and 1×/2×/4× speed controls and interpolated progress bar                                                                                                                  |
 | 🚘 **Breadcrumb trails**     | Per-vehicle position history rendered as fading path overlays on the map                                                                                                                                                      |
 | 🚦 **Fleet management**      | Group vehicles into named, colour-coded fleets; assign/unassign at runtime                                                                                                                                                    |
+| 📦 **Job dispatch lifecycle** | Pickup/dropoff jobs assigned by nearest / best-ETA / named vehicle, driven through the full status lifecycle with per-leg ETAs and SLA-breach tracking; placed with two map clicks                                            |
 | 🔍 **POI + road search**     | Typeahead combining road names and points of interest; dispatches selected vehicles to result                                                                                                                                 |
 | 🖥 **Operator UI**           | Icon-rail sidebar (Vehicles · Fleets · Incidents · Geofences · Recordings · Visibility · Speed · Adapter) + bottom dock with live and replay controls                                                                         |
 | 🔌 **Adapter plugins**       | Hot-swappable source and sink plugins; configure via env vars or REST API at runtime                                                                                                                                          |
@@ -127,6 +128,7 @@ flowchart LR
     SC --> RP[ReplayManager]
     SC --> IM[IncidentManager<br/>rerouting]
     SC --> FM[FleetManager]
+    VM --> JM[JobManager<br/>assignment · lifecycle · SLA]
     SC --> GF[GeoFenceManager<br/>enter / exit events]
     SC --> TM[TrafficManager<br/>BPR · time-of-day]
     SC --> WS[WebSocketBroadcaster<br/>buffer + flush]
@@ -224,6 +226,22 @@ Regions are defined in `regions.json` (covers major cities globally). Pass `--bb
 | `POST`   | `/fleets/:id/assign`   | Assign vehicles to a fleet     |
 | `POST`   | `/fleets/:id/unassign` | Unassign vehicles from a fleet |
 
+### Jobs
+
+Pickup/dropoff work orders. Creating a job also assigns it: the simulator picks a
+free vehicle (`nearest`, `best_eta`, or a named one), routes it through both
+stops, and advances the job through `pending → assigned → en_route → on_scene →
+transporting → complete` off the vehicle's own routing events, tracking ETA and
+SLA breach along the way.
+
+| Method   | Path                 | Description                                       |
+| -------- | -------------------- | ------------------------------------------------- |
+| `GET`    | `/jobs`              | List every job on the board                       |
+| `POST`   | `/jobs`              | Create a job and assign it                        |
+| `POST`   | `/jobs/:id/assign`   | Re-assign a job that has not been picked up yet   |
+| `POST`   | `/jobs/:id/cancel`   | Cancel a live job and release its vehicle         |
+| `DELETE` | `/jobs/:id`          | Remove a finished job from the board              |
+
 ### Incidents
 
 | Method   | Path                | Description                             |
@@ -285,6 +303,10 @@ Connect to `ws://localhost:5010`. On connect the server sends a `status` and `op
 | `fleet:created`    | server → client | New fleet                                                 |
 | `fleet:deleted`    | server → client | Fleet removed                                             |
 | `fleet:assigned`   | server → client | Vehicles assigned to fleet                                |
+| `job:created`      | server → client | New job, queued                                           |
+| `job:updated`      | server → client | Job lifecycle transition (assignment, status, SLA flag)    |
+| `job:sla-breach`   | server → client | Job passed its SLA deadline unfinished                    |
+| `job:deleted`      | server → client | Job removed from the board                                |
 | `incident:created` | server → client | New incident + affected vehicles                          |
 | `incident:cleared` | server → client | Incident resolved                                         |
 | `vehicle:rerouted` | server → client | Vehicle rerouted around incident                          |

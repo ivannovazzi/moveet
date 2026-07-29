@@ -57,6 +57,7 @@ vi.mock("./adapterClient", () => ({
 // Imported after the mocks so the hoisted factories are in place.
 import Dock, { type DockProps } from "@/Dock/Dock";
 import type { DispatchFlow } from "@/hooks/useDispatchFlow";
+import type { JobsPanelProps } from "@/Controls/JobsPanel";
 import { DispatchState } from "@/hooks/useDispatchState";
 import { createStatus } from "@/test/mocks/types";
 import type { Modifiers } from "@/types";
@@ -107,6 +108,16 @@ function dockProps(): DockProps {
       dispatchState: DispatchState.BROWSE,
       selectedForDispatch: [],
     } as unknown as DispatchFlow,
+    // Only `counts` is read by the dock bar itself (the Fleet badge); the Fleet
+    // panel — and so the job board — is never opened in these tests.
+    jobs: {
+      jobs: [],
+      counts: { total: 0, live: 0, queued: 0, breached: 0 },
+      draft: { active: false } as unknown as JobsPanelProps["draft"],
+      onCancelJob: async () => {},
+      onDeleteJob: async () => {},
+      error: null,
+    },
 
     incidents: {
       incidents: [],

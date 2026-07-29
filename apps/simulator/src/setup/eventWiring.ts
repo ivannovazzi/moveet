@@ -1,6 +1,7 @@
 import type { RoadNetwork } from "../modules/RoadNetwork";
 import type { VehicleManager } from "../modules/VehicleManager";
 import type { FleetManager } from "../modules/FleetManager";
+import type { JobManager } from "../modules/JobManager";
 import type { IncidentManager } from "../modules/IncidentManager";
 import type { RecordingManager } from "../modules/RecordingManager";
 import type { SimulationController } from "../modules/SimulationController";
@@ -27,6 +28,7 @@ export interface EventWiringContext {
   network: RoadNetwork;
   vehicleManager: VehicleManager;
   fleetManager: FleetManager;
+  jobManager: JobManager;
   incidentManager: IncidentManager;
   recordingManager: RecordingManager;
   simulationController: SimulationController;
@@ -60,6 +62,7 @@ export function wireEvents(ctx: EventWiringContext): {
     network,
     vehicleManager,
     fleetManager,
+    jobManager,
     incidentManager,
     recordingManager,
     simulationController,
@@ -113,6 +116,10 @@ export function wireEvents(ctx: EventWiringContext): {
     // Discard the previous vehicle set so the spatial index does not retain
     // stale entries across resets (would otherwise grow unbounded).
     broadcaster.clearVehicles();
+    // A reset rebuilds the vehicle roster, so every job assignment now points at
+    // a vehicle that no longer exists. Clear the board rather than leave jobs
+    // bound to ghosts; the UI refetches /jobs off the same `reset` frame.
+    jobManager.reset();
     broadcaster.broadcast("reset", data);
   });
   simulationController.on("clock", (clockState) => {
@@ -121,6 +128,10 @@ export function wireEvents(ctx: EventWiringContext): {
   fleetManager.on("fleet:created", (data) => broadcaster.broadcast("fleet:created", data));
   fleetManager.on("fleet:deleted", (data) => broadcaster.broadcast("fleet:deleted", data));
   fleetManager.on("fleet:assigned", (data) => broadcaster.broadcast("fleet:assigned", data));
+  jobManager.on("job:created", (data) => broadcaster.broadcast("job:created", data));
+  jobManager.on("job:updated", (data) => broadcaster.broadcast("job:updated", data));
+  jobManager.on("job:sla-breach", (data) => broadcaster.broadcast("job:sla-breach", data));
+  jobManager.on("job:deleted", (data) => broadcaster.broadcast("job:deleted", data));
   incidentManager.on("incident:created", (data) => broadcaster.broadcast("incident:created", data));
   incidentManager.on("incident:cleared", (data) => broadcaster.broadcast("incident:cleared", data));
   vehicleManager.on("vehicle:rerouted", (data) => broadcaster.broadcast("vehicle:rerouted", data));

@@ -61,6 +61,7 @@ function createMockContext(opts: { withStateStore?: boolean } = {}): RouteContex
     } as unknown as RouteContext["vehicleManager"],
     stateStore: stateStore as unknown as RouteContext["stateStore"],
     network: {} as RouteContext["network"],
+    jobManager: {} as RouteContext["jobManager"],
     fleetManager: {} as RouteContext["fleetManager"],
     incidentManager: {} as RouteContext["incidentManager"],
     recordingManager: {} as RouteContext["recordingManager"],

@@ -15,6 +15,11 @@ interface UseMapInteractionsOptions {
   onUnselectVehicle: () => void;
   /** Stable callback from useIncidents. */
   createIncidentAtPosition: (lat: number, lng: number, type: IncidentType) => void;
+  /**
+   * Job placement click handler (`useJobDraft.handleMapClick`). Returns true
+   * when it consumed the click.
+   */
+  onJobPlacementClick?: (position: Position) => boolean;
 }
 
 /**
@@ -30,6 +35,7 @@ export function useMapInteractions({
   selectedVehicleId,
   onUnselectVehicle,
   createIncidentAtPosition,
+  onJobPlacementClick,
 }: UseMapInteractionsOptions) {
   const [onContextClick, contextMenuXY, closeContextMenu] = useContextMenu();
   const [selectedItem, setSelectedItem] = useState<Road | POI | null>(null);
@@ -51,6 +57,10 @@ export function useMapInteractions({
 
   const onMapClick = useCallback(
     (_event?: React.MouseEvent, position?: Position) => {
+      // Job placement is modal and wins: while it's on, the operator is
+      // answering "where does this job start/end", not selecting anything.
+      if (position && onJobPlacementClick?.(position)) return;
+
       if (
         dispatch.dispatchState === DispatchState.ROUTE &&
         position &&
@@ -61,7 +71,7 @@ export function useMapInteractions({
       }
       clearMap();
     },
-    [clearMap, dispatch, vehicles]
+    [clearMap, dispatch, vehicles, onJobPlacementClick]
   );
 
   const assignments = dispatch.assignments;

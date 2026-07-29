@@ -92,6 +92,7 @@ describe("wireEvents — heat-zone time-of-day scaling", () => {
       network,
       vehicleManager,
       fleetManager: new EventEmitter(),
+      jobManager: Object.assign(new EventEmitter(), { reset: vi.fn() }),
       incidentManager: new EventEmitter(),
       recordingManager: Object.assign(new EventEmitter(), {
         captureVehicleSnapshot: vi.fn(),

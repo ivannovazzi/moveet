@@ -217,3 +217,44 @@ export const fleetAssignSchema = z.object({
     message: "vehicleIds array is required",
   }),
 });
+
+// ─── Jobs ───────────────────────────────────────────────────────────
+
+const jobStopSchema = z.object({
+  lat: z
+    .number()
+    .min(-90, "lat must be between -90 and 90")
+    .max(90, "lat must be between -90 and 90"),
+  lng: z
+    .number()
+    .min(-180, "lng must be between -180 and 180")
+    .max(180, "lng must be between -180 and 180"),
+  label: z.string().max(80).optional(),
+});
+
+export const jobStrategyEnum = z.enum(["nearest", "best_eta", "manual"], {
+  message: "strategy must be one of: nearest, best_eta, manual",
+});
+
+export const createJobSchema = z
+  .object({
+    pickup: jobStopSchema,
+    dropoff: jobStopSchema,
+    strategy: jobStrategyEnum.optional(),
+    vehicleId: z.string().min(1).optional(),
+    slaSeconds: z.coerce.number().int().min(1).max(86_400).optional(),
+  })
+  .refine((body) => body.strategy !== "manual" || !!body.vehicleId, {
+    message: "vehicleId is required when strategy is manual",
+    path: ["vehicleId"],
+  });
+
+export const assignJobSchema = z
+  .object({
+    strategy: jobStrategyEnum.optional(),
+    vehicleId: z.string().min(1).optional(),
+  })
+  .refine((body) => body.strategy !== "manual" || !!body.vehicleId, {
+    message: "vehicleId is required when strategy is manual",
+    path: ["vehicleId"],
+  });

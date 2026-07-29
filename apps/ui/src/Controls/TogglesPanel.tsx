@@ -15,6 +15,7 @@ const toggles: { key: keyof Modifiers; label: string }[] = [
   { key: "showTrafficOverlay", label: "Traffic Colours" },
   { key: "showVehicles", label: "Vehicles" },
   { key: "showDensity", label: "Density" },
+  { key: "showJobs", label: "Jobs" },
   { key: "showHeatmap", label: "Heatmap" },
   { key: "showHeatzones", label: "Zones" },
   { key: "showPOIs", label: "POIs" },

@@ -1,6 +1,7 @@
 import type { RoadNetwork } from "../modules/RoadNetwork";
 import type { VehicleManager } from "../modules/VehicleManager";
 import type { FleetManager } from "../modules/FleetManager";
+import type { JobManager } from "../modules/JobManager";
 import type { IncidentManager } from "../modules/IncidentManager";
 import type { RecordingManager } from "../modules/RecordingManager";
 import type { SimulationController } from "../modules/SimulationController";
@@ -16,6 +17,7 @@ export interface RouteContext {
   network: RoadNetwork;
   vehicleManager: VehicleManager;
   fleetManager: FleetManager;
+  jobManager: JobManager;
   incidentManager: IncidentManager;
   recordingManager: RecordingManager;
   simulationController: SimulationController;

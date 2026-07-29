@@ -6,6 +6,7 @@ import { DispatchState } from "@/hooks/useDispatchState";
 import { Button } from "@/components/Inputs";
 import Vehicles from "@/Controls/Vehicles";
 import Fleets from "@/Controls/Fleets";
+import JobsPanel, { type JobsPanelProps } from "@/Controls/JobsPanel";
 import { SuppressPanelHeader } from "@/Controls/PanelPrimitives";
 import {
   Hairline,
@@ -34,9 +35,10 @@ export interface FleetPanelProps {
   onUnassignVehicle: (fleetId: string, vehicleId: string) => Promise<void>;
   fleetsError?: string | null;
   dispatch: DispatchFlow;
+  jobs: JobsPanelProps;
 }
 
-type FleetTab = "list" | "groups" | "dispatch";
+type FleetTab = "list" | "groups" | "dispatch" | "jobs";
 
 /**
  * Summary stats for the panel header's `right` slot (mockup `.p-sub`, hoisted
@@ -48,11 +50,16 @@ function FleetSummary({
   enroute,
   idle,
   alert,
+  jobs,
+  breached,
 }: {
   total: number;
   enroute: number;
   idle: number;
   alert: number;
+  /** Live job count — shown only when there is work on the board. */
+  jobs: number;
+  breached: number;
 }) {
   return (
     <div
@@ -76,6 +83,17 @@ function FleetSummary({
         <span className="flex items-center gap-1 text-status-warn">
           <StatusDot tone="warn" />
           <span className="font-semibold">{alert}</span>
+        </span>
+      )}
+      {jobs > 0 && (
+        <span
+          className={cn(
+            "flex items-center gap-1",
+            breached > 0 ? "text-status-error" : "text-muted-foreground"
+          )}
+          title={breached > 0 ? `${jobs} live jobs, ${breached} past SLA` : `${jobs} live jobs`}
+        >
+          <span className="font-semibold">{jobs}</span> jobs
         </span>
       )}
     </div>
@@ -243,8 +261,9 @@ export default function FleetPanel({
   onUnassignVehicle,
   fleetsError,
   dispatch,
+  jobs,
 }: FleetPanelProps) {
-  const [browseTab, setBrowseTab] = useState<"list" | "groups">("list");
+  const [browseTab, setBrowseTab] = useState<"list" | "groups" | "jobs">("list");
 
   const inDispatch = dispatch.dispatchMode;
   // Dispatch mode wins over the local browse tab so the segment reflects the
@@ -268,6 +287,7 @@ export default function FleetPanel({
     { value: "list", label: "List" },
     { value: "groups", label: "Groups", count: fleets.length },
     { value: "dispatch", label: "Dispatch" },
+    { value: "jobs", label: "Jobs", count: jobs.counts.live },
   ];
 
   const handleTabChange = (value: FleetTab) => {
@@ -276,10 +296,14 @@ export default function FleetPanel({
       return;
     }
     if (inDispatch) dispatch.toggleDispatchMode();
+    // Leaving the Jobs tab abandons a half-placed job rather than leaving the
+    // map in a picking mode with no visible affordance.
+    if (activeTab === "jobs" && value !== "jobs" && jobs.draft.active) jobs.draft.cancel();
     setBrowseTab(value);
   };
 
   const showGroups = activeTab === "groups";
+  const showJobs = activeTab === "jobs";
 
   return (
     <>
@@ -292,13 +316,19 @@ export default function FleetPanel({
             enroute={stats.enroute}
             idle={stats.idle}
             alert={stats.alert}
+            jobs={jobs.counts.live}
+            breached={jobs.counts.breached}
           />
         }
       />
       <Hairline />
       <SegTabs tabs={tabs} value={activeTab} onChange={handleTabChange} ariaLabel="Fleet views" />
 
-      {showGroups ? (
+      {showJobs ? (
+        <PanelScroll>
+          <JobsPanel {...jobs} />
+        </PanelScroll>
+      ) : showGroups ? (
         <PanelScroll>
           <SuppressPanelHeader>
             <Fleets

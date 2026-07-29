@@ -7,6 +7,7 @@ import type { RouteContext } from "../../routes/types";
 function createMockContext(): RouteContext {
   return {
     network: {} as RouteContext["network"],
+    jobManager: {} as RouteContext["jobManager"],
     vehicleManager: {} as RouteContext["vehicleManager"],
     fleetManager: {
       getFleets: vi.fn().mockReturnValue([

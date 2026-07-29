@@ -34,6 +34,7 @@ import {
   Hexagon as HexagonBase,
   ClipboardList as ClipboardListBase,
   Clock as ClockBase,
+  Package as PackageBase,
   X as XBase,
   Pencil as PencilBase,
   Sparkles as SparklesBase,
@@ -92,6 +93,7 @@ export const ChartIcon = aliasIcon(ChartLineBase);
 export const GeofenceIcon = aliasIcon(HexagonBase);
 export const ScenarioIcon = aliasIcon(ClipboardListBase);
 export const ClockIcon = aliasIcon(ClockBase);
+export const JobIcon = aliasIcon(PackageBase);
 export const CloseIcon = aliasIcon(XBase);
 export const DrawIcon = aliasIcon(PencilBase);
 export const SeedIcon = aliasIcon(SparklesBase);

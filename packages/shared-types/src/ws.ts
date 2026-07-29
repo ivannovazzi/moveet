@@ -15,6 +15,7 @@ import type {
   ClockState,
   AnalyticsSnapshot,
   GeoFenceEvent,
+  JobDTO,
   Route,
   Waypoint,
   SubscribeFilter,
@@ -166,6 +167,10 @@ export interface FleetAssignedPayload {
   vehicleIds: string[];
 }
 
+export interface JobDeletedPayload {
+  id: string;
+}
+
 // ─── Message map: the canonical contract ────────────────────────────
 // Maps each WS message `type` to the `data` payload it carries. The
 // no-data control frames (`connect`/`disconnect`) are intentionally
@@ -182,6 +187,12 @@ export interface WsMessageMap {
   "fleet:created": Fleet;
   "fleet:deleted": FleetDeletedPayload;
   "fleet:assigned": FleetAssignedPayload;
+  "job:created": JobDTO;
+  /** Any lifecycle transition — assignment, status change, SLA flag flip. */
+  "job:updated": JobDTO;
+  /** Fires once, the moment a job passes its SLA deadline unfinished. */
+  "job:sla-breach": JobDTO;
+  "job:deleted": JobDeletedPayload;
   "waypoint:reached": WaypointReachedPayload;
   "route:completed": RouteCompletedPayload;
   "incident:created": IncidentDTO;
@@ -235,6 +246,10 @@ const DATA_MESSAGE_TYPES: ReadonlySet<string> = new Set<WsDataMessageType>([
   "fleet:created",
   "fleet:deleted",
   "fleet:assigned",
+  "job:created",
+  "job:updated",
+  "job:sla-breach",
+  "job:deleted",
   "waypoint:reached",
   "route:completed",
   "incident:created",

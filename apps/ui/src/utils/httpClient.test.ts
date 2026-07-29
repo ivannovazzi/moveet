@@ -148,4 +148,65 @@ describe("HttpClient", () => {
       expect(result.error).toBe("Connection refused");
     });
   });
+  describe("error bodies", () => {
+    it("surfaces the server's error message over the status line", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: () => Promise.resolve({ error: "Job JOB-0001 has already been picked up" }),
+      });
+
+      const result = await client.post("/jobs/j1/assign", { vehicleId: "v2" });
+
+      expect(result.error).toBe("Job JOB-0001 has already been picked up");
+    });
+
+    it("appends validation details to the message", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: () =>
+          Promise.resolve({
+            error: "Validation failed",
+            details: ["pickup is outside the road network bounds"],
+          }),
+      });
+
+      const result = await client.post("/jobs", {});
+
+      expect(result.error).toBe("Validation failed: pickup is outside the road network bounds");
+    });
+
+    it("falls back to the status line when the body carries no message", async () => {
+      mockFetch.mockResolvedValue({ ok: false, status: 503, json: () => Promise.resolve({}) });
+
+      const result = await client.get("/jobs");
+
+      expect(result.error).toBe("GET /jobs failed with status 503");
+    });
+
+    it("falls back to the status line when the body is not JSON", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 502,
+        json: () => Promise.reject(new Error("Unexpected token <")),
+      });
+
+      const result = await client.delete("/jobs/j1");
+
+      expect(result.error).toBe("DELETE /jobs/j1 failed with status 502");
+    });
+
+    it("reports the server's message on a rejected PATCH", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: () => Promise.resolve({ error: "intensity must be between 0 and 1" }),
+      });
+
+      const result = await client.patch("/heatzones/hz-1", { intensity: 5 });
+
+      expect(result.error).toBe("intensity must be between 0 and 1");
+    });
+  });
 });

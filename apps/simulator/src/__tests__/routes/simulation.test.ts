@@ -16,6 +16,7 @@ vi.mock("../../utils/logger", () => ({
 function createMockContext(): RouteContext {
   return {
     network: {} as RouteContext["network"],
+    jobManager: {} as RouteContext["jobManager"],
     vehicleManager: {
       getOptions: vi.fn().mockReturnValue({ minSpeed: 20, maxSpeed: 60 }),
       getTrafficSnapshot: vi.fn().mockReturnValue({ edges: {} }),

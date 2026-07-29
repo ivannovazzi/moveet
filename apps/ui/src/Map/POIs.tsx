@@ -59,9 +59,15 @@ const FADE_DURATION_MS = 500;
 interface POIMarkerProps {
   visible: boolean;
   onClick: (poi: POI) => void;
+  /**
+   * Whether POI markers respond to map clicks. Defaults to true. Set false when
+   * another interaction owns map clicks so a POI must NOT pick (which would
+   * return true from onClick and suppress DeckGL's map-level onClick).
+   */
+  selectable?: boolean;
 }
 
-export default function POIs({ visible, onClick }: POIMarkerProps) {
+export default function POIs({ visible, onClick, selectable = true }: POIMarkerProps) {
   const { pois } = usePois();
   const { getZoom } = useMapContext();
   const zoom = getZoom();
@@ -99,11 +105,13 @@ export default function POIs({ visible, onClick }: POIMarkerProps) {
         },
         iconAtlas,
         iconMapping,
-        pickable: true,
-        autoHighlight: true,
+        // Only pickable in browse mode: while another interaction owns map
+        // clicks, a POI pick would return true and swallow the map-level click.
+        pickable: selectable,
+        autoHighlight: selectable,
         highlightColor: [255, 255, 255, 80],
         onClick: (info) => {
-          if (info.object) {
+          if (selectable && info.object) {
             onClick(info.object);
             return true; // stop event propagation
           }
@@ -156,7 +164,7 @@ export default function POIs({ visible, onClick }: POIMarkerProps) {
         pickable: false,
       }),
     ],
-    [visiblePois, showLabels, onClick, settledZoom]
+    [visiblePois, showLabels, onClick, selectable, settledZoom]
   );
 
   useRegisterLayers("pois", layers, 45);
