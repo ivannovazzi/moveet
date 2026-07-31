@@ -69,6 +69,21 @@ describe("envSchema / parseEnv", () => {
     );
   });
 
+  it("defaults, clamps and never rejects PATHFINDING_LANDMARKS", () => {
+    // The pathfinding worker cannot import this module (its esbuild bundle must
+    // stay free of zod/dotenv/pino), so the schema resolves the value and
+    // PathfindingPool ships the number in workerData. Out-of-range input is
+    // clamped rather than rejected: a bad landmark count must never stop the
+    // simulator from booting.
+    expect(parseEnv({}).PATHFINDING_LANDMARKS).toBe(4);
+    expect(parseEnv(validEnv({ PATHFINDING_LANDMARKS: "" })).PATHFINDING_LANDMARKS).toBe(4);
+    expect(parseEnv(validEnv({ PATHFINDING_LANDMARKS: "0" })).PATHFINDING_LANDMARKS).toBe(0);
+    expect(parseEnv(validEnv({ PATHFINDING_LANDMARKS: "8" })).PATHFINDING_LANDMARKS).toBe(8);
+    expect(parseEnv(validEnv({ PATHFINDING_LANDMARKS: "1000" })).PATHFINDING_LANDMARKS).toBe(32);
+    expect(parseEnv(validEnv({ PATHFINDING_LANDMARKS: "-3" })).PATHFINDING_LANDMARKS).toBe(4);
+    expect(parseEnv(validEnv({ PATHFINDING_LANDMARKS: "banana" })).PATHFINDING_LANDMARKS).toBe(4);
+  });
+
   it("coerces string env values to numbers", () => {
     const cfg = parseEnv(validEnv({ PORT: "3000", VEHICLE_COUNT: "10" }));
     expect(cfg.PORT).toBe(3000);
@@ -191,6 +206,20 @@ describe("logConfig", () => {
     expect(context).toHaveProperty("config");
 
     consoleSpy.mockRestore();
+  });
+
+  it("includes the pathfinding landmark count in the dump", () => {
+    // The whole point of routing PATHFINDING_LANDMARKS through the schema: it
+    // is now visible in the startup config dump like every other tunable.
+    vi.mocked(logger.info).mockClear();
+
+    logConfig();
+
+    const [context] = vi.mocked(logger.info).mock.calls[0] as [
+      { config: { pathfindingLandmarks: number } },
+    ];
+    expect(context.config).toHaveProperty("pathfindingLandmarks");
+    expect(typeof context.config.pathfindingLandmarks).toBe("number");
   });
 
   it("redacts the adapter URL", () => {

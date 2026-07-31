@@ -19,9 +19,9 @@ import { computeBaseTravelTime } from "../pathfinding/cost";
 import {
   type AltIndexed,
   type LandmarkIndex,
+  DEFAULT_LANDMARK_COUNT,
   buildCsrPair,
   buildLandmarkIndex,
-  resolveLandmarkCount,
   sortedNodeIds,
 } from "../pathfinding/landmarks";
 import {
@@ -58,15 +58,27 @@ export interface BuiltNetwork {
   lineStringFeatures: FeatureCollection;
   /**
    * Precomputed ALT landmark distance tables, or `null` when landmarks are
-   * disabled (`PATHFINDING_LANDMARKS=0`) or the graph is empty. Every `Node` in
-   * `nodes` is stamped with its `altIndex` into these tables.
+   * disabled (a landmark count of 0, i.e. `PATHFINDING_LANDMARKS=0`) or the
+   * graph is empty. Every `Node` in `nodes` is stamped with its `altIndex` into
+   * these tables.
    */
   landmarks: LandmarkIndex | null;
 }
 
 const COORD_SNAP_EPSILON = 1e-7;
 
+export interface GraphBuilderOptions {
+  /**
+   * Number of ALT landmarks to precompute; `0` disables the preprocessing and
+   * leaves `BuiltNetwork.landmarks` null. Passed in rather than read from the
+   * environment: `PATHFINDING_LANDMARKS` is parsed once by the zod schema in
+   * `utils/config.ts` and threaded down from `RoadNetwork`.
+   */
+  landmarkCount?: number;
+}
+
 export class GraphBuilder {
+  private readonly landmarkCount: number;
   private nodes: Map<string, Node> = new Map();
   private edges: Map<string, Edge> = new Map();
   private roads: Map<string, Road> = new Map();
@@ -74,6 +86,10 @@ export class GraphBuilder {
   private connectedEdges: Map<string, Edge[]> = new Map();
   private turnRestrictions: Map<string, Set<string>> = new Map();
   private turnRestrictionTypes: Map<string, "prohibitory" | "mandatory"> = new Map();
+
+  constructor(options?: GraphBuilderOptions) {
+    this.landmarkCount = options?.landmarkCount ?? DEFAULT_LANDMARK_COUNT;
+  }
 
   private snapCoord(val: number): string {
     return (Math.round(val / COORD_SNAP_EPSILON) * COORD_SNAP_EPSILON).toFixed(7);
@@ -143,7 +159,7 @@ export class GraphBuilder {
    * excludes them, which tightens the bound without threatening admissibility.
    */
   private buildLandmarks(): LandmarkIndex | null {
-    const requested = resolveLandmarkCount();
+    const requested = this.landmarkCount;
     const nodeCount = this.nodes.size;
     if (requested <= 0 || nodeCount === 0) return null;
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import fs from "fs";
 import path from "path";
 import type { FeatureCollection } from "geojson";
@@ -23,33 +23,28 @@ import {
   findRoute as workerFindRoute,
   landmarkHeuristic,
 } from "../../workers/pathfinding-worker";
+import { parseEnv } from "../../utils/config";
 
 /**
  * ALT (A*, Landmarks, Triangle inequality) heuristic.
  *
- * The load-bearing test here is ROUTE EQUIVALENCE: with `PATHFINDING_LANDMARKS=0`
- * the engine uses exactly the pre-ALT haversine heuristic, so comparing an
- * `L=0` run against an `L=N` run over every node pair is a direct assertion
- * that the optimisation did not change any route. Everything else (admissibility,
- * expansion counts) supports that claim.
+ * The load-bearing test here is ROUTE EQUIVALENCE: with a landmark count of 0
+ * (`PATHFINDING_LANDMARKS=0`) the engine uses exactly the pre-ALT haversine
+ * heuristic, so comparing an `L=0` run against an `L=N` run over every node pair
+ * is a direct assertion that the optimisation did not change any route.
+ * Everything else (admissibility, expansion counts) supports that claim.
+ *
+ * The count is passed explicitly rather than smuggled through `process.env`:
+ * `PATHFINDING_LANDMARKS` is parsed once by the zod schema in `utils/config.ts`
+ * and threaded down through `RoadNetwork` → `GraphBuilder` / `PathfindingPool` →
+ * `workerData`, so that is the seam these tests drive.
  */
 
 const fixture = path.join(__dirname, "..", "fixtures", "test-network.geojson");
 const integrationFixture = path.join(__dirname, "..", "fixtures", "integration-network.geojson");
 
-/** Restore whatever the ambient env had, since these tests toggle it. */
-const originalEnv = process.env.PATHFINDING_LANDMARKS;
-beforeEach(() => {
-  delete process.env.PATHFINDING_LANDMARKS;
-});
-afterEach(() => {
-  if (originalEnv === undefined) delete process.env.PATHFINDING_LANDMARKS;
-  else process.env.PATHFINDING_LANDMARKS = originalEnv;
-});
-
-function buildNetwork(landmarks: string, geojsonPath = fixture): RoadNetwork {
-  process.env.PATHFINDING_LANDMARKS = landmarks;
-  return new RoadNetwork(geojsonPath);
+function buildNetwork(landmarkCount: number, geojsonPath = fixture): RoadNetwork {
+  return new RoadNetwork(geojsonPath, { landmarkCount });
 }
 
 /** All node ids of a network, in a stable order. */
@@ -92,9 +87,15 @@ describe("resolveLandmarkCount", () => {
     expect(resolveLandmarkCount("-3")).toBe(DEFAULT_LANDMARK_COUNT);
   });
 
-  it("reads process.env by default", () => {
-    process.env.PATHFINDING_LANDMARKS = "7";
-    expect(resolveLandmarkCount()).toBe(7);
+  it("is the exact clamp the env schema applies", () => {
+    // config.ts owns the only read of process.env.PATHFINDING_LANDMARKS and
+    // delegates the range to this function, so the two can never diverge.
+    expect(parseEnv({}).PATHFINDING_LANDMARKS).toBe(resolveLandmarkCount(undefined));
+    for (const raw of ["0", "6", "1000", "banana", "-3", "   "]) {
+      expect(parseEnv({ PATHFINDING_LANDMARKS: raw }).PATHFINDING_LANDMARKS).toBe(
+        resolveLandmarkCount(raw)
+      );
+    }
   });
 });
 
@@ -260,12 +261,11 @@ describe("AltHeuristic", () => {
 describe("the landmark bound never overestimates the true A* cost", () => {
   for (const geojsonPath of [fixture, integrationFixture]) {
     it(`holds for every reachable node pair in ${path.basename(geojsonPath)}`, () => {
-      process.env.PATHFINDING_LANDMARKS = "4";
       const data = JSON.parse(fs.readFileSync(geojsonPath, "utf8")) as FeatureCollection;
-      const built = new GraphBuilder().build(data);
+      const built = new GraphBuilder({ landmarkCount: 4 }).build(data);
       expect(built.landmarks).not.toBeNull();
 
-      const network = buildNetwork("4", geojsonPath);
+      const network = buildNetwork(4, geojsonPath);
       const ids = nodeIdsOf(network);
       const alt = new AltHeuristic(built.landmarks!);
 
@@ -305,7 +305,7 @@ describe("main-thread routes are byte-identical with and without landmarks", () 
     const name = path.basename(geojsonPath);
 
     it(`matches for every node pair in ${name}`, () => {
-      const baseline = buildNetwork("0", geojsonPath);
+      const baseline = buildNetwork(0, geojsonPath);
       const ids = nodeIdsOf(baseline);
       const before = new Map<string, string>();
       for (const startId of ids) {
@@ -319,7 +319,7 @@ describe("main-thread routes are byte-identical with and without landmarks", () 
       }
       expect(before.size).toBeGreaterThan(0);
 
-      for (const count of ["1", "4", "16"]) {
+      for (const count of [1, 4, 16]) {
         const withAlt = buildNetwork(count, geojsonPath);
         expect(nodeIdsOf(withAlt)).toEqual(ids);
         for (const [key, expected] of before) {
@@ -338,7 +338,7 @@ describe("main-thread routes are byte-identical with and without landmarks", () 
       const scenarios = ["slowdown", "closure"] as const;
 
       for (const scenario of scenarios) {
-        const baseline = buildNetwork("0", geojsonPath);
+        const baseline = buildNetwork(0, geojsonPath);
         const ids = nodeIdsOf(baseline);
         // @ts-expect-error — private edge map, as the other RoadNetwork tests do.
         const edgeIds = [...(baseline.edges as Map<string, Edge>).keys()].sort();
@@ -359,7 +359,7 @@ describe("main-thread routes are byte-identical with and without landmarks", () 
           }
         }
 
-        const withAlt = buildNetwork("4", geojsonPath);
+        const withAlt = buildNetwork(4, geojsonPath);
         withAlt.setIncidentEdges(new Map(incidents));
         for (const [key, expected] of before) {
           const [startId, endId] = key.split("->");
@@ -378,9 +378,11 @@ describe("main-thread routes are byte-identical with and without landmarks", () 
   }
 
   it("PATHFINDING_LANDMARKS=0 really does disable preprocessing", () => {
-    process.env.PATHFINDING_LANDMARKS = "0";
     const data = JSON.parse(fs.readFileSync(fixture, "utf8")) as FeatureCollection;
-    expect(new GraphBuilder().build(data).landmarks).toBeNull();
+    // The env value travels as a number: schema → RoadNetwork → GraphBuilder.
+    const landmarkCount = parseEnv({ PATHFINDING_LANDMARKS: "0" }).PATHFINDING_LANDMARKS;
+    expect(landmarkCount).toBe(0);
+    expect(new GraphBuilder({ landmarkCount }).build(data).landmarks).toBeNull();
   });
 });
 
@@ -389,9 +391,9 @@ describe("main-thread routes are byte-identical with and without landmarks", () 
 describe("worker routes are byte-identical with and without landmarks", () => {
   it("matches for every node pair in the fixture", () => {
     // buildGraph installs the module-level heuristic, so these two passes must
-    // stay sequential — build, exhaust, rebuild.
-    process.env.PATHFINDING_LANDMARKS = "0";
-    const plainNodes = buildGraph(fixture);
+    // stay sequential — build, exhaust, rebuild. The count is the one the pool
+    // puts in `workerData`.
+    const plainNodes = buildGraph(fixture, 0);
     expect(landmarkHeuristic()).toBeNull();
 
     const ids = [...plainNodes.keys()].sort();
@@ -408,8 +410,7 @@ describe("worker routes are byte-identical with and without landmarks", () => {
     }
     expect(before.size).toBeGreaterThan(0);
 
-    process.env.PATHFINDING_LANDMARKS = "4";
-    const altNodes = buildGraph(fixture);
+    const altNodes = buildGraph(fixture, 4);
     expect(landmarkHeuristic()).not.toBeNull();
     expect([...altNodes.keys()].sort()).toEqual(ids);
 
@@ -426,10 +427,9 @@ describe("worker routes are byte-identical with and without landmarks", () => {
   it("assigns the same sorted ALT indices as the main-thread GraphBuilder", () => {
     // This is what lets both sides select the same landmarks — and therefore run
     // the identical search — without exchanging any preprocessed data.
-    process.env.PATHFINDING_LANDMARKS = "4";
-    const workerNodes = buildGraph(fixture);
+    const workerNodes = buildGraph(fixture, 4);
     const data = JSON.parse(fs.readFileSync(fixture, "utf8")) as FeatureCollection;
-    const built = new GraphBuilder().build(data);
+    const built = new GraphBuilder({ landmarkCount: 4 }).build(data);
 
     expect([...workerNodes.keys()].sort()).toEqual(sortedNodeIds(built.nodes.keys()));
     for (const [id, workerNode] of workerNodes) {

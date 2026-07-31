@@ -2,6 +2,7 @@ import fs from "fs";
 import type { FeatureCollection } from "geojson";
 import type { Node, Edge, Route, HeatZoneFeature, POI, BoundingBox } from "../types";
 import { HEAT_ZONE_DEFAULTS } from "../constants";
+import { config } from "../utils/config";
 import type { TrafficProfile } from "../utils/trafficProfiles";
 import type { CacheStats } from "../utils/LRUCache";
 import { HeatZoneManager } from "./HeatZoneManager";
@@ -11,6 +12,20 @@ import { SpatialIndex } from "./roadnetwork/SpatialIndex";
 import { PathfindingEngine } from "./roadnetwork/PathfindingEngine";
 import type { Road } from "./roadnetwork/types";
 import EventEmitter from "events";
+
+/** Construction-time knobs for {@link RoadNetwork}. */
+export interface RoadNetworkOptions {
+  /** Route-cache capacity (see {@link PathfindingEngine}). */
+  maxSize?: number;
+  /** Route-cache entry TTL in ms. */
+  ttlMs?: number;
+  /**
+   * ALT landmarks to precompute; `0` disables the preprocessing and restores
+   * the pre-ALT haversine heuristic. Defaults to `config.pathfindingLandmarks`
+   * (the parsed, clamped `PATHFINDING_LANDMARKS`).
+   */
+  landmarkCount?: number;
+}
 
 /**
  * RoadNetwork is a thin facade over four cohesive collaborators (architecture
@@ -59,16 +74,24 @@ export class RoadNetwork extends EventEmitter {
   // Worker-thread pathfinding pool (lazy-initialized)
   private pathfindingPool: PathfindingPool | null = null;
   private geojsonPath: string;
+  /**
+   * ALT landmarks used by both the main-thread graph and every pool worker.
+   * Resolved once here — this is the only place `PATHFINDING_LANDMARKS` (via
+   * the zod schema) is read — and threaded down, because the worker bundle
+   * cannot import the config module.
+   */
+  private landmarkCount: number;
 
-  constructor(geojsonPath: string, cacheOptions?: { maxSize?: number; ttlMs?: number }) {
+  constructor(geojsonPath: string, options?: RoadNetworkOptions) {
     super();
     this.geojsonPath = geojsonPath;
+    this.landmarkCount = options?.landmarkCount ?? config.pathfindingLandmarks;
 
     // Parse the raw GeoJSON into a local — NOT a field — so the only reference
     // is dropped when the constructor returns and the blob can be GC'd.
     const data = JSON.parse(fs.readFileSync(geojsonPath, "utf8")) as FeatureCollection;
 
-    const built = new GraphBuilder().build(data);
+    const built = new GraphBuilder({ landmarkCount: this.landmarkCount }).build(data);
     // `data` is now unreferenced from here on; it is released for GC.
 
     this.nodes = built.nodes;
@@ -92,7 +115,7 @@ export class RoadNetwork extends EventEmitter {
         maxNetworkSpeed: built.maxNetworkSpeed,
         landmarks: built.landmarks,
       },
-      cacheOptions
+      options
     );
   }
 
@@ -281,7 +304,9 @@ export class RoadNetwork extends EventEmitter {
 
     // Lazy-init the pool on first async call
     if (!this.pathfindingPool) {
-      this.pathfindingPool = new PathfindingPool(this.geojsonPath);
+      this.pathfindingPool = new PathfindingPool(this.geojsonPath, {
+        landmarkCount: this.landmarkCount,
+      });
     }
 
     const incidentEdges = this.pathfinding.incidents;

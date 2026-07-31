@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
 import { z } from "zod";
+import { resolveLandmarkCount } from "../modules/pathfinding/landmarks";
 import logger from "./logger";
 
 dotenv.config();
@@ -152,6 +153,26 @@ const envObjectSchema = z.object({
   PATHFIND_COOLDOWN_MS: z.coerce.number().int().min(0).default(3000),
 
   /**
+   * Number of ALT landmarks precomputed for the A* heuristic. `0` disables the
+   * preprocessing entirely and restores the exact pre-ALT haversine heuristic;
+   * blank, malformed and negative values fall back to the default; anything
+   * above the ceiling is clamped rather than rejected, because preprocessing
+   * time and memory are both linear in the count.
+   *
+   * The parse/clamp is `resolveLandmarkCount` from `modules/pathfinding/
+   * landmarks` rather than an inline zod chain so the schema and the pathfinding
+   * code share ONE implementation of the range. The dependency runs config →
+   * landmarks and never the reverse: that module is bundled into the pathfinding
+   * worker (esbuild), which must stay free of zod/dotenv/pino. Workers therefore
+   * receive the already-resolved number through `PathfindingPool`'s
+   * `workerData`, not by re-reading the environment.
+   */
+  PATHFINDING_LANDMARKS: z
+    .string()
+    .optional()
+    .transform((v) => resolveLandmarkCount(v)),
+
+  /**
    * Maximum backoff delay (ms) between adapter sync attempts after
    * consecutive failures. Caps the exponential backoff in
    * AdapterSyncManager so an unhealthy adapter is still retried periodically.
@@ -248,6 +269,7 @@ function buildConfig(env: EnvConfig) {
     wsPubSubChannel: env.WS_PUBSUB_CHANNEL,
     wsGatewayPort: env.WS_GATEWAY_PORT,
     pathfindCooldownMs: env.PATHFIND_COOLDOWN_MS,
+    pathfindingLandmarks: env.PATHFINDING_LANDMARKS,
     maxSyncBackoffMs: env.MAX_SYNC_BACKOFF_MS,
     sectorsN: env.SECTORS_N,
     faultsEnabled: env.FAULTS_ENABLED,
