@@ -126,6 +126,7 @@ mode goes through `useModeGuard`, which asks before discarding in-flight work
 
 - Tailwind v4 utilities + an oklch `@theme` palette in `src/index.css` (dark-only). A small motion scale (`duration-fast|normal|slow`) maps to `--transition-duration-*`; the 700 ms entrance animation is reserved for the one-time `[data-ready]` reveal.
 - A polish token layer in `src/index.css` adds refined easing curves (`--ease-*`), a layered shadow scale with a built-in edge highlight (`shadow-raised|elevated|floating|glow-accent`), whisper-soft surface gradient utilities (`surface-glass|raised|accent`), and curated entrance animations, all under a `prefers-reduced-motion` guard. Applied across panels, the icon rail, floating overlays, and the shadcn input primitives.
+- The map's ground is CSS, not WebGL: deck.gl clears its canvas transparent, so the `map-backdrop` utility on the map surface paints it: a lifted field (`--color-map-ground|lift|edge`), a tiled inline-SVG graticule (32 px hairline grid + a crosshair every 160 px), and a vignette. All static paint, so panning costs nothing extra.
 - `src/styles/tokens.css` holds the few domain color tokens read at runtime by canvas/deck.gl code that can't use Tailwind classes (POI category fills, `--color-vehicle-*`).
 - Components compose classes with `cn()` (`src/lib/utils.ts`); shadcn/ui primitives live in `src/components/ui/`.
 

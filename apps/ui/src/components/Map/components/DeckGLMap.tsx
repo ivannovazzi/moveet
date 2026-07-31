@@ -55,6 +55,12 @@ interface DeckGLMapProps {
   panLocked?: boolean;
 }
 
+// Highways sit a step above minor roads (whose color arrives as `strokeColor`)
+// so the trunk network reads first. Both are pitched to stay legible over the
+// lifted map ground (`map-backdrop` in index.css); the old near-black-era
+// #444 disappeared into it.
+const HIGHWAY_COLOR = "#6d7889";
+
 // Separate road features into regular roads and highways for distinct styling,
 // then cull each group to the current viewport + zoom LOD before binding.
 function useRoadLayers(
@@ -100,7 +106,7 @@ function useRoadLayers(
 
   return useMemo(() => {
     const roadColor = hexToRgba(strokeColor, strokeOpacity);
-    const highwayColor = hexToRgba("#444", strokeOpacity);
+    const highwayColor = hexToRgba(HIGHWAY_COLOR, strokeOpacity);
     // Color/opacity flows through getColor with an updateTriggers key so only
     // the color attribute re-evaluates. Geometry re-uploads only when the
     // bound `data` array actually changes (viewport/zoom cull), and deck.gl
@@ -131,7 +137,7 @@ function useRoadLayers(
         widthMinPixels: 1,
         jointRounded: true,
         capRounded: true,
-        updateTriggers: { getColor: `#444:${strokeOpacity}` },
+        updateTriggers: { getColor: `${HIGHWAY_COLOR}:${strokeOpacity}` },
       }),
     ];
   }, [visibleRoads, visibleHighways, strokeColor, strokeWidth, strokeOpacity]);
