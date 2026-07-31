@@ -7,6 +7,7 @@ import {
   keyActionFor,
   type GlobalKeyContext,
   type GlobalKeyHandlers,
+  type InteractionMode,
 } from "./useInteractionMode";
 
 vi.mock("@/lib/toast", () => ({
@@ -70,37 +71,91 @@ describe("useInteractionMode", () => {
     rerender({ replayActive: true });
     expect(result.current.mode).toEqual({ kind: "browse" });
   });
+
+  describe("derived modes (job placement, heat zones)", () => {
+    const setup = (initial: InteractionMode | null = null) => {
+      const onExitDerived = vi.fn();
+      const utils = renderHook(
+        ({ derived }: { derived: InteractionMode | null }) =>
+          useInteractionMode({ replayActive: false, derived, onExitDerived }),
+        { initialProps: { derived: initial } }
+      );
+      return { ...utils, onExitDerived };
+    };
+
+    it("reports the derived mode as the active one", () => {
+      const { result } = setup({ kind: "place-job" });
+      expect(result.current.mode).toEqual({ kind: "place-job" });
+    });
+
+    it("a derived mode outranks an owned one, and drops it", () => {
+      const { result, rerender } = setup();
+
+      act(() => result.current.enterDispatch());
+      expect(result.current.mode).toEqual({ kind: "dispatch" });
+
+      rerender({ derived: { kind: "draw-heatzone" } });
+      expect(result.current.mode).toEqual({ kind: "draw-heatzone" });
+
+      // …and the owned mode is gone underneath, not merely hidden.
+      rerender({ derived: null });
+      expect(result.current.mode).toEqual({ kind: "browse" });
+    });
+
+    it("entering an owned mode cancels the derived one", () => {
+      const { result, onExitDerived } = setup({ kind: "edit-heatzone", id: "z1" });
+
+      act(() => result.current.enterDispatch());
+      expect(onExitDerived).toHaveBeenCalledOnce();
+    });
+
+    it("exiting to browse cancels the derived one", () => {
+      const { result, onExitDerived } = setup({ kind: "place-job" });
+
+      act(() => result.current.exitToBrowse());
+      expect(onExitDerived).toHaveBeenCalledOnce();
+    });
+
+    it("a replay starting cancels a derived mode too", () => {
+      const onExitDerived = vi.fn();
+      const { rerender } = renderHook(
+        ({ replayActive }: { replayActive: boolean }) =>
+          useInteractionMode({
+            replayActive,
+            derived: { kind: "draw-heatzone" },
+            onExitDerived,
+          }),
+        { initialProps: { replayActive: false } }
+      );
+
+      rerender({ replayActive: true });
+      expect(onExitDerived).toHaveBeenCalled();
+    });
+  });
 });
 
 describe("keyActionFor", () => {
   const ctx = (overrides: Partial<GlobalKeyContext> = {}): GlobalKeyContext => ({
     modeKind: "browse",
-    jobPlacementActive: false,
-    canConfirmDraw: false,
-    canSubmitDispatch: false,
+    canConfirmMode: false,
     hasSelection: false,
     panelOpen: false,
     overlayOpen: false,
     ...overrides,
   });
 
-  it("routes Escape by priority: job > draw > dispatch > selection > panel > none", () => {
-    // Job placement is the most modal thing on screen and wins outright.
-    expect(
-      keyActionFor(
-        "Escape",
-        ctx({ jobPlacementActive: true, modeKind: "draw-geofence", hasSelection: true })
-      )
-    ).toBe("cancel-job-placement");
-    expect(
-      keyActionFor(
-        "Escape",
-        ctx({ modeKind: "draw-geofence", hasSelection: true, panelOpen: true })
-      )
-    ).toBe("cancel-draw");
-    expect(
-      keyActionFor("Escape", ctx({ modeKind: "dispatch", hasSelection: true, panelOpen: true }))
-    ).toBe("exit-dispatch");
+  it("routes Escape by priority: mode > selection > panel > none", () => {
+    for (const modeKind of [
+      "dispatch",
+      "draw-geofence",
+      "place-job",
+      "draw-heatzone",
+      "edit-heatzone",
+    ] as const) {
+      expect(keyActionFor("Escape", ctx({ modeKind, hasSelection: true, panelOpen: true }))).toBe(
+        "exit-mode"
+      );
+    }
     expect(keyActionFor("Escape", ctx({ hasSelection: true, panelOpen: true }))).toBe(
       "clear-selection"
     );
@@ -109,58 +164,54 @@ describe("keyActionFor", () => {
   });
 
   it("routes Enter to the active mode, gated on readiness", () => {
-    expect(keyActionFor("Enter", ctx({ modeKind: "draw-geofence", canConfirmDraw: true }))).toBe(
-      "confirm-draw"
+    expect(keyActionFor("Enter", ctx({ modeKind: "draw-geofence", canConfirmMode: true }))).toBe(
+      "confirm-mode"
     );
-    expect(keyActionFor("Enter", ctx({ modeKind: "draw-geofence", canConfirmDraw: false }))).toBe(
+    expect(keyActionFor("Enter", ctx({ modeKind: "draw-geofence", canConfirmMode: false }))).toBe(
       "none"
     );
-    expect(keyActionFor("Enter", ctx({ modeKind: "dispatch", canSubmitDispatch: true }))).toBe(
-      "submit-dispatch"
+    expect(keyActionFor("Enter", ctx({ modeKind: "dispatch", canConfirmMode: true }))).toBe(
+      "confirm-mode"
     );
-    expect(keyActionFor("Enter", ctx({ modeKind: "dispatch", canSubmitDispatch: false }))).toBe(
-      "none"
-    );
-    expect(keyActionFor("Enter", ctx({ canConfirmDraw: true, canSubmitDispatch: true }))).toBe(
-      "none"
-    );
+    // No mode active: Enter belongs to whatever has focus, not to the map.
+    expect(keyActionFor("Enter", ctx({ canConfirmMode: true }))).toBe("none");
+  });
+
+  it("starts a mode from a bare shortcut, but only while browsing", () => {
+    expect(keyActionFor("d", ctx())).toBe("start-mode");
+    expect(keyActionFor("G", ctx())).toBe("start-mode");
+    expect(keyActionFor("h", ctx())).toBe("start-mode");
+    // Mid-mode a stray key must never swap the tool under the operator.
+    expect(keyActionFor("g", ctx({ modeKind: "dispatch" }))).toBe("none");
+    expect(keyActionFor("q", ctx())).toBe("none");
   });
 
   it("ignores other keys", () => {
-    expect(keyActionFor("a", ctx({ modeKind: "dispatch", hasSelection: true }))).toBe("none");
     expect(keyActionFor("Tab", ctx({ modeKind: "draw-geofence" }))).toBe("none");
   });
 
   it("stands down entirely while an overlay is open (menu/dialog owns the keys)", () => {
-    // Escape would otherwise clear the selection / exit the mode; Enter would
-    // otherwise submit dispatch. With an overlay open, both no-op.
     expect(keyActionFor("Escape", ctx({ hasSelection: true, overlayOpen: true }))).toBe("none");
     expect(keyActionFor("Escape", ctx({ modeKind: "dispatch", overlayOpen: true }))).toBe("none");
     expect(
-      keyActionFor(
-        "Enter",
-        ctx({ modeKind: "dispatch", canSubmitDispatch: true, overlayOpen: true })
-      )
+      keyActionFor("Enter", ctx({ modeKind: "dispatch", canConfirmMode: true, overlayOpen: true }))
     ).toBe("none");
+    expect(keyActionFor("d", ctx({ overlayOpen: true }))).toBe("none");
   });
 });
 
 describe("useInteractionKeyboard", () => {
   const makeHandlers = (): GlobalKeyHandlers => ({
-    onCancelJobPlacement: vi.fn(),
-    onCancelDraw: vi.fn(),
-    onConfirmDraw: vi.fn(),
-    onExitDispatch: vi.fn(),
-    onSubmitDispatch: vi.fn(),
+    onExitMode: vi.fn(),
+    onConfirmMode: vi.fn(),
     onClearSelection: vi.fn(),
     onClosePanel: vi.fn(),
+    onStartMode: vi.fn(),
   });
 
   const baseCtx: GlobalKeyContext = {
     modeKind: "dispatch",
-    jobPlacementActive: false,
-    canConfirmDraw: false,
-    canSubmitDispatch: false,
+    canConfirmMode: false,
     hasSelection: false,
     panelOpen: false,
     overlayOpen: false,
@@ -172,8 +223,7 @@ describe("useInteractionKeyboard", () => {
 
     fireEvent.keyDown(window, { key: "Escape" });
 
-    expect(handlers.onExitDispatch).toHaveBeenCalledOnce();
-    expect(handlers.onCancelDraw).not.toHaveBeenCalled();
+    expect(handlers.onExitMode).toHaveBeenCalledOnce();
     expect(handlers.onClearSelection).not.toHaveBeenCalled();
   });
 
@@ -187,9 +237,28 @@ describe("useInteractionKeyboard", () => {
 
     fireEvent.keyDown(window, { key: "Escape" });
 
-    expect(handlers.onExitDispatch).toHaveBeenCalledOnce();
+    expect(handlers.onExitMode).toHaveBeenCalledOnce();
     expect(handlers.onClearSelection).not.toHaveBeenCalled();
     expect(handlers.onClosePanel).not.toHaveBeenCalled();
+  });
+
+  it("passes the shortcut's mode to onStartMode", () => {
+    const handlers = makeHandlers();
+    renderHook(() => useInteractionKeyboard({ ...baseCtx, modeKind: "browse" }, handlers));
+
+    fireEvent.keyDown(window, { key: "j" });
+
+    expect(handlers.onStartMode).toHaveBeenCalledWith("place-job");
+  });
+
+  it("leaves chorded keys to the browser and the command palette", () => {
+    const handlers = makeHandlers();
+    renderHook(() => useInteractionKeyboard({ ...baseCtx, modeKind: "browse" }, handlers));
+
+    fireEvent.keyDown(window, { key: "k", metaKey: true });
+    fireEvent.keyDown(window, { key: "d", ctrlKey: true });
+
+    expect(handlers.onStartMode).not.toHaveBeenCalled();
   });
 
   it("tracks context changes across rerenders without resubscribing", () => {
@@ -199,11 +268,11 @@ describe("useInteractionKeyboard", () => {
       { initialProps: { ctx: baseCtx } }
     );
 
-    rerender({ ctx: { ...baseCtx, modeKind: "draw-geofence" } });
+    rerender({ ctx: { ...baseCtx, modeKind: "browse", hasSelection: true } });
     fireEvent.keyDown(window, { key: "Escape" });
 
-    expect(handlers.onCancelDraw).toHaveBeenCalledOnce();
-    expect(handlers.onExitDispatch).not.toHaveBeenCalled();
+    expect(handlers.onClearSelection).toHaveBeenCalledOnce();
+    expect(handlers.onExitMode).not.toHaveBeenCalled();
   });
 
   it("does not clear the selection when Escape dismisses an open overlay", () => {
@@ -220,7 +289,7 @@ describe("useInteractionKeyboard", () => {
     fireEvent.keyDown(window, { key: "Escape" });
 
     expect(handlers.onClearSelection).not.toHaveBeenCalled();
-    expect(handlers.onExitDispatch).not.toHaveBeenCalled();
+    expect(handlers.onExitMode).not.toHaveBeenCalled();
   });
 
   it("ignores a keydown already handled (defaultPrevented) by an overlay", () => {
@@ -251,7 +320,7 @@ describe("useInteractionKeyboard", () => {
     fireEvent.keyDown(input, { key: "Escape" });
     input.remove();
 
-    expect(handlers.onExitDispatch).not.toHaveBeenCalled();
+    expect(handlers.onExitMode).not.toHaveBeenCalled();
   });
 
   it("removes the listener on unmount", () => {
@@ -261,6 +330,6 @@ describe("useInteractionKeyboard", () => {
     unmount();
     fireEvent.keyDown(window, { key: "Escape" });
 
-    expect(handlers.onExitDispatch).not.toHaveBeenCalled();
+    expect(handlers.onExitMode).not.toHaveBeenCalled();
   });
 });

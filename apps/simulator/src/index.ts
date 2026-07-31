@@ -16,7 +16,6 @@ import { ScenarioManager } from "./modules/scenario";
 import { StateStore } from "./modules/StateStore";
 import { PersistenceManager } from "./modules/PersistenceManager";
 import { config, verifyConfig, logConfig } from "./utils/config";
-import { generalRateLimiter } from "./middleware/rateLimiter";
 import { correlationIdMiddleware } from "./middleware/correlationId";
 import { errorHandler } from "./middleware/errorHandler";
 import logger from "./utils/logger";
@@ -51,9 +50,6 @@ app.use(express.json());
 
 // Correlation ID and request logging middleware
 app.use(correlationIdMiddleware);
-
-// Apply general rate limiting to all routes
-app.use(generalRateLimiter.middleware());
 
 // Record HTTP request duration into the Prometheus histogram
 app.use(metricsMiddleware);

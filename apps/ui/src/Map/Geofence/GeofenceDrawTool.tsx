@@ -7,7 +7,7 @@ import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
  * Keyboard (Escape to cancel, Enter to close the polygon) is handled by the
  * app-level dispatcher (useInteractionKeyboard) — Enter routes here through
  * `confirmRequestId`, and cancellation arrives as `active` dropping to false.
- * The hint banner lives in the shared <ModeBanner>, not in this component.
+ * The hint lives in the dock's mode rail, not in this component.
  */
 interface GeofenceDrawToolProps {
   active: boolean;
@@ -19,6 +19,12 @@ interface GeofenceDrawToolProps {
    * The tool fires onComplete with current vertices when this value changes.
    */
   confirmRequestId?: number;
+  /**
+   * Increment this to drop the most recently placed vertex — the dock's "Undo
+   * point" key. Same nonce pattern as `confirmRequestId`: the ring itself lives
+   * here, so the dock can only ask.
+   */
+  undoRequestId?: number;
 }
 
 // Hit-test radii (pixels) and drag threshold
@@ -63,6 +69,7 @@ export default function GeofenceDrawTool({
   onComplete,
   onVertexCountChange,
   confirmRequestId,
+  undoRequestId,
 }: GeofenceDrawToolProps) {
   const { viewport } = useMapContext();
   const { mapHTMLElement } = useOverlay();
@@ -329,6 +336,15 @@ export default function GeofenceDrawTool({
     completeRef.current();
   }, [confirmRequestId, active]);
 
+  // Drop the last placed vertex when undoRequestId changes.
+  const prevUndoIdRef = useRef(undoRequestId);
+  useEffect(() => {
+    if (undoRequestId === prevUndoIdRef.current) return;
+    prevUndoIdRef.current = undoRequestId;
+    if (!active || verticesRef.current.length === 0) return;
+    setVertices((prev) => prev.slice(0, -1));
+  }, [undoRequestId, active]);
+
   // Build deck.gl layers for the in-progress polygon
   const layers = useMemo(() => {
     if (!active || vertices.length === 0) return [];
@@ -463,6 +479,6 @@ export default function GeofenceDrawTool({
 
   useRegisterLayers("geofence-draw", layers);
 
-  // Layers only — the mode's hint banner is <ModeBanner>, rendered by App.
+  // Layers only — the mode's hint is the dock's mode rail.
   return null;
 }

@@ -1,7 +1,8 @@
 /**
  * Scale legend for a **sequential magnitude overlay** (one hue, light to dark
  * / transparent to opaque), as opposed to the identity legends next to it
- * (`FleetLegend`, `TypeLegend`) which are categorical swatch lists.
+ * (`FleetLegend`, the rail's `VehicleTypeKey`) which are categorical swatch
+ * lists.
  *
  * The distinction is deliberate and is the whole reason this is a separate
  * component: a categorical legend is a *list of things* and gets one labelled
@@ -97,7 +98,7 @@ export default function ScaleLegend({
         // Non-interactive: a continuous scale has nothing to toggle, and the
         // map must stay draggable under it.
         "pointer-events-none absolute z-10 w-[164px] animate-fade-up",
-        "rounded-lg border border-border surface-glass p-2.5 shadow-elevated backdrop-blur-md",
+        "rounded-lg border border-border surface-glass glass-frost p-2.5 shadow-elevated",
         className
       )}
     >

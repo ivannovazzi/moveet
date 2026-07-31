@@ -1,45 +1,36 @@
-import { useState, type ComponentProps } from "react";
-import TogglesPanel from "@/Controls/TogglesPanel";
-import ScenariosPanel from "@/Controls/ScenariosPanel";
-import RecordReplay from "@/Controls/RecordReplay";
+import type { ComponentProps } from "react";
 import { SuppressPanelHeader } from "@/Controls/PanelPrimitives";
 import AdvancedTuningTab from "./AdvancedTuningTab";
-import { PanelHead, PanelScroll, PanelTabStrip, type PanelTab } from "./DockPanelKit";
+import FeedsSection, { FEED_HEALTH_TONE, feedHealth } from "./FeedsSection";
+import { HealthChip, PanelScroll } from "./DockPanelKit";
+import type { SettingsTabId } from "./dockSections";
 
 export interface SettingsPanelProps {
-  toggles: ComponentProps<typeof TogglesPanel>;
-  recordings: ComponentProps<typeof RecordReplay>;
+  tab: SettingsTabId;
   advanced: ComponentProps<typeof AdvancedTuningTab>;
+  feeds: ComponentProps<typeof FeedsSection>;
 }
 
-type SettingsTabId = "visibility" | "scenarios" | "recordings" | "advanced";
-
 /**
- * Settings panel — configure & view. The things that are *not* live monitoring:
- * layer/vehicle-type visibility filters, scenario presets, recordings, and the
- * advanced vehicle-physics/cadence tuning. Split out of Monitor so filters and
- * configuration no longer sit among the observe-only surfaces.
+ * Contents of the Settings panel — configuration, and only configuration: where
+ * telemetry is published, and how the vehicles behave. What the map *draws* is
+ * not a panel at all any more: it is the icon rail on the map's left edge
+ * (`Map/VisibilityRail`). Recordings and scenarios live in the Session dock
+ * (they change the run, not a preference).
  */
-export default function SettingsPanel({ toggles, recordings, advanced }: SettingsPanelProps) {
-  const [tab, setTab] = useState<SettingsTabId>("visibility");
-
-  const tabs: PanelTab<SettingsTabId>[] = [
-    { id: "visibility", label: "Visibility" },
-    { id: "scenarios", label: "Scenarios" },
-    { id: "recordings", label: "Recordings" },
-    { id: "advanced", label: "Advanced" },
-  ];
-  const activeLabel = tabs.find((t) => t.id === tab)?.label ?? "Visibility";
+export default function SettingsPanel({ tab, advanced, feeds }: SettingsPanelProps) {
+  const health = feedHealth(feeds.adapter.health);
 
   return (
     <>
-      <PanelHead eyebrow="Settings" title={activeLabel} />
-      <PanelTabStrip tabs={tabs} value={tab} onChange={setTab} ariaLabel="Settings sections" />
+      {tab === "feeds" && (
+        <div className="flex items-center justify-end px-[15px] pb-1 pt-2.5">
+          <HealthChip tone={FEED_HEALTH_TONE[health]}>{health}</HealthChip>
+        </div>
+      )}
       <PanelScroll>
         <SuppressPanelHeader>
-          {tab === "visibility" && <TogglesPanel {...toggles} />}
-          {tab === "scenarios" && <ScenariosPanel />}
-          {tab === "recordings" && <RecordReplay {...recordings} />}
+          {tab === "feeds" && <FeedsSection {...feeds} />}
           {tab === "advanced" && <AdvancedTuningTab {...advanced} />}
         </SuppressPanelHeader>
       </PanelScroll>

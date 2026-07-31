@@ -48,7 +48,7 @@ A real-time vehicle fleet simulator that runs vehicles on actual road networks w
 | 📦 **Job dispatch lifecycle** | Pickup/dropoff jobs assigned by nearest / best-ETA / named vehicle, driven through the full status lifecycle with per-leg ETAs and SLA-breach tracking; placed with two map clicks                                            |
 | 🔌 **Device fault injection** | Per-vehicle device faults injected in the simulator — frozen GPS, clock skew/drift, duplicate and out-of-order messages, battery death, teleport/spoofing — reproducible under a fixed seed, editable at runtime, visible on the WebSocket feed and the adapter push            |
 | 🔍 **POI + road search**     | Typeahead combining road names and points of interest; dispatches selected vehicles to result                                                                                                                                 |
-| 🖥 **Operator UI**           | Icon-rail sidebar (Vehicles · Fleets · Incidents · Geofences · Recordings · Visibility · Speed · Adapter) + bottom dock with live and replay controls                                                                         |
+| 🖥 **Operator UI**           | State-adaptive bottom dock (live/replay transport + Fleet · Monitor · Session · Settings sections), a left-edge icon rail for map-layer visibility and vehicle-type filters, corner health lamps, and a ⌘K command palette                              |
 | 🔌 **Adapter plugins**       | Hot-swappable source and sink plugins; configure via env vars or REST API at runtime                                                                                                                                          |
 | 📊 **Observability**         | Simulator and adapter each expose a Prometheus `/metrics` endpoint (prom-client); an `x-request-id` correlation id flows end to end (simulator → adapter → telemetry envelope `correlation_id` / `trace_id`)                  |
 | 📈 **Optional scale-out**    | WebSocket fan-out runs in-process by default, or moves to a standalone `ws-gateway` process over a Redis pub/sub bus via `WS_TRANSPORT=redis` (compose `scale` profile, off by default)                                       |
@@ -465,7 +465,7 @@ cd apps/adapter && npm test       # adapter
 cd apps/network && npm test       # network CLI
 ```
 
-Simulator test coverage includes: road-network graph, A\* pathfinding, vehicle types and profiles, turn restrictions, BPR traffic manager, time-of-day clock, geofence manager, heat zones, fleet management, incident rerouting, recording/replay lifecycle, rate limiter, geospatial helpers, serializer, config validation, and `SimulationController` lifecycle.
+Simulator test coverage includes: road-network graph, A\* pathfinding, vehicle types and profiles, turn restrictions, BPR traffic manager, time-of-day clock, geofence manager, heat zones, fleet management, incident rerouting, recording/replay lifecycle, geospatial helpers, serializer, config validation, and `SimulationController` lifecycle.
 
 ---
 

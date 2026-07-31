@@ -1,89 +1,107 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { defaultTab, sectionHasTab, type DockSectionId, type DockTabId } from "@/Dock/dockSections";
 
 /**
- * Identifiers for the dock clusters (see
- * `docs/plans/2026-07-07-dock-ui-redesign-design.md`). Owned here (rather
- * than by a UI component) so any cluster or panel component can depend on the
- * id union without importing `Dock.tsx`. `monitor` is observe-only (incidents,
- * analytics, geofences); `settings` holds view filters, session, and tuning.
+ * What the dock row is showing.
+ *
+ * `expanded` is the section that has turned itself into a dock; `tab` is the
+ * button selected inside it, which is also the panel that is open. There is no
+ * separate "panel open" flag: a section is expanded or it is a pill, and an
+ * expanded section always has exactly one tab selected. That is what makes the
+ * row deterministic — no state where the bar is expanded but showing nothing,
+ * and no state where a panel floats over a collapsed pill.
+ *
+ * Tempo is deliberately not a section: its button lives in the main dock and
+ * anchors its own panel there, because tempo is a clock control rather than a
+ * place to go.
  */
-export type DockClusterId =
-  | "playback"
-  | "tempo"
-  | "fleet-dispatch"
-  | "sinks-source"
-  | "monitor"
-  | "settings";
-
-/**
- * Cluster ids that own a panel (playback is one-click-only, no panel). Lives
- * here rather than in `Dock.tsx` because App needs the same predicate to tell
- * the keyboard dispatcher whether Escape has a panel to close.
- */
-export const PANEL_CLUSTERS = new Set<DockClusterId>([
-  "tempo",
-  "fleet-dispatch",
-  "sinks-source",
-  "monitor",
-  "settings",
-]);
-
 export interface DockNavigation {
-  /** The single cluster whose drawer is currently open, or `null`. */
-  openCluster: DockClusterId | null;
-  /** True when the open cluster actually renders a panel surface. */
-  panelOpen: boolean;
-  /** Open a specific cluster's drawer, closing any other. */
-  open: (cluster: DockClusterId) => void;
-  /** Close whichever drawer is open. */
+  /** The section currently expanded into a dock, or `null`. */
+  expanded: DockSectionId | null;
+  /** The selected tab of the expanded section, or `null` when collapsed. */
+  tab: DockTabId | null;
+  /** True while the Tempo details panel is open (main dock, not a section). */
+  tempoOpen: boolean;
+
+  /** Expand `section`, optionally jumping straight to one of its tabs. */
+  open: (section: DockSectionId, tab?: DockTabId) => void;
+  /** Collapse whichever section is expanded (and close the tempo panel). */
   close: () => void;
-  /** Open `cluster` if it isn't the currently-open one; close it if it is. */
-  toggle: (cluster: DockClusterId) => void;
-  /** Convenience predicate for a cluster's active/open visual state. */
-  isOpen: (cluster: DockClusterId) => boolean;
+  /** Expand `section` if it isn't the expanded one; collapse it if it is. */
+  toggle: (section: DockSectionId) => void;
+  /** Select a tab within the expanded section. */
+  selectTab: (tab: DockTabId) => void;
+  /** Open/close the main dock's Tempo details panel. */
+  toggleTempo: () => void;
+
+  isExpanded: (section: DockSectionId) => boolean;
+  /** True when any panel surface is open — Escape's lowest-priority target. */
+  panelOpen: boolean;
 }
 
-/**
- * Tracks which single dock cluster's drawer is open. Modeled on
- * `usePanelNavigation`'s shape, simplified since the dock has no side-panel
- * routing — just single-open-at-a-time drawer state.
- *
- * Called once in `App.tsx` (not by `Dock`) and handed to *both* `Dock` and the
- * command palette's action list, so the two share one source of truth and the
- * app's keyboard dispatcher can route Escape to `close()` as its
- * lowest-priority branch. (It used to be called inside `Dock.tsx`; the palette
- * had no handler to call and drove the dock's buttons through
- * `document.querySelector` on their aria-labels.)
- *
- * The returned object is memoized on `openCluster` so callers can put it
- * straight into a `useMemo`/`useCallback` dependency list.
- */
 export function useDockNavigation(): DockNavigation {
-  const [openCluster, setOpenCluster] = useState<DockClusterId | null>(null);
+  const [expanded, setExpanded] = useState<DockSectionId | null>(null);
+  const [tempoOpen, setTempoOpen] = useState(false);
+  // Remembered per section so coming back to Monitor lands where you left it.
+  // The section's *shape* never varies; only which of its fixed buttons is lit.
+  const [lastTab, setLastTab] = useState<Partial<Record<DockSectionId, DockTabId>>>({});
 
-  const open = useCallback((cluster: DockClusterId) => {
-    setOpenCluster(cluster);
+  const open = useCallback((section: DockSectionId, tab?: DockTabId) => {
+    setTempoOpen(false);
+    setExpanded(section);
+    if (tab && sectionHasTab(section, tab)) {
+      setLastTab((prev) => ({ ...prev, [section]: tab }));
+    }
   }, []);
 
   const close = useCallback(() => {
-    setOpenCluster(null);
+    setExpanded(null);
+    setTempoOpen(false);
   }, []);
 
-  const toggle = useCallback((cluster: DockClusterId) => {
-    setOpenCluster((current) => (current === cluster ? null : cluster));
+  const toggle = useCallback((section: DockSectionId) => {
+    setTempoOpen(false);
+    setExpanded((current) => (current === section ? null : section));
   }, []);
 
-  const isOpen = useCallback((cluster: DockClusterId) => openCluster === cluster, [openCluster]);
+  // Read through refs rather than nesting a setState inside another updater —
+  // under StrictMode an updater runs twice, so a side effect in one fires twice.
+  const expandedRef = useRef(expanded);
+  expandedRef.current = expanded;
+  const tempoRef = useRef(tempoOpen);
+  tempoRef.current = tempoOpen;
+
+  const selectTab = useCallback((tab: DockTabId) => {
+    const section = expandedRef.current;
+    if (!section || !sectionHasTab(section, tab)) return;
+    setLastTab((prev) => ({ ...prev, [section]: tab }));
+  }, []);
+
+  const toggleTempo = useCallback(() => {
+    const opening = !tempoRef.current;
+    // The tempo panel and an expanded section are both panels; only one at a
+    // time, so opening tempo collapses the row.
+    if (opening) setExpanded(null);
+    setTempoOpen(opening);
+  }, []);
+
+  const isExpanded = useCallback((section: DockSectionId) => expanded === section, [expanded]);
+
+  const tab = expanded ? (lastTab[expanded] ?? defaultTab(expanded)) : null;
 
   return useMemo(
     () => ({
-      openCluster,
-      panelOpen: openCluster != null && PANEL_CLUSTERS.has(openCluster),
+      expanded,
+      tab,
+      tempoOpen,
       open,
       close,
       toggle,
-      isOpen,
+      selectTab,
+      toggleTempo,
+      isExpanded,
+      panelOpen: expanded !== null || tempoOpen,
     }),
-    [openCluster, open, close, toggle, isOpen]
+    [expanded, tab, tempoOpen, open, close, toggle, selectTab, toggleTempo, isExpanded]
   );
 }

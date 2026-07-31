@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { useHeatzones } from "@/hooks/useHeatzones";
 import { useHeatzoneEditorContext } from "@/data/HeatzoneEditorContext";
+import { useModeEntry } from "@/data/ModeEntryContext";
 import { HeatZone as HeatZoneIcon, TrashIcon } from "@/components/Icons";
 import { PanelBody, PanelEmptyState } from "./PanelPrimitives";
 
@@ -15,6 +16,9 @@ import { PanelBody, PanelEmptyState } from "./PanelPrimitives";
 export default function HeatzonePanel() {
   const zones = useHeatzones();
   const editor = useHeatzoneEditorContext();
+  // Drawing is a map mode like any other, so it starts through the shared
+  // guard rather than flipping the editor's own flag behind the dock's back.
+  const modeEntry = useModeEntry();
 
   const handleClear = useCallback(() => {
     if (zones.length === 0) return;
@@ -42,7 +46,7 @@ export default function HeatzonePanel() {
         <button
           type="button"
           className="w-full rounded-md surface-accent px-3 py-2 text-left text-sm font-medium text-primary-foreground shadow-raised transition-[transform,background-color,box-shadow,color] duration-fast ease-standard hover:shadow-glow-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent active:scale-[0.98]"
-          onClick={editor.startDraw}
+          onClick={() => modeEntry.start("draw-heatzone")}
           title="Draw a heat zone on the map (freehand lasso)"
         >
           + Draw zone

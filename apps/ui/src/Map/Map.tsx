@@ -101,6 +101,7 @@ interface MapProps {
   onDrawComplete?: (polygon: [number, number][]) => void;
   onDrawVertexCountChange?: (count: number) => void;
   drawConfirmId?: number;
+  drawUndoId?: number;
   onBboxChange?: (bbox: BoundingBox | null) => void;
   /** Lock map panning (heat-zone tool engaged) so press-drags draw/edit zones. */
   panLocked?: boolean;
@@ -138,6 +139,7 @@ export default function Map({
   onDrawComplete,
   onDrawVertexCountChange,
   drawConfirmId,
+  drawUndoId,
   onBboxChange,
   panLocked = false,
   zoneDrawActive = false,
@@ -307,6 +309,7 @@ export default function Map({
           onComplete={onDrawComplete ?? NOOP}
           onVertexCountChange={onDrawVertexCountChange}
           confirmRequestId={drawConfirmId}
+          undoRequestId={drawUndoId}
         />
         {onBboxChange && <ViewportBboxReporter onBboxChange={onBboxChange} />}
       </DeckGLMap>

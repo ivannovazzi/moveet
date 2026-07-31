@@ -21,7 +21,7 @@
   --color-poi-default: oklch(0.65 0.015 255);
 
   /* Vehicle rendering — resolved at runtime by VehiclesLayer.resolveCSSColor()
-     and mirrored in the TypeLegend swatches. Per-type defaults used when a
+     and mirrored in the rail's VehicleTypeKey icons. Per-type defaults when a
      vehicle has no fleet color. oklch siblings of the theme's status/accent
      hues instead of raw Tailwind-palette hex. */
   --color-vehicle-fill: oklch(0.86 0.005 255);

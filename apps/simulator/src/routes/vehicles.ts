@@ -3,7 +3,6 @@ import type { RouteContext } from "./types";
 import { asyncHandler } from "./helpers";
 import { validateBody } from "../middleware/validate";
 import { directionSchema, coordinatesSchema, searchSchema } from "../middleware/schemas";
-import { expensiveRateLimiter } from "../middleware/rateLimiter";
 import { VEHICLE_PROFILES } from "../utils/vehicleProfiles";
 
 /**
@@ -96,7 +95,6 @@ export function createVehicleRoutes(ctx: RouteContext): Router {
 
   router.post(
     "/find-node",
-    expensiveRateLimiter.middleware(),
     validateBody(coordinatesSchema),
     asyncHandler(async (req, res) => {
       const { coordinates } = await network.findNearestNode([req.body[1], req.body[0]]);
@@ -106,7 +104,6 @@ export function createVehicleRoutes(ctx: RouteContext): Router {
 
   router.post(
     "/find-road",
-    expensiveRateLimiter.middleware(),
     validateBody(coordinatesSchema),
     asyncHandler(async (req, res) => {
       const road = await network.findNearestRoad([req.body[1], req.body[0]]);
@@ -116,7 +113,6 @@ export function createVehicleRoutes(ctx: RouteContext): Router {
 
   router.post(
     "/search",
-    expensiveRateLimiter.middleware(),
     validateBody(searchSchema),
     asyncHandler(async (req, res) => {
       const results = await network.searchByName(req.body.query);

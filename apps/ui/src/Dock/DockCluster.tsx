@@ -15,24 +15,36 @@ export interface DockClusterProps
    * visual content.
    */
   badge?: React.ReactNode;
+  /**
+   * What the badge counts, in words ("2 jobs past SLA"). Pass it whenever a
+   * badge is passed: a bare red "2" reads the same whether it is incidents or
+   * misbehaving devices, and a screen reader gets nothing from the pill at all.
+   */
+  badgeLabel?: string;
+  /** Id of the panel surface this cluster discloses. */
+  panelId?: string;
   className?: string;
 }
 
 /**
  * A dock cluster button: icon + small uppercase label stacked vertically,
  * with an active/open accent state and an optional badge slot. Tight,
- * technical proportions per the approved dock mockup — 42px tall, 9px label,
- * 17px icon — so five clusters sit compactly in one bar.
+ * technical proportions — 42px tall, 9px label, 17px icon — so the clusters sit
+ * compactly in one bar.
+ *
+ * Openness is announced as `aria-expanded` + `aria-controls`, not
+ * `aria-pressed`: these buttons disclose a panel, they don't toggle a setting.
  */
 const DockCluster = forwardRef<HTMLButtonElement, DockClusterProps>(function DockCluster(
-  { icon, label, active = false, badge, className, ...rest },
+  { icon, label, active = false, badge, badgeLabel, panelId = "dock-panel", className, ...rest },
   ref
 ) {
   return (
     <button
       ref={ref}
       type="button"
-      aria-pressed={active}
+      aria-expanded={active}
+      aria-controls={panelId}
       className={cn(
         "relative flex h-[42px] min-w-[52px] flex-col items-center justify-center gap-[3px] rounded-lg px-2.5",
         "text-muted-foreground transition-[color,background-color,box-shadow] duration-fast ease-standard",
@@ -50,7 +62,12 @@ const DockCluster = forwardRef<HTMLButtonElement, DockClusterProps>(function Doc
           {label}
         </span>
       )}
-      {badge && <span className="absolute right-1 top-px">{badge}</span>}
+      {badge && (
+        <span className="absolute right-1 top-px" title={badgeLabel}>
+          {badge}
+          {badgeLabel && <span className="sr-only">{badgeLabel}</span>}
+        </span>
+      )}
     </button>
   );
 });

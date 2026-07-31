@@ -13,18 +13,6 @@ vi.mock("../../utils/logger", () => ({
   },
 }));
 
-// Mock rate limiter to be a passthrough
-vi.mock("../../middleware/rateLimiter", () => ({
-  generalRateLimiter: {
-    middleware: () => (_req: unknown, _res: unknown, next: () => void) => next(),
-    cleanup: vi.fn(),
-  },
-  expensiveRateLimiter: {
-    middleware: () => (_req: unknown, _res: unknown, next: () => void) => next(),
-    cleanup: vi.fn(),
-  },
-}));
-
 // Mock fs for scenario file listing and reading
 vi.mock("fs", async (importOriginal) => {
   const actual: typeof import("fs") = await importOriginal();

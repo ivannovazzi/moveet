@@ -131,7 +131,7 @@ export default function Inspector({ vehicle, poi, fleet, job, onClose }: Inspect
       aria-label="Inspector"
       className={cn(
         "absolute right-4 top-4 z-40 flex max-h-[calc(100vh-2rem)] w-80 max-w-[calc(100vw-2rem)] flex-col origin-top-right",
-        "overflow-hidden rounded-[10px] border border-border surface-glass-strong shadow-floating backdrop-blur-2xl backdrop-saturate-150",
+        "overflow-hidden rounded-[10px] border border-border surface-glass-strong glass-frost-strong shadow-floating",
         "animate-scale-in"
       )}
     >

@@ -3,7 +3,6 @@ import fs from "fs";
 import path from "path";
 import type { RouteContext } from "./types";
 import { asyncHandler } from "./helpers";
-import { expensiveRateLimiter } from "../middleware/rateLimiter";
 import { validateBody } from "../middleware/validate";
 import { scenarioSchema } from "../modules/scenario";
 import { convertRecordingToScenario, parseRecording } from "../modules/scenario/convertRecording";
@@ -42,7 +41,6 @@ export function createScenarioRoutes(ctx: RouteContext): Router {
   // ─── Load a scenario from JSON body ───────────────────────────────
   router.post(
     "/scenarios/load",
-    expensiveRateLimiter.middleware(),
     validateBody(scenarioSchema),
     asyncHandler(async (req, res) => {
       const scenario = scenarioManager.loadScenarioFromJSON(req.body);
@@ -60,7 +58,6 @@ export function createScenarioRoutes(ctx: RouteContext): Router {
   // ─── Load a scenario by filename from data/scenarios/ ─────────────
   router.post(
     "/scenarios/load/:fileName",
-    expensiveRateLimiter.middleware(),
     asyncHandler(async (req, res) => {
       const fileName = req.params.fileName as string;
       const filePath = path.join(SCENARIOS_DIR, fileName);
@@ -137,7 +134,6 @@ export function createScenarioRoutes(ctx: RouteContext): Router {
   // ─── Convert a recording into a scenario ───────────────────────────
   router.post(
     "/scenarios/convert",
-    expensiveRateLimiter.middleware(),
     asyncHandler(async (req, res) => {
       const { file, name, description } = req.body as {
         file?: string;

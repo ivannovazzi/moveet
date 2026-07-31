@@ -18,7 +18,8 @@ export default function FleetLegend({ fleets, hiddenFleetIds, onToggle }: FleetL
   if (fleets.length === 0) return null;
 
   return (
-    <div className="absolute bottom-20 right-3 z-10 flex max-h-[40vh] flex-col gap-2 overflow-y-auto rounded-lg border border-border surface-glass p-3 shadow-elevated backdrop-blur-md">
+    // Bottom-right stack, reading upward: dock row, zoom keys, then this.
+    <div className="absolute bottom-[calc(var(--spacing-above-dock)+3.5rem)] right-3 z-10 flex max-h-[40vh] flex-col gap-2 overflow-y-auto rounded-lg border border-border surface-glass glass-frost p-3 shadow-elevated">
       {fleets.map((fleet, i) => {
         const hidden = hiddenFleetIds.has(fleet.id);
         return (

@@ -92,6 +92,15 @@ export interface DispatchFlow {
   handleDispatch: () => Promise<void>;
   handleDone: () => void;
   handleRetryFailed: () => void;
+  /**
+   * Drop the selection, the stops and any results, but *stay* in dispatch mode.
+   * `handleDone` bundles the same reset with leaving, which made the dock's
+   * "Clear" key a lie: it cleared and then dumped the operator back to browse,
+   * so starting over meant re-entering the mode.
+   */
+  clearSelection: () => void;
+  /** Tick a whole set of vehicles at once — the dock passes the visible ones. */
+  selectForDispatch: (ids: string[]) => void;
   onToggleVehicleForDispatch: (id: string) => void;
   onAddWaypoint: (vehicleId: string, position: Position) => void;
   addWaypointForSelected: (position: Position, vehicles: Vehicle[]) => void;
@@ -337,6 +346,11 @@ export function useDispatchFlow({ active, onEnter, onExit }: DispatchFlowOptions
     );
   }, []);
 
+  /** Replace the selection wholesale. Empty is allowed — that is a clear. */
+  const selectForDispatch = useCallback((ids: string[]) => {
+    setSelectedForDispatch(ids);
+  }, []);
+
   return {
     dispatchMode: active,
     assignments,
@@ -349,6 +363,8 @@ export function useDispatchFlow({ active, onEnter, onExit }: DispatchFlowOptions
     handleDispatch,
     handleDone,
     handleRetryFailed,
+    clearSelection: resetFlow,
+    selectForDispatch,
     onToggleVehicleForDispatch,
     onAddWaypoint,
     addWaypointForSelected,

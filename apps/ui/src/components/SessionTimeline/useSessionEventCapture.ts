@@ -49,7 +49,7 @@ export function useSessionEventCapture({
   dispatchResults,
 }: SessionEventCaptureOptions): void {
   // `replay:status` frames are sparse, so interpolate between them the same way
-  // `Dock/ReplayDock` does for its progress bar: last known position plus
+  // the dock's replay rail does for its scrubber: last known position plus
   // wall-clock elapsed × speed, clamped to the recording's duration.
   const anchorRef = useRef<ReplayAnchor>({
     replaying: false,

@@ -13,8 +13,9 @@ import type { ConfigResponse, HealthResponse } from "./adapterClient";
  * `onOpenChange(false)` -> `closePanel()` -> `activePanel = null`. The click
  * looked like a no-op and had to be repeated.
  *
- * That drawer no longer exists — the adapter UI is now `SinksPanel` rendered
- * into the single shared `DockPanel`, and switching clusters is one
+ * That drawer no longer exists — the adapter UI is now `FeedsSection`, a tab of
+ * the Settings panel rendered into the single shared `DockPanel`, and switching
+ * clusters is one
  * `setOpenCluster` call. These tests pin that behaviour so the race cannot be
  * reintroduced: a close handler must never run as a side effect of a panel
  * switch, while a genuine outside click must still close. (Escape now closes
@@ -59,22 +60,7 @@ vi.mock("./adapterClient", () => ({
 // Imported after the mocks so the hoisted factories are in place.
 import Dock, { type DockProps } from "@/Dock/Dock";
 import { useDockNavigation } from "@/hooks/useDockNavigation";
-import type { DispatchFlow } from "@/hooks/useDispatchFlow";
-import type { JobsPanelProps } from "@/Controls/JobsPanel";
-import { DispatchState } from "@/hooks/useDispatchState";
-import { createStatus } from "@/test/mocks/types";
-import type { Modifiers } from "@/types";
-
-const modifiers: Modifiers = {
-  showDirections: true,
-  showHeatzones: false,
-  showHeatmap: false,
-  showVehicles: true,
-  showPOIs: false,
-  showTrafficOverlay: false,
-  showBreadcrumbs: false,
-  showSpeedLimits: false,
-};
+import { createDockProps } from "@/test/dockProps";
 
 /**
  * Drawer state lives in App now (so Escape can route through the one keyboard
@@ -85,104 +71,19 @@ function DockHarness(props: Omit<DockProps, "navigation">) {
   return <Dock {...props} navigation={navigation} />;
 }
 
-function dockProps(): Omit<DockProps, "navigation"> {
-  return {
-    connected: true,
-    status: createStatus({ running: true }),
-    isRecording: false,
-    onStartRecording: async () => {},
-    onStopRecording: async () => {},
-
-    replayStatus: { mode: "live" },
-    onPauseReplay: async () => {},
-    onResumeReplay: async () => {},
-    onStopReplay: async () => {},
-    onSeekReplay: async () => {},
-    onSetReplaySpeed: async () => {},
-
-    vehicles: [],
-    filter: "",
-    onFilterChange: () => {},
-    onSelectVehicle: () => {},
-    onHoverVehicle: () => {},
-    onUnhoverVehicle: () => {},
-    maxSpeed: 60,
-    vehicleFleetMap: new Map(),
-    fleets: [],
-    onCreateFleet: async () => {},
-    onDeleteFleet: async () => {},
-    onAssignVehicle: async () => {},
-    onUnassignVehicle: async () => {},
-    fleetsError: null,
-    // Only `dispatchState` / `selectedForDispatch` are read by the dock bar
-    // itself (the badge); the Fleet panel is never opened in these tests.
-    dispatch: {
-      dispatchState: DispatchState.BROWSE,
-      selectedForDispatch: [],
-    } as unknown as DispatchFlow,
-    // Only `counts` is read by the dock bar itself (the Fleet badge); the Fleet
-    // panel — and so the job board — is never opened in these tests.
-    jobs: {
-      jobs: [],
-      counts: { total: 0, live: 0, queued: 0, breached: 0 },
-      draft: { active: false } as unknown as JobsPanelProps["draft"],
-      onCancelJob: async () => {},
-      onDeleteJob: async () => {},
-      onAssignJob: async () => {},
-      vehicles: [],
-      jobByVehicleId: new Map(),
-      error: null,
-    },
-
-    incidents: {
-      incidents: [],
-      createRandom: async () => {},
-      remove: async () => {},
-      error: null,
-    },
-    // The dock bar reads only the fault status counters (the Monitor badge);
-    // the panel itself is opened in one test, where an unarmed layer is enough.
-    faults: {
-      faults: {
-        config: null,
-        status: null,
-        loading: false,
-        error: null,
-        configure: async () => {},
-        setVehicleProfile: async () => {},
-        clearVehicleProfile: async () => {},
-        reset: async () => {},
-      },
-      vehicles: [],
-    },
-    geofences: {
-      fences: [],
-      onFenceToggle: () => {},
-      onFenceDelete: () => {},
-      alerts: [],
-      drawingActive: false,
-      vertexCount: 0,
-      onStartDrawing: () => {},
-      onCancelDrawing: () => {},
-      onConfirmDrawing: () => {},
-    },
-    analytics: { summary: null, fleetHistory: new Map(), summaryHistory: [] },
-    toggles: { modifiers, onChangeModifiers: () => () => {} },
-    recordings: {
-      recordings: [],
-      replayStatus: { mode: "live" },
-      onStartReplay: async () => {},
-      onRefreshRecordings: () => {},
-    },
-    advanced: { maxSpeedRef: { current: 60 } },
-  };
-}
-
-/** Open the adapter ("Sinks & Source") panel and wait for its content. */
+/**
+ * Open the view the adapter UI now lives in. "Sinks & Source" stopped being its
+ * own cluster: feed health reads on the status chips, and the configuration is
+ * the Settings dock's "Feeds & sinks" button.
+ */
 async function openAdapterPanel(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole("button", { name: "Sinks & Source" }));
-  expect(await screen.findByRole("region", { name: "Sinks & Source" })).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Settings" }));
+  expect(await screen.findByRole("region", { name: "Settings" })).toBeInTheDocument();
+  await user.click(screen.getByRole("tab", { name: "Feeds & sinks" }));
 }
+
+/** The section key itself carries `aria-expanded`, open or not. */
+const sectionKey = (name: string) => screen.getByRole("button", { name });
 
 describe("adapter panel <-> other panel switching", () => {
   beforeEach(() => {
@@ -191,13 +92,10 @@ describe("adapter panel <-> other panel switching", () => {
 
   it("switches from the adapter panel to Monitor in a single click", async () => {
     const user = userEvent.setup();
-    render(<DockHarness {...dockProps()} />);
+    render(<DockHarness {...createDockProps()} />);
 
     await openAdapterPanel(user);
-    expect(screen.getByRole("button", { name: "Sinks & Source" })).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
+    expect(sectionKey("Settings")).toHaveAttribute("aria-expanded", "true");
 
     // One click on a different cluster must land on that cluster. The bug was
     // that the adapter drawer's own close handler fired afterwards and reset
@@ -205,12 +103,12 @@ describe("adapter panel <-> other panel switching", () => {
     await user.click(screen.getByRole("button", { name: "Monitor" }));
 
     expect(await screen.findByRole("region", { name: "Monitor" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Monitor" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Sinks & Source" })).toHaveAttribute(
-      "aria-pressed",
+    expect(sectionKey("Monitor")).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "Settings" })).toHaveAttribute(
+      "aria-expanded",
       "false"
     );
-    expect(screen.queryByRole("region", { name: "Sinks & Source" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Settings" })).not.toBeInTheDocument();
 
     // Still open a tick later — a deferred close would show up here.
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -219,38 +117,38 @@ describe("adapter panel <-> other panel switching", () => {
 
   it("switches from the adapter panel to Tempo details in a single click", async () => {
     const user = userEvent.setup();
-    render(<DockHarness {...dockProps()} />);
+    render(<DockHarness {...createDockProps()} />);
 
     await openAdapterPanel(user);
 
-    await user.click(screen.getByRole("button", { name: "Tempo details" }));
+    await user.click(screen.getByRole("button", { name: /Tempo/ }));
 
     expect(await screen.findByRole("region", { name: "Tempo" })).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "Sinks & Source" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Settings" })).not.toBeInTheDocument();
   });
 
   it("switches back into the adapter panel from another panel in a single click", async () => {
     const user = userEvent.setup();
-    render(<DockHarness {...dockProps()} />);
+    render(<DockHarness {...createDockProps()} />);
+
+    await user.click(screen.getByRole("button", { name: "Monitor" }));
+    expect(await screen.findByRole("region", { name: "Monitor" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Settings" }));
+
     expect(await screen.findByRole("region", { name: "Settings" })).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Sinks & Source" }));
-
-    expect(await screen.findByRole("region", { name: "Sinks & Source" })).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "Settings" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Monitor" })).not.toBeInTheDocument();
   });
 
-  it("still closes the adapter panel when its own cluster is clicked again", async () => {
+  it("still closes the adapter panel when its own section is collapsed", async () => {
     const user = userEvent.setup();
-    render(<DockHarness {...dockProps()} />);
+    render(<DockHarness {...createDockProps()} />);
 
     await openAdapterPanel(user);
-    await user.click(screen.getByRole("button", { name: "Sinks & Source" }));
+    await user.click(sectionKey("Settings"));
 
     await waitFor(() =>
-      expect(screen.queryByRole("region", { name: "Sinks & Source" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("region", { name: "Settings" })).not.toBeInTheDocument()
     );
   });
 
@@ -259,7 +157,7 @@ describe("adapter panel <-> other panel switching", () => {
     render(
       <div>
         <button type="button">outside</button>
-        <DockHarness {...dockProps()} />
+        <DockHarness {...createDockProps()} />
       </div>
     );
 
@@ -267,7 +165,7 @@ describe("adapter panel <-> other panel switching", () => {
     await user.click(screen.getByRole("button", { name: "outside" }));
 
     await waitFor(() =>
-      expect(screen.queryByRole("region", { name: "Sinks & Source" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("region", { name: "Settings" })).not.toBeInTheDocument()
     );
   });
 });

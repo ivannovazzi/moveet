@@ -6,7 +6,9 @@ export default function Zoom() {
   const { zoomIn, zoomOut } = useMapControls();
 
   return (
-    <div className="absolute bottom-6 right-6 z-10 flex gap-2 rounded-lg border border-border surface-glass p-1 shadow-elevated backdrop-blur-md">
+    // On the shelf above the dock row: the dock's right wing runs the full width
+    // of the band below, so the zoom keys stand clear of it.
+    <div className="absolute bottom-above-dock right-6 z-10 flex gap-2 rounded-lg border border-border surface-glass glass-frost p-1 shadow-elevated">
       <SquaredButton
         onClick={zoomIn}
         icon={<ZoomIn />}

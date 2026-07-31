@@ -3,8 +3,9 @@ import { renderHook, act } from "@testing-library/react";
 import { useJobDraft } from "./useJobDraft";
 import type { CreateJobRequest, JobDTO } from "@/types";
 
-const PICKUP: [number, number] = [-1.29, 36.82];
-const DROPOFF: [number, number] = [-1.31, 36.85];
+// Map clicks are [lng, lat] — deck.gl's order, and what `onMapClick` hands over.
+const PICKUP: [number, number] = [36.82, -1.29];
+const DROPOFF: [number, number] = [36.85, -1.31];
 
 let createJob: ReturnType<typeof vi.fn>;
 
@@ -33,7 +34,9 @@ describe("useJobDraft", () => {
 
     expect(consumed).toBe(true);
     expect(result.current.stage).toBe("dropoff");
-    expect(result.current.pickup).toEqual(PICKUP);
+    // Stored in the app's [lat, lng], like every other position — `JobsLayer`
+    // flips it back to deck order to draw the draft marker.
+    expect(result.current.pickup).toEqual([PICKUP[1], PICKUP[0]]);
     expect(createJob).not.toHaveBeenCalled();
   });
 
@@ -48,8 +51,11 @@ describe("useJobDraft", () => {
 
     expect(createJob).toHaveBeenCalledTimes(1);
     const request = createJob.mock.calls[0][0] as CreateJobRequest;
-    expect(request.pickup).toEqual({ lat: PICKUP[0], lng: PICKUP[1] });
-    expect(request.dropoff).toEqual({ lat: DROPOFF[0], lng: DROPOFF[1] });
+    // …and the request is lat/lng, so the click order is flipped exactly once.
+    // Sending it through unflipped made every job land at (36.8, -1.3), which the
+    // simulator rejects as outside the road network bounds.
+    expect(request.pickup).toEqual({ lat: PICKUP[1], lng: PICKUP[0] });
+    expect(request.dropoff).toEqual({ lat: DROPOFF[1], lng: DROPOFF[0] });
     expect(result.current.stage).toBe("idle");
     expect(result.current.pickup).toBeNull();
   });
@@ -139,5 +145,36 @@ describe("useJobDraft", () => {
     act(() => result.current.setSlaMinutes(42));
 
     expect(result.current.handleMapClick).toBe(first);
+  });
+});
+
+describe("stepping back", () => {
+  it("returns to the pickup step and drops the placed pickup", () => {
+    const { result } = renderHook(() => useJobDraft(vi.fn()));
+
+    act(() => result.current.start());
+    act(() => {
+      result.current.handleMapClick([1, 2]);
+    });
+    expect(result.current.stage).toBe("dropoff");
+    // Click order in, app order stored.
+    expect(result.current.pickup).toEqual([2, 1]);
+
+    act(() => result.current.back());
+
+    // Placing the pickup wrongly used to cost the whole draft: cancel, restart.
+    expect(result.current.stage).toBe("pickup");
+    expect(result.current.pickup).toBeNull();
+  });
+
+  it("does nothing from the pickup step or while idle", () => {
+    const { result } = renderHook(() => useJobDraft(vi.fn()));
+
+    act(() => result.current.back());
+    expect(result.current.stage).toBe("idle");
+
+    act(() => result.current.start());
+    act(() => result.current.back());
+    expect(result.current.stage).toBe("pickup");
   });
 });

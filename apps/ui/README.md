@@ -77,11 +77,37 @@ SimulationService (src/utils/client.ts) — singleton HttpClient + WebSocketClie
     │
 App.tsx — layout, WS lifecycle, vehicle filters/selection, dispatch/geofence/…
     │
-    ├── Controls (src/Controls/)  — icon rail + sliding panels (vehicles, fleets,
-    │                                incidents, analytics, geofences, adapter, …)
+    ├── Dock (src/Dock/) — the bottom row: an action surface (new dispatch /
+    │                      job / zone), the main dock (transport, tempo, and a
+    │                      context slot that opens for an active mode, a replay
+    │                      or a pending discard), and the sections dock whose
+    │                      four keys unfold their own buttons and panel
+    ├── Controls (src/Controls/) — the panel bodies (vehicles, fleets, jobs,
+    │                              incidents, analytics, geofences, faults, …)
     ├── Map (src/Map/ + src/components/Map/) — deck.gl WebGL canvas + layers
-    └── SearchBar / Zoom / BottomDock / legends
+    └── SearchBar / Zoom / legends / StatusLeds / SessionTimeline
 ```
+
+### Dock anatomy
+
+`Dock/dockSections.tsx` is the registry: each section (Fleet, Monitor, Session,
+Settings) declares its buttons and its panel width, and nothing in it depends on
+live data, so a section always unfolds to the same bar. Counts arrive separately
+as badges on those fixed buttons. Every floating piece is a `DockSurface`, and
+every panel is an `AnchoredPanel` lined up with the button that opened it. Health
+lamps (`StatusLeds`) sit in the top-right corner rather than on the row, since
+they are read and never pressed.
+
+### Map modes
+
+`InteractionMode` (`src/hooks/useInteractionMode.ts`) is the single answer to
+"what does a click on the map mean right now": `browse`, `dispatch`,
+`draw-geofence`, `place-job`, `draw-heatzone`, `edit-heatzone`. One descriptor
+table (`src/Dock/modeDescriptors.tsx`) turns the active mode into the dock's
+mode rail, the Escape/Enter routing, the launcher entries and the palette
+actions, so those surfaces cannot describe the same mode differently. Entering a
+mode goes through `useModeGuard`, which asks before discarding in-flight work
+(an unfinished polygon, a dispatch selection, a half-placed job).
 
 ### Map system (deck.gl, no third-party map library)
 

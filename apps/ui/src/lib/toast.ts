@@ -11,10 +11,22 @@ export interface ToastOptions {
   duration?: number;
 }
 
+/**
+ * How long each kind stays up, unless the caller says otherwise.
+ *
+ * A confirmation only has to be *seen* — it says the thing you just did worked,
+ * and you already knew what you did. A failure has to be *read*, and often
+ * carries a server message, so it gets half again as long.
+ */
+const DURATION = { success: 3000, info: 4000, error: 6000 } as const;
+
 export const toast = {
-  success: (message: string, options?: ToastOptions) => sonnerToast.success(message, options),
-  error: (message: string, options?: ToastOptions) => sonnerToast.error(message, options),
-  info: (message: string, options?: ToastOptions) => sonnerToast.info(message, options),
+  success: (message: string, options?: ToastOptions) =>
+    sonnerToast.success(message, { duration: DURATION.success, ...options }),
+  error: (message: string, options?: ToastOptions) =>
+    sonnerToast.error(message, { duration: DURATION.error, ...options }),
+  info: (message: string, options?: ToastOptions) =>
+    sonnerToast.info(message, { duration: DURATION.info, ...options }),
 };
 
 /** Coerce an unknown thrown value into a human-readable message. */

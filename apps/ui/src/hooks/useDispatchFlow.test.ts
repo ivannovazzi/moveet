@@ -700,3 +700,48 @@ describe("useDispatchFlow waypoint validation", () => {
     expect(result.current.error).toBeNull();
   });
 });
+
+describe("the dock's dispatch keys", () => {
+  it("clearSelection empties the flow but stays in dispatch mode", () => {
+    const { result } = renderHook(() => useDispatchFlowHarness());
+
+    act(() => {
+      result.current.toggleDispatchMode();
+    });
+    act(() => {
+      result.current.onToggleVehicleForDispatch("v1");
+      result.current.onToggleVehicleForDispatch("v2");
+    });
+    act(() => {
+      result.current.onAddWaypoint("v1", [-1.29, 36.82]);
+    });
+    expect(result.current.selectedForDispatch).toEqual(["v1", "v2"]);
+
+    act(() => {
+      result.current.clearSelection();
+    });
+
+    // The whole point: starting over must not cost the mode. `handleDone`
+    // bundles this same reset with an exit, which is why the dock needed its own.
+    expect(result.current.selectedForDispatch).toEqual([]);
+    expect(result.current.assignments).toEqual([]);
+    expect(result.current.dispatchMode).toBe(true);
+    expect(result.current.dispatchState).toBe(DispatchState.SELECT);
+  });
+
+  it("selectForDispatch replaces the whole selection in one go", () => {
+    const { result } = renderHook(() => useDispatchFlowHarness());
+
+    act(() => {
+      result.current.toggleDispatchMode();
+    });
+    act(() => {
+      result.current.onToggleVehicleForDispatch("v9");
+    });
+    act(() => {
+      result.current.selectForDispatch(["v1", "v2", "v3"]);
+    });
+
+    expect(result.current.selectedForDispatch).toEqual(["v1", "v2", "v3"]);
+  });
+});

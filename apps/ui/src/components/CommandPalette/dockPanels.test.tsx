@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 /**
  * Panel switching used to go through the DOM: the palette looked the dock's
@@ -20,6 +20,20 @@ vi.mock("@/utils/client", async () => {
       ...createMockClient(),
       getClock: vi.fn().mockResolvedValue({ data: undefined }),
       setClock: vi.fn().mockResolvedValue({ data: undefined }),
+      // The Session panel mounts RecordReplay, which polls generation state and
+      // subscribes to its progress channels.
+      getGenerateStatus: vi.fn().mockResolvedValue({ data: undefined }),
+      onGenerateProgress: vi.fn(),
+      offGenerateProgress: vi.fn(),
+      onGenerateComplete: vi.fn(),
+      offGenerateComplete: vi.fn(),
+      onGenerateError: vi.fn(),
+      offGenerateError: vi.fn(),
+      // …and Scenarios polls its own catalogue.
+      getScenarios: vi.fn().mockResolvedValue({ data: [] }),
+      getScenarioStatus: vi.fn().mockResolvedValue({ data: undefined }),
+      onScenarioEvent: vi.fn(),
+      offScenarioEvent: vi.fn(),
     },
   };
 });
@@ -34,12 +48,11 @@ vi.mock("@/Controls/Adapter/adapterClient", () => ({
 }));
 
 // Imported after the mocks so the hoisted factories are in place.
-import Dock, { type DockProps } from "@/Dock/Dock";
-import type { JobsPanelProps } from "@/Controls/JobsPanel";
-import type { DispatchFlow } from "@/hooks/useDispatchFlow";
+import Dock from "@/Dock/Dock";
 import { DispatchState } from "@/hooks/useDispatchState";
 import { useDockNavigation } from "@/hooks/useDockNavigation";
-import { createModifiers, createStartOptions, createStatus } from "@/test/mocks/types";
+import { createDockProps } from "@/test/dockProps";
+import { createModifiers, createStartOptions } from "@/test/mocks/types";
 import CommandPalette from "./CommandPalette";
 import { buildCommands, type CommandDeps } from "./commands";
 
@@ -56,103 +69,21 @@ function otherDeps(): Omit<CommandDeps, "dock"> {
     onResumeReplay: vi.fn(),
     onStopReplay: vi.fn(),
     onSetReplaySpeed: vi.fn(),
-    dispatchMode: false,
+    modeDescriptor: null,
+    onStartMode: vi.fn(),
     dispatchState: DispatchState.BROWSE,
     assignmentCount: 0,
     hasFailedDispatches: false,
-    onToggleDispatchMode: vi.fn(),
-    onExitDispatchMode: vi.fn(),
     onDispatch: vi.fn(),
     onRetryFailedDispatches: vi.fn(),
+    faultsArmed: false,
+    onToggleFaults: vi.fn(),
+    onClearFaultState: vi.fn(),
     onCreateRandomIncident: vi.fn(),
-    onStartGeofenceDrawing: vi.fn(),
-    heatzones: { isDrawing: false, toggleDraw: vi.fn(), seed: vi.fn(), clearAll: vi.fn() },
+    heatzones: { seed: vi.fn(), clearAll: vi.fn() },
     modifiers: createModifiers(),
     onChangeModifiers: () => vi.fn(),
     onClearSelection: vi.fn(),
-  };
-}
-
-function dockProps(): Omit<DockProps, "navigation"> {
-  return {
-    connected: true,
-    status: createStatus({ running: true }),
-    isRecording: false,
-    onStartRecording: async () => {},
-    onStopRecording: async () => {},
-    replayStatus: { mode: "live" },
-    onPauseReplay: async () => {},
-    onResumeReplay: async () => {},
-    onStopReplay: async () => {},
-    onSeekReplay: async () => {},
-    onSetReplaySpeed: async () => {},
-    vehicles: [],
-    filter: "",
-    onFilterChange: () => {},
-    onSelectVehicle: () => {},
-    onHoverVehicle: () => {},
-    onUnhoverVehicle: () => {},
-    maxSpeed: 60,
-    vehicleFleetMap: new Map(),
-    fleets: [],
-    onCreateFleet: async () => {},
-    onDeleteFleet: async () => {},
-    onAssignVehicle: async () => {},
-    onUnassignVehicle: async () => {},
-    fleetsError: null,
-    dispatch: {
-      dispatchState: DispatchState.BROWSE,
-      selectedForDispatch: [],
-      assignments: [],
-      results: [],
-    } as unknown as DispatchFlow,
-    // Only `counts` is read by the dock bar itself (the Fleet badge); the Fleet
-    // panel — and so the job board — is never opened in these tests.
-    jobs: {
-      jobs: [],
-      counts: { total: 0, live: 0, queued: 0, breached: 0 },
-      draft: { active: false } as unknown as JobsPanelProps["draft"],
-      onCancelJob: async () => {},
-      onDeleteJob: async () => {},
-      onAssignJob: async () => {},
-      vehicles: [],
-      jobByVehicleId: new Map(),
-      error: null,
-    },
-    incidents: { incidents: [], createRandom: async () => {}, remove: async () => {}, error: null },
-    faults: {
-      faults: {
-        config: null,
-        status: null,
-        loading: false,
-        error: null,
-        configure: async () => {},
-        setVehicleProfile: async () => {},
-        clearVehicleProfile: async () => {},
-        reset: async () => {},
-      },
-      vehicles: [],
-    },
-    geofences: {
-      fences: [],
-      onFenceToggle: () => {},
-      onFenceDelete: () => {},
-      alerts: [],
-      drawingActive: false,
-      vertexCount: 0,
-      onStartDrawing: () => {},
-      onCancelDrawing: () => {},
-      onConfirmDrawing: () => {},
-    },
-    analytics: { summary: null, fleetHistory: new Map(), summaryHistory: [] },
-    toggles: { modifiers: createModifiers(), onChangeModifiers: () => () => {} },
-    recordings: {
-      recordings: [],
-      replayStatus: { mode: "live" },
-      onStartReplay: async () => {},
-      onRefreshRecordings: () => {},
-    },
-    advanced: { maxSpeedRef: { current: 60 } },
   };
 }
 
@@ -161,7 +92,7 @@ function Harness() {
   const nav = useDockNavigation();
   return (
     <>
-      <Dock navigation={nav} {...dockProps()} />
+      <Dock navigation={nav} {...createDockProps()} />
       <CommandPalette
         vehicles={[]}
         roads={[]}
@@ -177,16 +108,19 @@ function Harness() {
 /** Open the palette, type the action's full label, and run it. */
 function runPaletteAction(label: string) {
   fireEvent.keyDown(document, { key: "k", metaKey: true });
-  const input = screen.getByRole("combobox");
+  // Scoped to the palette: an open panel can hold comboboxes of its own (the
+  // fleet assignment picker, for one).
+  const input = within(screen.getByRole("dialog")).getByRole("combobox");
   fireEvent.change(input, { target: { value: label } });
   fireEvent.keyDown(input, { key: "Enter" });
 }
 
 const cluster = (name: string) => screen.getByRole("button", { name });
+/** The section key carries `aria-expanded` whether or not it is open. */
+const sectionButton = (name: string) => cluster(name);
 /**
- * The dock's single panel surface stays mounted while closed, marked
- * `aria-hidden`; role queries skip hidden nodes, so this is exactly the set of
- * *visible* panels.
+ * Panel surfaces stay mounted while closed, marked `aria-hidden`; role queries
+ * skip hidden nodes, so this is exactly the set of *visible* panels.
  */
 const openPanels = () => screen.queryAllByRole("region").map((r) => r.getAttribute("aria-label"));
 
@@ -195,21 +129,21 @@ describe("command palette → dock panels", () => {
     render(<Harness />);
     expect(openPanels()).toEqual([]);
 
-    runPaletteAction("Open Monitor panel");
+    runPaletteAction("Open Monitor › Incidents");
 
     expect(await screen.findByRole("region", { name: "Monitor" })).toBeInTheDocument();
-    expect(cluster("Monitor")).toHaveAttribute("aria-pressed", "true");
+    expect(sectionButton("Monitor")).toHaveAttribute("aria-expanded", "true");
   });
 
-  it("opens each panel-owning cluster by name", async () => {
+  it("opens every section button by name, tabs included", async () => {
     render(<Harness />);
 
     for (const [label, panel] of [
       ["Open Tempo panel", "Tempo"],
-      ["Open Fleet & Dispatch panel", "Fleet & Dispatch"],
-      ["Open Sinks & Source panel", "Sinks & Source"],
-      ["Open Monitor panel", "Monitor"],
-      ["Open Settings panel", "Settings"],
+      ["Open Fleet › Groups", "Fleet"],
+      ["Open Monitor › Faults", "Monitor"],
+      ["Open Session › Scenarios", "Session"],
+      ["Open Settings › Advanced", "Settings"],
     ] as const) {
       runPaletteAction(label);
       expect(await screen.findByRole("region", { name: panel })).toBeInTheDocument();
@@ -217,42 +151,51 @@ describe("command palette → dock panels", () => {
     }
   });
 
+  it("lands on the requested tab, not just the section", async () => {
+    render(<Harness />);
+
+    runPaletteAction("Open Monitor › Geofences");
+
+    expect(await screen.findByRole("region", { name: "Monitor" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Geofences/ })).toHaveAttribute("aria-selected", "true");
+  });
+
   it("is idempotent — opening the panel that is already open leaves it open", async () => {
     render(<Harness />);
 
-    runPaletteAction("Open Monitor panel");
+    runPaletteAction("Open Monitor › Incidents");
     expect(await screen.findByRole("region", { name: "Monitor" })).toBeInTheDocument();
 
-    runPaletteAction("Open Monitor panel");
+    runPaletteAction("Open Monitor › Incidents");
 
     expect(screen.getByRole("region", { name: "Monitor" })).toBeInTheDocument();
-    expect(cluster("Monitor")).toHaveAttribute("aria-pressed", "true");
+    expect(sectionButton("Monitor")).toHaveAttribute("aria-expanded", "true");
   });
 
   it("closes whichever panel is open", async () => {
     render(<Harness />);
 
-    runPaletteAction("Open Settings panel");
+    runPaletteAction("Open Settings › Feeds & sinks");
     expect(await screen.findByRole("region", { name: "Settings" })).toBeInTheDocument();
 
-    runPaletteAction("Close dock panel");
+    runPaletteAction("Collapse dock section");
 
     await waitFor(() => expect(openPanels()).toEqual([]));
-    expect(cluster("Settings")).toHaveAttribute("aria-pressed", "false");
+    expect(sectionButton("Settings")).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("shares state with the dock's buttons: the active cluster still closes it", async () => {
+  it("shares state with the dock's buttons: collapsing the section closes it", async () => {
     render(<Harness />);
 
-    runPaletteAction("Open Monitor panel");
+    runPaletteAction("Open Monitor › Incidents");
     expect(await screen.findByRole("region", { name: "Monitor" })).toBeInTheDocument();
 
-    // Clicking the cluster the palette activated toggles it shut — the two are
-    // the same state, not two copies of it.
-    fireEvent.click(cluster("Monitor"));
+    // Collapsing the section the palette expanded closes its panel — the two
+    // are the same state, not two copies of it. The lit key is the collapse.
+    fireEvent.click(sectionButton("Monitor"));
 
     await waitFor(() => expect(openPanels()).toEqual([]));
-    expect(cluster("Monitor")).toHaveAttribute("aria-pressed", "false");
+    expect(sectionButton("Monitor")).toHaveAttribute("aria-expanded", "false");
   });
 
   it("switches panels without reading the dock's markup", async () => {
@@ -260,9 +203,9 @@ describe("command palette → dock panels", () => {
     render(<Harness />);
     querySelector.mockClear();
 
-    runPaletteAction("Open Fleet & Dispatch panel");
+    runPaletteAction("Open Fleet › List");
 
-    expect(await screen.findByRole("region", { name: "Fleet & Dispatch" })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "Fleet" })).toBeInTheDocument();
     // The old bridge found the dock's cluster buttons with
     // `document.querySelector('button[aria-label="…"]')`.
     const lookups = querySelector.mock.calls.filter(
