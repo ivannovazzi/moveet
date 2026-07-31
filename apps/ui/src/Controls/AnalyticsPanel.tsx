@@ -8,12 +8,14 @@ import {
   type FacetSeries,
   type StatDelta,
 } from "@/components/charts";
-import { Eyebrow, SegTabs, StatusDot, mono, type SegTab } from "@/Dock/DockPanelKit";
+import { Eyebrow, SegTabs, StatusDot, Tag, mono, type SegTab } from "@/Dock/DockPanelKit";
 import type { AnalyticsSummary, FleetAnalytics } from "@/hooks/analyticsStore";
 import {
   ANALYTICS_RANGES,
+  describeAggregation,
   useAnalyticsSeries,
   type AnalyticsHistoryFetcher,
+  type AnalyticsHistoryMeta,
   type AnalyticsRange,
 } from "@/hooks/useAnalytics";
 import { cn } from "@/lib/utils";
@@ -63,6 +65,24 @@ const RANGE_TABS: SegTab<AnalyticsRange>[] = ANALYTICS_RANGES.map((r) => ({
 
 /** Trend samples shown in a KPI tile's sparkline. */
 const SPARK_POINTS = 24;
+
+/**
+ * Why the plotted window is narrower than the one that was asked for.
+ *
+ * The simulator answers a limited query from the RECENT end, so whatever it
+ * dropped is always older than the first point on the chart. Saying so beats
+ * silently drawing a range that does not start where the tab claims it does.
+ */
+function truncationDetail(meta: AnalyticsHistoryMeta): string {
+  const omitted = meta.omitted.toLocaleString();
+  const start = meta.coveredFrom ? new Date(meta.coveredFrom).toLocaleString() : null;
+  return [
+    `The stored window holds more than this query could read: ${omitted} older samples were left out.`,
+    start ? `The series starts at ${start} rather than at the start of the range.` : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
 
 function tail(values: number[], count: number): number[] {
   return values.length > count ? values.slice(-count) : values;
@@ -165,7 +185,7 @@ export default function AnalyticsPanel({
     client.resetAnalytics();
   }, []);
 
-  const { summaries, latest, status } = series;
+  const { summaries, latest, status, bucket, truncated, meta } = series;
 
   const timestamps = useMemo(() => summaries.map((s) => s.timestamp), [summaries]);
 
@@ -197,14 +217,23 @@ export default function AnalyticsPanel({
         unit: "veh",
         values: columns.active,
         format: axisCount,
+        hint: describeAggregation("activeVehicles", bucket),
       },
-      { id: "speed", label: "Avg speed", unit: "km/h", values: columns.speed, format: axisSpeed },
+      {
+        id: "speed",
+        label: "Avg speed",
+        unit: "km/h",
+        values: columns.speed,
+        format: axisSpeed,
+        hint: describeAggregation("avgSpeed", bucket),
+      },
       {
         id: "distance",
         label: "Distance travelled",
         unit: "km",
         values: columns.distance,
         format: axisDistance,
+        hint: describeAggregation("totalDistanceTraveled", bucket),
       },
       {
         id: "efficiency",
@@ -212,9 +241,10 @@ export default function AnalyticsPanel({
         unit: "%",
         values: columns.efficiency,
         format: axisPercent,
+        hint: describeAggregation("avgRouteEfficiency", bucket),
       },
     ],
-    [columns]
+    [columns, bucket]
   );
 
   const sinceLabel = range === "live" ? "over window" : `over ${RANGE_LABEL[range]}`;
@@ -238,10 +268,29 @@ export default function AnalyticsPanel({
             ariaLabel="Analytics time range"
           />
           <div className="flex items-center justify-between gap-2">
-            <span className="truncate text-[10px] text-muted-foreground">
-              {series.source === "live" ? "In-memory window" : "Stored history"}
-              {summaries.length > 0 ? ` · ${summaries.length} samples` : ""}
-            </span>
+            <div className="flex min-w-0 items-center gap-1.5">
+              <span
+                className="truncate text-[10px] text-muted-foreground"
+                title={
+                  bucket
+                    ? `Aggregated server-side into ${bucket.label} buckets from ${bucket.sampleCount.toLocaleString()} stored samples. Rates and counts are bucket means; cumulative totals keep the last value in each bucket.`
+                    : undefined
+                }
+              >
+                {series.source === "live" ? "In-memory window" : "Stored history"}
+                {summaries.length > 0 ? ` · ${summaries.length} samples` : ""}
+                {bucket ? ` · ${bucket.label} buckets` : ""}
+              </span>
+              {truncated && meta ? (
+                <span
+                  className="shrink-0"
+                  data-testid="analytics-truncated"
+                  title={truncationDetail(meta)}
+                >
+                  <Tag tone="warn">Clipped</Tag>
+                </span>
+              ) : null}
+            </div>
             <div className="flex items-center gap-1.5">
               <div className="flex gap-0.5" role="group" aria-label="Analytics view">
                 {(["chart", "table"] as const).map((v) => (

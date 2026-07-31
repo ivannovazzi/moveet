@@ -2,7 +2,11 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AnalyticsSummary, FleetAnalytics } from "@/hooks/analyticsStore";
-import type { AnalyticsHistoryRow } from "@/hooks/useAnalytics";
+import type {
+  AnalyticsBucketMeta,
+  AnalyticsHistoryMeta,
+  AnalyticsHistoryRow,
+} from "@/hooks/useAnalytics";
 
 const resetAnalytics = vi.fn();
 
@@ -230,5 +234,150 @@ describe("AnalyticsPanel — persisted history", () => {
 
     await user.click(screen.getByRole("tab", { name: "Live" }));
     expect(await screen.findByText(/In-memory window · 2 samples/)).toBeInTheDocument();
+  });
+});
+
+describe("AnalyticsPanel — server-side bucketing", () => {
+  const BUCKET: AnalyticsBucketMeta = {
+    durationMs: 300_000,
+    label: "5m",
+    count: 3,
+    sampleCount: 180,
+    auto: true,
+  };
+
+  function makeBucketedRow(index: number): AnalyticsHistoryRow {
+    const start = T0 + index * 300_000;
+    return {
+      id: index,
+      timestamp: new Date(start).toISOString(),
+      summary: makeSummary(index, { timestamp: start }),
+      fleets: [makeFleet({ avgSpeed: 20 + index })],
+      bucket: {
+        durationMs: 300_000,
+        label: "5m",
+        start: new Date(start).toISOString(),
+        end: new Date(start + 300_000).toISOString(),
+        sampleCount: 60,
+        firstTimestamp: new Date(start).toISOString(),
+        lastTimestamp: new Date(start + 295_000).toISOString(),
+      },
+    };
+  }
+
+  function makeMeta(overrides: Partial<AnalyticsHistoryMeta> = {}): AnalyticsHistoryMeta {
+    return {
+      matched: 180,
+      scanned: 180,
+      returned: 3,
+      omitted: 0,
+      truncated: false,
+      anchor: "newest",
+      limit: 240,
+      order: "asc",
+      from: new Date(T0).toISOString(),
+      to: null,
+      coveredFrom: new Date(T0).toISOString(),
+      coveredTo: new Date(T0 + 600_000).toISOString(),
+      windowFrom: new Date(T0).toISOString(),
+      windowTo: new Date(T0 + 600_000).toISOString(),
+      bucket: BUCKET,
+      ...overrides,
+    };
+  }
+
+  function bucketedResponse(overrides: Partial<AnalyticsHistoryMeta> = {}) {
+    return {
+      data: {
+        meta: makeMeta(overrides),
+        rows: [makeBucketedRow(0), makeBucketedRow(1), makeBucketedRow(2)],
+      },
+    };
+  }
+
+  async function openRange(fetchHistory: ReturnType<typeof vi.fn>, tab: string) {
+    const user = userEvent.setup();
+    renderPanel({ summary: makeSummary(0), summaryHistory: [makeSummary(0)], fetchHistory });
+    await user.click(screen.getByRole("tab", { name: tab }));
+    return user;
+  }
+
+  it("asks for one bucket per plotted point instead of a slab to thin locally", async () => {
+    const fetchHistory = vi.fn().mockResolvedValue(bucketedResponse());
+    await openRange(fetchHistory, "24h");
+
+    await waitFor(() => expect(fetchHistory).toHaveBeenCalledTimes(1));
+    expect(fetchHistory.mock.calls[0][0]).toMatchObject({ limit: 240, bucket: "auto" });
+  });
+
+  it("reads the enveloped body and names the bucket width", async () => {
+    const fetchHistory = vi.fn().mockResolvedValue(bucketedResponse());
+    await openRange(fetchHistory, "6h");
+
+    expect(await screen.findByText(/Stored history · 3 samples · 5m buckets/)).toBeInTheDocument();
+    expect(screen.getByTestId("facet-speed")).toBeInTheDocument();
+  });
+
+  it("badges a window the server could not cover in full", async () => {
+    const fetchHistory = vi
+      .fn()
+      .mockResolvedValue(bucketedResponse({ truncated: true, omitted: 4200 }));
+    await openRange(fetchHistory, "24h");
+
+    const badge = await screen.findByTestId("analytics-truncated");
+    expect(badge).toHaveTextContent(/clipped/i);
+    expect(badge).toHaveAttribute("title", expect.stringContaining("4,200 older samples"));
+  });
+
+  it("leaves the badge off when the whole window came back", async () => {
+    const fetchHistory = vi.fn().mockResolvedValue(bucketedResponse());
+    await openRange(fetchHistory, "24h");
+
+    await screen.findByTestId("facet-speed");
+    expect(screen.queryByTestId("analytics-truncated")).not.toBeInTheDocument();
+  });
+
+  it("distinguishes a last-in-bucket counter from a bucket mean", async () => {
+    const fetchHistory = vi.fn().mockResolvedValue(bucketedResponse());
+    await openRange(fetchHistory, "6h");
+
+    const distance = await screen.findByTestId("facet-label-distance");
+    expect(distance).toHaveAttribute("title", expect.stringMatching(/cumulative counter/i));
+    expect(distance).toHaveAttribute(
+      "title",
+      expect.stringMatching(/last sample in its 5m bucket/i)
+    );
+
+    const speed = screen.getByTestId("facet-label-speed");
+    expect(speed).toHaveAttribute("title", expect.stringMatching(/mean of the samples/i));
+    expect(speed.getAttribute("title")).not.toMatch(/cumulative/i);
+  });
+
+  it("carries the same distinction into the table view", async () => {
+    const fetchHistory = vi.fn().mockResolvedValue(bucketedResponse());
+    const user = await openRange(fetchHistory, "6h");
+
+    await screen.findByTestId("facet-speed");
+    await user.click(screen.getByRole("button", { name: "table" }));
+
+    expect(screen.getByTestId("series-th-distance")).toHaveAttribute(
+      "title",
+      expect.stringMatching(/cumulative counter/i)
+    );
+    expect(screen.getByTestId("series-th-speed")).toHaveAttribute(
+      "title",
+      expect.stringMatching(/mean of the samples/i)
+    );
+  });
+
+  it("says nothing about aggregation when the rows are verbatim samples", async () => {
+    const fetchHistory = vi
+      .fn()
+      .mockResolvedValue({ data: [makeBucketedRow(0), makeBucketedRow(1)] });
+    await openRange(fetchHistory, "1h");
+
+    const distance = await screen.findByTestId("facet-label-distance");
+    expect(distance).not.toHaveAttribute("title");
+    expect(screen.queryByTestId("analytics-truncated")).not.toBeInTheDocument();
   });
 });

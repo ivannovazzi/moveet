@@ -32,7 +32,13 @@ export function SeriesTable({ timestamps, series, maxRows = 40, caption }: Serie
               Time
             </th>
             {series.map((s) => (
-              <th key={s.id} scope="col" className="py-1 pl-2 text-right font-medium">
+              <th
+                key={s.id}
+                scope="col"
+                className="py-1 pl-2 text-right font-medium"
+                title={s.hint}
+                data-testid={`series-th-${s.id}`}
+              >
                 {s.label}
                 {s.unit ? <span className="ml-0.5 font-normal opacity-70">({s.unit})</span> : null}
               </th>

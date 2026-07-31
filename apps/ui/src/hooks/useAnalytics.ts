@@ -63,11 +63,12 @@ export function useAnalytics(): UseAnalyticsResult {
 //  • "live"      — the WebSocket window analyticsStore already keeps (the last
 //                  60 snapshots, ~5 min at the simulator's 5 s cadence).
 //  • "persisted" — GET /analytics/history, the simulator's SQLite
-//                  `analytics_history` time series, which already accepts
-//                  from/to/limit. It answers 503 when the simulator runs
-//                  without persistence; that surfaces as an honest
-//                  "unavailable" state rather than a silent fallback to a
-//                  differently-scoped window.
+//                  `analytics_history` time series, which accepts
+//                  from/to/limit plus `bucket` (server-side downsampling) and
+//                  `envelope` (metadata in the body). It answers 503 when the
+//                  simulator runs without persistence; that surfaces as an
+//                  honest "unavailable" state rather than a silent fallback to
+//                  a differently-scoped window.
 //
 // Both normalise to the same `{ summaries, fleetHistory }` shape so the panel
 // (and its charts) never learn which source they are reading.
@@ -83,37 +84,186 @@ const RANGE_MS: Record<Exclude<AnalyticsRange, "live">, number> = {
   "24h": 24 * 60 * 60 * 1000,
 };
 
-/** Rows requested per query. The simulator itself clamps at 10 000. */
-const HISTORY_ROW_LIMIT = 2000;
-
 /** Samples kept for plotting — more than this is sub-pixel in a dock panel. */
 const MAX_PLOT_POINTS = 240;
 
+/**
+ * Entries requested per query. The panel plots at most `MAX_PLOT_POINTS`, so
+ * asking for more than that only pays to ship rows the charts thin away again.
+ * Paired with `bucket=auto` the simulator fits the WHOLE window into this many
+ * buckets instead of returning the newest N raw samples and nothing older.
+ */
+const HISTORY_ENTRY_LIMIT = MAX_PLOT_POINTS;
+
+/**
+ * Server-side downsample width. `auto` picks the smallest width off the
+ * simulator's ladder that fits the queried span into `limit` buckets.
+ */
+const HISTORY_BUCKET = "auto";
+
 const PERSISTED_REFRESH_MS = 15_000;
+
+/** Provenance of a single downsampled row (absent on verbatim rows). */
+export interface AnalyticsBucketInfo {
+  durationMs: number;
+  /** Canonical width label, e.g. `"5m"`. */
+  label: string;
+  /** ISO start of the bucket window (inclusive). */
+  start: string;
+  /** ISO end of the bucket window (exclusive). */
+  end: string;
+  /** Stored samples folded into this row. */
+  sampleCount: number;
+  firstTimestamp: string;
+  lastTimestamp: string;
+}
 
 /** A row of the simulator's `analytics_history` table. */
 export interface AnalyticsHistoryRow {
   id: number;
-  /** ISO-8601 row timestamp. */
+  /** ISO-8601 row timestamp. On a bucketed row, the bucket start. */
   timestamp: string;
   summary: AnalyticsSummary;
   fleets: FleetAnalytics[];
+  /** Present only when the server aggregated this row. */
+  bucket?: AnalyticsBucketInfo;
 }
 
-export type AnalyticsHistoryFetcher = (params: {
-  from: string;
+/** Bucket summary the server attaches to a downsampled query. */
+export interface AnalyticsBucketMeta {
+  durationMs: number;
+  label: string;
+  /** Buckets in the payload. */
+  count: number;
+  /** Stored samples folded into those buckets. */
+  sampleCount: number;
+  /** True when the width was derived from the data rather than requested. */
+  auto: boolean;
+  /** Per-field aggregation the server used, keyed by dotted field path. */
+  aggregation?: Record<string, string>;
+}
+
+/**
+ * What the server did NOT return. A limited query is answered from the RECENT
+ * end, so anything omitted is always older than the payload.
+ */
+export interface AnalyticsHistoryMeta {
+  matched: number;
+  scanned: number;
+  returned: number;
+  omitted: number;
+  truncated: boolean;
+  anchor: "newest";
   limit: number;
-}) => Promise<ApiResponse<AnalyticsHistoryRow[]>>;
+  order: "asc" | "desc";
+  from: string | null;
+  to: string | null;
+  coveredFrom: string | null;
+  coveredTo: string | null;
+  windowFrom: string | null;
+  windowTo: string | null;
+  bucket: AnalyticsBucketMeta | null;
+}
+
+/** Body shape returned by `?envelope=true`. */
+export interface AnalyticsHistoryEnvelope {
+  meta: AnalyticsHistoryMeta | null;
+  rows: AnalyticsHistoryRow[];
+}
+
+/**
+ * Either body the endpoint can answer with: the enveloped form we ask for, or
+ * the bare array a simulator that predates the bucketing work still returns.
+ */
+export type AnalyticsHistoryPayload = AnalyticsHistoryRow[] | AnalyticsHistoryEnvelope;
+
+export interface AnalyticsHistoryQuery {
+  /** ISO lower bound of the window. */
+  from: string;
+  /** Max entries — buckets, not raw samples, once `bucket` is set. */
+  limit: number;
+  /** Downsample width: `"auto"` or a duration such as `"30s"` / `"5m"`. */
+  bucket: string;
+}
+
+export type AnalyticsHistoryFetcher = (
+  params: AnalyticsHistoryQuery
+) => Promise<ApiResponse<AnalyticsHistoryPayload>>;
 
 let historyHttp: HttpClient | null = null;
 
 /** Default fetcher. Injectable so the panel's source can be swapped in tests. */
-export const fetchAnalyticsHistory: AnalyticsHistoryFetcher = ({ from, limit }) => {
+export const fetchAnalyticsHistory: AnalyticsHistoryFetcher = ({ from, limit, bucket }) => {
   historyHttp ??= new HttpClient(appConfig.apiUrl);
-  return historyHttp.get<AnalyticsHistoryRow[]>(
-    `/analytics/history?from=${encodeURIComponent(from)}&limit=${limit}`
-  );
+  const query = new URLSearchParams({
+    from,
+    limit: String(limit),
+    bucket,
+    // Truncation and bucket facts ride in the body rather than in the
+    // `X-Analytics-*` headers, because `HttpClient` hands back a parsed body
+    // and nothing else.
+    envelope: "true",
+  });
+  return historyHttp.get<AnalyticsHistoryPayload>(`/analytics/history?${query.toString()}`);
 };
+
+/**
+ * Normalises both response bodies into rows plus (when present) metadata.
+ *
+ * A simulator without the bucketing endpoint ignores `envelope` and answers a
+ * bare array; that path simply yields `meta: null`, and the panel degrades to
+ * what it showed before rather than erroring.
+ */
+export function readHistoryPayload(payload: AnalyticsHistoryPayload | undefined | null): {
+  rows: AnalyticsHistoryRow[];
+  meta: AnalyticsHistoryMeta | null;
+} {
+  if (Array.isArray(payload)) return { rows: payload, meta: null };
+  if (payload && Array.isArray(payload.rows)) {
+    return { rows: payload.rows, meta: payload.meta ?? null };
+  }
+  return { rows: [], meta: null };
+}
+
+/** Plotted measures, keyed the way `AnalyticsSummary` keys them. */
+export type BucketedMeasure =
+  | "activeVehicles"
+  | "avgSpeed"
+  | "totalDistanceTraveled"
+  | "totalIdleTime"
+  | "avgRouteEfficiency";
+
+/**
+ * How the simulator folds each measure when a query is bucketed. Mirrors its
+ * `ANALYTICS_BUCKET_AGGREGATION` map.
+ *
+ * The split matters: `totalDistanceTraveled` and `totalIdleTime` are
+ * monotonically accumulating counters, so a bucket keeps their LAST value —
+ * averaging them would understate the fleet. The rest are gauges and are
+ * averaged. Presenting the two identically invites reading a counter as a mean,
+ * so the panel labels them apart.
+ */
+export const BUCKET_AGGREGATION: Record<BucketedMeasure, "mean" | "last"> = {
+  activeVehicles: "mean",
+  avgSpeed: "mean",
+  totalDistanceTraveled: "last",
+  totalIdleTime: "last",
+  avgRouteEfficiency: "mean",
+};
+
+/**
+ * Hover copy explaining what one plotted point is. `undefined` when the series
+ * is verbatim — there is nothing to disclaim about an unaggregated sample.
+ */
+export function describeAggregation(
+  measure: BucketedMeasure,
+  bucket: AnalyticsBucketMeta | null
+): string | undefined {
+  if (!bucket) return undefined;
+  return BUCKET_AGGREGATION[measure] === "last"
+    ? `Cumulative counter: each point is the last sample in its ${bucket.label} bucket, not an average.`
+    : `Each point is the mean of the samples in its ${bucket.label} bucket.`;
+}
 
 export type AnalyticsSeriesStatus = "loading" | "collecting" | "ready" | "unavailable" | "error";
 
@@ -126,6 +276,15 @@ export interface AnalyticsSeriesResult {
   latest: AnalyticsSummary | null;
   /** Human-readable reason for a non-ready status. */
   message: string | null;
+  /** Server metadata for the persisted query. `null` for live/legacy sources. */
+  meta: AnalyticsHistoryMeta | null;
+  /**
+   * True when the server left older samples out of the requested window. The
+   * panel badges this rather than silently plotting a partial range.
+   */
+  truncated: boolean;
+  /** Bucket the server aggregated into. `null` when the rows are verbatim. */
+  bucket: AnalyticsBucketMeta | null;
 }
 
 /** Timestamp of a summary, falling back to the row's ISO timestamp. */
@@ -177,9 +336,12 @@ export interface UseAnalyticsSeriesOptions {
 /**
  * Resolves the selected range to a plottable series.
  *
- * The persisted branch re-queries every 15 s so a long window keeps up with the
- * running simulation, and holds the previous rows while a refetch is in flight
- * (no skeleton flash, no layout jump).
+ * The persisted branch asks the simulator to bucket server-side into exactly as
+ * many entries as the panel plots, so a 24 h window costs ~100 rows on the wire
+ * instead of the 2 000-row slab this hook used to thin down itself. It
+ * re-queries every 15 s so a long window keeps up with the running simulation,
+ * and holds the previous rows while a refetch is in flight (no skeleton flash,
+ * no layout jump).
  */
 export function useAnalyticsSeries({
   range,
@@ -190,6 +352,7 @@ export function useAnalyticsSeries({
   now = Date.now,
 }: UseAnalyticsSeriesOptions): AnalyticsSeriesResult {
   const [rows, setRows] = useState<AnalyticsHistoryRow[] | null>(null);
+  const [meta, setMeta] = useState<AnalyticsHistoryMeta | null>(null);
   const [remoteStatus, setRemoteStatus] = useState<AnalyticsSeriesStatus>("loading");
   const [remoteMessage, setRemoteMessage] = useState<string | null>(null);
 
@@ -199,12 +362,17 @@ export function useAnalyticsSeries({
 
     let cancelled = false;
     setRows(null);
+    setMeta(null);
     setRemoteStatus("loading");
     setRemoteMessage(null);
 
     const load = async () => {
       const from = new Date(now() - RANGE_MS[range]).toISOString();
-      const response = await fetchHistory({ from, limit: HISTORY_ROW_LIMIT });
+      const response = await fetchHistory({
+        from,
+        limit: HISTORY_ENTRY_LIMIT,
+        bucket: HISTORY_BUCKET,
+      });
       if (cancelled) return;
 
       if (response.error || !response.data) {
@@ -218,10 +386,13 @@ export function useAnalyticsSeries({
           setRemoteMessage(response.error ?? "Could not load analytics history.");
         }
         setRows([]);
+        setMeta(null);
         return;
       }
 
-      setRows(response.data);
+      const payload = readHistoryPayload(response.data);
+      setRows(payload.rows);
+      setMeta(payload.meta);
       setRemoteStatus("ready");
       setRemoteMessage(null);
     };
@@ -251,6 +422,9 @@ export function useAnalyticsSeries({
             : status === "collecting"
               ? "Collecting samples — the trend appears once a second snapshot arrives."
               : null,
+        meta: null,
+        truncated: false,
+        bucket: null,
       };
     }
 
@@ -262,6 +436,9 @@ export function useAnalyticsSeries({
         fleetHistory: new Map(),
         latest: null,
         message: "Loading stored history…",
+        meta: null,
+        truncated: false,
+        bucket: null,
       };
     }
 
@@ -276,11 +453,17 @@ export function useAnalyticsSeries({
     return {
       status,
       source: "persisted",
+      // The server already sized the payload to the plot; this stays as the
+      // safety net for a legacy simulator that ignores `bucket` and for a
+      // window whose bucket count overshoots.
       summaries: downsample(derived.summaries, MAX_PLOT_POINTS),
       fleetHistory: derived.fleetHistory,
       latest: derived.summaries[derived.summaries.length - 1] ?? null,
       message:
         status === "collecting" ? "No stored samples in this window yet." : (remoteMessage ?? null),
+      meta,
+      truncated: meta?.truncated ?? false,
+      bucket: meta?.bucket ?? null,
     };
-  }, [range, summary, summaryHistory, fleetHistory, rows, remoteStatus, remoteMessage]);
+  }, [range, summary, summaryHistory, fleetHistory, rows, meta, remoteStatus, remoteMessage]);
 }

@@ -14,6 +14,13 @@ export interface FacetSeries {
   unit?: string;
   values: number[];
   format: (value: number) => string;
+  /**
+   * How one plotted point was derived — surfaced on hover next to the label.
+   * Set it whenever the points are not raw samples (a bucket mean reads very
+   * differently from a bucket's last counter value, and the chart cannot show
+   * that difference on its own).
+   */
+  hint?: string;
 }
 
 export interface TimeSeriesFacetProps {
@@ -91,12 +98,19 @@ export function TimeSeriesFacet({
   return (
     <div className="flex flex-col gap-1 py-1.5" data-testid={`facet-${series.id}`}>
       <div className="flex items-baseline justify-between gap-2 pl-[34px] pr-2">
-        <span className="truncate text-[10.5px] font-medium text-muted-foreground">
+        <span
+          className="truncate text-[10.5px] font-medium text-muted-foreground"
+          title={series.hint}
+          data-testid={`facet-label-${series.id}`}
+        >
           {series.label}
         </span>
         {/* Direct label: exactly one number per facet — the crosshair sample,
             or the latest value when nothing is hovered. Never one per point. */}
-        <span className="shrink-0 font-mono text-[11px] font-semibold tabular-nums text-foreground">
+        <span
+          className="shrink-0 font-mono text-[11px] font-semibold tabular-nums text-foreground"
+          title={series.hint}
+        >
           {series.format(shownValue)}
           {series.unit ? (
             <span className="ml-0.5 font-sans text-[9.5px] font-normal text-muted-foreground">
