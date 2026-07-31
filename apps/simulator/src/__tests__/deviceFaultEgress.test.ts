@@ -4,15 +4,18 @@ import { VehicleManager } from "../modules/VehicleManager";
 import { FleetManager } from "../modules/FleetManager";
 import { RoadNetwork } from "../modules/RoadNetwork";
 import { AdapterSyncManager } from "../modules/AdapterSyncManager";
+import { JobManager } from "../modules/JobManager";
 import { config } from "../utils/config";
-import type { Vehicle, VehicleDTO } from "../types";
+import type { DirectionResult, Vehicle, VehicleDTO } from "../types";
 
 const FIXTURE_PATH = path.join(__dirname, "fixtures", "test-network.geojson");
 
 /**
  * Device faults must be observable in the OUTGOING telemetry, not just inside
  * the fault module. These tests cover the two egress paths: the `update` event
- * (WebSocket + recording) and the periodic adapter push.
+ * (WebSocket + recording) and the periodic adapter push — plus the boundary on
+ * the other side of them, where a simulator-internal decision (job assignment)
+ * must keep reading the truth.
  */
 
 describe("device fault egress — vehicle update stream", () => {
@@ -288,5 +291,98 @@ describe("device fault egress — adapter push", () => {
     const payload = await pushOnce(() => []);
 
     expect(payload).toBeUndefined();
+  });
+});
+
+/**
+ * Job assignment is the simulator's own dispatch decision, not one of the
+ * consumers the fault layer exists to deceive. Arming a profile must change
+ * what the fleet REPORTS without quietly changing which unit gets the work.
+ */
+describe("device faults — job assignment", () => {
+  let network: RoadNetwork;
+  let manager: VehicleManager;
+  let jobs: JobManager;
+  let origVehicleCount: number;
+  let origAdapterURL: string;
+
+  beforeEach(() => {
+    origVehicleCount = config.vehicleCount;
+    origAdapterURL = config.adapterURL;
+    (config as any).vehicleCount = 2;
+    (config as any).adapterURL = "";
+
+    network = new RoadNetwork(FIXTURE_PATH);
+
+    const proto = VehicleManager.prototype as any;
+    const origSetRandom = proto.setRandomDestination;
+    proto.setRandomDestination = function () {};
+    manager = new VehicleManager(network, new FleetManager());
+    proto.setRandomDestination = origSetRandom;
+
+    // The fixture network cannot route, and routing is not what is under test —
+    // only which vehicle the dispatcher hands the job to.
+    vi.spyOn(manager, "findAndSetWaypointRoutes").mockImplementation(
+      async (vehicleId: string): Promise<DirectionResult> => ({
+        vehicleId,
+        status: "ok",
+        route: { start: [0, 0], end: [1, 1], distance: 12 },
+        legs: [
+          { start: [0, 0], end: [0.5, 0.5], distance: 4 },
+          { start: [0.5, 0.5], end: [1, 1], distance: 8 },
+        ],
+      })
+    );
+
+    jobs = new JobManager(manager, { slaSeconds: 600, pickupDwellSeconds: 30 });
+  });
+
+  afterEach(() => {
+    jobs.dispose();
+    vi.restoreAllMocks();
+    (config as any).vehicleCount = origVehicleCount;
+    (config as any).adapterURL = origAdapterURL;
+    for (const v of manager.getVehicles()) manager.stopVehicleMovement(v.id);
+    manager.stopLocationUpdates();
+  });
+
+  function dtoFor(vehicle: Vehicle): VehicleDTO {
+    return {
+      id: vehicle.id,
+      name: vehicle.name,
+      type: vehicle.type,
+      position: vehicle.position,
+      speed: vehicle.speed,
+      heading: vehicle.bearing,
+    };
+  }
+
+  it("dispatches on the true position while the device reports a frozen fix", async () => {
+    const [spoofed, other] = [...manager.registry.getAll().values()];
+    manager.faults.configure({
+      enabled: true,
+      seed: 3,
+      vehicles: {
+        [spoofed.id]: {
+          frozenGps: { probability: 1, minDurationMs: 60_000, maxDurationMs: 60_000 },
+        },
+      },
+    });
+
+    // The device latches its fix a long way out, then the vehicle drives to
+    // within a stone's throw of the pickup while the fix stays behind.
+    spoofed.position = [9, 9];
+    manager.gameLoop.emit("update", dtoFor(spoofed));
+    spoofed.position = [0.11, 0.11];
+    other.position = [1, 1];
+
+    const job = await jobs.createJob({
+      pickup: { lat: 0.1, lng: 0.1 },
+      dropoff: { lat: 0.4, lng: 0.4 },
+    });
+
+    expect(job.vehicleId).toBe(spoofed.id);
+    // ...and the fault is still on the wire, which is the whole point of it.
+    expect(manager.getVehicles().find((v) => v.id === spoofed.id)!.position).toEqual([9, 9]);
   });
 });

@@ -338,8 +338,24 @@ export class VehicleManager extends EventEmitter {
     if (!this.faults.isActive()) return vehicles;
     // Project each device's currently-reported fix so a polling reader sees the
     // frozen/teleported/stale position the stream is reporting, not the truth.
+    // Callers that need the truth instead want {@link getTrueVehicles}.
     const now = Date.now();
     return vehicles.map((vehicle) => this.faults.view(vehicle, now));
+  }
+
+  /**
+   * The roster at its TRUE positions, with no device-fault projection.
+   *
+   * {@link getVehicles} answers "what is the fleet reporting?", which is the
+   * right question for every observer surface — the WS feed, `GET /vehicles`,
+   * the adapter push — because a fault the observer cannot see is not a fault.
+   * This answers "where is the fleet?", which is what the simulator's own
+   * internal decisions need: it authors the scenario rather than consuming it,
+   * so a spoofed or frozen device must not move a vehicle for them. Its one
+   * caller today is job assignment; see `JobManager.pickVehicle`.
+   */
+  public getTrueVehicles(): VehicleDTO[] {
+    return this.registry.getAllSerialized();
   }
 
   /**

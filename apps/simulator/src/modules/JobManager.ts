@@ -26,7 +26,11 @@ import logger from "../utils/logger";
  * and neither depends on real pathfinding.
  */
 export interface JobVehicleGateway {
-  getVehicles(): VehicleDTO[];
+  /**
+   * The roster at its true positions. Deliberately not `getVehicles()`, which
+   * projects the device-fault layer — see {@link JobManager.pickVehicle}.
+   */
+  getTrueVehicles(): VehicleDTO[];
   findAndSetWaypointRoutes(vehicleId: string, waypoints: Waypoint[]): Promise<DirectionResult>;
   estimateTo(
     vehicleId: string,
@@ -369,7 +373,16 @@ export class JobManager extends EventEmitter {
     /** Why no vehicle came back, when the reason is specific enough to say. */
     blocked?: { message: string; fatal: boolean };
   }> {
-    const roster = this.vehicles.getVehicles();
+    // Scored on TRUE positions, never the device-reported ones. `getVehicles()`
+    // projects the armed fault layer (frozen, teleported, stale), and dispatch
+    // is the simulator's own decision — it authors the scenario rather than
+    // being one of the consumers the fault layer exists to deceive. Reading the
+    // projected roster here would let a spoofed device win or lose a job on a
+    // position it is not at, and would split `best_eta` down the middle: its
+    // proximity shortlist off the reported fix, its ETA probe (`estimateTo`)
+    // off the registry's true one. The fault stays visible where it belongs, on
+    // the WS feed, `GET /vehicles` and the adapter push.
+    const roster = this.vehicles.getTrueVehicles();
     const available = roster.filter((v) => {
       if (this.busyVehicles.has(v.id)) return false;
       if (state.attempted.has(v.id)) return false;
