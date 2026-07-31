@@ -5,7 +5,7 @@ import Inspector from "./Inspector/Inspector";
 import useTracking from "./Controls/useTracking";
 import MapView from "./Map/Map";
 import FleetLegend from "./Map/FleetLegend";
-import TypeLegend from "./Map/TypeLegend";
+import VisibilityRail from "./Map/VisibilityRail";
 import SearchBar from "./SearchBar";
 import Zoom from "./Zoom/";
 import CreateZoneDialog from "./Map/Geofence/CreateZoneDialog";
@@ -310,8 +310,19 @@ export default function App() {
   // depend on the stable functions rather than the per-render `dispatch` /
   // `geofences` object literals.
   const { dispatchState, handleDone, handleDispatch, handleRetryFailed } = dispatch;
+  const { clearSelection: clearDispatchSelection, selectForDispatch } = dispatch;
   const assignmentCount = dispatch.assignments.length;
-  const { onDrawCancel, onConfirmDraw } = geofences;
+  const { onDrawCancel, onConfirmDraw, onUndoVertex } = geofences;
+
+  // The dock's "Select N" key ticks every vehicle currently on screen. Read
+  // through a ref so the mode descriptor does not rebuild on every position
+  // tick — it feeds the guard, the keyboard and the palette, all of which want
+  // stable identities.
+  const visibleVehiclesRef = useRef(vehicles);
+  visibleVehiclesRef.current = vehicles;
+  const selectVisibleForDispatch = useCallback(() => {
+    selectForDispatch(visibleVehiclesRef.current.map((v) => v.id));
+  }, [selectForDispatch]);
 
   // ─── The active mode, described once ────────────────────────────
   // One table turns the mode union into words, tone and actions. The dock's
@@ -335,14 +346,26 @@ export default function App() {
         onExit: handleDone,
         onDispatch: () => void handleDispatch(),
         onRetryFailed: handleRetryFailed,
+        onClear: clearDispatchSelection,
+        onSelectVisible: selectVisibleForDispatch,
+        visibleCount: vehicles.length,
       },
       geofence: {
         vertexCount: geofences.drawingVertexCount,
         onCancel: onDrawCancel,
         onConfirm: onConfirmDraw,
+        onUndo: onUndoVertex,
       },
-      job: { stage: jobDraft.stage, onCancel: cancelJobDraft },
-      heatzone: { onStopDraw: stopZoneDraw, onDeselect: deselectZone },
+      job: { stage: jobDraft.stage, onCancel: cancelJobDraft, onBack: jobDraft.back },
+      heatzone: {
+        onStopDraw: stopZoneDraw,
+        onDeselect: deselectZone,
+        // Only offered while a zone is selected — drawing a new one has nothing
+        // to delete yet.
+        onDelete: heatzoneEditor.selectedId
+          ? () => void heatzoneEditor.removeSelected()
+          : undefined,
+      },
     }),
     [
       dispatchState,
@@ -354,13 +377,19 @@ export default function App() {
       handleDone,
       handleDispatch,
       handleRetryFailed,
+      clearDispatchSelection,
+      selectVisibleForDispatch,
+      vehicles.length,
       geofences.drawingVertexCount,
       onDrawCancel,
       onConfirmDraw,
+      onUndoVertex,
       jobDraft.stage,
+      jobDraft.back,
       cancelJobDraft,
       stopZoneDraw,
       deselectZone,
+      heatzoneEditor,
     ]
   );
   const modeDescriptor = useMemo(
@@ -544,6 +573,7 @@ export default function App() {
                 onDrawComplete={geofences.onDrawComplete}
                 onDrawVertexCountChange={geofences.setDrawingVertexCount}
                 drawConfirmId={geofences.drawConfirmId}
+                drawUndoId={geofences.drawUndoId}
                 onBboxChange={onBboxChange}
                 panLocked={heatzoneEditor.mode !== "idle"}
                 zoneDrawActive={heatzoneEditor.mode === "draw"}
@@ -565,7 +595,15 @@ export default function App() {
                 hiddenFleetIds={hiddenFleetIds}
                 onToggle={toggleFleetVisibility}
               />
-              <TypeLegend hiddenVehicleTypes={hiddenVehicleTypes} onToggle={toggleVehicleType} />
+              {/* Layer visibility and the vehicle-type filters own the left edge
+                  as icon keys — see VisibilityRail. Between them they replaced
+                  the Settings › Visibility tab and the bottom-left type legend. */}
+              <VisibilityRail
+                modifiers={modifiers}
+                onChangeModifiers={onChangeModifiers}
+                hiddenVehicleTypes={hiddenVehicleTypes}
+                onToggleVehicleType={toggleVehicleType}
+              />
               <StartHint
                 running={status.running}
                 ready={!mapLoading && connected}
@@ -670,7 +708,6 @@ export default function App() {
                   fleetHistory: analytics.fleetHistory,
                   summaryHistory: analytics.summaryHistory,
                 }}
-                toggles={{ modifiers, onChangeModifiers }}
                 recordings={{
                   recordings: recording.recordings,
                   replayStatus: replay.replayStatus,
@@ -727,7 +764,9 @@ export default function App() {
             hasDispatchSelection={dispatch.selectedForDispatch.length > 0}
           />
         </ContextMenu>
-        <Toaster position="bottom-right" />
+        {/* Position lives in the component: one place decides where the app
+            talks, so it can't drift per call site. */}
+        <Toaster />
       </div>
     </ModeEntryProvider>
   );

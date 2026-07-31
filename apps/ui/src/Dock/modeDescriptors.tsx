@@ -3,7 +3,7 @@ import { Directions, GeofenceIcon, JobIcon, DrawIcon, HeatZone } from "@/compone
 import { DispatchState } from "@/hooks/useDispatchState";
 import type { InteractionMode, InteractionModeKind } from "@/hooks/useInteractionMode";
 import type { JobDraftStage } from "@/hooks/useJobDraft";
-import { drawProgressHint, MIN_GEOFENCE_VERTICES } from "@/lib/geofenceHints";
+import { MIN_GEOFENCE_VERTICES } from "@/lib/geofenceHints";
 import type { StatusTone } from "./DockPanelKit";
 
 /** A mode's Enter action, rendered as the mode rail's primary button. */
@@ -31,10 +31,17 @@ export interface ModeDescriptor {
   tone: StatusTone;
   /** Short live readout ("4 points", "2 vehicles · 3 stops"), rendered mono. */
   status: string | null;
-  /** What to do next, in the imperative. */
-  hint: string;
   /** Bound to Enter and to the rail's filled button. */
   primary?: ModeAction;
+  /**
+   * The mode's other keys, in the order they should sit left of the primary —
+   * "Clear" while dispatching, "Undo point" while drawing. This is what makes
+   * the dock adapt to the work rather than just describe it: the two or three
+   * things you actually do in this mode are on the bar, so the operator is not
+   * hunting for them in a panel while the map is half-drawn. Keep it to two;
+   * a mode needing more than two side actions wants a panel, not a dock.
+   */
+  actions?: ModeAction[];
   /** Bound to Escape and to the rail's Exit button. */
   exit: () => void;
   exitLabel: string;
@@ -61,19 +68,31 @@ export interface ModeContext {
     onExit: () => void;
     onDispatch: () => void;
     onRetryFailed: () => void;
+    /** Drops the selection and the stops without leaving dispatch mode. */
+    onClear: () => void;
+    /** Ticks every vehicle currently visible on the map. */
+    onSelectVisible: () => void;
+    /** How many vehicles that would be — 0 hides the key rather than no-op it. */
+    visibleCount: number;
   };
   geofence: {
     vertexCount: number;
     onCancel: () => void;
     onConfirm: () => void;
+    /** Removes the last placed vertex. */
+    onUndo: () => void;
   };
   job: {
     stage: JobDraftStage;
     onCancel: () => void;
+    /** Steps back from the dropoff to re-place the pickup. */
+    onBack: () => void;
   };
   heatzone: {
     onStopDraw: () => void;
     onDeselect: () => void;
+    /** Deletes the zone being edited. Undefined while drawing a new one. */
+    onDelete?: () => void;
   };
 }
 
@@ -99,13 +118,13 @@ function describeDispatch(ctx: ModeContext["dispatch"]): ModeDescriptor {
               ctx.stopCount
             } stop${ctx.stopCount === 1 ? "" : "s"}`
           : `${ctx.selectedCount} selected`,
-        hint: routed ? "Click to add a stop · drag to move" : "Click the map to place a stop",
+        actions: [{ label: "Clear", run: ctx.onClear, enabled: true }],
         primary: {
           label: "Dispatch",
           run: ctx.onDispatch,
           enabled: routed,
         },
-        exitLabel: "Clear",
+        exitLabel: "Exit",
         busy: false,
         dirty: routed
           ? `${ctx.assignmentCount} pending assignment${ctx.assignmentCount === 1 ? "" : "s"}`
@@ -117,8 +136,7 @@ function describeDispatch(ctx: ModeContext["dispatch"]): ModeDescriptor {
       return {
         ...base,
         status: null,
-        hint: "Dispatching…",
-        exitLabel: "Clear",
+        exitLabel: "Exit",
         busy: true,
         dirty: "dispatch in flight",
       };
@@ -129,8 +147,6 @@ function describeDispatch(ctx: ModeContext["dispatch"]): ModeDescriptor {
         status: `${ctx.successCount} sent${
           ctx.failureCount > 0 ? ` · ${ctx.failureCount} failed` : ""
         }`,
-        hint:
-          ctx.failureCount > 0 ? "Some vehicles did not accept the route" : "All routes accepted",
         tone: ctx.failureCount > 0 ? "warn" : "ok",
         primary:
           ctx.failureCount > 0
@@ -146,10 +162,20 @@ function describeDispatch(ctx: ModeContext["dispatch"]): ModeDescriptor {
       return {
         ...base,
         status: ctx.selectedCount > 0 ? `${ctx.selectedCount} selected` : null,
-        hint:
+        // Nothing picked yet: offer the bulk pick. Something picked: offer the
+        // undo of it. One key either way — the dock never grows a third.
+        actions:
           ctx.selectedCount > 0
-            ? "Click the map to place a stop"
-            : "Click vehicles on the map or in Fleet",
+            ? [{ label: "Clear", run: ctx.onClear, enabled: true }]
+            : ctx.visibleCount > 0
+              ? [
+                  {
+                    label: `Select ${ctx.visibleCount}`,
+                    run: ctx.onSelectVisible,
+                    enabled: true,
+                  },
+                ]
+              : [],
         exitLabel: "Exit",
         busy: false,
         dirty:
@@ -168,7 +194,10 @@ function describeGeofence(ctx: ModeContext["geofence"]): ModeDescriptor {
     icon: <GeofenceIcon />,
     tone: "accent",
     status: `${ctx.vertexCount} point${ctx.vertexCount === 1 ? "" : "s"}`,
-    hint: drawProgressHint(ctx.vertexCount) ?? "Click the first point to close · drag to move",
+    // Drawing is the one activity where a mis-click is normal, so undo is on the
+    // bar. It disables itself at zero points rather than disappearing, so the
+    // key set keeps its shape for the whole draw.
+    actions: [{ label: "Undo point", run: ctx.onUndo, enabled: ctx.vertexCount > 0 }],
     primary: { label: "Finish zone", run: ctx.onConfirm, enabled: canConfirm },
     exit: ctx.onCancel,
     exitLabel: "Cancel",
@@ -186,9 +215,8 @@ function describeJob(ctx: ModeContext["job"]): ModeDescriptor {
     icon: <JobIcon />,
     tone: "accent",
     status: atDropoff ? "Dropoff" : "Pickup",
-    hint: atDropoff
-      ? "Click the map to set the dropoff — this creates the job"
-      : "Click the map to set the pickup",
+    // Only at the dropoff step is there something to step back from.
+    actions: atDropoff ? [{ label: "Re-place pickup", run: ctx.onBack, enabled: true }] : [],
     exit: ctx.onCancel,
     exitLabel: "Cancel",
     busy: false,
@@ -204,7 +232,6 @@ function describeHeatzoneDraw(ctx: ModeContext["heatzone"]): ModeDescriptor {
     icon: <DrawIcon />,
     tone: "warn",
     status: null,
-    hint: "Drag on the map to lasso a zone · panning is locked",
     primary: { label: "Done", run: ctx.onStopDraw, enabled: true },
     exit: ctx.onStopDraw,
     exitLabel: "Done",
@@ -221,7 +248,8 @@ function describeHeatzoneEdit(ctx: ModeContext["heatzone"]): ModeDescriptor {
     icon: <HeatZone />,
     tone: "warn",
     status: null,
-    hint: "Drag the handles to reshape · panning is locked",
+    // Editing a zone is also where you decide it should not exist.
+    actions: ctx.onDelete ? [{ label: "Delete zone", run: ctx.onDelete, enabled: true }] : [],
     primary: { label: "Done", run: ctx.onDeselect, enabled: true },
     exit: ctx.onDeselect,
     exitLabel: "Done",

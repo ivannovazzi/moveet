@@ -3,7 +3,6 @@ import fs from "fs";
 import path from "path";
 import type { RouteContext } from "./types";
 import { asyncHandler } from "./helpers";
-import { expensiveRateLimiter } from "../middleware/rateLimiter";
 
 /** Default sim ms advanced per step when a request omits `stepMs`. */
 const DEFAULT_STEP_MS = 1000;
@@ -18,7 +17,6 @@ export function createRecordingRoutes(ctx: RouteContext): Router {
 
   router.post(
     "/recording/start",
-    expensiveRateLimiter.middleware(),
     asyncHandler(async (_req, res) => {
       if (recordingManager.isRecording()) {
         res.status(409).json({ error: "Recording already in progress" });
@@ -152,7 +150,6 @@ export function createRecordingRoutes(ctx: RouteContext): Router {
 
   router.post(
     "/recording/generate",
-    expensiveRateLimiter.middleware(),
     asyncHandler(async (req, res) => {
       if (generationManager.isRunning()) {
         res.status(409).json({ error: "A generation job is already running" });

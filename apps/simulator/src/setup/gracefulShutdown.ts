@@ -6,7 +6,6 @@ import type { VehicleManager } from "../modules/VehicleManager";
 import type { WebSocketBroadcaster } from "../modules/WebSocketBroadcaster";
 import type { PersistenceManager } from "../modules/PersistenceManager";
 import type { RecordingManager } from "../modules/RecordingManager";
-import { generalRateLimiter, expensiveRateLimiter } from "../middleware/rateLimiter";
 import logger from "../utils/logger";
 
 /** Maximum time to wait for in-flight work (adapter sync, pathfinding) to settle. */
@@ -117,10 +116,6 @@ export function registerGracefulShutdown(ctx: GracefulShutdownContext): void {
       persistenceManager.shutdown();
       logger.info("Persistence manager shut down");
     }
-
-    generalRateLimiter.cleanup();
-    expensiveRateLimiter.cleanup();
-    logger.info("Rate limiters cleaned up");
 
     setTimeout(() => {
       logger.info("Shutdown complete");

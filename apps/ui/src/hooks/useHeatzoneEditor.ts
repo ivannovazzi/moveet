@@ -45,6 +45,11 @@ export interface HeatzoneEditor {
   commitGeometry: (id: string, coordinates: Position[]) => Promise<void>;
   setIntensity: (id: string, intensity: number) => void;
   remove: (id: string) => Promise<void>;
+  /**
+   * Delete whichever zone is selected. The dock's key set has no zone id to
+   * hand in — it only knows the operator is editing "this one".
+   */
+  removeSelected: () => Promise<void>;
   clearAll: () => Promise<void>;
   seed: (count?: number) => Promise<void>;
   /**
@@ -167,6 +172,12 @@ export function useHeatzoneEditor(): HeatzoneEditor {
     setDraftState((d) => (d && d.id === id ? null : d));
   }, []);
 
+  const removeSelected = useCallback(async () => {
+    const id = selectedId;
+    if (!id) return;
+    await remove(id);
+  }, [selectedId, remove]);
+
   const clearAll = useCallback(async () => {
     const res = await client.clearHeatzones();
     if (res.error) {
@@ -210,6 +221,7 @@ export function useHeatzoneEditor(): HeatzoneEditor {
       commitGeometry,
       setIntensity,
       remove,
+      removeSelected,
       clearAll,
       seed,
       seedNonce,
@@ -231,6 +243,7 @@ export function useHeatzoneEditor(): HeatzoneEditor {
       commitGeometry,
       setIntensity,
       remove,
+      removeSelected,
       clearAll,
       seed,
     ]

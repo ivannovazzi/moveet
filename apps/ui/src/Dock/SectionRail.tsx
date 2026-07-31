@@ -1,11 +1,9 @@
 import { useRef, type ReactNode } from "react";
-import { cn } from "@/lib/utils";
 import type { DockNavigation } from "@/hooks/useDockNavigation";
 import AnchoredPanel from "./AnchoredPanel";
 import DockSurface from "./DockSurface";
 import SectionTabs from "./SectionTabs";
 import SectionPill from "./SectionPill";
-import { useAvailableWidth } from "./dockRowLayout";
 import {
   DOCK_SECTIONS,
   dockSection,
@@ -31,14 +29,19 @@ export interface SectionRailProps {
 
 /**
  * The sections dock: four icon buttons — Fleet, Monitor, Session, Settings —
- * on one surface beside the main dock.
+ * on one surface, the row's right wing.
  *
  * Selecting one grows that section's own buttons *out of its button*, inline in
  * the same dock, and opens the panel above it. Nothing is hidden, reordered or
  * collapsed to make room: the dock gets longer exactly where the section is, so
  * the views read as belonging to the button you pressed rather than to the bar
- * in general. The dock caps itself at the viewport edge and scrolls its section
- * buttons instead of pushing itself off screen.
+ * in general.
+ *
+ * The wing lives inside its half of the row (see `Dock`'s grid), and when a
+ * section's buttons need more width than the half has, they wrap onto a second
+ * line — the dock grows *upward*, keeping its bottom edge and every button
+ * visible. It used to scroll them behind a hidden scrollbar instead, which meant
+ * "Heat Zones" and "Faults" simply did not exist on a 1440px screen.
  */
 export default function SectionRail({
   navigation,
@@ -56,44 +59,50 @@ export default function SectionRail({
   anchorRef.current = expanded ? (pillRefs.current.get(expanded) ?? null) : null;
 
   const section = expanded ? dockSection(expanded) : null;
-  const maxWidth = useAvailableWidth(surfaceRef, section !== null);
 
   return (
-    <DockSurface ref={surfaceRef} className="relative gap-0.5" style={{ maxWidth }}>
-      {DOCK_SECTIONS.map((s) => {
-        const open = expanded === s.id;
-        return (
-          <div key={s.id} className="flex min-w-0 items-stretch gap-0.5">
-            <SectionPill
-              ref={(el) => {
-                pillRefs.current.set(s.id, el);
-              }}
-              section={s}
-              active={open}
-              badge={rollUpBadge(s.id, badges)}
-              onClick={() => toggle(s.id)}
-            />
-            {open && section && tab && (
-              <div
-                className={cn(
-                  "flex min-w-0 animate-fade-in-fast items-stretch",
-                  "overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                )}
-              >
-                <div className="mx-1 my-2 w-px shrink-0 self-stretch bg-border-soft" />
+    // The panel is a *sibling* of the bar, not a child: a `backdrop-filter`
+    // ancestor becomes a backdrop root, so a panel nested inside the blurred bar
+    // samples an empty backdrop and renders with no blur at all. Positioning it
+    // from this plain wrapper — same left edge, same height — lets it frost the
+    // map behind it. Do not move it back inside `DockSurface`.
+    <div className="relative flex min-w-0">
+      <DockSurface
+        ref={surfaceRef}
+        data-dock="sections"
+        // `h-auto` + `shrink`: the wing takes its half of the row and no more, and
+        // grows *upward* when a section's buttons need a second line.
+        className="h-auto min-h-[54px] min-w-0 shrink items-center gap-0.5"
+      >
+        {DOCK_SECTIONS.map((s) => {
+          const open = expanded === s.id;
+          return (
+            <div key={s.id} className="flex min-w-0 items-center gap-0.5">
+              <SectionPill
+                ref={(el) => {
+                  pillRefs.current.set(s.id, el);
+                }}
+                section={s}
+                active={open}
+                // Rolled-up counts are for collapsed keys only: once a section is
+                // open, the count sits on the button that actually owns it, and
+                // the same number in both places reads as two different problems.
+                badge={open ? undefined : rollUpBadge(s.id, badges)}
+                onClick={() => toggle(s.id)}
+              />
+              {open && section && tab && (
                 <SectionTabs
                   section={section}
                   activeTab={tab}
                   badges={badges}
                   onSelectTab={onSelectTab}
-                  onCollapse={close}
                   activeTabRef={activeTabRef}
                 />
-              </div>
-            )}
-          </div>
-        );
-      })}
+              )}
+            </div>
+          );
+        })}
+      </DockSurface>
 
       <AnchoredPanel
         open={section !== null && tab !== null}
@@ -112,6 +121,6 @@ export default function SectionRail({
       >
         {section ? renderPanel(section) : null}
       </AnchoredPanel>
-    </DockSurface>
+    </div>
   );
 }

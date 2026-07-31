@@ -4,7 +4,6 @@ import type { IncidentType } from "../types";
 import { asyncHandler } from "./helpers";
 import { validateBody } from "../middleware/validate";
 import { createIncidentSchema, incidentAtPositionSchema } from "../middleware/schemas";
-import { incidentRateLimiter } from "../middleware/rateLimiter";
 
 const VALID_INCIDENT_TYPES: IncidentType[] = ["accident", "closure", "construction"];
 
@@ -22,7 +21,6 @@ export function createIncidentRoutes(ctx: RouteContext): Router {
 
   router.post(
     "/incidents",
-    incidentRateLimiter.middleware(),
     validateBody(createIncidentSchema),
     asyncHandler(async (req, res) => {
       const { edgeIds, type, duration, severity } = req.body;
@@ -57,7 +55,6 @@ export function createIncidentRoutes(ctx: RouteContext): Router {
 
   router.post(
     "/incidents/random",
-    incidentRateLimiter.middleware(),
     asyncHandler(async (_req, res) => {
       const edge = network.getRandomEdge();
       const type = VALID_INCIDENT_TYPES[Math.floor(Math.random() * VALID_INCIDENT_TYPES.length)];
@@ -81,7 +78,6 @@ export function createIncidentRoutes(ctx: RouteContext): Router {
 
   router.post(
     "/incidents/at-position",
-    incidentRateLimiter.middleware(),
     validateBody(incidentAtPositionSchema),
     asyncHandler(async (req, res) => {
       const { lat, lng, type } = req.body;

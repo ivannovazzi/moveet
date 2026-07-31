@@ -312,8 +312,8 @@ export default function CommandPalette({
         aria-label="Command palette"
         className={cn(
           "relative mt-[12vh] flex w-[min(640px,calc(100%-2rem))] flex-col overflow-hidden",
-          "origin-top animate-scale-in rounded-lg border border-border surface-glass",
-          "shadow-floating backdrop-blur-md"
+          "origin-top animate-scale-in rounded-lg border border-border surface-glass glass-frost-strong",
+          "shadow-floating"
         )}
       >
         {/* ── Input row ── */}

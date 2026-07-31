@@ -47,6 +47,12 @@
 
   --font-sans: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
 
+  /* The shelf directly above the dock row (`bottom-above-dock`): the row's own
+     20px offset + its 56px bar + 12px of air. The dock's two wings use the full
+     width of that band, so anything else anchored to the bottom of the map —
+     zoom, legends — stands on this shelf instead of underneath them. */
+  --spacing-above-dock: 5.5rem;
+
   /* Motion scale — registers the `duration-fast|normal|slow` Tailwind
      transition-duration utilities (Tailwind v4 reads the
      `--transition-duration-*` namespace). Keep transitions on this scale; the
@@ -105,11 +111,11 @@
   /* Bottom stop of the `surface-glass` gradient, promoted to a token so the
      cluster badge rings reference one value instead of re-inlining the oklch
      literal. */
-  --color-glass-bot: oklch(0.2 0.009 255 / 0.82);
+  --color-glass-bot: oklch(0.21 0.009 255 / 0.55);
   /* Bottom stop of the more-transparent `surface-glass-strong` — used by the
      floating dock panel and its notch so it reads as frosted glass, not a
      flat slab, at panel size. */
-  --color-glass-strong-bot: oklch(0.2 0.009 255 / 0.6);
+  --color-glass-strong-bot: oklch(0.21 0.009 255 / 0.5);
 }
 
 /* ── Polish layer: whisper-soft surface gradients ────────────────────────
@@ -119,24 +125,47 @@
      • surface-glass   → replaces `bg-card/80` on glass overlays (dock, legends,
                          zoom, search, menus). Pair with backdrop-blur + border.
      • surface-raised  → opaque raised chrome (sidebar panel shell, list rows).
-     • surface-accent  → primary / active emphasis (replaces flat `bg-primary`). */
+     • surface-accent  → primary / active emphasis (replaces flat `bg-primary`).
+
+   Both glasses run near 50% alpha. They used to sit at ~80%, which on a map this
+   dark meant the blur had nothing to show: 20% of a near-black backdrop is
+   near-black, so a perfectly working `backdrop-filter` read as flat paint. At
+   ~50%, paired with the brightened/saturated backdrop filters in `DockSurface`,
+   the routes, zones and vehicles under a surface actually frost through it. */
 @utility surface-glass {
   background-image: linear-gradient(
     180deg,
-    oklch(0.232 0.01 255 / 0.82),
-    oklch(0.2 0.009 255 / 0.78)
+    oklch(0.245 0.011 255 / 0.6),
+    oklch(0.21 0.009 255 / 0.55)
   );
 }
 /* A markedly more transparent glass for large floating surfaces (the dock
-   panel). At the panel's size the ~80% `surface-glass` reads as a flat slab;
-   dropping to ~60% + a heavier blur/saturation lets the map frost through so
-   it actually looks like glass. Pair with `backdrop-blur-2xl backdrop-saturate-150`. */
+   panel). At the panel's size even `surface-glass` reads as a slab, and the
+   panel is the surface most often over busy map, so it goes lower still and
+   leans on a heavier blur to keep its content legible. Pair with
+   `backdrop-blur-2xl backdrop-saturate-150 backdrop-brightness-110`. */
 @utility surface-glass-strong {
   background-image: linear-gradient(
     180deg,
-    oklch(0.235 0.01 255 / 0.66),
-    oklch(0.2 0.009 255 / 0.6)
+    oklch(0.245 0.011 255 / 0.56),
+    oklch(0.21 0.009 255 / 0.5)
   );
+}
+/* ── The frosting itself ─────────────────────────────────────────────────
+   The blur half of the glass, as one definition instead of a `backdrop-blur-*`
+   picked per component. Blur alone is invisible on a map this dark, so each
+   recipe also lifts brightness and saturation: that is what makes a route, a
+   heat zone or a vehicle under a surface bloom softly through it rather than
+   vanish. Pair with `surface-glass` / `surface-glass-strong`, and do not add a
+   Tailwind `backdrop-*` utility on top — it would replace this filter, not add
+   to it.
+     • glass-frost        → small map chrome (search, legends, zoom, menus)
+     • glass-frost-strong → the docks and their panels, the biggest surfaces */
+@utility glass-frost {
+  backdrop-filter: blur(24px) saturate(1.5) brightness(1.2);
+}
+@utility glass-frost-strong {
+  backdrop-filter: blur(40px) saturate(1.7) brightness(1.35);
 }
 @utility surface-raised {
   background-image: linear-gradient(180deg, oklch(0.224 0.009 255), oklch(0.198 0.009 255));

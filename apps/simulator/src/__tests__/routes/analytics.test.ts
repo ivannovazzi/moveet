@@ -13,18 +13,6 @@ vi.mock("../../utils/logger", () => ({
   },
 }));
 
-// Mock rate limiter
-vi.mock("../../middleware/rateLimiter", () => ({
-  generalRateLimiter: {
-    middleware: () => (_req: unknown, _res: unknown, next: () => void) => next(),
-    cleanup: vi.fn(),
-  },
-  expensiveRateLimiter: {
-    middleware: () => (_req: unknown, _res: unknown, next: () => void) => next(),
-    cleanup: vi.fn(),
-  },
-}));
-
 function createMockContext(opts: { withStateStore?: boolean } = {}): RouteContext {
   const stateStore = opts.withStateStore
     ? {

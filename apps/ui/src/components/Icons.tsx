@@ -39,6 +39,12 @@ import {
   Pencil as PencilBase,
   Sparkles as SparklesBase,
   Trash2 as Trash2Base,
+  TrafficCone as TrafficConeBase,
+  Footprints as FootprintsBase,
+  Truck as TruckBase,
+  Ambulance as AmbulanceBase,
+  Bike as BikeBase,
+  Funnel as FunnelBase,
   type LucideIcon,
   type LucideProps,
 } from "lucide-react";
@@ -98,3 +104,9 @@ export const CloseIcon = aliasIcon(XBase);
 export const DrawIcon = aliasIcon(PencilBase);
 export const SeedIcon = aliasIcon(SparklesBase);
 export const TrashIcon = aliasIcon(Trash2Base);
+export const TrafficIcon = aliasIcon(TrafficConeBase);
+export const TrailIcon = aliasIcon(FootprintsBase);
+export const TruckIcon = aliasIcon(TruckBase);
+export const AmbulanceIcon = aliasIcon(AmbulanceBase);
+export const MotorcycleIcon = aliasIcon(BikeBase);
+export const FilterIcon = aliasIcon(FunnelBase);

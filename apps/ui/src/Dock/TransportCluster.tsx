@@ -51,6 +51,17 @@ export interface TransportClusterProps {
   guardRequest: (action: () => void) => void;
   /** The simulator is unreachable — transport would fail. */
   disabled?: boolean;
+  /**
+   * Whether to offer the record key. False while the operator is in the middle
+   * of a mode: arming a capture is not part of placing a job, and the key was
+   * one more target to skip over on the way to the ones that are.
+   */
+  showRecord?: boolean;
+  /**
+   * Whether to offer play/pause and reset. False while a mode is drawing, where
+   * the cluster is only here so a running capture stays stoppable.
+   */
+  showRun?: boolean;
 }
 
 /**
@@ -67,6 +78,8 @@ export default function TransportCluster({
   onStopRecording,
   guardRequest,
   disabled = false,
+  showRecord = true,
+  showRun = true,
 }: TransportClusterProps) {
   const handleStart = useCallback(
     () =>
@@ -114,37 +127,54 @@ export default function TransportCluster({
 
   return (
     <div className="flex items-center gap-[3px] px-2">
-      <IconButton
-        onClick={handlePlayPause}
-        disabled={disabled}
-        className={running ? "text-status-ok" : "text-status-ok/90"}
-        aria-label={running ? "Pause simulation" : "Start simulation"}
-        title={running ? "Pause simulation" : "Start simulation"}
-      >
-        {running ? <Pause /> : <Play />}
-      </IconButton>
-      <IconButton
-        onClick={handleReset}
-        disabled={disabled}
-        aria-label="Reset"
-        title="Reset the simulation"
-      >
-        <Reset />
-      </IconButton>
-      <IconButton
-        onClick={() => void (isRecording ? onStopRecording() : onStartRecording())}
-        disabled={disabled}
-        aria-label={isRecording ? "Stop recording" : "Start recording"}
-        title={isRecording ? "Stop recording" : "Start recording"}
-        className={cn("w-auto gap-1.5 px-2", isRecording && "text-status-error")}
-      >
-        <Record className={cn("fill-current", isRecording && "motion-safe:animate-pulse")} />
-        {isRecording && (
-          <span className="whitespace-nowrap font-mono text-[11px] tabular-nums text-status-error">
-            {formatTime(elapsed)}
-          </span>
-        )}
-      </IconButton>
+      {showRun && (
+        <>
+          <IconButton
+            onClick={handlePlayPause}
+            disabled={disabled}
+            className={running ? "text-status-ok" : "text-status-ok/90"}
+            aria-label={running ? "Pause simulation" : "Start simulation"}
+            title={running ? "Pause simulation" : "Start simulation"}
+          >
+            {running ? <Pause /> : <Play />}
+          </IconButton>
+          <IconButton
+            onClick={handleReset}
+            disabled={disabled}
+            aria-label="Reset"
+            title="Reset the simulation"
+          >
+            <Reset />
+          </IconButton>
+        </>
+      )}
+      {/* The key keeps its 36px whether it is armed or counting: the elapsed time
+          replaces the glyph rather than growing beside it, because a control dock
+          that widens mid-session slides every key under the operator's hand. The
+          red pulse on the dock's hairline is the "still capturing" signal.
+
+          A capture in progress keeps the key even where the activity would drop
+          it — a recording nobody can stop from the dock is worse than one extra
+          key on the bar. */}
+      {(showRecord || isRecording) && (
+        <IconButton
+          onClick={() => void (isRecording ? onStopRecording() : onStartRecording())}
+          disabled={disabled}
+          aria-label={isRecording ? "Stop recording" : "Start recording"}
+          title={
+            isRecording ? `Recording — ${formatTime(elapsed)}. Click to stop` : "Start recording"
+          }
+          className={cn(isRecording && "text-status-error")}
+        >
+          {isRecording ? (
+            <span className="font-mono text-[10.5px] font-semibold tabular-nums text-status-error">
+              {formatTime(elapsed)}
+            </span>
+          ) : (
+            <Record className="fill-current" />
+          )}
+        </IconButton>
+      )}
     </div>
   );
 }

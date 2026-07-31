@@ -13,10 +13,10 @@ export interface ModeLauncherProps {
 }
 
 /**
- * The dock's browse-state centre slot: one menu holding every way to put the
- * map into a mode, with the same bare-key shortcuts the keyboard dispatcher
- * honours. The panels keep their own entry buttons — this is the surface that
- * makes the set discoverable without knowing which panel owns which tool.
+ * The work dock at rest: one menu holding every way to put the map into a mode,
+ * with the same bare-key shortcuts the keyboard dispatcher honours. The panels
+ * keep their own entry buttons — this is the surface that makes the set
+ * discoverable without knowing which panel owns which tool.
  */
 export default function ModeLauncher({ onStart, disabled = false }: ModeLauncherProps) {
   const [open, setOpen] = useState(false);
@@ -30,8 +30,8 @@ export default function ModeLauncher({ onStart, disabled = false }: ModeLauncher
             disabled={disabled}
             aria-label="Start a map action"
             className={cn(
-              "flex h-[42px] items-center gap-2 rounded-[10px] pl-3 pr-3.5",
-              "text-[11px] font-bold uppercase tracking-[0.08em]",
+              "flex h-[42px] items-center gap-1.5 rounded-[10px] pl-2.5 pr-3",
+              "text-[12.5px] font-semibold",
               "transition-[background-color,color,box-shadow] duration-fast ease-standard",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
               "disabled:pointer-events-none disabled:opacity-40",
@@ -48,7 +48,7 @@ export default function ModeLauncher({ onStart, disabled = false }: ModeLauncher
           align="start"
           side="top"
           sideOffset={12}
-          className="w-80 border-border surface-glass-strong p-1 shadow-floating backdrop-blur-2xl"
+          className="w-80 border-border surface-glass-strong glass-frost-strong p-1 shadow-floating"
         >
           <ul className="flex flex-col">
             {MODE_LAUNCH_ITEMS.map((item) => (

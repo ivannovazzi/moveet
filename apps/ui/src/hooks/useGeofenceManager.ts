@@ -36,6 +36,7 @@ export function useGeofenceManager({
   const [selectedFenceId, setSelectedFenceId] = useState<string | undefined>(undefined);
   const [drawingVertexCount, setDrawingVertexCount] = useState(0);
   const [drawConfirmId, setDrawConfirmId] = useState(0);
+  const [drawUndoId, setDrawUndoId] = useState(0);
   const [pendingPolygon, setPendingPolygon] = useState<[number, number][] | null>(null);
 
   // ─── Data loading ─────────────────────────────────────────────────
@@ -132,6 +133,15 @@ export function useGeofenceManager({
     setDrawConfirmId((n) => n + 1);
   }, []);
 
+  /**
+   * Ask the map tool to drop the last placed vertex. The ring lives in
+   * `GeofenceDrawTool`, so this is a request (a bumped nonce), not a mutation —
+   * the same shape as confirm.
+   */
+  const onUndoVertex = useCallback(() => {
+    setDrawUndoId((n) => n + 1);
+  }, []);
+
   const onCreateZone = useCallback((req: CreateGeoFenceRequest) => {
     client.createGeofence(req).then((response) => {
       if (response.error) {
@@ -156,6 +166,7 @@ export function useGeofenceManager({
     drawingVertexCount,
     setDrawingVertexCount,
     drawConfirmId,
+    drawUndoId,
     pendingPolygon,
     startDrawing,
     onFenceToggle,
@@ -163,6 +174,7 @@ export function useGeofenceManager({
     onDrawComplete,
     onDrawCancel,
     onConfirmDraw,
+    onUndoVertex,
     onCreateZone,
     closePendingPolygon,
   };

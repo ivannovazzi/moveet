@@ -19,7 +19,7 @@ export type DockSectionId = "fleet" | "monitor" | "session" | "settings";
 export type FleetTabId = "list" | "groups" | "dispatch" | "jobs";
 export type MonitorTabId = "incidents" | "analytics" | "geofences" | "heatzones" | "faults";
 export type SessionTabId = "recordings" | "scenarios";
-export type SettingsTabId = "visibility" | "feeds" | "advanced";
+export type SettingsTabId = "feeds" | "advanced";
 
 export type DockTabId = FleetTabId | MonitorTabId | SessionTabId | SettingsTabId;
 
@@ -63,7 +63,7 @@ export const DOCK_SECTIONS: DockSection[] = [
       { id: "incidents", label: "Incidents" },
       { id: "analytics", label: "Analytics" },
       { id: "geofences", label: "Geofences" },
-      { id: "heatzones", label: "Heat Zones" },
+      { id: "heatzones", label: "Heat zones" },
       { id: "faults", label: "Faults" },
     ],
     // Analytics carries charts; they were the worst served by the old shared box.
@@ -83,8 +83,9 @@ export const DOCK_SECTIONS: DockSection[] = [
     id: "settings",
     label: "Settings",
     icon: <GaugeIcon />,
+    // Layer visibility is not here: it lives on the map's own left rail as icon
+    // keys (see Map/VisibilityRail), where it is one press from what it changes.
     tabs: [
-      { id: "visibility", label: "Visibility" },
       { id: "feeds", label: "Feeds & sinks" },
       { id: "advanced", label: "Advanced" },
     ],

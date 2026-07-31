@@ -98,14 +98,17 @@ export function RailButton({
   );
 }
 
-/** Soft tinted wash behind an active centre-slot state. */
-export const TONE_WASH: Record<StatusTone, string> = {
-  accent:
-    "bg-accent/[0.09] shadow-[inset_0_0_0_1px_var(--color-accent-line,oklch(0.62_0.15_250/0.28))]",
-  ok: "bg-status-ok/[0.09] shadow-[inset_0_0_0_1px_oklch(0.72_0.16_155/0.28)]",
-  warn: "bg-status-warn/[0.10] shadow-[inset_0_0_0_1px_oklch(0.80_0.15_80/0.30)]",
-  error: "bg-status-error/[0.10] shadow-[inset_0_0_0_1px_oklch(0.63_0.20_25/0.32)]",
-  idle: "bg-foreground/[0.04] shadow-[inset_0_0_0_1px_var(--color-border-soft)]",
+/**
+ * The tone a whole dock surface takes while it is holding something: a wash
+ * only, no ring. The surface already has a border and a machined edge, so a
+ * second inset line on top of it read as a box inside a box.
+ */
+export const TONE_TINT: Record<StatusTone, string> = {
+  accent: "bg-accent/[0.07]",
+  ok: "bg-status-ok/[0.07]",
+  warn: "bg-status-warn/[0.08]",
+  error: "bg-status-error/[0.08]",
+  idle: "bg-foreground/[0.03]",
 };
 
 /** Micro uppercase label used for the mode name in the rail. */

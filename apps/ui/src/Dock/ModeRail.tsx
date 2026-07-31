@@ -8,24 +8,32 @@ export interface ModeRailProps {
 }
 
 /**
- * The dock's centre slot while a map mode is active: what the mode is, what it
- * is holding, what to do next, and the two ways out — all in the spot the
- * operator is already watching for transport state.
+ * The work dock while a map mode is active: what the mode is, what it is
+ * holding, what to do next, and the two ways out — reading left to right in
+ * that order, so the buttons always land in the same place at the right edge.
  *
  * This replaces the top-of-map `ModeBanner` and the Fleet panel's
  * `DispatchStatusBar`. Those told the same story in two places (and, for heat
  * zones, in none at all), so a mode could be left running with its panel closed
  * and no visible way back.
+ *
+ * It sizes to its content, and it carries no instructions. The prose hint that
+ * used to sit here ("Click vehicles on the map or in Fleet") was a banner in a
+ * bar of keys: it read as the widest thing in the dock, said the same sentence
+ * for minutes at a time, and every state it described is already legible from
+ * the tone, the status readout, the spinner, the Pan-off flag and whether the
+ * primary button is live.
  */
 export default function ModeRail({ descriptor }: ModeRailProps) {
-  const { label, icon, tone, status, hint, primary, exit, exitLabel, busy, locksPan } = descriptor;
+  const { label, icon, tone, status, actions, primary, exit, exitLabel, busy, locksPan } =
+    descriptor;
   const toneText = toneTextClass(tone);
 
   return (
     <div
       role="status"
       aria-live="polite"
-      className="flex w-full items-center gap-2.5 pl-2.5 pr-1.5"
+      className="flex h-[42px] min-w-0 items-center gap-2.5 pl-2.5 pr-0.5"
     >
       <span className={cn("flex shrink-0 items-center gap-1.5", toneText)}>
         {busy ? <RailSpinner /> : <StatusDot tone={tone} />}
@@ -44,16 +52,26 @@ export default function ModeRail({ descriptor }: ModeRailProps) {
         </span>
       )}
 
-      <span className="min-w-0 flex-1 truncate text-[11.5px] text-muted-foreground" title={hint}>
-        {hint}
-      </span>
-
+      {/* Now the only thing in the rail that isn't a key or a count — and it
+          earns it: with no hint text left, this is what says panning is off. */}
       {locksPan && (
-        <span className="hidden shrink-0 items-center gap-1 text-[10px] uppercase tracking-[0.1em] text-muted-foreground/70 xl:flex">
+        <span className="flex shrink-0 items-center gap-1 text-[10px] uppercase tracking-[0.1em] text-muted-foreground/70">
           <LockGlyph />
           Pan off
         </span>
       )}
+
+      {/* The mode's own side actions, before the two that end it. */}
+      {actions?.map((action) => (
+        <RailButton
+          key={action.label}
+          variant="quiet"
+          disabled={!action.enabled || busy}
+          onClick={action.run}
+        >
+          {action.label}
+        </RailButton>
+      ))}
 
       {/* Some modes finish and leave by the same act (heat zones: "Done"), so
           the rail shows one button rather than two identical ones — the

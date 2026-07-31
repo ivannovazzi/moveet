@@ -1,36 +1,18 @@
-import { useCallback, useEffect, useLayoutEffect, useState } from "react";
-
-/** Keep the row this far from the viewport edges. */
-const EDGE_MARGIN = 8;
-
-export interface RowOffsetInput {
-  /** Width of the main dock (transport, tempo, mode rail, chips). */
-  mainWidth: number;
-  /** Width of the whole row, main dock plus the section surfaces. */
-  rowWidth: number;
-  viewportWidth: number;
-}
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 /**
- * How far to shift the dock row from the viewport's centre line.
+ * Placement for the dock's floating surfaces.
  *
- * The row is laid out from `left: 50%`, so the default offset of
- * `-mainWidth / 2` leaves the *main dock* centred and lets the section
- * surfaces run off to its right. That is the promise of the dynamic dock:
- * expanding a section never moves the transport controls under the cursor.
+ * The dock *row* itself is laid out in CSS, not here: it is a three-column grid
+ * (`1fr auto 1fr`) pinned across the viewport, so the control dock in the middle
+ * column sits exactly on the centre line and the two wings live inside their own
+ * halves. Neither wing can push the control dock, and neither can grow past its
+ * half — a wing that runs out of room wraps or truncates inside it. That is why
+ * there is no row-offset measurement any more: there is nothing left to measure.
  *
- * The one exception is running out of room — a row that would hang off the
- * right edge slides left just enough to fit, because an unreachable button is
- * worse than a dock that moved.
+ * What still needs JavaScript is the panels, which have to line up with the
+ * button that opened them and stay inside the viewport.
  */
-export function rowOffset({ mainWidth, rowWidth, viewportWidth }: RowOffsetInput): number {
-  const centre = viewportWidth / 2;
-  const preferred = -mainWidth / 2;
-  const maxOffset = viewportWidth - EDGE_MARGIN - rowWidth - centre;
-  const minOffset = EDGE_MARGIN - centre;
-  if (maxOffset < minOffset) return Math.round(minOffset);
-  return Math.round(Math.min(Math.max(preferred, minOffset), maxOffset));
-}
 
 export interface AnchorOffsetInput {
   /** Left edge of the surface the floating element is positioned from. */
@@ -80,8 +62,9 @@ export interface AnchorPlacement {
 
 /**
  * Tracks `anchorOffset` for live elements, plus where the anchor sits inside the
- * placed element. Re-measures on resize, when the element resizes, and whenever
- * `key` changes (a different button became the anchor).
+ * placed element. Re-measures on resize, when the element resizes, when the
+ * origin moves (a wing that wraps to a second row moves the surface the panel
+ * hangs off), and whenever `key` changes — a different button became the anchor.
  */
 export function useAnchorOffset(
   originRef: React.RefObject<HTMLElement | null>,
@@ -90,6 +73,9 @@ export function useAnchorOffset(
   { active, key, inset = 0 }: { active: boolean; key: string; inset?: number }
 ): AnchorPlacement {
   const [placement, setPlacement] = useState<AnchorPlacement>({ offset: 0, pointer: null });
+  // Read through a ref so re-measuring never re-renders on an unchanged result:
+  // the observers below fire on every layout pass the dock makes.
+  const placementRef = useRef(placement);
 
   const measure = useCallback(() => {
     const origin = originRef.current;
@@ -106,10 +92,12 @@ export function useAnchorOffset(
       inset,
     });
     const anchorCentre = anchorRect.left + anchorRect.width / 2 - (originRect.left + offset);
-    setPlacement({
-      offset,
-      pointer: Math.round(Math.min(Math.max(anchorCentre, 14), Math.max(14, elementWidth - 14))),
-    });
+    const pointer = Math.round(
+      Math.min(Math.max(anchorCentre, 14), Math.max(14, elementWidth - 14))
+    );
+    if (placementRef.current.offset === offset && placementRef.current.pointer === pointer) return;
+    placementRef.current = { offset, pointer };
+    setPlacement(placementRef.current);
   }, [originRef, anchorRef, elementRef, inset]);
 
   useLayoutEffect(() => {
@@ -124,91 +112,12 @@ export function useAnchorOffset(
     const observer =
       typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => measure());
     if (elementRef.current) observer?.observe(elementRef.current);
+    if (originRef.current) observer?.observe(originRef.current);
     return () => {
       observer?.disconnect();
       window.removeEventListener("resize", onResize);
     };
-  }, [active, measure, elementRef]);
+  }, [active, measure, elementRef, originRef]);
 
   return placement;
-}
-
-/**
- * How much room is left between an element's left edge and the viewport's right
- * edge. The sections dock caps itself with this so a long section can grow
- * inline without pushing itself off screen — its buttons scroll instead.
- */
-export function useAvailableWidth(
-  ref: React.RefObject<HTMLElement | null>,
-  active: boolean
-): number | undefined {
-  const [width, setWidth] = useState<number | undefined>(undefined);
-
-  useLayoutEffect(() => {
-    if (!active) {
-      setWidth(undefined);
-      return;
-    }
-    const measure = () => {
-      const el = ref.current;
-      if (!el) return;
-      setWidth(Math.max(120, window.innerWidth - FLOAT_MARGIN - el.getBoundingClientRect().left));
-    };
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, [ref, active]);
-
-  return width;
-}
-
-/**
- * Tracks `rowOffset` for the live element sizes. Re-measures on resize and
- * whenever the row's own size changes, which is what expanding or collapsing a
- * section does.
- */
-export function useRowOffset(
-  rowRef: React.RefObject<HTMLElement | null>,
-  mainRef: React.RefObject<HTMLElement | null>,
-  /**
-   * True while a section is open. The row is wider then, but it must NOT
-   * re-clamp: sliding the row to fit would move the four section buttons, and
-   * they are the one thing in the dock that is promised never to move. The
-   * section's own buttons scroll inside their dock instead.
-   */
-  sectionOpen = false
-): number {
-  const [offset, setOffset] = useState(0);
-
-  useLayoutEffect(() => {
-    const row = rowRef.current;
-    const main = mainRef.current;
-    if (!row || !main) return;
-
-    const measure = () => {
-      const mainWidth = main.getBoundingClientRect().width;
-      setOffset(
-        rowOffset({
-          mainWidth,
-          rowWidth: sectionOpen ? mainWidth : row.getBoundingClientRect().width,
-          viewportWidth: window.innerWidth,
-        })
-      );
-    };
-
-    measure();
-    // The observer is what catches expand/collapse; the resize listener covers
-    // environments without ResizeObserver (and window resizes).
-    const observer =
-      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => measure());
-    observer?.observe(row);
-    observer?.observe(main);
-    window.addEventListener("resize", measure);
-    return () => {
-      observer?.disconnect();
-      window.removeEventListener("resize", measure);
-    };
-  }, [rowRef, mainRef, sectionOpen]);
-
-  return offset;
 }

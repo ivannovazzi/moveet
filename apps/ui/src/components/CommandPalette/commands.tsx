@@ -6,14 +6,13 @@ import type { InteractionModeKind } from "@/hooks/useInteractionMode";
 import { MODE_LAUNCH_ITEMS, type ModeDescriptor } from "@/Dock/modeDescriptors";
 import { DOCK_SECTIONS } from "@/Dock/dockSections";
 import { SPEED_PRESETS, speedDescription } from "@/Dock/tempoScale";
+import { VISIBILITY_LAYERS } from "@/Map/visibilityLayers";
 import type { Modifiers, ReplayStatus, StartOptions } from "@/types";
 import {
   ClockIcon,
   CloseIcon,
   Directions,
-  EyeIcon,
   FastForward,
-  HeatZone,
   Pause,
   Play,
   Record,
@@ -47,18 +46,6 @@ async function runWithToast(
     toast.error(toErrorMessage(err, failure));
   }
 }
-
-/** Layer-visibility toggles, mirroring `Controls/TogglesPanel.tsx`'s list. */
-const VISIBILITY_TOGGLES: { key: keyof Modifiers; label: string }[] = [
-  { key: "showDirections", label: "Network" },
-  { key: "showTrafficOverlay", label: "Traffic Colours" },
-  { key: "showVehicles", label: "Vehicles" },
-  { key: "showHeatmap", label: "Heatmap" },
-  { key: "showHeatzones", label: "Zones" },
-  { key: "showPOIs", label: "POIs" },
-  { key: "showSpeedLimits", label: "Speed Limits" },
-  { key: "showBreadcrumbs", label: "Trails" },
-];
 
 /** Replay speeds offered by the dock's replay rail. */
 const REPLAY_SPEEDS = [1, 2, 4] as const;
@@ -119,7 +106,7 @@ export interface CommandDeps {
   onCreateRandomIncident: () => Promise<void>;
   heatzones: Pick<HeatzoneEditor, "seed" | "clearAll">;
 
-  /** Settings panel → Visibility. */
+  /** Layer visibility — the same state the map's left rail flips. */
   modifiers: Modifiers;
   onChangeModifiers: <T extends keyof Modifiers>(name: T) => (value: Modifiers[T]) => void;
 
@@ -374,15 +361,17 @@ export function buildCommands(deps: CommandDeps): PaletteAction[] {
     }
   );
 
-  // ── Settings panel → Visibility toggles ────────────────────────────
-  for (const { key, label } of VISIBILITY_TOGGLES) {
-    const on = modifiers[key];
+  // ── Layer visibility (the map's left rail) ─────────────────────────
+  // Same table the rail renders, so the palette can't miss a layer the way it
+  // missed Density and Jobs while it kept a copy of the list.
+  for (const { key, label, icon } of VISIBILITY_LAYERS) {
+    const on = modifiers[key] ?? false;
     actions.push({
       id: `toggle-${key}`,
       label: `${on ? "Hide" : "Show"} ${label}`,
       keywords: `toggle layer visibility ${label}`,
       hint: "Visibility",
-      icon: on ? <EyeIcon /> : <HeatZone />,
+      icon,
       run: () => onChangeModifiers(key)(!on),
     });
   }

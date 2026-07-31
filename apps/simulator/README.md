@@ -19,7 +19,7 @@ Vehicle location simulator for fleet management systems. Simulates multiple vehi
 - **Persistence**: optional SQLite state snapshots + restore
 - **Real-time Transport**: WebSocket broadcasting behind a transport seam (`WS_TRANSPORT`): in-process by default, or Redis pub/sub fan-out to a standalone gateway process; optional external adapter integration
 - **Observability**: Prometheus `/metrics` endpoint (`prom-client`) and continuous correlation IDs propagated to the adapter as `x-request-id`
-- **Rate Limiting** and **Docker Support**
+- **Docker Support**
 
 ## Requirements
 
@@ -170,19 +170,19 @@ Set destination for specific vehicles.
 
 #### `POST /find-node`
 
-Find the nearest road network node to coordinates. **Rate limited.**
+Find the nearest road network node to coordinates.
 
 **Request Body:** `[longitude, latitude]`
 
 #### `POST /find-road`
 
-Find the nearest road to coordinates. **Rate limited.**
+Find the nearest road to coordinates.
 
 **Request Body:** `[longitude, latitude]`
 
 #### `POST /search`
 
-Search for locations by name. **Rate limited.**
+Search for locations by name.
 
 **Request Body:**
 
@@ -542,11 +542,6 @@ cat .env
 - Reduce number of vehicles
 - Increase `UPDATE_INTERVAL`
 - Check for memory leaks in logs
-
-### Rate limit errors
-
-- Reduce request frequency
-- Increase rate limit in code (not recommended for production)
 
 ## License
 

@@ -37,7 +37,7 @@ function HeatzonePanel({ zone, editor }: { zone: Heatzone; editor: HeatzoneEdito
     <div
       className={cn(
         "absolute bottom-24 left-1/2 z-50 w-64 -translate-x-1/2",
-        "rounded-xl border border-border surface-glass shadow-elevated backdrop-blur-xl",
+        "rounded-xl border border-border surface-glass glass-frost shadow-elevated",
         "p-3"
       )}
       role="group"

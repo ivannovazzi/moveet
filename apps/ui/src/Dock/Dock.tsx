@@ -10,19 +10,14 @@ import type { useAdapterConfig } from "@/Controls/Adapter/useAdapterConfig";
 import { DispatchState } from "@/hooks/useDispatchState";
 import AnchoredPanel from "./AnchoredPanel";
 import DockSurface from "./DockSurface";
-import DockCenter from "./DockCenter";
-import DockStateRail from "./DockStateRail";
-import TransportCluster from "./TransportCluster";
-import TempoInline from "./TempoInline";
+import DockDeck, { dockActivity } from "./DockDeck";
 import TempoPanel from "./TempoPanel";
 import SectionRail from "./SectionRail";
-import ActionDock from "./ActionDock";
 import FleetPanel from "./FleetPanel";
 import MonitorPanel from "./MonitorPanel";
 import SessionPanel from "./SessionPanel";
 import SettingsPanel from "./SettingsPanel";
 import { countMisbehavingDevices } from "@/lib/faultPresets";
-import { useRowOffset } from "./dockRowLayout";
 import type {
   DockBadges,
   DockSection,
@@ -36,18 +31,25 @@ import type { ModeDescriptor } from "./modeDescriptors";
 import type Incidents from "@/Controls/Incidents";
 import type GeofencePanel from "@/Controls/GeofencePanel";
 import type AnalyticsPanel from "@/Controls/AnalyticsPanel";
-import type TogglesPanel from "@/Controls/TogglesPanel";
 import type RecordReplay from "@/Controls/RecordReplay";
 import type AdvancedTuningTab from "./AdvancedTuningTab";
 
-/* ── The dock row: the main dock plus the section surfaces beside it ── */
+/**
+ * The dock row: three columns pinned across the viewport, bottom aligned.
+ *
+ * `1fr auto 1fr` puts the deck's centre exactly on the viewport's centre line —
+ * permanently, whatever else is on the row — and gives the sections wing its own
+ * half to grow into. The wing can never push the deck, and can never grow past
+ * its half: it wraps inside it instead of running off screen. The grid itself is
+ * click-through; only the surfaces take pointer events (see `DockSurface`), so
+ * the empty map either side of the docks still pans.
+ */
 const ROW_CLASS = cn(
-  "absolute bottom-5 left-1/2 z-50 flex items-stretch gap-2 translate-y-3.5",
-  "pointer-events-none opacity-0 transition-[opacity,transform] duration-700 ease-emphasized",
-  "[[data-ready]_&]:pointer-events-auto [[data-ready]_&]:translate-y-0 [[data-ready]_&]:opacity-100"
+  "pointer-events-none absolute inset-x-2 bottom-5 z-50 grid items-end gap-2",
+  "grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]",
+  "translate-y-3.5 opacity-0 transition-[opacity,transform] duration-700 ease-emphasized",
+  "[[data-ready]_&]:translate-y-0 [[data-ready]_&]:opacity-100"
 );
-
-const Divider = () => <div className="mx-0.5 my-2 w-px self-stretch bg-border-soft" />;
 
 export interface DockProps {
   /**
@@ -115,7 +117,6 @@ export interface DockProps {
   analytics: ComponentProps<typeof AnalyticsPanel>;
 
   // Session / Settings
-  toggles: ComponentProps<typeof TogglesPanel>;
   recordings: ComponentProps<typeof RecordReplay>;
   advanced: ComponentProps<typeof AdvancedTuningTab>;
 
@@ -123,19 +124,18 @@ export interface DockProps {
 }
 
 /**
- * The dock row.
+ * The dock row: two docks, and one rule that holds them apart.
  *
- *   action    — its own surface: the four ways to start new work on the map
- *   main dock — transport and tempo, plus a context slot that opens only when
- *               there is something to say (an active mode, a replay, a pending
- *               discard). Idle, the dock is just time controls.
- *   sections  — Fleet / Monitor / Session / Settings keys; selecting one unfolds
- *               that section's own buttons beside it and opens its panel above.
+ *   deck     — the centre, on the viewport's centre line. Its contents are the
+ *              current activity's keys and nothing else: watching the run, in a
+ *              mode, replaying, or being asked to discard (see `DockDeck`). It is
+ *              as wide as that key set needs and no wider.
+ *   sections — right wing: Fleet / Monitor / Session / Settings keys; selecting
+ *              one unfolds that section's own buttons beside it and opens its
+ *              panel above. Grows rightward inside its half.
  *
- * The row is laid out from the viewport's centre line so the *main dock* stays
- * put: a section unfolding grows the row to the right instead of sliding the
- * transport controls sideways (see `dockRowLayout`). Health lamps are not here
- * at all — they live in the top-right corner, where nothing is pressed.
+ * Health lamps are not here at all — they live in the top-right corner, where
+ * nothing is pressed.
  *
  * Owns the shared `useClock` so the tempo readout and its panel cannot disagree.
  * Adapter state arrives from App, which shares it with the corner health lamps.
@@ -181,7 +181,6 @@ export default function Dock({
   faults,
   geofences,
   analytics,
-  toggles,
   recordings,
   advanced,
   className,
@@ -190,12 +189,18 @@ export default function Dock({
   const { clock, setSpeedMultiplier } = useClock();
   const faultyDevices = countMisbehavingDevices(faults.faults.config, faults.faults.status);
 
-  const rowRef = useRef<HTMLDivElement>(null);
+  // The deck is the tempo panel's positioning origin.
   const mainRef = useRef<HTMLDivElement>(null);
   const tempoBtnRef = useRef<HTMLButtonElement>(null);
-  const rowShift = useRowOffset(rowRef, mainRef, expanded !== null);
 
-  const replaying = replayStatus.mode === "replay";
+  // Exposed on the surface as `data-activity` so what the dock is currently for
+  // is inspectable from the DOM (and assertable in tests) without reading classes.
+  const deckActivity = dockActivity({
+    pendingDiscard: guard.pending !== null,
+    replaying: replayStatus.mode === "replay",
+    inMode: modeDescriptor !== null,
+  });
+
   const dispatchCount =
     dispatch.dispatchState !== DispatchState.BROWSE ? dispatch.selectedForDispatch.length : 0;
 
@@ -300,12 +305,7 @@ export default function Dock({
           return <SessionPanel tab={tab as SessionTabId} recordings={recordings} />;
         case "settings":
           return (
-            <SettingsPanel
-              tab={tab as SettingsTabId}
-              toggles={toggles}
-              advanced={advanced}
-              feeds={{ adapter }}
-            />
+            <SettingsPanel tab={tab as SettingsTabId} advanced={advanced} feeds={{ adapter }} />
           );
       }
     },
@@ -333,63 +333,53 @@ export default function Dock({
       geofences,
       faults,
       recordings,
-      toggles,
       advanced,
       adapter,
     ]
   );
 
   return (
-    <div ref={rowRef} className={cn(ROW_CLASS, className)} style={{ marginLeft: rowShift }}>
-      {/* Starting new work has its own surface at the head of the row. */}
-      <ActionDock
-        onStartMode={onStartMode}
-        busy={modeDescriptor !== null || replaying}
-        offline={!connected}
-      />
+    <div className={cn(ROW_CLASS, className)}>
+      {/* The left column is deliberately empty: it is what keeps the deck's
+          centre on the viewport's centre line while the right wing grows. */}
+      <div aria-hidden />
 
-      <DockSurface ref={mainRef} className="relative">
-        <TransportCluster
-          running={status.running}
-          options={options}
-          isRecording={isRecording}
-          onStartRecording={onStartRecording}
-          onStopRecording={onStopRecording}
-          guardRequest={guard.request}
-          disabled={!connected}
-        />
-
-        {/* Tempo sits with the transport: play, reset, record and speed are all
-            controls over the run's clock. */}
-        <Divider />
-        <TempoInline
-          clock={clock}
-          detailsOpen={tempoOpen}
-          onToggleDetails={toggleTempo}
-          buttonRef={tempoBtnRef}
-          disabled={replaying}
-        />
-
-        <DockCenter
-          descriptor={modeDescriptor}
-          guard={guard}
-          replayStatus={replayStatus}
-          onPauseReplay={onPauseReplay}
-          onResumeReplay={onResumeReplay}
-          onStopReplay={onStopReplay}
-          onSeekReplay={onSeekReplay}
-          onSetReplaySpeed={onSetReplaySpeed}
-        />
-
-        <DockStateRail
-          tone={modeDescriptor?.tone ?? null}
-          recording={isRecording}
-          replayProgress={
-            replaying && replayStatus.duration
-              ? (replayStatus.currentTime ?? 0) / replayStatus.duration
-              : null
-          }
-        />
+      {/* The tempo panel is a sibling of the bar rather than a child: a blurred
+          ancestor is a backdrop root, and a panel inside one has nothing to
+          frost (see `AnchoredPanel`). */}
+      <div className="relative flex">
+        <DockSurface
+          ref={mainRef}
+          data-dock="deck"
+          data-activity={deckActivity}
+          // Sized to the key set it is holding, and centred, so the bar is
+          // exactly as wide as the work at hand: two keys while drawing a heat
+          // zone, the run's five while watching it. What stays put is the dock's
+          // centre — the eye finds it in the same place in every activity.
+          className="relative items-center overflow-hidden"
+        >
+          <DockDeck
+            connected={connected}
+            running={status.running}
+            options={options}
+            isRecording={isRecording}
+            onStartRecording={onStartRecording}
+            onStopRecording={onStopRecording}
+            clock={clock}
+            tempoOpen={tempoOpen}
+            onToggleTempo={toggleTempo}
+            tempoButtonRef={tempoBtnRef}
+            modeDescriptor={modeDescriptor}
+            guard={guard}
+            onStartMode={onStartMode}
+            replayStatus={replayStatus}
+            onPauseReplay={onPauseReplay}
+            onResumeReplay={onResumeReplay}
+            onStopReplay={onStopReplay}
+            onSeekReplay={onSeekReplay}
+            onSetReplaySpeed={onSetReplaySpeed}
+          />
+        </DockSurface>
 
         <AnchoredPanel
           open={tempoOpen}
@@ -404,14 +394,18 @@ export default function Dock({
         >
           <TempoPanel clock={clock} onSetMultiplier={setSpeedMultiplier} />
         </AnchoredPanel>
-      </DockSurface>
+      </div>
 
-      <SectionRail
-        navigation={navigation}
-        badges={badges}
-        onSelectTab={handleSelectTab}
-        renderPanel={renderPanel}
-      />
+      {/* Right wing. Left-aligned, so the four section keys sit in the same
+          place whether or not one of them is expanded. */}
+      <div className="flex min-w-0 justify-start">
+        <SectionRail
+          navigation={navigation}
+          badges={badges}
+          onSelectTab={handleSelectTab}
+          renderPanel={renderPanel}
+        />
+      </div>
     </div>
   );
 }

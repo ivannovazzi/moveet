@@ -55,11 +55,11 @@ export interface ReplayRailProps {
 }
 
 /**
- * The dock's centre slot during a replay. It used to be `ReplayDock`, a
- * separate bar that replaced the whole dock — which also took away the tempo
- * control, all four panel clusters and the status chips for the length of the
- * playback. Living in the centre slot keeps the rest of the dock reachable
- * while a recording plays.
+ * The work dock during a replay. It used to be `ReplayDock`, a separate bar that
+ * replaced the whole dock — which also took away the tempo control, all four
+ * panel clusters and the status chips for the length of the playback. Living in
+ * the work dock keeps the rest of the dock reachable while a recording plays,
+ * and puts the playback where every other "what the map is doing" state is.
  */
 export default function ReplayRail({
   replayStatus,
@@ -90,7 +90,7 @@ export default function ReplayRail({
   const speed = replayStatus.speed ?? 1;
 
   return (
-    <div className="flex w-full items-center gap-2 pl-2.5 pr-1.5">
+    <div className="flex h-[42px] min-w-0 items-center gap-2 pl-2.5 pr-0.5">
       <span className="flex shrink-0 items-center gap-1.5 text-accent">
         <RailLabel>Replay</RailLabel>
       </span>
@@ -119,7 +119,9 @@ export default function ReplayRail({
         onValueChange={([v]) => setScrubbing(v)}
         onValueCommit={handleCommit}
         aria-label="Replay position"
-        className="min-w-[70px] flex-1"
+        // The rail sizes to its content now, so the track carries its own width
+        // instead of stretching into a slot.
+        className="w-[150px] shrink xl:w-[210px]"
       />
 
       <span className="shrink-0 whitespace-nowrap font-mono text-[11px] tabular-nums text-muted-foreground">

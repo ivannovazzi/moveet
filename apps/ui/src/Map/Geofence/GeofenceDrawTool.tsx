@@ -19,6 +19,12 @@ interface GeofenceDrawToolProps {
    * The tool fires onComplete with current vertices when this value changes.
    */
   confirmRequestId?: number;
+  /**
+   * Increment this to drop the most recently placed vertex — the dock's "Undo
+   * point" key. Same nonce pattern as `confirmRequestId`: the ring itself lives
+   * here, so the dock can only ask.
+   */
+  undoRequestId?: number;
 }
 
 // Hit-test radii (pixels) and drag threshold
@@ -63,6 +69,7 @@ export default function GeofenceDrawTool({
   onComplete,
   onVertexCountChange,
   confirmRequestId,
+  undoRequestId,
 }: GeofenceDrawToolProps) {
   const { viewport } = useMapContext();
   const { mapHTMLElement } = useOverlay();
@@ -328,6 +335,15 @@ export default function GeofenceDrawTool({
     if (!active || verticesRef.current.length < 3) return;
     completeRef.current();
   }, [confirmRequestId, active]);
+
+  // Drop the last placed vertex when undoRequestId changes.
+  const prevUndoIdRef = useRef(undoRequestId);
+  useEffect(() => {
+    if (undoRequestId === prevUndoIdRef.current) return;
+    prevUndoIdRef.current = undoRequestId;
+    if (!active || verticesRef.current.length === 0) return;
+    setVertices((prev) => prev.slice(0, -1));
+  }, [undoRequestId, active]);
 
   // Build deck.gl layers for the in-progress polygon
   const layers = useMemo(() => {

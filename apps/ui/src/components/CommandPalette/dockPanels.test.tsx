@@ -175,7 +175,7 @@ describe("command palette → dock panels", () => {
   it("closes whichever panel is open", async () => {
     render(<Harness />);
 
-    runPaletteAction("Open Settings › Visibility");
+    runPaletteAction("Open Settings › Feeds & sinks");
     expect(await screen.findByRole("region", { name: "Settings" })).toBeInTheDocument();
 
     runPaletteAction("Collapse dock section");
@@ -191,8 +191,8 @@ describe("command palette → dock panels", () => {
     expect(await screen.findByRole("region", { name: "Monitor" })).toBeInTheDocument();
 
     // Collapsing the section the palette expanded closes its panel — the two
-    // are the same state, not two copies of it.
-    fireEvent.click(cluster("Collapse Monitor"));
+    // are the same state, not two copies of it. The lit key is the collapse.
+    fireEvent.click(sectionButton("Monitor"));
 
     await waitFor(() => expect(openPanels()).toEqual([]));
     expect(sectionButton("Monitor")).toHaveAttribute("aria-expanded", "false");

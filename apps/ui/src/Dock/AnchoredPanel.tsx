@@ -43,6 +43,13 @@ const ANCHOR_INSET = 10;
  * relationship between a lit key and the surface it produced literal, instead
  * of leaving a panel floating in the middle of the screen with no parent (which
  * is what the single centred 384px panel used to do).
+ *
+ * IMPORTANT: mount it *beside* the bar it belongs to, never inside it. An
+ * ancestor with `backdrop-filter` (every dock bar has one) becomes a backdrop
+ * root, and a nested panel then blurs that ancestor's empty content instead of
+ * the map — the glass turns into a flat translucent slab with sharp road lines
+ * showing through. `originRef` still points at the bar, so the anchoring maths
+ * is unaffected by living one level out.
  */
 export default function AnchoredPanel({
   open,

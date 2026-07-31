@@ -34,13 +34,20 @@ const DockSurface = forwardRef<HTMLDivElement, DockSurfaceProps>(function DockSu
         variant === "bar" &&
           cn(
             "flex h-[54px] shrink-0 items-stretch rounded-[14px] p-1.5",
-            "surface-glass backdrop-blur-xl",
+            // Glass, and made to look like it: a wide blur plus a lift in
+            // brightness and saturation, so whatever is under the bar frosts
+            // through it instead of disappearing into a near-black map.
+            "surface-glass glass-frost-strong",
+            // The row that holds the bars spans the viewport and is click-
+            // through, so each bar claims its own pointer events — and only
+            // once the app has painted in.
+            "pointer-events-none [[data-ready]_&]:pointer-events-auto",
             // Elevation plus the machined edge, in one composited shadow.
             "shadow-[0_18px_40px_-12px_oklch(0_0_0/0.65),inset_0_1px_0_oklch(1_0_0/0.07),inset_0_-1px_0_oklch(0_0_0/0.35)]"
           ),
         variant === "panel" &&
           cn(
-            "overflow-hidden rounded-[12px] surface-glass-strong backdrop-blur-2xl backdrop-saturate-150",
+            "overflow-hidden rounded-[12px] surface-glass-strong glass-frost-strong",
             "shadow-[0_28px_60px_-16px_oklch(0_0_0/0.7)]",
             EDGE
           ),

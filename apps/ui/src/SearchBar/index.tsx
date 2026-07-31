@@ -119,7 +119,7 @@ export default function SearchBar({
       ref={containerRef}
       className={cn(
         "pointer-events-auto absolute left-1/2 top-4 z-50 flex w-[min(640px,calc(100%-72px))]",
-        "-translate-x-1/2 flex-col overflow-hidden border border-border surface-glass shadow-floating backdrop-blur-md",
+        "-translate-x-1/2 flex-col overflow-hidden border border-border surface-glass glass-frost shadow-floating",
         "rounded-lg"
       )}
       role="combobox"

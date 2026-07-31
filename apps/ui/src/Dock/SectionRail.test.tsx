@@ -55,7 +55,7 @@ function renderDock(overrides: Partial<Omit<DockProps, "navigation">> = {}) {
 }
 
 const pill = (name: string) => screen.getByRole("button", { name });
-const collapse = (name: string) => screen.getByRole("button", { name: `Collapse ${name}` });
+const expanded = (name: string) => pill(name).getAttribute("aria-expanded") === "true";
 const tabNames = () => screen.queryAllByRole("tab").map((t) => t.textContent?.trim());
 
 describe("dock section row", () => {
@@ -76,8 +76,21 @@ describe("dock section row", () => {
 
     // The key stays a key — it lights up rather than becoming something else.
     expect(pill("Monitor")).toHaveAttribute("aria-expanded", "true");
-    expect(collapse("Monitor")).toBeInTheDocument();
-    expect(tabNames()).toEqual(["Incidents", "Analytics", "Geofences", "Heat Zones", "Faults"]);
+    expect(tabNames()).toEqual(["Incidents", "Analytics", "Geofences", "Heat zones", "Faults"]);
+  });
+
+  it("collapses from the lit key it expanded from", async () => {
+    const user = userEvent.setup();
+    renderDock();
+
+    await user.click(pill("Monitor"));
+    expect(expanded("Monitor")).toBe(true);
+
+    // The section's buttons carry no close button; the key is the way back.
+    await user.click(pill("Monitor"));
+
+    expect(expanded("Monitor")).toBe(false);
+    expect(screen.queryAllByRole("tab")).toHaveLength(0);
   });
 
   it("expands to the same buttons every time, whatever the state", async () => {
@@ -95,7 +108,7 @@ describe("dock section row", () => {
 
     await user.click(pill("Monitor"));
     const withIncident = tabNames();
-    await user.click(collapse("Monitor"));
+    await user.click(pill("Monitor"));
     await user.click(pill("Monitor"));
 
     expect(tabNames()).toEqual(withIncident);
@@ -109,7 +122,7 @@ describe("dock section row", () => {
     expect(screen.getByRole("tab", { name: /Incidents/ })).toHaveAttribute("aria-selected", "true");
 
     await user.click(screen.getByRole("tab", { name: /Faults/ }));
-    await user.click(collapse("Monitor"));
+    await user.click(pill("Monitor"));
     await user.click(pill("Monitor"));
 
     expect(screen.getByRole("tab", { name: /Faults/ })).toHaveAttribute("aria-selected", "true");
@@ -122,8 +135,9 @@ describe("dock section row", () => {
     await user.click(pill("Monitor"));
     await user.click(pill("Session"));
 
-    expect(collapse("Session")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Collapse Monitor" })).not.toBeInTheDocument();
+    expect(expanded("Session")).toBe(true);
+    expect(expanded("Monitor")).toBe(false);
+    expect(tabNames()).toEqual(["Recordings", "Scenarios"]);
   });
 
   it("never hides the main dock's controls behind an expanded section", async () => {
@@ -187,9 +201,11 @@ describe("dock section row", () => {
 
     await user.click(pill("Monitor"));
 
-    // Expanded: it moves to the button it actually belongs to.
+    // Expanded: it moves to the button it actually belongs to, and stops being
+    // counted twice on the key above it.
     expect(screen.getByRole("tab", { name: /Faults/ })).toHaveTextContent("3");
     expect(screen.getByRole("tab", { name: /Incidents/ })).not.toHaveTextContent("3");
+    expect(pill("Monitor")).not.toHaveTextContent("3");
   });
 });
 

@@ -17,6 +17,9 @@ export interface SectionPillProps {
  * accent, a soft glow sits behind it, and a 2px accent bar seats at the bottom
  * edge, where the section's own buttons come out. It reads at 17px in a way a
  * background tint does not, and it points at where the expansion happens.
+ *
+ * A lit key is also the way back: pressing it collapses the section, which is
+ * why its buttons carry no close button of their own.
  */
 const SectionPill = forwardRef<HTMLButtonElement, SectionPillProps>(function SectionPill(
   { section, active, badge, onClick },
@@ -29,7 +32,13 @@ const SectionPill = forwardRef<HTMLButtonElement, SectionPillProps>(function Sec
       aria-expanded={active}
       aria-controls="dock-section-panel"
       aria-label={section.label}
-      title={badge ? `${section.label} — ${badge.label}` : section.label}
+      title={
+        active
+          ? `Collapse ${section.label} (Esc)`
+          : badge
+            ? `${section.label} — ${badge.label}`
+            : section.label
+      }
       onClick={onClick}
       className={cn(
         "group relative flex size-[42px] shrink-0 items-center justify-center self-center rounded-[10px]",

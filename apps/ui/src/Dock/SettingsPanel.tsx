@@ -1,5 +1,4 @@
 import type { ComponentProps } from "react";
-import TogglesPanel from "@/Controls/TogglesPanel";
 import { SuppressPanelHeader } from "@/Controls/PanelPrimitives";
 import AdvancedTuningTab from "./AdvancedTuningTab";
 import FeedsSection, { FEED_HEALTH_TONE, feedHealth } from "./FeedsSection";
@@ -8,18 +7,18 @@ import type { SettingsTabId } from "./dockSections";
 
 export interface SettingsPanelProps {
   tab: SettingsTabId;
-  toggles: ComponentProps<typeof TogglesPanel>;
   advanced: ComponentProps<typeof AdvancedTuningTab>;
   feeds: ComponentProps<typeof FeedsSection>;
 }
 
 /**
- * Contents of the Settings panel — configuration, and only configuration: what
- * the map draws, where telemetry is published, how the vehicles behave.
- * Recordings and scenarios live in the Session dock (they change the run, not a
- * preference).
+ * Contents of the Settings panel — configuration, and only configuration: where
+ * telemetry is published, and how the vehicles behave. What the map *draws* is
+ * not a panel at all any more: it is the icon rail on the map's left edge
+ * (`Map/VisibilityRail`). Recordings and scenarios live in the Session dock
+ * (they change the run, not a preference).
  */
-export default function SettingsPanel({ tab, toggles, advanced, feeds }: SettingsPanelProps) {
+export default function SettingsPanel({ tab, advanced, feeds }: SettingsPanelProps) {
   const health = feedHealth(feeds.adapter.health);
 
   return (
@@ -31,7 +30,6 @@ export default function SettingsPanel({ tab, toggles, advanced, feeds }: Setting
       )}
       <PanelScroll>
         <SuppressPanelHeader>
-          {tab === "visibility" && <TogglesPanel {...toggles} />}
           {tab === "feeds" && <FeedsSection {...feeds} />}
           {tab === "advanced" && <AdvancedTuningTab {...advanced} />}
         </SuppressPanelHeader>

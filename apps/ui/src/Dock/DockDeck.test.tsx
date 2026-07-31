@@ -3,12 +3,11 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 /**
- * The work dock is the one dock that changes with what the operator is doing.
- * These pin the behaviour the old dock got wrong: a mode with no visible way out
- * (heat zones), two surfaces telling the same dispatch story in different words,
- * a replay that took the whole bar away — and, above all, that none of it is ever
- * allowed to open inside the control dock, which swelled by 520px and slid the
- * transport keys out from under the cursor whenever a mode started.
+ * The deck is the dock's contents, and it is derived from what the operator is
+ * doing. These tests *are* the model: for each activity, exactly which keys are
+ * on the bar. That is the part worth pinning — a control that lingers into an
+ * activity it cannot serve (record while placing a job, tempo during a replay, a
+ * live play button while a recording plays) is the failure mode this replaced.
  */
 
 vi.mock("@/utils/client", async () => {
@@ -45,7 +44,7 @@ function drawZoneMode(overrides: Partial<ModeDescriptor> = {}): ModeDescriptor {
     icon: null,
     tone: "accent",
     status: "4 points",
-    hint: "Click the first point to close",
+    actions: [{ label: "Undo point", run: vi.fn(), enabled: true }],
     primary: { label: "Finish zone", run: vi.fn(), enabled: true },
     exit: vi.fn(),
     exitLabel: "Cancel",
@@ -56,11 +55,38 @@ function drawZoneMode(overrides: Partial<ModeDescriptor> = {}): ModeDescriptor {
   };
 }
 
+function dispatchMode(overrides: Partial<ModeDescriptor> = {}): ModeDescriptor {
+  return {
+    kind: "dispatch",
+    label: "Dispatch",
+    icon: null,
+    tone: "accent",
+    status: "3 selected",
+    actions: [{ label: "Clear", run: vi.fn(), enabled: true }],
+    exit: vi.fn(),
+    exitLabel: "Exit",
+    busy: false,
+    dirty: "3 selected vehicles",
+    locksPan: false,
+    ...overrides,
+  };
+}
+
+const replaying: ReplayStatus = {
+  mode: "replay",
+  paused: false,
+  file: "runs/morning.jsonl",
+  currentTime: 30_000,
+  duration: 120_000,
+  speed: 2,
+};
+
 function renderDock(
   props: {
     modeDescriptor?: ModeDescriptor | null;
     guard?: ModeGuard;
     replayStatus?: ReplayStatus;
+    isRecording?: boolean;
     onStartMode?: (kind: string) => void;
   } = {}
 ) {
@@ -72,6 +98,7 @@ function renderDock(
           modeDescriptor: props.modeDescriptor ?? null,
           guard: props.guard ?? passthroughGuard(),
           replayStatus: props.replayStatus ?? { mode: "live" },
+          ...(props.isRecording !== undefined ? { isRecording: props.isRecording } : {}),
           ...(props.onStartMode ? { onStartMode: props.onStartMode } : {}),
         })}
         navigation={navigation}
@@ -81,54 +108,48 @@ function renderDock(
   return render(<Harness />);
 }
 
-/** The clusters must stay reachable in every work-dock state. */
-function expectClustersPresent() {
+const deck = () => document.querySelector('[data-dock="deck"]') as HTMLElement;
+const activity = () => deck().getAttribute("data-activity");
+
+/** Every key on the deck, by accessible name (falling back to its label text). */
+function deckKeys(): string[] {
+  return within(deck())
+    .getAllByRole("button")
+    .map((b) => b.getAttribute("aria-label") ?? b.textContent?.trim() ?? "");
+}
+
+const hasKey = (pattern: RegExp) => deckKeys().some((k) => pattern.test(k));
+
+const LAUNCHER = /^Start a map action$/;
+const PLAY = /simulation$/;
+const RESET = /^Reset$/;
+const RECORD = /recording$/;
+const TEMPO = /^Tempo/;
+
+/** The four section keys are never an activity's business — they stay put. */
+function expectSectionsReachable() {
   for (const name of ["Fleet", "Monitor", "Session", "Settings"]) {
     expect(screen.getByRole("button", { name })).toBeInTheDocument();
   }
 }
 
-/** The dock a given element belongs to: `work`, `control` or `sections`. */
-function dockOf(el: HTMLElement): string | null | undefined {
-  return el.closest("[data-dock]")?.getAttribute("data-dock");
-}
-
-const controlDock = () => document.querySelector('[data-dock="control"]') as HTMLElement;
-
-/**
- * The control dock holds time controls and nothing else. Anything that reports
- * or asks — a mode, a playback, a discard — belongs to the work dock, so the
- * transport keys keep their width, their contents and their position.
- */
-function expectControlDockIsTransportOnly() {
-  const control = controlDock();
-  expect(control).toBeTruthy();
-  const buttons = within(control)
-    .getAllByRole("button")
-    .map((b) => b.getAttribute("aria-label"));
-  expect(buttons).toEqual([
-    expect.stringMatching(/simulation$/),
-    "Reset",
-    expect.stringMatching(/recording$/),
-    expect.stringMatching(/^Tempo/),
-  ]);
-  expect(within(control).queryByRole("status")).not.toBeInTheDocument();
-  expect(within(control).queryByRole("alertdialog")).not.toBeInTheDocument();
-  expect(within(control).queryByRole("slider")).not.toBeInTheDocument();
-}
-
-describe("work dock", () => {
-  describe("browsing", () => {
-    it("rests as the launcher, with nothing reporting", () => {
+describe("dock deck", () => {
+  describe("watching the live run", () => {
+    it("offers the way in and the run's own controls, and nothing else", () => {
       renderDock();
 
-      // Idle, the work dock offers the ways in and says nothing else.
+      expect(activity()).toBe("live");
+      expect(deckKeys()).toEqual([
+        expect.stringMatching(LAUNCHER),
+        expect.stringMatching(PLAY),
+        expect.stringMatching(RESET),
+        expect.stringMatching(RECORD),
+        expect.stringMatching(TEMPO),
+      ]);
       expect(screen.queryByRole("status")).not.toBeInTheDocument();
-      expect(dockOf(screen.getByRole("button", { name: "Start a map action" }))).toBe("work");
-      expectControlDockIsTransportOnly();
     });
 
-    it("offers one launcher listing every map mode with its shortcut", async () => {
+    it("lists every map mode with its shortcut behind the one launcher", async () => {
       const user = userEvent.setup();
       renderDock();
 
@@ -163,13 +184,63 @@ describe("work dock", () => {
     });
   });
 
-  describe("in a mode", () => {
-    it("states the mode, its progress and what to do next", () => {
+  describe("making something on the map", () => {
+    it("swaps the run's controls for the mode's own keys", () => {
       renderDock({ modeDescriptor: drawZoneMode() });
 
-      expect(screen.getByText("Draw zone")).toBeInTheDocument();
-      expect(screen.getByText("4 points")).toBeInTheDocument();
-      expect(screen.getByText("Click the first point to close")).toBeInTheDocument();
+      expect(activity()).toBe("mode");
+      // The mode's keys, and only those: undo the last point, finish, cancel.
+      expect(deckKeys()).toEqual(["Undo point", "Finish zone⏎", "CancelEsc"]);
+      // Nothing left over from watching the run.
+      expect(hasKey(LAUNCHER)).toBe(false);
+      expect(hasKey(PLAY)).toBe(false);
+      expect(hasKey(RECORD)).toBe(false);
+      expect(hasKey(TEMPO)).toBe(false);
+    });
+
+    it("states the mode and its progress without a sentence of prose", () => {
+      renderDock({ modeDescriptor: drawZoneMode() });
+
+      expect(screen.getByRole("status").textContent).toBe(
+        "Draw zone4 pointsUndo pointFinish zone⏎CancelEsc"
+      );
+    });
+
+    it("keeps time control for dispatch, which rides the live run", () => {
+      renderDock({ modeDescriptor: dispatchMode() });
+
+      expect(activity()).toBe("mode");
+      expect(hasKey(PLAY)).toBe(true);
+      expect(hasKey(TEMPO)).toBe(true);
+      // …but not the keys that belong to starting or capturing work.
+      expect(hasKey(LAUNCHER)).toBe(false);
+      expect(hasKey(RECORD)).toBe(false);
+      expect(deckKeys()).toContain("Clear");
+    });
+
+    it("runs a mode's side action", async () => {
+      const undo = vi.fn();
+      const user = userEvent.setup();
+      renderDock({
+        modeDescriptor: drawZoneMode({
+          actions: [{ label: "Undo point", run: undo, enabled: true }],
+        }),
+      });
+
+      await user.click(screen.getByRole("button", { name: "Undo point" }));
+
+      expect(undo).toHaveBeenCalledOnce();
+    });
+
+    it("disables a side action the mode says has nothing to act on", () => {
+      renderDock({
+        modeDescriptor: drawZoneMode({
+          status: "0 points",
+          actions: [{ label: "Undo point", run: vi.fn(), enabled: false }],
+        }),
+      });
+
+      expect(screen.getByRole("button", { name: "Undo point" })).toBeDisabled();
     });
 
     it("always offers an exit, so a mode can never be orphaned", async () => {
@@ -192,95 +263,70 @@ describe("work dock", () => {
       expect(screen.getByRole("button", { name: /Finish zone/ })).toBeDisabled();
     });
 
-    it("locks nothing else away — the clusters are still there", () => {
-      renderDock({ modeDescriptor: drawZoneMode() });
-      expectClustersPresent();
+    it("keeps a capture stoppable even where the activity would drop the key", () => {
+      renderDock({ modeDescriptor: drawZoneMode(), isRecording: true });
+
+      // A recording nobody can stop from the dock is worse than one extra key.
+      expect(hasKey(/^Stop recording$/)).toBe(true);
     });
 
-    it("reports from the work dock, never inside the transport controls", () => {
+    it("leaves the section keys where they were", () => {
       renderDock({ modeDescriptor: drawZoneMode() });
-
-      expect(dockOf(screen.getByRole("status"))).toBe("work");
-      expect(dockOf(screen.getByRole("button", { name: /Finish zone/ }))).toBe("work");
-      expectControlDockIsTransportOnly();
-    });
-
-    it("hands the launcher's place to the running mode rather than dimming it", () => {
-      renderDock({ modeDescriptor: drawZoneMode() });
-
-      expect(screen.queryByRole("button", { name: "Start a map action" })).not.toBeInTheDocument();
+      expectSectionsReachable();
     });
   });
 
-  describe("pending discard", () => {
-    it("asks in the centre slot, naming what would be lost", () => {
-      const guard: ModeGuard = {
-        pending: { loses: "4-point zone", run: vi.fn() },
-        request: vi.fn(),
-        confirm: vi.fn(),
-        dismiss: vi.fn(),
-      };
-      renderDock({ modeDescriptor: drawZoneMode(), guard });
+  describe("asked to discard in-flight work", () => {
+    const guard = (loses: string): ModeGuard => ({
+      pending: { loses, run: vi.fn() },
+      request: vi.fn(),
+      confirm: vi.fn(),
+      dismiss: vi.fn(),
+    });
 
-      const prompt = screen.getByRole("alertdialog", { name: "Confirm discard" });
-      expect(prompt).toBeInTheDocument();
+    it("reduces the dock to the question and its two answers", () => {
+      renderDock({ modeDescriptor: drawZoneMode(), guard: guard("4-point zone") });
+
+      expect(activity()).toBe("guard");
+      expect(screen.getByRole("alertdialog", { name: "Confirm discard" })).toBeInTheDocument();
       expect(screen.getByText("Discard 4-point zone?")).toBeInTheDocument();
-      expect(dockOf(prompt)).toBe("work");
-      expectControlDockIsTransportOnly();
+      expect(deckKeys()).toEqual(["Keep", "Discard"]);
     });
 
     it("keeps the work when dismissed and drops it when confirmed", async () => {
-      const confirm = vi.fn();
-      const dismiss = vi.fn();
-      const guard: ModeGuard = {
-        pending: { loses: "half-placed job", run: vi.fn() },
-        request: vi.fn(),
-        confirm,
-        dismiss,
-      };
+      const g = guard("half-placed job");
       const user = userEvent.setup();
-      renderDock({ guard });
+      renderDock({ guard: g });
 
       await user.click(screen.getByRole("button", { name: "Keep" }));
-      expect(dismiss).toHaveBeenCalledOnce();
+      expect(g.dismiss).toHaveBeenCalledOnce();
 
       await user.click(screen.getByRole("button", { name: "Discard" }));
-      expect(confirm).toHaveBeenCalledOnce();
+      expect(g.confirm).toHaveBeenCalledOnce();
     });
   });
 
-  describe("replaying", () => {
-    const replayStatus: ReplayStatus = {
-      mode: "replay",
-      paused: false,
-      file: "runs/morning.jsonl",
-      currentTime: 30_000,
-      duration: 120_000,
-      speed: 2,
-    };
+  describe("replaying a recording", () => {
+    it("becomes the playback's transport instead of showing a second one", () => {
+      renderDock({ replayStatus: replaying });
 
-    it("runs the playback from the work dock", () => {
-      renderDock({ replayStatus });
-
+      expect(activity()).toBe("replay");
       expect(screen.getByRole("button", { name: "Pause replay" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Stop replay" })).toBeInTheDocument();
       expect(screen.getByRole("slider", { name: "Replay position" })).toBeInTheDocument();
       expect(screen.getByText("00:30 / 02:00")).toBeInTheDocument();
-      expect(dockOf(screen.getByRole("slider", { name: "Replay position" }))).toBe("work");
-      expectControlDockIsTransportOnly();
+
+      // The live run's keys are gone rather than sitting there disabled: none of
+      // them steers a recording.
+      expect(hasKey(PLAY)).toBe(false);
+      expect(hasKey(RESET)).toBe(false);
+      expect(hasKey(TEMPO)).toBe(false);
+      expect(hasKey(LAUNCHER)).toBe(false);
     });
 
-    it("keeps the rest of the dock reachable (the old ReplayDock replaced it)", () => {
-      renderDock({ replayStatus });
-
-      expectClustersPresent();
-      expect(screen.getByRole("button", { name: /Tempo/ })).toBeInTheDocument();
-    });
-
-    it("quietens tempo, which steers the live clock rather than the playback", () => {
-      renderDock({ replayStatus });
-
-      expect(screen.getByRole("button", { name: /Tempo/ })).toBeDisabled();
+    it("leaves the section keys where they were", () => {
+      renderDock({ replayStatus: replaying });
+      expectSectionsReachable();
     });
   });
 });

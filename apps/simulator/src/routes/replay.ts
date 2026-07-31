@@ -4,7 +4,6 @@ import type { RouteContext } from "./types";
 import { asyncHandler } from "./helpers";
 import { validateBody } from "../middleware/validate";
 import { replayStartSchema, replaySeekSchema, replaySpeedSchema } from "../middleware/schemas";
-import { expensiveRateLimiter } from "../middleware/rateLimiter";
 
 /**
  * Routes for replay management: start, pause, resume, stop, seek, speed, status.
@@ -15,7 +14,6 @@ export function createReplayRoutes(ctx: RouteContext): Router {
 
   router.post(
     "/replay/start",
-    expensiveRateLimiter.middleware(),
     validateBody(replayStartSchema),
     asyncHandler(async (req, res) => {
       const { file, speed } = req.body;
