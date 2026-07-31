@@ -34,6 +34,16 @@ const TONE_TEXT: Record<StatusTone, string> = {
   accent: "text-accent",
 };
 
+/** Text colour for a semantic tone (shared with the dock bar's mode rail). */
+export function toneTextClass(tone: StatusTone): string {
+  return TONE_TEXT[tone];
+}
+
+/** Background fill for a semantic tone, used for dots and rails. */
+export function toneFillClass(tone: StatusTone): string {
+  return TONE_DOT[tone];
+}
+
 /** A 6px status dot in the given semantic tone. */
 export function StatusDot({ tone }: { tone: StatusTone }) {
   return <span className={cn("size-1.5 shrink-0 rounded-full", TONE_DOT[tone])} />;

@@ -20,6 +20,15 @@ vi.mock("@/utils/client", async () => {
       ...createMockClient(),
       getClock: vi.fn().mockResolvedValue({ data: undefined }),
       setClock: vi.fn().mockResolvedValue({ data: undefined }),
+      // The Session panel mounts RecordReplay, which polls generation state and
+      // subscribes to its progress channels.
+      getGenerateStatus: vi.fn().mockResolvedValue({ data: undefined }),
+      onGenerateProgress: vi.fn(),
+      offGenerateProgress: vi.fn(),
+      onGenerateComplete: vi.fn(),
+      offGenerateComplete: vi.fn(),
+      onGenerateError: vi.fn(),
+      offGenerateError: vi.fn(),
     },
   };
 });
@@ -34,12 +43,11 @@ vi.mock("@/Controls/Adapter/adapterClient", () => ({
 }));
 
 // Imported after the mocks so the hoisted factories are in place.
-import Dock, { type DockProps } from "@/Dock/Dock";
-import type { JobsPanelProps } from "@/Controls/JobsPanel";
-import type { DispatchFlow } from "@/hooks/useDispatchFlow";
+import Dock from "@/Dock/Dock";
 import { DispatchState } from "@/hooks/useDispatchState";
 import { useDockNavigation } from "@/hooks/useDockNavigation";
-import { createModifiers, createStartOptions, createStatus } from "@/test/mocks/types";
+import { createDockProps } from "@/test/dockProps";
+import { createModifiers, createStartOptions } from "@/test/mocks/types";
 import CommandPalette from "./CommandPalette";
 import { buildCommands, type CommandDeps } from "./commands";
 
@@ -56,103 +64,21 @@ function otherDeps(): Omit<CommandDeps, "dock"> {
     onResumeReplay: vi.fn(),
     onStopReplay: vi.fn(),
     onSetReplaySpeed: vi.fn(),
-    dispatchMode: false,
+    modeDescriptor: null,
+    onStartMode: vi.fn(),
     dispatchState: DispatchState.BROWSE,
     assignmentCount: 0,
     hasFailedDispatches: false,
-    onToggleDispatchMode: vi.fn(),
-    onExitDispatchMode: vi.fn(),
     onDispatch: vi.fn(),
     onRetryFailedDispatches: vi.fn(),
+    faultsArmed: false,
+    onToggleFaults: vi.fn(),
+    onClearFaultState: vi.fn(),
     onCreateRandomIncident: vi.fn(),
-    onStartGeofenceDrawing: vi.fn(),
-    heatzones: { isDrawing: false, toggleDraw: vi.fn(), seed: vi.fn(), clearAll: vi.fn() },
+    heatzones: { seed: vi.fn(), clearAll: vi.fn() },
     modifiers: createModifiers(),
     onChangeModifiers: () => vi.fn(),
     onClearSelection: vi.fn(),
-  };
-}
-
-function dockProps(): Omit<DockProps, "navigation"> {
-  return {
-    connected: true,
-    status: createStatus({ running: true }),
-    isRecording: false,
-    onStartRecording: async () => {},
-    onStopRecording: async () => {},
-    replayStatus: { mode: "live" },
-    onPauseReplay: async () => {},
-    onResumeReplay: async () => {},
-    onStopReplay: async () => {},
-    onSeekReplay: async () => {},
-    onSetReplaySpeed: async () => {},
-    vehicles: [],
-    filter: "",
-    onFilterChange: () => {},
-    onSelectVehicle: () => {},
-    onHoverVehicle: () => {},
-    onUnhoverVehicle: () => {},
-    maxSpeed: 60,
-    vehicleFleetMap: new Map(),
-    fleets: [],
-    onCreateFleet: async () => {},
-    onDeleteFleet: async () => {},
-    onAssignVehicle: async () => {},
-    onUnassignVehicle: async () => {},
-    fleetsError: null,
-    dispatch: {
-      dispatchState: DispatchState.BROWSE,
-      selectedForDispatch: [],
-      assignments: [],
-      results: [],
-    } as unknown as DispatchFlow,
-    // Only `counts` is read by the dock bar itself (the Fleet badge); the Fleet
-    // panel — and so the job board — is never opened in these tests.
-    jobs: {
-      jobs: [],
-      counts: { total: 0, live: 0, queued: 0, breached: 0 },
-      draft: { active: false } as unknown as JobsPanelProps["draft"],
-      onCancelJob: async () => {},
-      onDeleteJob: async () => {},
-      onAssignJob: async () => {},
-      vehicles: [],
-      jobByVehicleId: new Map(),
-      error: null,
-    },
-    incidents: { incidents: [], createRandom: async () => {}, remove: async () => {}, error: null },
-    faults: {
-      faults: {
-        config: null,
-        status: null,
-        loading: false,
-        error: null,
-        configure: async () => {},
-        setVehicleProfile: async () => {},
-        clearVehicleProfile: async () => {},
-        reset: async () => {},
-      },
-      vehicles: [],
-    },
-    geofences: {
-      fences: [],
-      onFenceToggle: () => {},
-      onFenceDelete: () => {},
-      alerts: [],
-      drawingActive: false,
-      vertexCount: 0,
-      onStartDrawing: () => {},
-      onCancelDrawing: () => {},
-      onConfirmDrawing: () => {},
-    },
-    analytics: { summary: null, fleetHistory: new Map(), summaryHistory: [] },
-    toggles: { modifiers: createModifiers(), onChangeModifiers: () => () => {} },
-    recordings: {
-      recordings: [],
-      replayStatus: { mode: "live" },
-      onStartReplay: async () => {},
-      onRefreshRecordings: () => {},
-    },
-    advanced: { maxSpeedRef: { current: 60 } },
   };
 }
 
@@ -161,7 +87,7 @@ function Harness() {
   const nav = useDockNavigation();
   return (
     <>
-      <Dock navigation={nav} {...dockProps()} />
+      <Dock navigation={nav} {...createDockProps()} />
       <CommandPalette
         vehicles={[]}
         roads={[]}
@@ -198,7 +124,7 @@ describe("command palette → dock panels", () => {
     runPaletteAction("Open Monitor panel");
 
     expect(await screen.findByRole("region", { name: "Monitor" })).toBeInTheDocument();
-    expect(cluster("Monitor")).toHaveAttribute("aria-pressed", "true");
+    expect(cluster("Monitor")).toHaveAttribute("aria-expanded", "true");
   });
 
   it("opens each panel-owning cluster by name", async () => {
@@ -206,9 +132,9 @@ describe("command palette → dock panels", () => {
 
     for (const [label, panel] of [
       ["Open Tempo panel", "Tempo"],
-      ["Open Fleet & Dispatch panel", "Fleet & Dispatch"],
-      ["Open Sinks & Source panel", "Sinks & Source"],
+      ["Open Fleet panel", "Fleet"],
       ["Open Monitor panel", "Monitor"],
+      ["Open Session panel", "Session"],
       ["Open Settings panel", "Settings"],
     ] as const) {
       runPaletteAction(label);
@@ -226,7 +152,7 @@ describe("command palette → dock panels", () => {
     runPaletteAction("Open Monitor panel");
 
     expect(screen.getByRole("region", { name: "Monitor" })).toBeInTheDocument();
-    expect(cluster("Monitor")).toHaveAttribute("aria-pressed", "true");
+    expect(cluster("Monitor")).toHaveAttribute("aria-expanded", "true");
   });
 
   it("closes whichever panel is open", async () => {
@@ -238,7 +164,7 @@ describe("command palette → dock panels", () => {
     runPaletteAction("Close dock panel");
 
     await waitFor(() => expect(openPanels()).toEqual([]));
-    expect(cluster("Settings")).toHaveAttribute("aria-pressed", "false");
+    expect(cluster("Settings")).toHaveAttribute("aria-expanded", "false");
   });
 
   it("shares state with the dock's buttons: the active cluster still closes it", async () => {
@@ -252,7 +178,7 @@ describe("command palette → dock panels", () => {
     fireEvent.click(cluster("Monitor"));
 
     await waitFor(() => expect(openPanels()).toEqual([]));
-    expect(cluster("Monitor")).toHaveAttribute("aria-pressed", "false");
+    expect(cluster("Monitor")).toHaveAttribute("aria-expanded", "false");
   });
 
   it("switches panels without reading the dock's markup", async () => {
@@ -260,9 +186,9 @@ describe("command palette → dock panels", () => {
     render(<Harness />);
     querySelector.mockClear();
 
-    runPaletteAction("Open Fleet & Dispatch panel");
+    runPaletteAction("Open Fleet panel");
 
-    expect(await screen.findByRole("region", { name: "Fleet & Dispatch" })).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "Fleet" })).toBeInTheDocument();
     // The old bridge found the dock's cluster buttons with
     // `document.querySelector('button[aria-label="…"]')`.
     const lookups = querySelector.mock.calls.filter(

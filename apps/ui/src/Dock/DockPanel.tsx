@@ -59,9 +59,15 @@ export default function DockPanel({
   return (
     <div
       ref={panelRef}
+      id="dock-panel"
       role="region"
       aria-label={rest["aria-label"]}
       aria-hidden={!open}
+      // The surface stays mounted so switching clusters morphs its contents,
+      // which used to leave a closed panel's buttons in the tab order *and*
+      // marked aria-hidden — a focusable-inside-hidden violation, and a Tab
+      // trip into invisible controls. `inert` takes both away.
+      inert={!open}
       className={cn(
         "absolute bottom-[86px] left-1/2 z-40 w-96 max-w-[calc(100vw-2rem)] -translate-x-1/2 origin-bottom",
         "overflow-hidden rounded-[10px] border border-border surface-glass-strong shadow-floating backdrop-blur-2xl backdrop-saturate-150",

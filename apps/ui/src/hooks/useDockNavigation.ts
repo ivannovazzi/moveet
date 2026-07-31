@@ -1,30 +1,29 @@
 import { useCallback, useMemo, useState } from "react";
 
 /**
- * Identifiers for the dock clusters (see
- * `docs/plans/2026-07-07-dock-ui-redesign-design.md`). Owned here (rather
- * than by a UI component) so any cluster or panel component can depend on the
- * id union without importing `Dock.tsx`. `monitor` is observe-only (incidents,
- * analytics, geofences); `settings` holds view filters, session, and tuning.
+ * Identifiers for the dock clusters. Owned here (rather than by a UI component)
+ * so any cluster or panel component can depend on the id union without
+ * importing `Dock.tsx`.
+ *
+ * The set is grouped by what the operator is doing, not by which service owns
+ * the data: `fleet` is the roster and its work, `monitor` is what is happening
+ * right now, `session` is the run itself (recordings, scenarios), and
+ * `settings` is configuration (view filters, feeds & sinks, tuning). The old
+ * `sinks-source` cluster is gone — adapter health reads on the status chips and
+ * its configuration is a Settings tab, so the bar carries no service jargon.
  */
-export type DockClusterId =
-  | "playback"
-  | "tempo"
-  | "fleet-dispatch"
-  | "sinks-source"
-  | "monitor"
-  | "settings";
+export type DockClusterId = "tempo" | "fleet" | "monitor" | "session" | "settings";
 
 /**
- * Cluster ids that own a panel (playback is one-click-only, no panel). Lives
- * here rather than in `Dock.tsx` because App needs the same predicate to tell
- * the keyboard dispatcher whether Escape has a panel to close.
+ * Cluster ids that own a panel. Lives here rather than in `Dock.tsx` because
+ * App needs the same predicate to tell the keyboard dispatcher whether Escape
+ * has a panel to close.
  */
 export const PANEL_CLUSTERS = new Set<DockClusterId>([
   "tempo",
-  "fleet-dispatch",
-  "sinks-source",
+  "fleet",
   "monitor",
+  "session",
   "settings",
 ]);
 

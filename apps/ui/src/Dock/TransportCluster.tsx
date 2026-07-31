@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import client from "@/utils/client";
-import type { SimulationStatus } from "@/types";
+import type { StartOptions } from "@/types";
 import { Pause, Play, Record, Reset } from "@/components/Icons";
-import { useOptions } from "@/hooks/useOptions";
 import { toast, toErrorMessage } from "@/lib/toast";
+import { IconButton } from "./DockBarKit";
 
 /**
  * Await an `ApiResponse`-returning client call and surface the outcome as a
- * toast. Ported verbatim from the old `Controls/BottomDock.tsx`.
+ * toast.
  */
 async function runWithToast(
   action: () => Promise<{ error?: string } | unknown>,
@@ -32,58 +32,42 @@ function formatTime(seconds: number): string {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-/** A 36×42 dock icon button (mockup `.ibtn`). */
-function IconBtn({ children, className, ...rest }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  return (
-    <button
-      type="button"
-      className={cn(
-        "flex h-[42px] w-9 items-center justify-center rounded-lg text-muted-foreground",
-        "transition-[color,background-color] duration-fast ease-standard",
-        "hover:bg-foreground/[0.035] hover:text-foreground",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
-        "[&_svg]:size-[17px]",
-        className
-      )}
-      {...rest}
-    >
-      {children}
-    </button>
-  );
-}
-
-export interface PlaybackClusterProps {
-  /** Recording state, owned by a single `useRecording()` call in `App.tsx`. */
+export interface TransportClusterProps {
+  /**
+   * The simulation's run flag and start options, both from `App.tsx`. This used
+   * to keep its own `client.onStatus` subscription and its own `useOptions`
+   * poll alongside App's — two readings of one truth that could disagree.
+   */
+  running: boolean;
+  options: StartOptions;
   isRecording: boolean;
   onStartRecording: () => Promise<void>;
   onStopRecording: () => Promise<unknown>;
+  /**
+   * Runs an action, asking first if the active map mode is holding work that
+   * would be lost (see `useModeGuard`). Reset goes through this; play/pause
+   * doesn't, since it destroys nothing.
+   */
+  guardRequest: (action: () => void) => void;
+  /** The simulator is unreachable — transport would fail. */
+  disabled?: boolean;
 }
 
 /**
- * The leftmost dock group: play/pause, reset, record. No panel — these are
- * one-click transport actions (mockup Playback group). Heat-zone authoring
- * lives in the Monitor panel's Heat Zones tab, not here (it is secondary).
- * Tracks the sim's `running` flag via `client.onStatus` (a multi-subscriber
- * event) rather than owning the WS lifecycle, which `useSimulationConnection`
- * keeps singular.
+ * The dock's left zone: everything that moves the session through time —
+ * play/pause, reset, and recording, with tempo sitting immediately to its right
+ * for the same reason. Heat-zone authoring and the other map tools live in the
+ * centre slot's launcher, not here.
  */
-export default function PlaybackCluster({
+export default function TransportCluster({
+  running,
+  options,
   isRecording,
   onStartRecording,
   onStopRecording,
-}: PlaybackClusterProps) {
-  const { options } = useOptions(300);
-
-  const [running, setRunning] = useState(false);
-  useEffect(() => {
-    client.getStatus().then((res) => {
-      if (res.data) setRunning(res.data.running);
-    });
-    const handleStatus = (data: SimulationStatus) => setRunning(data.running);
-    client.onStatus(handleStatus);
-    return () => client.offStatus(handleStatus);
-  }, []);
-
+  guardRequest,
+  disabled = false,
+}: TransportClusterProps) {
   const handleStart = useCallback(
     () =>
       runWithToast(() => client.start(options), {
@@ -101,16 +85,19 @@ export default function PlaybackCluster({
     []
   );
   const handlePlayPause = useCallback(
-    () => (running ? handleStop() : handleStart()),
+    () => void (running ? handleStop() : handleStart()),
     [running, handleStart, handleStop]
   );
   const handleReset = useCallback(
     () =>
-      runWithToast(() => client.reset(), {
-        success: "Simulation reset",
-        failure: "Failed to reset simulation",
-      }),
-    []
+      guardRequest(
+        () =>
+          void runWithToast(() => client.reset(), {
+            success: "Simulation reset",
+            failure: "Failed to reset simulation",
+          })
+      ),
+    [guardRequest]
   );
 
   const [elapsed, setElapsed] = useState(0);
@@ -127,30 +114,37 @@ export default function PlaybackCluster({
 
   return (
     <div className="flex items-center gap-[3px] px-2">
-      <IconBtn
+      <IconButton
         onClick={handlePlayPause}
+        disabled={disabled}
         className={running ? "text-status-ok" : "text-status-ok/90"}
         aria-label={running ? "Pause simulation" : "Start simulation"}
         title={running ? "Pause simulation" : "Start simulation"}
       >
         {running ? <Pause /> : <Play />}
-      </IconBtn>
-      <IconBtn onClick={handleReset} aria-label="Reset" title="Reset">
+      </IconButton>
+      <IconButton
+        onClick={handleReset}
+        disabled={disabled}
+        aria-label="Reset"
+        title="Reset the simulation"
+      >
         <Reset />
-      </IconBtn>
-      <IconBtn
-        onClick={isRecording ? onStopRecording : onStartRecording}
+      </IconButton>
+      <IconButton
+        onClick={() => void (isRecording ? onStopRecording() : onStartRecording())}
+        disabled={disabled}
         aria-label={isRecording ? "Stop recording" : "Start recording"}
         title={isRecording ? "Stop recording" : "Start recording"}
         className={cn("w-auto gap-1.5 px-2", isRecording && "text-status-error")}
       >
-        <Record className={cn("fill-current", isRecording && "animate-pulse")} />
+        <Record className={cn("fill-current", isRecording && "motion-safe:animate-pulse")} />
         {isRecording && (
           <span className="whitespace-nowrap font-mono text-[11px] tabular-nums text-status-error">
             {formatTime(elapsed)}
           </span>
         )}
-      </IconBtn>
+      </IconButton>
     </div>
   );
 }

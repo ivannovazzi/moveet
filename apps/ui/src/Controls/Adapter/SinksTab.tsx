@@ -7,8 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Eyebrow } from "@/Dock/DockPanelKit";
-import { LList, LRow, Tag } from "@/Dock/SinksPanel";
+import { Eyebrow, LList, LRow, Tag } from "@/Dock/DockPanelKit";
 import type { HealthResponse, ConfigResponse } from "./adapterClient";
 import ConfigForm from "./ConfigForm";
 

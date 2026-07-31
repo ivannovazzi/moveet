@@ -2,8 +2,6 @@ import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { DispatchFlow } from "@/hooks/useDispatchFlow";
 import type { Fleet, Vehicle } from "@/types";
-import { DispatchState } from "@/hooks/useDispatchState";
-import { Button } from "@/components/Inputs";
 import Vehicles from "@/Controls/Vehicles";
 import Fleets from "@/Controls/Fleets";
 import JobsPanel, { type JobsPanelProps } from "@/Controls/JobsPanel";
@@ -35,6 +33,11 @@ export interface FleetPanelProps {
   onUnassignVehicle: (fleetId: string, vehicleId: string) => Promise<void>;
   fleetsError?: string | null;
   dispatch: DispatchFlow;
+  /**
+   * Enters dispatch mode *through the mode guard* — switching tabs used to
+   * silently discard an in-progress geofence polygon or job placement.
+   */
+  onEnterDispatch: () => void;
   jobs: JobsPanelProps;
 }
 
@@ -101,130 +104,17 @@ function FleetSummary({
 }
 
 /**
- * Dispatch status/action bar, ported from `FleetDispatchDrawer`'s
- * `DispatchStatusBar` and restyled to the mockup's `.dfoot` (accent-tinted
- * footer). Renders per `DispatchState` straight off the `DispatchFlow` object;
- * the state machine itself (`useDispatchState`/`useDispatchFlow`) is untouched.
+ * The one thing the dock's mode rail can't say for dispatch: why a dispatch
+ * failed. Progress, counts, the primary action and the way out all live on the
+ * rail now — this panel used to repeat them in a footer with different verbs
+ * ("Exit" / "Clear" / "Done") from the banner saying the same thing on the
+ * other side of the screen.
  */
-function DispatchStatusBar({ dispatch }: { dispatch: DispatchFlow }) {
-  const { dispatchState: state, selectedForDispatch, assignments, results, error } = dispatch;
-
-  if (state === DispatchState.BROWSE) return null;
-
-  const footerClass = cn(
-    "flex flex-shrink-0 items-center justify-between gap-2.5",
-    "border-t border-border bg-accent/[0.07] px-[15px] py-2.5"
-  );
-  const textClass = "flex items-center gap-2 text-[11.5px] text-muted-foreground";
-  const buttonsClass = "flex items-center gap-1.5";
-  const errorClass = "mt-1 text-[11px] leading-tight text-status-error";
-
-  if (state === DispatchState.SELECT) {
-    return (
-      <div className={footerClass}>
-        <span className={textClass}>
-          {selectedForDispatch.length > 0 ? (
-            <>
-              <span className={cn(mono, "font-semibold text-foreground")}>
-                {selectedForDispatch.length}
-              </span>{" "}
-              selected — click map to add stops
-            </>
-          ) : (
-            "Select vehicles to dispatch"
-          )}
-        </span>
-        <div className={buttonsClass}>
-          <Button variant="outline" size="sm" onClick={dispatch.handleDone}>
-            Exit
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (state === DispatchState.ROUTE) {
-    const vehicleCount = assignments.length;
-    const stopCount = assignments.reduce((sum, a) => sum + a.waypoints.length, 0);
-
-    return (
-      <div className={footerClass}>
-        <div>
-          <span className={textClass}>
-            <span className={cn(mono, "font-semibold text-foreground")}>{vehicleCount}</span>{" "}
-            vehicle{vehicleCount !== 1 ? "s" : ""},{" "}
-            <span className={cn(mono, "font-semibold text-foreground")}>{stopCount}</span> stop
-            {stopCount !== 1 ? "s" : ""}
-          </span>
-          {error && <p className={errorClass}>{error}</p>}
-        </div>
-        <div className={buttonsClass}>
-          <Button variant="outline" size="sm" onClick={dispatch.handleDone}>
-            Clear
-          </Button>
-          <Button
-            variant="default"
-            size="sm"
-            onClick={dispatch.handleDispatch}
-            isDisabled={assignments.length === 0}
-          >
-            Dispatch
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (state === DispatchState.DISPATCH) {
-    return (
-      <div className={footerClass}>
-        <div>
-          <span className={textClass}>
-            <span className="inline-block size-4 shrink-0 animate-spin rounded-full border-2 border-transparent border-l-accent border-t-accent" />
-            Dispatching...
-          </span>
-          {error && <p className={errorClass}>{error}</p>}
-        </div>
-        <div className={buttonsClass}>
-          <Button variant="outline" size="sm" isDisabled>
-            Clear
-          </Button>
-          <Button variant="default" size="sm" isDisabled>
-            Dispatch
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // DispatchState.RESULTS
-  const successes = results.filter((r) => r.status === "ok").length;
-  const failures = results.filter((r) => r.status === "error").length;
-
+function DispatchError({ error }: { error: string | null }) {
+  if (!error) return null;
   return (
-    <div className={footerClass}>
-      <div>
-        <span className={textClass}>
-          <span className={cn(mono, "font-semibold text-foreground")}>{successes}</span> dispatched
-          {failures > 0 && (
-            <>
-              , <span className={cn(mono, "font-semibold text-status-error")}>{failures}</span>{" "}
-              failed
-            </>
-          )}
-        </span>
-        {error && <p className={errorClass}>{error}</p>}
-      </div>
-      <div className={buttonsClass}>
-        {failures > 0 && (
-          <Button variant="outline" size="sm" onClick={dispatch.handleRetryFailed}>
-            Retry Failed
-          </Button>
-        )}
-        <Button variant="default" size="sm" onClick={dispatch.handleDone}>
-          Done
-        </Button>
-      </div>
+    <div className="flex-shrink-0 border-t border-border bg-status-error/[0.07] px-[15px] py-2 text-[11px] leading-tight text-status-error">
+      {error}
     </div>
   );
 }
@@ -237,12 +127,10 @@ function DispatchStatusBar({ dispatch }: { dispatch: DispatchFlow }) {
  * controls (the vehicle search box, fleet CRUD) stay intact.
  *
  * The "Dispatch" segment mirrors `dispatch.dispatchMode`: selecting it enters
- * dispatch mode, selecting List/Groups exits it — the segment is the sole entry
- * point (no redundant toggle bar). When the dispatch state machine moves past
- * `BROWSE`, the ported `DispatchStatusBar` renders as the panel footer (and its
- * Exit/Done/Clear actions also unwind dispatch mode). The state machine
- * (`useDispatchState`/`useDispatchFlow`) is unchanged — only its surrounding
- * chrome lives here.
+ * dispatch mode (through the guard), selecting List/Groups exits it. Live
+ * dispatch progress and its actions belong to the dock's mode rail, so this
+ * panel only adds what the rail has no room for: the failure message. The state
+ * machine (`useDispatchState`/`useDispatchFlow`) is unchanged.
  */
 export default function FleetPanel({
   vehicles,
@@ -261,6 +149,7 @@ export default function FleetPanel({
   onUnassignVehicle,
   fleetsError,
   dispatch,
+  onEnterDispatch,
   jobs,
 }: FleetPanelProps) {
   const [browseTab, setBrowseTab] = useState<"list" | "groups" | "jobs">("list");
@@ -292,7 +181,7 @@ export default function FleetPanel({
 
   const handleTabChange = (value: FleetTab) => {
     if (value === "dispatch") {
-      if (!inDispatch) dispatch.toggleDispatchMode();
+      if (!inDispatch) onEnterDispatch();
       return;
     }
     if (inDispatch) dispatch.toggleDispatchMode();
@@ -368,7 +257,7 @@ export default function FleetPanel({
         </div>
       )}
 
-      <DispatchStatusBar dispatch={dispatch} />
+      <DispatchError error={dispatch.error} />
     </>
   );
 }

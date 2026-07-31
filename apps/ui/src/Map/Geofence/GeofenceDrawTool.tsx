@@ -7,7 +7,7 @@ import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
  * Keyboard (Escape to cancel, Enter to close the polygon) is handled by the
  * app-level dispatcher (useInteractionKeyboard) — Enter routes here through
  * `confirmRequestId`, and cancellation arrives as `active` dropping to false.
- * The hint banner lives in the shared <ModeBanner>, not in this component.
+ * The hint lives in the dock's mode rail, not in this component.
  */
 interface GeofenceDrawToolProps {
   active: boolean;
@@ -463,6 +463,6 @@ export default function GeofenceDrawTool({
 
   useRegisterLayers("geofence-draw", layers);
 
-  // Layers only — the mode's hint banner is <ModeBanner>, rendered by App.
+  // Layers only — the mode's hint is the dock's mode rail.
   return null;
 }

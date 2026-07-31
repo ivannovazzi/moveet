@@ -15,6 +15,22 @@ vi.mock("@/hooks/useHeatzones", () => ({
 }));
 
 import HeatzonePanel from "./HeatzonePanel";
+import { ModeEntryProvider } from "@/data/ModeEntryContext";
+
+let startMode: ReturnType<typeof vi.fn>;
+
+/**
+ * Drawing is a map mode, so the panel starts it through the shared guarded
+ * entry point rather than poking the editor directly — same as the dock's
+ * launcher and the keyboard shortcut do.
+ */
+function renderPanel() {
+  return render(
+    <ModeEntryProvider value={{ start: startMode }}>
+      <HeatzonePanel />
+    </ModeEntryProvider>
+  );
+}
 
 function makeEditor(overrides: Partial<HeatzoneEditor> = {}): HeatzoneEditor {
   return {
@@ -51,34 +67,36 @@ function zone(id: string, intensity: number): Heatzone {
 beforeEach(() => {
   editor = makeEditor();
   zones = [];
+  startMode = vi.fn();
   vi.restoreAllMocks();
 });
 
 describe("HeatzonePanel", () => {
   it("starts drawing from the Draw button", async () => {
     const user = userEvent.setup();
-    render(<HeatzonePanel />);
+    renderPanel();
     await user.click(screen.getByRole("button", { name: /draw zone/i }));
-    expect(editor.startDraw).toHaveBeenCalledTimes(1);
+    expect(startMode).toHaveBeenCalledWith("draw-heatzone");
+    expect(editor.startDraw).not.toHaveBeenCalled();
   });
 
   it("shows a Done control while drawing and stops on click", async () => {
     editor = makeEditor({ mode: "draw", isDrawing: true });
     const user = userEvent.setup();
-    render(<HeatzonePanel />);
+    renderPanel();
     await user.click(screen.getByRole("button", { name: /done/i }));
     expect(editor.stopDraw).toHaveBeenCalledTimes(1);
   });
 
   it("seeds random zones", async () => {
     const user = userEvent.setup();
-    render(<HeatzonePanel />);
+    renderPanel();
     await user.click(screen.getByRole("button", { name: /seed random/i }));
     expect(editor.seed).toHaveBeenCalledTimes(1);
   });
 
   it("disables Clear all when there are no zones", () => {
-    render(<HeatzonePanel />);
+    renderPanel();
     expect(screen.getByRole("button", { name: /clear all/i })).toBeDisabled();
   });
 
@@ -86,7 +104,7 @@ describe("HeatzonePanel", () => {
     zones = [zone("hz-1", 0.5)];
     vi.spyOn(window, "confirm").mockReturnValue(true);
     const user = userEvent.setup();
-    render(<HeatzonePanel />);
+    renderPanel();
     await user.click(screen.getByRole("button", { name: /clear all/i }));
     expect(editor.clearAll).toHaveBeenCalledTimes(1);
   });
@@ -95,7 +113,7 @@ describe("HeatzonePanel", () => {
     zones = [zone("hz-1", 0.5)];
     vi.spyOn(window, "confirm").mockReturnValue(false);
     const user = userEvent.setup();
-    render(<HeatzonePanel />);
+    renderPanel();
     await user.click(screen.getByRole("button", { name: /clear all/i }));
     expect(editor.clearAll).not.toHaveBeenCalled();
   });
@@ -103,7 +121,7 @@ describe("HeatzonePanel", () => {
   it("lists zones and selects one on row click", async () => {
     zones = [zone("hz-1", 0.4), zone("hz-2", 0.8)];
     const user = userEvent.setup();
-    render(<HeatzonePanel />);
+    renderPanel();
     expect(screen.getByText("Heat zone 1")).toBeInTheDocument();
     expect(screen.getByText("80% intensity")).toBeInTheDocument();
     await user.click(screen.getByText("Heat zone 2"));
@@ -113,13 +131,13 @@ describe("HeatzonePanel", () => {
   it("deletes a zone from its row", async () => {
     zones = [zone("hz-1", 0.4)];
     const user = userEvent.setup();
-    render(<HeatzonePanel />);
+    renderPanel();
     await user.click(screen.getByRole("button", { name: /delete heat zone 1/i }));
     expect(editor.remove).toHaveBeenCalledWith("hz-1");
   });
 
   it("shows an empty state with no zones", () => {
-    render(<HeatzonePanel />);
+    renderPanel();
     expect(screen.getByText(/no heat zones/i)).toBeInTheDocument();
   });
 });

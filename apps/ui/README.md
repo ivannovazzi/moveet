@@ -77,11 +77,26 @@ SimulationService (src/utils/client.ts) — singleton HttpClient + WebSocketClie
     │
 App.tsx — layout, WS lifecycle, vehicle filters/selection, dispatch/geofence/…
     │
-    ├── Controls (src/Controls/)  — icon rail + sliding panels (vehicles, fleets,
-    │                                incidents, analytics, geofences, adapter, …)
+    ├── Dock (src/Dock/) — the bottom bar: transport + tempo on the left, a
+    │                      state-adaptive centre slot (mode launcher / active
+    │                      mode / replay transport / discard prompt), and the
+    │                      Fleet / Monitor / Session / Settings panel clusters
+    ├── Controls (src/Controls/) — the panel bodies (vehicles, fleets, jobs,
+    │                              incidents, analytics, geofences, faults, …)
     ├── Map (src/Map/ + src/components/Map/) — deck.gl WebGL canvas + layers
-    └── SearchBar / Zoom / BottomDock / legends
+    └── SearchBar / Zoom / legends / SessionTimeline
 ```
+
+### Map modes
+
+`InteractionMode` (`src/hooks/useInteractionMode.ts`) is the single answer to
+"what does a click on the map mean right now": `browse`, `dispatch`,
+`draw-geofence`, `place-job`, `draw-heatzone`, `edit-heatzone`. One descriptor
+table (`src/Dock/modeDescriptors.tsx`) turns the active mode into the dock's
+mode rail, the Escape/Enter routing, the launcher entries and the palette
+actions, so those surfaces cannot describe the same mode differently. Entering a
+mode goes through `useModeGuard`, which asks before discarding in-flight work
+(an unfinished polygon, a dispatch selection, a half-placed job).
 
 ### Map system (deck.gl, no third-party map library)
 

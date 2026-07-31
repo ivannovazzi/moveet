@@ -2,9 +2,9 @@
 export const MIN_GEOFENCE_VERTICES = 3;
 
 /**
- * Progress copy for an in-progress geofence polygon, shared by the map's mode
- * banner (ModeBanner) and the geofences dock panel so the vertex-count wording
- * and the min-vertex rule live in exactly one place.
+ * Progress copy for an in-progress geofence polygon, shared by the dock's mode
+ * rail and the geofences dock panel so the vertex-count wording and the
+ * min-vertex rule live in exactly one place.
  *
  * Returns the "keep adding points" phase while the polygon is still short of
  * MIN_GEOFENCE_VERTICES, or `null` once it has enough, so each surface can
@@ -13,7 +13,7 @@ export const MIN_GEOFENCE_VERTICES = 3;
 export function drawProgressHint(vertexCount: number): string | null {
   if (vertexCount >= MIN_GEOFENCE_VERTICES) return null;
   if (vertexCount === 0) {
-    return `Click the map to add points (at least ${MIN_GEOFENCE_VERTICES})`;
+    return `Click to add points (at least ${MIN_GEOFENCE_VERTICES})`;
   }
   const remaining = MIN_GEOFENCE_VERTICES - vertexCount;
   return `${vertexCount} point${vertexCount === 1 ? "" : "s"} placed, add ${remaining} more`;

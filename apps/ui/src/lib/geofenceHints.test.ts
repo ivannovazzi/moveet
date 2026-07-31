@@ -3,9 +3,7 @@ import { drawProgressHint, MIN_GEOFENCE_VERTICES } from "./geofenceHints";
 
 describe("drawProgressHint", () => {
   it("prompts for the first points when the polygon is empty", () => {
-    expect(drawProgressHint(0)).toBe(
-      `Click the map to add points (at least ${MIN_GEOFENCE_VERTICES})`
-    );
+    expect(drawProgressHint(0)).toBe(`Click to add points (at least ${MIN_GEOFENCE_VERTICES})`);
   });
 
   it("counts down remaining points while still short of the minimum", () => {

@@ -2,6 +2,8 @@ import client from "@/utils/client";
 import { toast, toErrorMessage } from "@/lib/toast";
 import type { HeatzoneEditor } from "@/hooks/useHeatzoneEditor";
 import { DispatchState } from "@/hooks/useDispatchState";
+import type { InteractionModeKind } from "@/hooks/useInteractionMode";
+import { MODE_LAUNCH_ITEMS, type ModeDescriptor } from "@/Dock/modeDescriptors";
 import { SPEED_PRESETS, speedDescription } from "@/Dock/tempoScale";
 import type { Modifiers, ReplayStatus, StartOptions } from "@/types";
 import {
@@ -10,14 +12,10 @@ import {
   ClockIcon,
   CloseIcon,
   Directions,
-  DrawIcon,
   EyeIcon,
   FastForward,
   GaugeIcon,
-  Gear,
-  GeofenceIcon,
   HeatZone,
-  JobIcon,
   Pause,
   Play,
   Record,
@@ -32,7 +30,7 @@ import type { PaletteAction } from "./types";
 
 /**
  * Await an `ApiResponse`-returning client call and surface the outcome as a
- * toast — the same contract `Dock/PlaybackCluster.tsx` uses for its transport
+ * toast — the same contract `Dock/TransportCluster.tsx` uses for its transport
  * buttons (its helper is module-private, so the palette keeps its own copy
  * rather than reaching into the dock).
  */
@@ -64,7 +62,7 @@ const VISIBILITY_TOGGLES: { key: keyof Modifiers; label: string }[] = [
   { key: "showBreadcrumbs", label: "Trails" },
 ];
 
-/** Replay speeds offered by `Dock/ReplayDock.tsx`. */
+/** Replay speeds offered by the dock's replay rail. */
 const REPLAY_SPEEDS = [1, 2, 4] as const;
 
 export interface CommandDeps {
@@ -83,7 +81,7 @@ export interface CommandDeps {
   onStartRecording: () => Promise<void>;
   onStopRecording: () => Promise<unknown>;
 
-  /** Replay transport (dock swaps to `ReplayDock` while replaying). */
+  /** Replay transport (the dock's centre slot while replaying). */
   replayStatus: ReplayStatus;
   onPauseReplay: () => Promise<void>;
   onResumeReplay: () => Promise<void>;
@@ -91,27 +89,24 @@ export interface CommandDeps {
   onSetReplaySpeed: (speed: number) => Promise<void>;
 
   /**
-   * Fleet & Dispatch panel. Spread into primitives + handlers rather than
-   * taking the whole `DispatchFlow` (a fresh object literal every render) so
-   * callers can usefully memoize the built action list.
+   * The active map mode as the dock describes it (null while browsing), and the
+   * guarded way into one. The palette lists the same four tools the dock's
+   * launcher does, with the same labels, and offers the active mode's own exit
+   * and primary action rather than re-deriving either.
    */
-  dispatchMode: boolean;
+  modeDescriptor: ModeDescriptor | null;
+  onStartMode: (kind: InteractionModeKind) => void;
+
+  /**
+   * Dispatch specifics the mode rail doesn't carry. Spread into primitives
+   * rather than taking the whole `DispatchFlow` (a fresh object literal every
+   * render) so callers can usefully memoize the built action list.
+   */
   dispatchState: DispatchState;
   assignmentCount: number;
   hasFailedDispatches: boolean;
-  onToggleDispatchMode: () => void;
-  onExitDispatchMode: () => void;
   onDispatch: () => Promise<void>;
   onRetryFailedDispatches: () => void;
-
-  /**
-   * Job board. `jobPlacementActive` flips the entry between starting and
-   * abandoning a placement, so the palette never offers a second "New job"
-   * while one is half-placed.
-   */
-  jobPlacementActive: boolean;
-  onStartJob: () => void;
-  onCancelJobPlacement: () => void;
 
   /**
    * Device fault injection. `faultsArmed` flips the entry between arming and
@@ -124,8 +119,7 @@ export interface CommandDeps {
 
   /** Monitor panel. */
   onCreateRandomIncident: () => Promise<void>;
-  onStartGeofenceDrawing: () => void;
-  heatzones: Pick<HeatzoneEditor, "isDrawing" | "toggleDraw" | "seed" | "clearAll">;
+  heatzones: Pick<HeatzoneEditor, "seed" | "clearAll">;
 
   /** Settings panel → Visibility. */
   modifiers: Modifiers;
@@ -157,22 +151,17 @@ export function buildCommands(deps: CommandDeps): PaletteAction[] {
     onResumeReplay,
     onStopReplay,
     onSetReplaySpeed,
-    dispatchMode,
+    modeDescriptor,
+    onStartMode,
     dispatchState,
     assignmentCount,
     hasFailedDispatches,
-    onToggleDispatchMode,
-    onExitDispatchMode,
     onDispatch,
     onRetryFailedDispatches,
-    jobPlacementActive,
-    onStartJob,
-    onCancelJobPlacement,
     faultsArmed,
     onToggleFaults,
     onClearFaultState,
     onCreateRandomIncident,
-    onStartGeofenceDrawing,
     heatzones,
     modifiers,
     onChangeModifiers,
@@ -268,32 +257,32 @@ export function buildCommands(deps: CommandDeps): PaletteAction[] {
     },
     {
       id: "panel-fleet",
-      label: "Open Fleet & Dispatch panel",
-      keywords: "vehicles fleets dispatch list",
+      label: "Open Fleet panel",
+      keywords: "vehicles fleets dispatch jobs list",
       hint: "Panel",
       icon: <CarIcon />,
-      run: () => dock.open("fleet-dispatch"),
-    },
-    {
-      id: "panel-sinks",
-      label: "Open Sinks & Source panel",
-      keywords: "adapter kafka graphql config health",
-      hint: "Panel",
-      icon: <Gear />,
-      run: () => dock.open("sinks-source"),
+      run: () => dock.open("fleet"),
     },
     {
       id: "panel-monitor",
       label: "Open Monitor panel",
-      keywords: "incidents analytics geofences heat zones",
+      keywords: "incidents analytics geofences heat zones faults",
       hint: "Panel",
       icon: <ChartIcon />,
       run: () => dock.open("monitor"),
     },
     {
+      id: "panel-session",
+      label: "Open Session panel",
+      keywords: "recordings replay scenarios run",
+      hint: "Panel",
+      icon: <Record />,
+      run: () => dock.open("session"),
+    },
+    {
       id: "panel-settings",
       label: "Open Settings panel",
-      keywords: "visibility scenarios recordings advanced tuning",
+      keywords: "visibility feeds sinks source adapter kafka graphql advanced tuning",
       hint: "Panel",
       icon: <GaugeIcon />,
       run: () => dock.open("settings"),
@@ -308,26 +297,33 @@ export function buildCommands(deps: CommandDeps): PaletteAction[] {
     }
   );
 
-  // ── Dispatch (Fleet & Dispatch panel) ──────────────────────────────
-  actions.push(
-    dispatchMode
-      ? {
-          id: "dispatch-exit",
-          label: "Exit dispatch mode",
-          keywords: "cancel done browse",
-          hint: "Dispatch",
-          icon: <Directions />,
-          run: onExitDispatchMode,
-        }
-      : {
-          id: "dispatch-enter",
-          label: "Enter dispatch mode",
-          keywords: "route send waypoints assign",
-          hint: "Dispatch",
-          icon: <Directions />,
-          run: onToggleDispatchMode,
-        }
-  );
+  // ── Map modes ──────────────────────────────────────────────────────
+  // The same four the dock's launcher offers, with the same labels — plus the
+  // active mode's own exit, so a mode is never left running with no way out
+  // that the operator can find from the keyboard.
+  if (modeDescriptor) {
+    actions.push({
+      id: "mode-exit",
+      label: `${modeDescriptor.exitLabel} — ${modeDescriptor.label.toLowerCase()}`,
+      keywords: "exit cancel done leave mode browse",
+      hint: "Mode",
+      icon: modeDescriptor.icon,
+      run: modeDescriptor.exit,
+    });
+  } else {
+    for (const item of MODE_LAUNCH_ITEMS) {
+      actions.push({
+        id: `mode-${item.kind}`,
+        label: item.label,
+        keywords: `${item.description} start mode map`,
+        hint: "Mode",
+        icon: item.icon,
+        run: () => onStartMode(item.kind),
+      });
+    }
+  }
+
+  // ── Dispatch specifics ─────────────────────────────────────────────
   if (dispatchState === DispatchState.ROUTE && assignmentCount > 0) {
     actions.push({
       id: "dispatch-run",
@@ -350,27 +346,6 @@ export function buildCommands(deps: CommandDeps): PaletteAction[] {
       run: onRetryFailedDispatches,
     });
   }
-
-  // ── Job board ──────────────────────────────────────────────────────
-  actions.push(
-    jobPlacementActive
-      ? {
-          id: "job-cancel-placement",
-          label: "Cancel job placement",
-          keywords: "abort stop pickup dropoff",
-          hint: "Jobs",
-          icon: <JobIcon />,
-          run: onCancelJobPlacement,
-        }
-      : {
-          id: "job-new",
-          label: "New job",
-          keywords: "trip order pickup dropoff dispatch delivery",
-          hint: "Jobs",
-          icon: <JobIcon />,
-          run: onStartJob,
-        }
-  );
 
   // ── Device faults ──────────────────────────────────────────────────
   actions.push(
@@ -401,22 +376,6 @@ export function buildCommands(deps: CommandDeps): PaletteAction[] {
       hint: "Monitor",
       icon: <WarningTriangle />,
       run: () => void onCreateRandomIncident(),
-    },
-    {
-      id: "geofence-draw",
-      label: "Draw geofence zone",
-      keywords: "fence polygon boundary area",
-      hint: "Monitor",
-      icon: <GeofenceIcon />,
-      run: onStartGeofenceDrawing,
-    },
-    {
-      id: "heatzone-draw",
-      label: heatzones.isDrawing ? "Stop drawing heat zone" : "Draw heat zone",
-      keywords: "lasso demand hotspot",
-      hint: "Heat zones",
-      icon: <DrawIcon />,
-      run: heatzones.toggleDraw,
     },
     {
       id: "heatzone-seed",

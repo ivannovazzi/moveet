@@ -15,13 +15,19 @@ export interface TempoInlineProps {
   onToggleDetails: () => void;
   /** Ref forwarded to the clock button (the panel's outside-click anchor). */
   buttonRef?: React.RefObject<HTMLButtonElement | null>;
+  /**
+   * Tempo drives the live simulation clock, which a replay isn't running on —
+   * so the scrubber goes quiet rather than pretending to steer the playback
+   * (replay speed lives in the centre slot's replay rail).
+   */
+  disabled?: boolean;
 }
 
 /**
- * The always-visible tempo control living in the dock bar: a compact log-scale
- * scrubber plus the current multiplier, and a clock button that opens the
- * Tempo details panel. The scrubber never needs a click to reveal or adjust —
- * per the design, tempo is touched constantly.
+ * The always-visible tempo control, sitting with the transport buttons: a
+ * compact log-scale scrubber plus the current multiplier, and a clock button
+ * that opens the Tempo details panel. The scrubber never needs a click to
+ * reveal or adjust — per the design, tempo is touched constantly.
  */
 export default function TempoInline({
   clock,
@@ -29,6 +35,7 @@ export default function TempoInline({
   detailsOpen,
   onToggleDetails,
   buttonRef,
+  disabled = false,
 }: TempoInlineProps) {
   const localRef = useRef<HTMLButtonElement>(null);
   const ref = buttonRef ?? localRef;
@@ -36,12 +43,19 @@ export default function TempoInline({
   const isRealTime = clock.speedMultiplier === 1;
 
   return (
-    <div className="flex items-center gap-[9px] px-1.5">
+    <div
+      className={cn(
+        "flex items-center gap-[9px] px-1.5 transition-opacity duration-fast ease-standard",
+        disabled && "opacity-40"
+      )}
+      title={disabled ? "Tempo applies to the live simulation, not a replay" : undefined}
+    >
       <div className="w-[78px]">
         <Slider
           min={0}
           max={100}
           value={[sliderValue]}
+          disabled={disabled}
           onValueChange={([v]) => onSetMultiplier(sliderToMultiplier(v))}
           aria-label="Simulation tempo"
         />

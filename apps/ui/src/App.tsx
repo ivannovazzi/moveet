@@ -28,12 +28,17 @@ import { useFaults } from "./hooks/useFaults";
 import { useRecording } from "./hooks/useRecording";
 import { useReplay } from "./hooks/useReplay";
 import { useDispatchFlow } from "./hooks/useDispatchFlow";
-import { DispatchState } from "./hooks/useDispatchState";
 import { useDockNavigation } from "./hooks/useDockNavigation";
 import { useGeofenceManager } from "./hooks/useGeofenceManager";
-import { useInteractionMode, useInteractionKeyboard } from "./hooks/useInteractionMode";
-import ModeBanner from "./components/ModeBanner";
-import { MIN_GEOFENCE_VERTICES } from "./lib/geofenceHints";
+import {
+  useInteractionMode,
+  useInteractionKeyboard,
+  type InteractionMode,
+  type InteractionModeKind,
+} from "./hooks/useInteractionMode";
+import { useModeGuard } from "./hooks/useModeGuard";
+import { describeMode, type ModeContext } from "./Dock/modeDescriptors";
+import { ModeEntryProvider } from "./data/ModeEntryContext";
 import { useSimulationConnection } from "./hooks/useSimulationConnection";
 import { useMapInteractions } from "./hooks/useMapInteractions";
 import ContextMenu from "./components/ContextMenu";
@@ -56,13 +61,50 @@ import { Toaster } from "./components/ui/sonner";
 export default function App() {
   const connectionInfo = useConnectionState();
 
-  // ─── Interaction mode (browse | dispatch | draw-geofence) ───────
+  // ─── Interaction mode ───────────────────────────────────────────
   // Single owner of "what does a map click mean right now". Dispatch and
-  // geofence drawing derive their active flags from it, so they are mutually
-  // exclusive by construction, and both are refused while a replay runs.
+  // geofence drawing derive their active flags from it; job placement and heat
+  // zone authoring own richer state of their own, so the union *reads* them
+  // (`derived`) instead of mirroring them. Either way exactly one tool has the
+  // map, and all of them are refused while a replay runs.
   const replay = useReplay();
+  const replayActive = replay.replayStatus.mode === "replay";
+
+  // ─── Jobs (trip/dispatch lifecycle) ─────────────────────────────
+  // `useJobs` owns the board; `useJobDraft` owns the two-click pickup/dropoff
+  // placement that creates one. Split because the board is live-updating state
+  // and the draft is transient modal input over the map.
+  const jobs = useJobs();
+  const jobDraft = useJobDraft(jobs.createJob);
+
+  // ─── Manual heat zones ──────────────────────────────────────────
+  const heatzoneEditor = useHeatzoneEditorContext();
+
+  const derivedMode = useMemo<InteractionMode | null>(() => {
+    if (jobDraft.active) return { kind: "place-job" };
+    if (heatzoneEditor.mode === "draw") return { kind: "draw-heatzone" };
+    if (heatzoneEditor.mode === "selected" && heatzoneEditor.selectedId) {
+      return { kind: "edit-heatzone", id: heatzoneEditor.selectedId };
+    }
+    return null;
+  }, [jobDraft.active, heatzoneEditor.mode, heatzoneEditor.selectedId]);
+
+  const { cancel: cancelJobDraft, start: startJobDraft } = jobDraft;
+  const {
+    stopDraw: stopZoneDraw,
+    deselect: deselectZone,
+    startDraw: startZoneDraw,
+  } = heatzoneEditor;
+  const exitDerivedMode = useCallback(() => {
+    cancelJobDraft();
+    stopZoneDraw();
+    deselectZone();
+  }, [cancelJobDraft, stopZoneDraw, deselectZone]);
+
   const interaction = useInteractionMode({
-    replayActive: replay.replayStatus.mode === "replay",
+    replayActive,
+    derived: derivedMode,
+    onExitDerived: exitDerivedMode,
   });
 
   const dispatch = useDispatchFlow({
@@ -120,12 +162,6 @@ export default function App() {
   const dataReady = useDataReady();
   const incidents = useIncidents();
 
-  // ─── Jobs (trip/dispatch lifecycle) ─────────────────────────────
-  // `useJobs` owns the board; `useJobDraft` owns the two-click pickup/dropoff
-  // placement that creates one. Split because the board is live-updating state
-  // and the draft is transient modal input over the map.
-  const jobs = useJobs();
-  const jobDraft = useJobDraft(jobs.createJob);
   useJobsAutoReveal(jobs.liveJobs.length, setModifiers);
 
   const recording = useRecording();
@@ -150,11 +186,9 @@ export default function App() {
     onExitDrawing: interaction.exitToBrowse,
   });
 
-  // ─── Manual heat zones ──────────────────────────────────────────
   // Reveal the zone layer when the user starts drawing/selecting or seeds
   // zones, but only on those transitions so the user can still toggle it back
   // off while a zone stays selected. See useHeatzoneAutoReveal.
-  const heatzoneEditor = useHeatzoneEditorContext();
   useHeatzoneAutoReveal(heatzoneEditor.mode, heatzoneEditor.seedNonce, setModifiers);
 
   // ─── Map / context-menu interactions ────────────────────────────
@@ -263,55 +297,131 @@ export default function App() {
   // Destructured up here so the keyboard dispatcher and the palette both
   // depend on the stable functions rather than the per-render `dispatch` /
   // `geofences` object literals.
-  const {
-    dispatchMode,
-    dispatchState,
-    toggleDispatchMode,
-    handleDone,
-    handleDispatch,
-    handleRetryFailed,
-  } = dispatch;
+  const { dispatchState, handleDone, handleDispatch, handleRetryFailed } = dispatch;
   const assignmentCount = dispatch.assignments.length;
   const { onDrawCancel, onConfirmDraw } = geofences;
 
+  // ─── The active mode, described once ────────────────────────────
+  // One table turns the mode union into words, tone and actions. The dock's
+  // mode rail renders it, the keyboard dispatcher below runs its exit/primary,
+  // and the guard reads its `dirty` — so the bar, the keyboard and the
+  // confirmation can't drift apart the way the old banner, footer and
+  // keyActionFor switch did.
+  const successCount = dispatch.results.filter((r) => r.status === "ok").length;
+  const failureCount = dispatch.results.filter((r) => r.status === "error").length;
+  const stopCount = dispatch.assignments.reduce((sum, a) => sum + a.waypoints.length, 0);
+  const selectedForDispatchCount = dispatch.selectedForDispatch.length;
+  const modeContext = useMemo<ModeContext>(
+    () => ({
+      dispatch: {
+        state: dispatchState,
+        selectedCount: selectedForDispatchCount,
+        stopCount,
+        assignmentCount,
+        successCount,
+        failureCount,
+        onExit: handleDone,
+        onDispatch: () => void handleDispatch(),
+        onRetryFailed: handleRetryFailed,
+      },
+      geofence: {
+        vertexCount: geofences.drawingVertexCount,
+        onCancel: onDrawCancel,
+        onConfirm: onConfirmDraw,
+      },
+      job: { stage: jobDraft.stage, onCancel: cancelJobDraft },
+      heatzone: { onStopDraw: stopZoneDraw, onDeselect: deselectZone },
+    }),
+    [
+      dispatchState,
+      selectedForDispatchCount,
+      stopCount,
+      assignmentCount,
+      successCount,
+      failureCount,
+      handleDone,
+      handleDispatch,
+      handleRetryFailed,
+      geofences.drawingVertexCount,
+      onDrawCancel,
+      onConfirmDraw,
+      jobDraft.stage,
+      cancelJobDraft,
+      stopZoneDraw,
+      deselectZone,
+    ]
+  );
+  const modeDescriptor = useMemo(
+    () => describeMode(interaction.mode, modeContext),
+    [interaction.mode, modeContext]
+  );
+
+  // ─── Mode guard ─────────────────────────────────────────────────
+  // Every way into a mode goes through here, so starting one never silently
+  // destroys the polygon / selection / half-placed job the last one was
+  // holding. The confirmation renders in the dock's centre slot.
+  const guard = useModeGuard(modeDescriptor?.dirty ?? null);
+  const { enterDispatch, enterDrawGeofence } = interaction;
+  const { request: guardRequest } = guard;
+  const startMode = useCallback(
+    (kind: InteractionModeKind) => {
+      guardRequest(() => {
+        if (replayActive && kind !== "browse") {
+          toast.info("Map tools are unavailable during replay");
+          return;
+        }
+        switch (kind) {
+          case "dispatch":
+            enterDispatch();
+            break;
+          case "draw-geofence":
+            enterDrawGeofence();
+            break;
+          case "place-job":
+            startJobDraft();
+            break;
+          case "draw-heatzone":
+            startZoneDraw();
+            break;
+          default:
+            break;
+        }
+      });
+    },
+    [guardRequest, replayActive, enterDispatch, enterDrawGeofence, startJobDraft, startZoneDraw]
+  );
+  const modeEntry = useMemo(() => ({ start: startMode }), [startMode]);
+  const enterDispatchGuarded = useCallback(() => startMode("dispatch"), [startMode]);
+  const startGeofenceDrawingGuarded = useCallback(() => startMode("draw-geofence"), [startMode]);
+  const startJobGuarded = useCallback(() => startMode("place-job"), [startMode]);
+
   // ─── The one keyboard dispatcher ────────────────────────────────
-  // Escape priority: cancel job placement → cancel geofence draw → exit
-  // dispatch → clear selection (closes the inspector) → close the dock panel.
-  // Enter closes the draw polygon / submits the pending dispatch. Every other
-  // Escape listener (dispatch shortcuts, the draw tool, DockPanel, Inspector,
-  // DeckGLMap) was removed so one press unwinds exactly one thing.
-  const submitDispatch = useCallback(() => {
-    void handleDispatch();
-  }, [handleDispatch]);
+  // Escape priority: exit the active mode → clear the selection (closes the
+  // inspector) → close the dock panel. Enter runs the mode's primary action.
+  // A bare D/J/G/H starts a mode from browse. Every other Escape listener
+  // (dispatch shortcuts, the draw tool, DockPanel, Inspector, DeckGLMap) was
+  // removed so one press unwinds exactly one thing.
+  const exitActiveMode = useCallback(() => modeDescriptor?.exit(), [modeDescriptor]);
+  const confirmActiveMode = useCallback(() => modeDescriptor?.primary?.run(), [modeDescriptor]);
   useInteractionKeyboard(
     {
       modeKind: interaction.mode.kind,
-      jobPlacementActive: jobDraft.active,
-      canConfirmDraw: geofences.drawingVertexCount >= MIN_GEOFENCE_VERTICES,
-      canSubmitDispatch: dispatchState === DispatchState.ROUTE && assignmentCount > 0,
+      canConfirmMode: (modeDescriptor?.primary?.enabled ?? false) && !modeDescriptor?.busy,
       hasSelection: filters.selected != null || selectedItem !== null,
       panelOpen: dockNavigation.panelOpen,
       // The map context menu or the CreateZoneDialog is open — those own
       // Escape/Enter themselves, so the global dispatcher stands down.
-      overlayOpen: contextMenuXY !== null || geofences.pendingPolygon !== null,
+      overlayOpen:
+        contextMenuXY !== null || geofences.pendingPolygon !== null || guard.pending !== null,
     },
     {
-      onCancelJobPlacement: jobDraft.cancel,
-      onCancelDraw: onDrawCancel,
-      onConfirmDraw,
-      onExitDispatch: handleDone,
-      onSubmitDispatch: submitDispatch,
+      onExitMode: exitActiveMode,
+      onConfirmMode: confirmActiveMode,
       onClearSelection: resetSelection,
       onClosePanel: dockNavigation.close,
+      onStartMode: startMode,
     }
   );
-
-  // ModeBanner's Exit routes to the active mode's own exit path so its
-  // cleanup semantics stay identical to Escape.
-  const exitActiveMode = useCallback(() => {
-    if (interaction.mode.kind === "draw-geofence") onDrawCancel();
-    else if (interaction.mode.kind === "dispatch") handleDone();
-  }, [interaction.mode.kind, onDrawCancel, handleDone]);
 
   // ─── Command palette (⌘K) ───────────────────────────────────────
   // Every dock action, built from the handlers already wired above. Deps are
@@ -332,22 +442,17 @@ export default function App() {
         onResumeReplay: replay.resumeReplay,
         onStopReplay: replay.stopReplay,
         onSetReplaySpeed: replay.setReplaySpeed,
-        dispatchMode,
+        modeDescriptor,
+        onStartMode: startMode,
         dispatchState,
         assignmentCount,
         hasFailedDispatches,
-        onToggleDispatchMode: toggleDispatchMode,
-        onExitDispatchMode: handleDone,
         onDispatch: handleDispatch,
         onRetryFailedDispatches: handleRetryFailed,
-        jobPlacementActive: jobDraft.active,
-        onStartJob: jobDraft.start,
-        onCancelJobPlacement: jobDraft.cancel,
         faultsArmed: faultsEnabled,
         onToggleFaults: toggleFaults,
         onClearFaultState: clearFaultState,
         onCreateRandomIncident: incidents.createRandom,
-        onStartGeofenceDrawing: geofences.startDrawing,
         heatzones: heatzoneEditor,
         modifiers,
         onChangeModifiers,
@@ -365,22 +470,17 @@ export default function App() {
       replay.resumeReplay,
       replay.stopReplay,
       replay.setReplaySpeed,
-      dispatchMode,
+      modeDescriptor,
+      startMode,
       dispatchState,
       assignmentCount,
       hasFailedDispatches,
-      toggleDispatchMode,
-      handleDone,
       handleDispatch,
       handleRetryFailed,
-      jobDraft.active,
-      jobDraft.start,
-      jobDraft.cancel,
       faultsEnabled,
       toggleFaults,
       clearFaultState,
       incidents.createRandom,
-      geofences.startDrawing,
       heatzoneEditor,
       modifiers,
       onChangeModifiers,
@@ -389,206 +489,209 @@ export default function App() {
   );
 
   return (
-    <div className="flex h-screen max-h-screen flex-col overflow-hidden bg-background">
-      <div
-        className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden"
-        data-ready={dataReady ? "" : undefined}
-      >
-        <ErrorBoundary fallback={<SectionErrorFallback section="Map" />}>
-          <div className="relative flex min-h-0 min-w-0 flex-1">
-            <ConnectionStatus connectionInfo={connectionInfo} onRetry={client.retryConnection} />
-            <LoadingOverlay visible={mapLoading} />
-            <MapView
-              network={network}
-              vehicles={vehicles}
-              filters={filters}
-              modifiers={modifiers}
-              selectedItem={selectedItem}
-              onClick={onSelectVehicle}
-              onMapClick={onMapClick}
-              onMapContextClick={onMapContextClick}
-              onPOIClick={onPOIClick}
-              onHoverVehicle={onHoverMapVehicle}
-              vehicleFleetMap={vehicleFleetMap}
-              hiddenFleetIds={hiddenFleetIds}
-              hiddenVehicleTypes={hiddenVehicleTypes}
-              dispatchState={dispatch.dispatchState}
-              assignments={dispatch.assignments}
-              onMoveWaypointGroup={dispatch.moveWaypointGroup}
-              onRemoveWaypointGroup={dispatch.removeWaypointGroup}
-              incidents={incidents.incidents}
-              jobs={jobs.liveJobs}
-              jobDraftPickup={jobDraft.pickup}
-              jobPlacementActive={jobDraft.active}
-              fences={geofences.fences}
-              selectedFenceId={geofences.selectedFenceId}
-              onSelectFence={geofences.onSelectFence}
-              fencesSelectable={interaction.mode.kind === "browse"}
-              drawingActive={geofences.drawingActive}
-              onDrawComplete={geofences.onDrawComplete}
-              onDrawVertexCountChange={geofences.setDrawingVertexCount}
-              drawConfirmId={geofences.drawConfirmId}
-              onBboxChange={onBboxChange}
-              panLocked={heatzoneEditor.mode !== "idle"}
-              zoneDrawActive={heatzoneEditor.mode === "draw"}
-            />
-            {/* The search bar and the mode banner share the top-center slot:
+    // Panels several levels down (the heat-zone tab, the geofence tab, the job
+    // board) start map modes; the provider gives them the same guarded entry
+    // point the dock's launcher and the keyboard shortcuts use.
+    <ModeEntryProvider value={modeEntry}>
+      <div className="flex h-screen max-h-screen flex-col overflow-hidden bg-background">
+        <div
+          className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden"
+          data-ready={dataReady ? "" : undefined}
+        >
+          <ErrorBoundary fallback={<SectionErrorFallback section="Map" />}>
+            <div className="relative flex min-h-0 min-w-0 flex-1">
+              <ConnectionStatus connectionInfo={connectionInfo} onRetry={client.retryConnection} />
+              <LoadingOverlay visible={mapLoading} />
+              <MapView
+                network={network}
+                vehicles={vehicles}
+                filters={filters}
+                modifiers={modifiers}
+                selectedItem={selectedItem}
+                onClick={onSelectVehicle}
+                onMapClick={onMapClick}
+                onMapContextClick={onMapContextClick}
+                onPOIClick={onPOIClick}
+                onHoverVehicle={onHoverMapVehicle}
+                vehicleFleetMap={vehicleFleetMap}
+                hiddenFleetIds={hiddenFleetIds}
+                hiddenVehicleTypes={hiddenVehicleTypes}
+                dispatchState={dispatch.dispatchState}
+                assignments={dispatch.assignments}
+                onMoveWaypointGroup={dispatch.moveWaypointGroup}
+                onRemoveWaypointGroup={dispatch.removeWaypointGroup}
+                incidents={incidents.incidents}
+                jobs={jobs.liveJobs}
+                jobDraftPickup={jobDraft.pickup}
+                jobPlacementActive={jobDraft.active}
+                fences={geofences.fences}
+                selectedFenceId={geofences.selectedFenceId}
+                onSelectFence={geofences.onSelectFence}
+                fencesSelectable={interaction.mode.kind === "browse"}
+                drawingActive={geofences.drawingActive}
+                onDrawComplete={geofences.onDrawComplete}
+                onDrawVertexCountChange={geofences.setDrawingVertexCount}
+                drawConfirmId={geofences.drawConfirmId}
+                onBboxChange={onBboxChange}
+                panLocked={heatzoneEditor.mode !== "idle"}
+                zoneDrawActive={heatzoneEditor.mode === "draw"}
+              />
+              {/* The search bar and the mode banner share the top-center slot:
                 while a mode is active the banner replaces the search bar (mode
                 clicks and search-driven selection would conflict). */}
-            {!mapLoading && interaction.mode.kind === "browse" && (
-              <SearchBar
-                selectedItem={selectedItem}
-                onDestinationClick={onDestinationClick}
-                onItemSelect={(item) => setSelectedItem(item)}
-                onItemUnselect={() => setSelectedItem(null)}
+              {!mapLoading && interaction.mode.kind === "browse" && (
+                <SearchBar
+                  selectedItem={selectedItem}
+                  onDestinationClick={onDestinationClick}
+                  onItemSelect={(item) => setSelectedItem(item)}
+                  onItemUnselect={() => setSelectedItem(null)}
+                />
+              )}
+              <Zoom />
+              <FleetLegend
+                fleets={fleets}
+                hiddenFleetIds={hiddenFleetIds}
+                onToggle={toggleFleetVisibility}
               />
-            )}
-            <ModeBanner
-              mode={interaction.mode}
-              jobPlacementStage={jobDraft.stage}
-              dispatchState={dispatch.dispatchState}
-              selectedCount={dispatch.selectedForDispatch.length}
-              stopCount={dispatch.assignments.reduce((sum, a) => sum + a.waypoints.length, 0)}
-              drawVertexCount={geofences.drawingVertexCount}
-              onExit={exitActiveMode}
-            />
-            <Zoom />
-            <FleetLegend
-              fleets={fleets}
-              hiddenFleetIds={hiddenFleetIds}
-              onToggle={toggleFleetVisibility}
-            />
-            <TypeLegend hiddenVehicleTypes={hiddenVehicleTypes} onToggle={toggleVehicleType} />
-            <StartHint
-              running={status.running}
-              ready={!mapLoading && connected}
-              onStart={onStartFromHint}
-            />
-            <Dock
-              navigation={dockNavigation}
-              status={status}
-              connected={connected}
-              isRecording={recording.isRecording}
-              onStartRecording={recording.startRecording}
-              onStopRecording={recording.stopRecording}
-              replayStatus={replay.replayStatus}
-              onPauseReplay={replay.pauseReplay}
-              onResumeReplay={replay.resumeReplay}
-              onStopReplay={replay.stopReplay}
-              onSeekReplay={replay.seekReplay}
-              onSetReplaySpeed={replay.setReplaySpeed}
-              vehicles={vehicles}
-              filter={filters.filter}
-              onFilterChange={onFilterChange}
-              selectedId={filters.selected}
-              onSelectVehicle={onSelectVehicle}
-              onHoverVehicle={onHoverVehicle}
-              onUnhoverVehicle={onUnhoverVehicle}
-              maxSpeed={maxSpeedRef.current}
-              vehicleFleetMap={vehicleFleetMap}
-              fleets={fleets}
-              onCreateFleet={createFleet}
-              onDeleteFleet={deleteFleet}
-              onAssignVehicle={assignVehicle}
-              onUnassignVehicle={unassignVehicle}
-              fleetsError={fleetsError}
-              dispatch={dispatch}
-              jobs={{
-                jobs: jobs.jobs,
-                counts: jobs.counts,
-                draft: jobDraft,
-                onCancelJob: jobs.cancelJob,
-                onDeleteJob: jobs.deleteJob,
-                onAssignJob: jobs.assignJob,
-                vehicles,
-                jobByVehicleId: jobs.jobByVehicleId,
-                error: jobs.error,
-              }}
-              incidents={{
-                incidents: incidents.incidents,
-                createRandom: incidents.createRandom,
-                remove: incidents.remove,
-                error: incidents.error,
-              }}
-              faults={{
-                faults,
-                vehicles,
-                selectedVehicleId: filters.selected,
-              }}
-              geofences={{
-                fences: geofences.fences,
-                onFenceToggle: geofences.onFenceToggle,
-                onFenceDelete: geofences.onFenceDelete,
-                alerts: geofences.alerts,
-                drawingActive: geofences.drawingActive,
-                vertexCount: geofences.drawingVertexCount,
-                onStartDrawing: geofences.startDrawing,
-                onCancelDrawing: geofences.onDrawCancel,
-                onConfirmDrawing: geofences.onConfirmDraw,
-              }}
-              analytics={{
-                summary: analytics.summary,
-                fleetHistory: analytics.fleetHistory,
-                summaryHistory: analytics.summaryHistory,
-              }}
-              toggles={{ modifiers, onChangeModifiers }}
-              recordings={{
-                recordings: recording.recordings,
-                replayStatus: replay.replayStatus,
-                onStartReplay: replay.startReplay,
-                onRefreshRecordings: recording.refreshRecordings,
-              }}
-              advanced={{ maxSpeedRef }}
-            />
-            <Inspector
-              vehicle={selectedVehicle}
-              poi={selectedPoi ?? undefined}
-              fleet={selectedVehicle ? vehicleFleetMap.get(selectedVehicle.id) : undefined}
-              job={selectedVehicle ? jobs.jobByVehicleId.get(selectedVehicle.id) : undefined}
-              onClose={closeInspector}
-            />
-            <CreateZoneDialog
-              polygon={geofences.pendingPolygon}
-              onSubmit={geofences.onCreateZone}
-              onClose={geofences.closePendingPolygon}
-            />
-            <HeatzoneInspector />
-          </div>
-        </ErrorBoundary>
-      </div>
-      {/* Below the map container, so it takes real layout space instead of
+              <TypeLegend hiddenVehicleTypes={hiddenVehicleTypes} onToggle={toggleVehicleType} />
+              <StartHint
+                running={status.running}
+                ready={!mapLoading && connected}
+                onStart={onStartFromHint}
+              />
+              <Dock
+                navigation={dockNavigation}
+                status={status}
+                options={options}
+                connected={connected}
+                modeDescriptor={modeDescriptor}
+                guard={guard}
+                onStartMode={startMode}
+                onEnterDispatch={enterDispatchGuarded}
+                isRecording={recording.isRecording}
+                onStartRecording={recording.startRecording}
+                onStopRecording={recording.stopRecording}
+                replayStatus={replay.replayStatus}
+                onPauseReplay={replay.pauseReplay}
+                onResumeReplay={replay.resumeReplay}
+                onStopReplay={replay.stopReplay}
+                onSeekReplay={replay.seekReplay}
+                onSetReplaySpeed={replay.setReplaySpeed}
+                vehicles={vehicles}
+                filter={filters.filter}
+                onFilterChange={onFilterChange}
+                selectedId={filters.selected}
+                onSelectVehicle={onSelectVehicle}
+                onHoverVehicle={onHoverVehicle}
+                onUnhoverVehicle={onUnhoverVehicle}
+                maxSpeed={maxSpeedRef.current}
+                vehicleFleetMap={vehicleFleetMap}
+                fleets={fleets}
+                onCreateFleet={createFleet}
+                onDeleteFleet={deleteFleet}
+                onAssignVehicle={assignVehicle}
+                onUnassignVehicle={unassignVehicle}
+                fleetsError={fleetsError}
+                dispatch={dispatch}
+                jobs={{
+                  jobs: jobs.jobs,
+                  counts: jobs.counts,
+                  // Starting a placement goes through the guard like every other
+                  // way into a mode; cancelling and the rest are the draft's own.
+                  draft: { ...jobDraft, start: startJobGuarded },
+                  onCancelJob: jobs.cancelJob,
+                  onDeleteJob: jobs.deleteJob,
+                  onAssignJob: jobs.assignJob,
+                  vehicles,
+                  jobByVehicleId: jobs.jobByVehicleId,
+                  error: jobs.error,
+                }}
+                incidents={{
+                  incidents: incidents.incidents,
+                  createRandom: incidents.createRandom,
+                  remove: incidents.remove,
+                  error: incidents.error,
+                }}
+                faults={{
+                  faults,
+                  vehicles,
+                  selectedVehicleId: filters.selected,
+                }}
+                geofences={{
+                  fences: geofences.fences,
+                  onFenceToggle: geofences.onFenceToggle,
+                  onFenceDelete: geofences.onFenceDelete,
+                  alerts: geofences.alerts,
+                  drawingActive: geofences.drawingActive,
+                  vertexCount: geofences.drawingVertexCount,
+                  onStartDrawing: startGeofenceDrawingGuarded,
+                  onCancelDrawing: geofences.onDrawCancel,
+                  onConfirmDrawing: geofences.onConfirmDraw,
+                }}
+                analytics={{
+                  summary: analytics.summary,
+                  fleetHistory: analytics.fleetHistory,
+                  summaryHistory: analytics.summaryHistory,
+                }}
+                toggles={{ modifiers, onChangeModifiers }}
+                recordings={{
+                  recordings: recording.recordings,
+                  replayStatus: replay.replayStatus,
+                  onStartReplay: replay.startReplay,
+                  onRefreshRecordings: recording.refreshRecordings,
+                }}
+                advanced={{ maxSpeedRef }}
+              />
+              <Inspector
+                vehicle={selectedVehicle}
+                poi={selectedPoi ?? undefined}
+                fleet={selectedVehicle ? vehicleFleetMap.get(selectedVehicle.id) : undefined}
+                job={selectedVehicle ? jobs.jobByVehicleId.get(selectedVehicle.id) : undefined}
+                onClose={closeInspector}
+              />
+              <CreateZoneDialog
+                polygon={geofences.pendingPolygon}
+                onSubmit={geofences.onCreateZone}
+                onClose={geofences.closePendingPolygon}
+              />
+              <HeatzoneInspector />
+            </div>
+          </ErrorBoundary>
+        </div>
+        {/* Below the map container, so it takes real layout space instead of
           covering the canvas or crowding the dock (both of which are absolutely
           positioned inside that container). */}
-      <SessionTimeline
-        replayStatus={replay.replayStatus}
-        onSeek={replay.seekReplay}
-        onSelectVehicle={onSelectVehicle}
-      />
-      {/* Keyboard-first surface over the same entities and dock actions.
+        <SessionTimeline
+          replayStatus={replay.replayStatus}
+          onSeek={replay.seekReplay}
+          onSelectVehicle={onSelectVehicle}
+        />
+        {/* Keyboard-first surface over the same entities and dock actions.
           `setSelectedItem` / `onSelectVehicle` are the very handlers the
           SearchBar and vehicle list use, so selecting from here flies the
           camera and opens the Inspector exactly as clicking would. */}
-      <CommandPalette
-        vehicles={vehicles}
-        roads={roads}
-        pois={pois}
-        actions={paletteActions}
-        onSelectVehicle={onSelectVehicle}
-        onSelectItem={setSelectedItem}
-      />
-      <ContextMenu position={contextMenuXY} onClose={closeContextMenu}>
-        <MapContextMenu
-          state={dispatch.dispatchState}
-          onFindDirections={onPointDestinationClick}
-          onFindRoad={onFindRoadClick}
-          onSendVehicle={onPointDestinationSingleClick}
-          onAddWaypoint={onContextMenuAddWaypoint}
-          onCreateIncident={onCreateIncident}
-          hasSelectedVehicle={!!filters.selected}
-          hasDispatchSelection={dispatch.selectedForDispatch.length > 0}
+        <CommandPalette
+          vehicles={vehicles}
+          roads={roads}
+          pois={pois}
+          actions={paletteActions}
+          onSelectVehicle={onSelectVehicle}
+          onSelectItem={setSelectedItem}
         />
-      </ContextMenu>
-      <Toaster position="bottom-right" />
-    </div>
+        <ContextMenu position={contextMenuXY} onClose={closeContextMenu}>
+          <MapContextMenu
+            state={dispatch.dispatchState}
+            onFindDirections={onPointDestinationClick}
+            onFindRoad={onFindRoadClick}
+            onSendVehicle={onPointDestinationSingleClick}
+            onAddWaypoint={onContextMenuAddWaypoint}
+            onCreateIncident={onCreateIncident}
+            hasSelectedVehicle={!!filters.selected}
+            hasDispatchSelection={dispatch.selectedForDispatch.length > 0}
+          />
+        </ContextMenu>
+        <Toaster position="bottom-right" />
+      </div>
+    </ModeEntryProvider>
   );
 }

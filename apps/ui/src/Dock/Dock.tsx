@@ -1,25 +1,29 @@
 import { useRef, type ComponentProps } from "react";
 import { cn } from "@/lib/utils";
-import type { Fleet, ReplayStatus, SimulationStatus, Vehicle } from "@/types";
+import type { Fleet, ReplayStatus, SimulationStatus, StartOptions, Vehicle } from "@/types";
 import type { DispatchFlow } from "@/hooks/useDispatchFlow";
 import type { DockNavigation } from "@/hooks/useDockNavigation";
+import type { InteractionModeKind } from "@/hooks/useInteractionMode";
+import type { ModeGuard } from "@/hooks/useModeGuard";
 import { useClock } from "@/hooks/useClock";
 import { useAdapterConfig } from "@/Controls/Adapter/useAdapterConfig";
 import { DispatchState } from "@/hooks/useDispatchState";
-import { CarIcon, Gear, ChartIcon, GaugeIcon } from "@/components/Icons";
+import { CarIcon, ChartIcon, GaugeIcon, RecordCircleIcon } from "@/components/Icons";
 import DockCluster from "./DockCluster";
 import DockPanel from "./DockPanel";
-import PlaybackCluster from "./PlaybackCluster";
+import DockCenter from "./DockCenter";
+import DockStateRail from "./DockStateRail";
+import TransportCluster from "./TransportCluster";
 import TempoInline from "./TempoInline";
 import StatusChips from "./StatusChips";
-import ReplayDock from "./ReplayDock";
 import FleetPanel from "./FleetPanel";
 import TempoPanel from "./TempoPanel";
-import SinksPanel from "./SinksPanel";
 import MonitorPanel from "./MonitorPanel";
-import { countMisbehavingDevices } from "@/lib/faultPresets";
+import SessionPanel from "./SessionPanel";
 import SettingsPanel from "./SettingsPanel";
-import type { StatusTone } from "./DockPanelKit";
+import { FEED_HEALTH_TONE, feedHealth } from "./FeedsSection";
+import { countMisbehavingDevices } from "@/lib/faultPresets";
+import type { ModeDescriptor } from "./modeDescriptors";
 import type Incidents from "@/Controls/Incidents";
 import type GeofencePanel from "@/Controls/GeofencePanel";
 import type AnalyticsPanel from "@/Controls/AnalyticsPanel";
@@ -39,9 +43,9 @@ const Divider = () => <div className="mx-0.5 my-2 w-px self-stretch bg-border-so
 
 const PANEL_LABEL: Record<string, string> = {
   tempo: "Tempo",
-  "fleet-dispatch": "Fleet & Dispatch",
-  "sinks-source": "Sinks & Source",
+  fleet: "Fleet",
   monitor: "Monitor",
+  session: "Session",
   settings: "Settings",
 };
 
@@ -57,9 +61,22 @@ export interface DockProps {
 
   connected: boolean;
   status: SimulationStatus;
+  options: StartOptions;
   isRecording: boolean;
   onStartRecording: () => Promise<void>;
   onStopRecording: () => Promise<unknown>;
+
+  /**
+   * The active map mode as words, tone and actions (null while browsing), plus
+   * the guard that holds a mode switch when the current one is carrying work.
+   * Both are built in `App.tsx` from the same descriptor table the keyboard
+   * dispatcher runs, so the bar and the keyboard can never disagree.
+   */
+  modeDescriptor: ModeDescriptor | null;
+  guard: ModeGuard;
+  onStartMode: (kind: InteractionModeKind) => void;
+  /** Enters dispatch through the guard (Fleet panel's Dispatch segment). */
+  onEnterDispatch: () => void;
 
   replayStatus: ReplayStatus;
   onPauseReplay: () => Promise<void>;
@@ -68,7 +85,7 @@ export interface DockProps {
   onSeekReplay: (timestamp: number) => Promise<void>;
   onSetReplaySpeed: (speed: number) => Promise<void>;
 
-  // Fleet & Dispatch
+  // Fleet
   vehicles: Vehicle[];
   filter: string;
   onFilterChange: (value: string) => void;
@@ -92,6 +109,8 @@ export interface DockProps {
   faults: ComponentProps<typeof MonitorPanel>["faults"];
   geofences: ComponentProps<typeof GeofencePanel>;
   analytics: ComponentProps<typeof AnalyticsPanel>;
+
+  // Session / Settings
   toggles: ComponentProps<typeof TogglesPanel>;
   recordings: ComponentProps<typeof RecordReplay>;
   advanced: ComponentProps<typeof AdvancedTuningTab>;
@@ -99,31 +118,37 @@ export interface DockProps {
   className?: string;
 }
 
-/** Coarse, user-facing health tone for the Sinks cluster dot (same derivation
- * as the old adapter drawer's four-state readout, collapsed to a tone). */
-function adapterTone(health: ReturnType<typeof useAdapterConfig>["health"]): StatusTone {
-  if (!health) return "idle";
-  if (!health.source && health.sinks.length === 0) return "idle";
-  const healthy = health.source?.healthy !== false && health.sinks.every((s) => s.healthy);
-  return healthy ? "ok" : "warn";
-}
-
 /**
- * Root dock: one persistent transport bar plus a single morphing panel that
- * opens in a fixed spot above it (see the approved mockup). Owns the shared
- * `useClock` and `useAdapterConfig` state so the inline tempo scrubber /
- * details panel stay in sync and the adapter health dot keeps polling while
- * its panel is closed. Panel navigation is *not* owned here — it arrives as
- * `nav` from `App.tsx`, which shares it with the command palette. Swaps to
- * `ReplayDock` during replay.
+ * Root dock: three zones and one morphing panel.
+ *
+ *   left   — time: transport (play/pause, reset, record) and tempo
+ *   centre — context: the mode launcher, the active mode's rail, the replay
+ *            transport, or a pending-discard question (see `DockCenter`)
+ *   right  — places: the four panel clusters and the health chips
+ *
+ * Only the centre changes with what the operator is doing. The bar itself never
+ * rearranges and never goes away: the previous dock swapped its whole self for
+ * a replay bar, which took tempo, every panel and the status chips off screen
+ * for the length of the playback.
+ *
+ * Owns the shared `useClock` and `useAdapterConfig` state so the inline tempo
+ * scrubber / details panel stay in sync and feed health keeps polling for the
+ * status chip while its Settings tab is closed. Panel navigation is *not* owned
+ * here — it arrives as `navigation` from `App.tsx`, which shares it with the
+ * command palette.
  */
 export default function Dock({
   navigation,
   connected,
   status,
+  options,
   isRecording,
   onStartRecording,
   onStopRecording,
+  modeDescriptor,
+  guard,
+  onStartMode,
+  onEnterDispatch,
   replayStatus,
   onPauseReplay,
   onResumeReplay,
@@ -158,27 +183,15 @@ export default function Dock({
 }: DockProps) {
   const { openCluster, panelOpen, toggle, close, isOpen } = navigation;
   const { clock, setSpeedMultiplier } = useClock();
-  const adapter = useAdapterConfig(openCluster === "sinks-source");
+  const adapter = useAdapterConfig(openCluster === "settings");
   const faultyDevices = countMisbehavingDevices(faults.faults.config, faults.faults.status);
   const dockRef = useRef<HTMLDivElement>(null);
-  const tempoBtnRef = useRef<HTMLButtonElement>(null);
 
-  if (replayStatus.mode === "replay") {
-    return (
-      <ReplayDock
-        replayStatus={replayStatus}
-        onPauseReplay={onPauseReplay}
-        onResumeReplay={onResumeReplay}
-        onStopReplay={onStopReplay}
-        onSeekReplay={onSeekReplay}
-        onSetReplaySpeed={onSetReplaySpeed}
-      />
-    );
-  }
-
+  const replaying = replayStatus.mode === "replay";
   const dispatchCount =
     dispatch.dispatchState !== DispatchState.BROWSE ? dispatch.selectedForDispatch.length : 0;
   const incidentCount = incidents.incidents.length;
+  const health = feedHealth(adapter.health);
 
   const countBadge = (count: number, tone: "accent" | "err") =>
     count > 0 ? (
@@ -193,13 +206,26 @@ export default function Dock({
       </span>
     ) : undefined;
 
-  const HEALTH_DOT_BG: Record<StatusTone, string> = {
-    ok: "bg-status-ok",
-    warn: "bg-status-warn",
-    error: "bg-status-error",
-    idle: "bg-status-idle",
-    accent: "bg-accent",
-  };
+  // One badge slot, so the loudest thing wins — and always says what it counted,
+  // since a bare red "2" reads identically for incidents and broken devices.
+  const fleetBadge =
+    jobs.counts.breached > 0
+      ? {
+          node: countBadge(jobs.counts.breached, "err"),
+          label: `${jobs.counts.breached} jobs past SLA`,
+        }
+      : dispatchCount > 0
+        ? {
+            node: countBadge(dispatchCount, "accent"),
+            label: `${dispatchCount} vehicles selected for dispatch`,
+          }
+        : null;
+  const monitorBadge =
+    incidentCount > 0
+      ? { node: countBadge(incidentCount, "err"), label: `${incidentCount} open incidents` }
+      : faultyDevices > 0
+        ? { node: countBadge(faultyDevices, "err"), label: `${faultyDevices} misbehaving devices` }
+        : null;
 
   return (
     <>
@@ -210,7 +236,7 @@ export default function Dock({
         contentKey={openCluster ?? "none"}
         aria-label={openCluster ? PANEL_LABEL[openCluster] : undefined}
       >
-        {openCluster === "fleet-dispatch" && (
+        {openCluster === "fleet" && (
           <FleetPanel
             vehicles={vehicles}
             filter={filter}
@@ -228,13 +254,13 @@ export default function Dock({
             onUnassignVehicle={onUnassignVehicle}
             fleetsError={fleetsError}
             dispatch={dispatch}
+            onEnterDispatch={onEnterDispatch}
             jobs={jobs}
           />
         )}
         {openCluster === "tempo" && (
           <TempoPanel clock={clock} onSetMultiplier={setSpeedMultiplier} />
         )}
-        {openCluster === "sinks-source" && <SinksPanel adapter={adapter} />}
         {openCluster === "monitor" && (
           <MonitorPanel
             incidents={incidents}
@@ -243,73 +269,84 @@ export default function Dock({
             faults={faults}
           />
         )}
+        {openCluster === "session" && <SessionPanel recordings={recordings} />}
         {openCluster === "settings" && (
-          <SettingsPanel toggles={toggles} recordings={recordings} advanced={advanced} />
+          <SettingsPanel toggles={toggles} advanced={advanced} feeds={{ adapter }} />
         )}
       </DockPanel>
 
       <div ref={dockRef} className={cn(DOCK_CLASS, className)}>
-        <PlaybackCluster
+        <TransportCluster
+          running={status.running}
+          options={options}
           isRecording={isRecording}
           onStartRecording={onStartRecording}
           onStopRecording={onStopRecording}
+          guardRequest={guard.request}
+          disabled={!connected}
+        />
+
+        {/* Tempo sits with the transport: play, reset, record and speed are all
+            controls over the run's clock. */}
+        <div className="hidden items-stretch md:flex">
+          <Divider />
+          <TempoInline
+            clock={clock}
+            onSetMultiplier={setSpeedMultiplier}
+            detailsOpen={isOpen("tempo")}
+            onToggleDetails={() => toggle("tempo")}
+            disabled={replaying}
+          />
+        </div>
+
+        <Divider />
+
+        <DockCenter
+          descriptor={modeDescriptor}
+          guard={guard}
+          replayStatus={replayStatus}
+          onPauseReplay={onPauseReplay}
+          onResumeReplay={onResumeReplay}
+          onStopReplay={onStopReplay}
+          onSeekReplay={onSeekReplay}
+          onSetReplaySpeed={onSetReplaySpeed}
+          onStartMode={onStartMode}
+          offline={!connected}
         />
 
         <Divider />
 
-        <TempoInline
-          clock={clock}
-          onSetMultiplier={setSpeedMultiplier}
-          detailsOpen={isOpen("tempo")}
-          onToggleDetails={() => toggle("tempo")}
-          buttonRef={tempoBtnRef}
-        />
-
-        <Divider />
-
-        <div className="flex items-center gap-1 px-2">
+        <div className="flex items-center gap-1 px-1.5">
           <DockCluster
             icon={<CarIcon />}
             label="Fleet"
-            active={isOpen("fleet-dispatch")}
-            // An SLA breach is the loudest thing the Fleet cluster can be
-            // holding, so it outranks the (informational) dispatch selection count.
-            badge={
-              jobs.counts.breached > 0
-                ? countBadge(jobs.counts.breached, "err")
-                : countBadge(dispatchCount, "accent")
-            }
-            aria-label="Fleet & Dispatch"
-            onClick={() => toggle("fleet-dispatch")}
-          />
-          <DockCluster
-            icon={<Gear />}
-            label="Sinks"
-            active={isOpen("sinks-source")}
-            badge={
-              <span
-                className={cn(
-                  "block size-2 rounded-full border-[1.5px] border-glass-bot",
-                  HEALTH_DOT_BG[adapterTone(adapter.health)]
-                )}
-              />
-            }
-            aria-label="Sinks & Source"
-            onClick={() => toggle("sinks-source")}
+            active={isOpen("fleet")}
+            badge={fleetBadge?.node}
+            badgeLabel={fleetBadge?.label}
+            aria-label="Fleet"
+            onClick={() => toggle("fleet")}
           />
           <DockCluster
             icon={<ChartIcon />}
             label="Monitor"
             active={isOpen("monitor")}
-            // Incidents are the louder signal; a silently misbehaving device is
-            // still worth a badge when there are no incidents to report.
-            badge={
-              incidentCount > 0
-                ? countBadge(incidentCount, "err")
-                : countBadge(faultyDevices, "err")
-            }
+            badge={monitorBadge?.node}
+            badgeLabel={monitorBadge?.label}
             aria-label="Monitor"
             onClick={() => toggle("monitor")}
+          />
+          <DockCluster
+            icon={<RecordCircleIcon />}
+            label="Session"
+            active={isOpen("session")}
+            badge={
+              isRecording ? (
+                <span className="block size-2 rounded-full border-[1.5px] border-glass-bot bg-status-error motion-safe:animate-pulse" />
+              ) : undefined
+            }
+            badgeLabel={isRecording ? "Recording in progress" : undefined}
+            aria-label="Session"
+            onClick={() => toggle("session")}
           />
           <DockCluster
             icon={<GaugeIcon />}
@@ -322,15 +359,41 @@ export default function Dock({
 
         {/* Status chips are the first thing to drop on a narrow viewport —
             they're glanceable, not interactive, so the dock stays usable. */}
-        <div className="hidden items-stretch sm:flex">
+        <div className="hidden items-stretch lg:flex">
           <Divider />
           <StatusChips
             chips={[
-              { key: "ws", label: "WS", active: connected },
-              { key: "sim", label: "SIM", active: status.running },
+              {
+                key: "ws",
+                label: "WS",
+                tone: connected ? "ok" : "idle",
+                title: connected ? "Live socket connected" : "Live socket disconnected",
+              },
+              {
+                key: "sim",
+                label: "SIM",
+                tone: status.running ? "ok" : "idle",
+                title: status.running ? "Simulation running" : "Simulation paused",
+              },
+              {
+                key: "feed",
+                label: "FEED",
+                tone: FEED_HEALTH_TONE[health],
+                title: `Feeds & sinks: ${health.toLowerCase()}`,
+              },
             ]}
           />
         </div>
+
+        <DockStateRail
+          tone={modeDescriptor?.tone ?? null}
+          recording={isRecording}
+          replayProgress={
+            replaying && replayStatus.duration
+              ? (replayStatus.currentTime ?? 0) / replayStatus.duration
+              : null
+          }
+        />
       </div>
     </>
   );

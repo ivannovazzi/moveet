@@ -1,22 +1,32 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/lib/toast";
 
 /**
- * The map's interaction mode — exactly one is active at a time. Dispatch and
- * geofence drawing were previously independent booleans (`dispatchMode`,
- * `drawingActive`) that could both be on at once, double-handling Escape and
- * overlapping their hint banners. This union is the single source of truth.
+ * The map's interaction mode — exactly one is active at a time. This is the
+ * single answer to "what does a click on the map mean right now", and every
+ * modal map tool is a member:
  *
- * Replay is deliberately not folded in (it's server-driven via
- * `replayStatus.mode`), but entering dispatch/draw is refused while a replay
- * is running, and a replay starting force-exits any active mode.
+ *  - `dispatch` and `draw-geofence` are *owned* here (their hooks derive an
+ *    `active` flag from this union and clean up when it drops);
+ *  - `place-job`, `draw-heatzone` and `edit-heatzone` are *derived* — those
+ *    tools own richer state of their own (a two-click draft, a selected zone
+ *    id), so this hook reads their state instead of duplicating it.
  *
- * Job placement (useJobDraft) is deliberately NOT a member either: a job is
- * created against the map rather than against a vehicle, so it owns its own
- * two-click state machine. It still routes through the one keyboard dispatcher
- * below (see `jobPlacementActive`) so Escape has a single owner.
+ * Either way the union is authoritative for the dock, the mode rail and the
+ * keyboard: entering an owned mode cancels a derived one and vice versa, so two
+ * tools can never claim the map at once.
+ *
+ * Replay is deliberately not a member (it's server-driven via
+ * `replayStatus.mode`), but entering any mode is refused while a replay is
+ * running, and a replay starting force-exits whatever was active.
  */
-export type InteractionMode = { kind: "browse" } | { kind: "dispatch" } | { kind: "draw-geofence" };
+export type InteractionMode =
+  | { kind: "browse" }
+  | { kind: "dispatch" }
+  | { kind: "draw-geofence" }
+  | { kind: "place-job" }
+  | { kind: "draw-heatzone" }
+  | { kind: "edit-heatzone"; id: string };
 
 export type InteractionModeKind = InteractionMode["kind"];
 
@@ -31,77 +41,121 @@ export interface InteractionModeApi {
   exitToBrowse: () => void;
 }
 
+export interface UseInteractionModeOptions {
+  replayActive: boolean;
+  /**
+   * The mode claimed by a tool that owns its own state (job placement, heat
+   * zone authoring), or `null` when none is. Computed by the caller from those
+   * hooks so this one never mirrors — and so can never drift from — them.
+   * Optional: a caller wiring only the owned modes can leave it out.
+   */
+  derived?: InteractionMode | null;
+  /** Cancels whichever derived mode is active. Safe to call when none is. */
+  onExitDerived?: () => void;
+}
+
+const NO_DERIVED_MODE = () => {};
+
 /**
  * Owns the interaction-mode union. Entering one mode implicitly exits the
  * other: mode-specific cleanup lives with each mode's own hook (useDispatchFlow
  * resets its flow state when its `active` flag drops; GeofenceDrawTool clears
- * its vertices when `active` drops), so a plain mode switch here is a clean
- * exit of the previous mode.
+ * its vertices when `active` drops; the derived tools are cancelled through
+ * `onExitDerived`), so a plain mode switch here is a clean exit of the previous
+ * mode.
  */
 export function useInteractionMode({
   replayActive,
-}: {
-  replayActive: boolean;
-}): InteractionModeApi {
-  const [mode, setMode] = useState<InteractionMode>(BROWSE);
+  derived = null,
+  onExitDerived = NO_DERIVED_MODE,
+}: UseInteractionModeOptions): InteractionModeApi {
+  const [owned, setOwned] = useState<InteractionMode>(BROWSE);
 
-  const enterDispatch = useCallback(() => {
-    if (replayActive) {
-      toast.info("Dispatch is unavailable during replay");
-      return;
-    }
-    setMode(DISPATCH);
-  }, [replayActive]);
+  // Read through a ref so entering a mode doesn't have to re-memoize every time
+  // the caller rebuilds its cancel closure.
+  const exitDerivedRef = useRef(onExitDerived);
+  exitDerivedRef.current = onExitDerived;
 
-  const enterDrawGeofence = useCallback(() => {
-    if (replayActive) {
-      toast.info("Zone drawing is unavailable during replay");
-      return;
-    }
-    setMode(DRAW_GEOFENCE);
-  }, [replayActive]);
+  const enter = useCallback(
+    (next: InteractionMode, refusal: string) => {
+      if (replayActive) {
+        toast.info(refusal);
+        return;
+      }
+      exitDerivedRef.current();
+      setOwned(next);
+    },
+    [replayActive]
+  );
 
-  const exitToBrowse = useCallback(() => setMode(BROWSE), []);
+  const enterDispatch = useCallback(
+    () => enter(DISPATCH, "Dispatch is unavailable during replay"),
+    [enter]
+  );
+
+  const enterDrawGeofence = useCallback(
+    () => enter(DRAW_GEOFENCE, "Zone drawing is unavailable during replay"),
+    [enter]
+  );
+
+  const exitToBrowse = useCallback(() => {
+    exitDerivedRef.current();
+    setOwned(BROWSE);
+  }, []);
+
+  // A derived mode starting (from its own panel, the launcher or the palette)
+  // outranks an owned one: its hook has already changed what a map click does,
+  // so the owned mode has to let go rather than run underneath it.
+  const derivedActive = derived !== null;
+  useEffect(() => {
+    if (derivedActive) setOwned(BROWSE);
+  }, [derivedActive]);
 
   // A replay starting on the server force-exits any active mode.
   useEffect(() => {
-    if (replayActive) setMode(BROWSE);
+    if (replayActive) {
+      exitDerivedRef.current();
+      setOwned(BROWSE);
+    }
   }, [replayActive]);
 
-  return { mode, enterDispatch, enterDrawGeofence, exitToBrowse };
+  const mode = derived ?? owned;
+
+  return useMemo(
+    () => ({ mode, enterDispatch, enterDrawGeofence, exitToBrowse }),
+    [mode, enterDispatch, enterDrawGeofence, exitToBrowse]
+  );
 }
 
 // ─── Global keyboard dispatcher ─────────────────────────────────────
 
 export type GlobalKeyAction =
-  | "cancel-job-placement"
-  | "cancel-draw"
-  | "confirm-draw"
-  | "exit-dispatch"
-  | "submit-dispatch"
+  | "exit-mode"
+  | "confirm-mode"
   | "clear-selection"
   | "close-panel"
+  | "start-mode"
   | "none";
+
+/** Single-letter shortcuts that start a map mode from browse. */
+export const MODE_SHORTCUTS: Record<string, InteractionModeKind> = {
+  d: "dispatch",
+  j: "place-job",
+  g: "draw-geofence",
+  h: "draw-heatzone",
+};
 
 export interface GlobalKeyContext {
   modeKind: InteractionModeKind;
-  /**
-   * A two-click job placement is mid-flight. Not part of the mode union (see
-   * useJobDraft), but it is the most modal thing on screen, so it takes Escape
-   * first.
-   */
-  jobPlacementActive: boolean;
-  /** Draw polygon can close (≥ MIN_GEOFENCE_VERTICES vertices). */
-  canConfirmDraw: boolean;
-  /** Dispatch is in ROUTE with at least one assignment. */
-  canSubmitDispatch: boolean;
+  /** The active mode's primary (Enter) action can run right now. */
+  canConfirmMode: boolean;
   hasSelection: boolean;
   panelOpen: boolean;
   /**
    * An overlay that owns its own keyboard (the map context menu, the
-   * CreateZoneDialog) is open. The global dispatcher must stand down so
-   * dismissing a menu doesn't also clear the selection or exit the mode
-   * underneath it.
+   * CreateZoneDialog, the command palette) is open. The global dispatcher must
+   * stand down so dismissing a menu doesn't also clear the selection or exit
+   * the mode underneath it.
    */
   overlayOpen: boolean;
 }
@@ -109,39 +163,37 @@ export interface GlobalKeyContext {
 /**
  * Pure routing for the single window-level keyboard listener.
  *
- * Escape priority: cancel job placement → cancel geofence draw → exit dispatch
- * → clear selection (closes the inspector) → close the open dock panel. Enter
- * routes to the active mode: close the draw polygon, or submit the pending
- * dispatch.
+ * Escape priority: exit the active map mode → clear the selection (closes the
+ * inspector) → close the open dock panel. Enter runs the active mode's primary
+ * action (close the polygon, submit the pending dispatch) when it is available.
+ * A bare letter in `MODE_SHORTCUTS` starts that mode, but only from browse —
+ * mid-mode, a stray keypress must never swap the tool under the operator.
  */
 export function keyActionFor(key: string, ctx: GlobalKeyContext): GlobalKeyAction {
   // While an overlay (context menu / dialog) is open, it owns the keyboard —
   // the app-level actions stand down entirely.
   if (ctx.overlayOpen) return "none";
+  const inMode = ctx.modeKind !== "browse";
+
   if (key === "Escape") {
-    if (ctx.jobPlacementActive) return "cancel-job-placement";
-    if (ctx.modeKind === "draw-geofence") return "cancel-draw";
-    if (ctx.modeKind === "dispatch") return "exit-dispatch";
+    if (inMode) return "exit-mode";
     if (ctx.hasSelection) return "clear-selection";
     if (ctx.panelOpen) return "close-panel";
     return "none";
   }
   if (key === "Enter") {
-    if (ctx.modeKind === "draw-geofence") return ctx.canConfirmDraw ? "confirm-draw" : "none";
-    if (ctx.modeKind === "dispatch") return ctx.canSubmitDispatch ? "submit-dispatch" : "none";
-    return "none";
+    return inMode && ctx.canConfirmMode ? "confirm-mode" : "none";
   }
+  if (!inMode && MODE_SHORTCUTS[key.toLowerCase()]) return "start-mode";
   return "none";
 }
 
 export interface GlobalKeyHandlers {
-  onCancelJobPlacement: () => void;
-  onCancelDraw: () => void;
-  onConfirmDraw: () => void;
-  onExitDispatch: () => void;
-  onSubmitDispatch: () => void;
+  onExitMode: () => void;
+  onConfirmMode: () => void;
   onClearSelection: () => void;
   onClosePanel: () => void;
+  onStartMode: (kind: InteractionModeKind) => void;
 }
 
 /**
@@ -164,6 +216,8 @@ export function useInteractionKeyboard(ctx: GlobalKeyContext, handlers: GlobalKe
       // top of it. This backs up the `overlayOpen` context flag since
       // window-vs-document listener ordering isn't guaranteed.
       if (e.defaultPrevented) return;
+      // Chorded keys belong to the browser and the palette (⌘K), not here.
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
       // Don't intercept while typing in inputs/textareas.
       const target = e.target as HTMLElement | null;
       if (
@@ -177,26 +231,20 @@ export function useInteractionKeyboard(ctx: GlobalKeyContext, handlers: GlobalKe
       e.preventDefault();
       const h = handlersRef.current;
       switch (action) {
-        case "cancel-job-placement":
-          h.onCancelJobPlacement();
+        case "exit-mode":
+          h.onExitMode();
           break;
-        case "cancel-draw":
-          h.onCancelDraw();
-          break;
-        case "confirm-draw":
-          h.onConfirmDraw();
-          break;
-        case "exit-dispatch":
-          h.onExitDispatch();
-          break;
-        case "submit-dispatch":
-          h.onSubmitDispatch();
+        case "confirm-mode":
+          h.onConfirmMode();
           break;
         case "clear-selection":
           h.onClearSelection();
           break;
         case "close-panel":
           h.onClosePanel();
+          break;
+        case "start-mode":
+          h.onStartMode(MODE_SHORTCUTS[e.key.toLowerCase()]);
           break;
       }
     };

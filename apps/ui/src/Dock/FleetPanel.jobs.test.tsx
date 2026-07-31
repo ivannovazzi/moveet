@@ -33,6 +33,7 @@ function createJob(overrides: Partial<JobDTO> = {}): JobDTO {
 let draft: JobDraft;
 let jobs: JobsPanelProps;
 let dispatch: DispatchFlow;
+let onEnterDispatch: ReturnType<typeof vi.fn>;
 
 function renderPanel(overrides: Partial<FleetPanelProps> = {}) {
   const props: FleetPanelProps = {
@@ -50,6 +51,7 @@ function renderPanel(overrides: Partial<FleetPanelProps> = {}) {
     onAssignVehicle: vi.fn(),
     onUnassignVehicle: vi.fn(),
     dispatch,
+    onEnterDispatch,
     jobs,
     ...overrides,
   };
@@ -79,6 +81,7 @@ beforeEach(() => {
     onDeleteJob: vi.fn().mockResolvedValue(undefined),
     error: null,
   };
+  onEnterDispatch = vi.fn();
   dispatch = {
     dispatchMode: false,
     dispatchState: DispatchState.BROWSE,
@@ -163,9 +166,12 @@ describe("FleetPanel — Jobs tab", () => {
     renderPanel();
 
     await user.click(screen.getByRole("tab", { name: /Jobs/ }));
-    expect(dispatch.toggleDispatchMode).not.toHaveBeenCalled();
+    expect(onEnterDispatch).not.toHaveBeenCalled();
 
+    // Entry goes through the guarded handler, not straight at the flow — a
+    // half-drawn polygon elsewhere has to be asked about first.
     await user.click(screen.getByRole("tab", { name: /Dispatch/ }));
-    expect(dispatch.toggleDispatchMode).toHaveBeenCalled();
+    expect(onEnterDispatch).toHaveBeenCalled();
+    expect(dispatch.toggleDispatchMode).not.toHaveBeenCalled();
   });
 });
