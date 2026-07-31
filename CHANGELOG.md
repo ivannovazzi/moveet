@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.1.1](https://github.com/ivannovazzi/moveet/compare/v0.1.0...v0.1.1) (2026-07-31)
+
+
+### Features
+
+* add useTrailLength hook for managing breadcrumb trail capacity with localStorage ([b5a220f](https://github.com/ivannovazzi/moveet/commit/b5a220f88b708130f0d3f7a08ceb914679065b05))
+* add VehicleTypeKey component with vehicle type filtering functionality ([b5a220f](https://github.com/ivannovazzi/moveet/commit/b5a220f88b708130f0d3f7a08ceb914679065b05))
+* create VisibilityRail component to manage layer visibility and vehicle type filters ([b5a220f](https://github.com/ivannovazzi/moveet/commit/b5a220f88b708130f0d3f7a08ceb914679065b05))
+* implement visibilityLayers module to define map visibility layers ([b5a220f](https://github.com/ivannovazzi/moveet/commit/b5a220f88b708130f0d3f7a08ceb914679065b05))
+* landmark A* heuristic, session timeline, analytics bucketing ([#231](https://github.com/ivannovazzi/moveet/issues/231)) ([2c2520b](https://github.com/ivannovazzi/moveet/commit/2c2520b5aa327143fa34c7afe3c32ab2fff9a7f2))
+* **simulator:** device-level fault injection ([#237](https://github.com/ivannovazzi/moveet/issues/237)) ([6e7b2f9](https://github.com/ivannovazzi/moveet/commit/6e7b2f980fada81fd2b562e373e797fbb001856e))
+* trip/job dispatch lifecycle model ([#235](https://github.com/ivannovazzi/moveet/issues/235)) ([0af0639](https://github.com/ivannovazzi/moveet/commit/0af0639c68254688e16c1a1f71c7bc4412192f78))
+* **ui:** lift the map ground out of near-black (fleetsim-all-7gtf) ([#241](https://github.com/ivannovazzi/moveet/issues/241)) ([dca481c](https://github.com/ivannovazzi/moveet/commit/dca481c8d7e48679a0659cb1f651a2d21b03b681))
+* **ui:** state-adaptive dock, unified map-mode model, dynamic sections ([#240](https://github.com/ivannovazzi/moveet/issues/240)) ([b5a220f](https://github.com/ivannovazzi/moveet/commit/b5a220f88b708130f0d3f7a08ceb914679065b05))
+* **ui:** unified interaction modes, one Escape dispatcher, shared ModeBanner (fleetsim-all-biut) ([#238](https://github.com/ivannovazzi/moveet/issues/238)) ([d009599](https://github.com/ivannovazzi/moveet/commit/d009599b2d8c58cdcf344d9d92b702b65ce9fe41))
+* wire jobs + device faults into the UI, and fix the job lifecycle they ride on ([#239](https://github.com/ivannovazzi/moveet/issues/239)) ([0c706ff](https://github.com/ivannovazzi/moveet/commit/0c706ff35b0a1318c38ed28b3ac5e424de84badf))
+
+
+### Bug Fixes
+
+* dispatch on true positions, bucketed analytics fetch, landmarks env through zod ([#242](https://github.com/ivannovazzi/moveet/issues/242)) ([dda06a8](https://github.com/ivannovazzi/moveet/commit/dda06a862a72e1ba17bcb0c3cc284b1438176b9b))
+
 ## [0.1.0](https://github.com/ivannovazzi/moveet/compare/v0.0.10...v0.1.0) (2026-07-25)
 
 
