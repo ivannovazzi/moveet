@@ -88,6 +88,13 @@ function expectClustersPresent() {
 
 describe("dock centre slot", () => {
   describe("browsing", () => {
+    it("closes the centre slot when nothing is going on", () => {
+      renderDock();
+
+      // Idle, the main dock is transport and tempo only — no parked control.
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    });
+
     it("offers one launcher listing every map mode with its shortcut", async () => {
       const user = userEvent.setup();
       renderDock();
@@ -215,15 +222,13 @@ describe("dock centre slot", () => {
       renderDock({ replayStatus });
 
       expectClustersPresent();
-      expect(screen.getByRole("slider", { name: "Simulation tempo" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Tempo/ })).toBeInTheDocument();
     });
 
     it("quietens tempo, which steers the live clock rather than the playback", () => {
       renderDock({ replayStatus });
 
-      expect(screen.getByRole("slider", { name: "Simulation tempo" })).toHaveAttribute(
-        "data-disabled"
-      );
+      expect(screen.getByRole("button", { name: /Tempo/ })).toBeDisabled();
     });
   });
 });

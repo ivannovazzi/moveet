@@ -1,10 +1,8 @@
 import { cn } from "@/lib/utils";
-import type { InteractionModeKind } from "@/hooks/useInteractionMode";
 import type { ModeGuard } from "@/hooks/useModeGuard";
 import type { ReplayStatus } from "@/types";
 import type { ModeDescriptor } from "./modeDescriptors";
 import { TONE_WASH } from "./DockBarKit";
-import ModeLauncher from "./ModeLauncher";
 import ModeRail from "./ModeRail";
 import ReplayRail from "./ReplayRail";
 import GuardPrompt from "./GuardPrompt";
@@ -19,21 +17,17 @@ export interface DockCenterProps {
   onStopReplay: () => Promise<void>;
   onSeekReplay: (timestamp: number) => Promise<void>;
   onSetReplaySpeed: (speed: number) => Promise<void>;
-  /** Starts a map mode (already guarded by the caller). */
-  onStartMode: (kind: InteractionModeKind) => void;
-  /** The simulator is unreachable: nothing new can be started. */
-  offline: boolean;
 }
 
-/** Which of the four things the centre slot is currently saying. */
-type CenterKind = "guard" | "replay" | "mode" | "browse";
+/** Which of the three things the centre slot is currently saying. */
+type CenterKind = "guard" | "replay" | "mode" | "idle";
 
 /**
- * The one part of the dock that changes with what is going on. Everything
- * around it — transport and tempo on the left, panel clusters and status chips
- * on the right — stays put in every state, so the bar never rearranges itself
- * under the operator and no capability disappears (the old dock swapped its
- * entire self away for the duration of a replay).
+ * The one part of the dock that changes with what is going on: the active map
+ * mode's rail, the replay transport, or a pending discard. Transport and tempo
+ * hold their place on its left in every state, so the bar never rearranges
+ * itself under the operator and no capability disappears (the old dock swapped
+ * its entire self away for the duration of a replay).
  *
  * Precedence: a pending discard beats the mode it would discard; a replay beats
  * a mode (modes are refused during replay anyway); otherwise the active mode,
@@ -48,8 +42,6 @@ export default function DockCenter({
   onStopReplay,
   onSeekReplay,
   onSetReplaySpeed,
-  onStartMode,
-  offline,
 }: DockCenterProps) {
   const replaying = replayStatus.mode === "replay";
   const kind: CenterKind = guard.pending
@@ -58,22 +50,22 @@ export default function DockCenter({
       ? "replay"
       : descriptor
         ? "mode"
-        : "browse";
+        : "idle";
+
+  // Nothing is going on: the slot closes rather than parking a control in it.
+  // The main dock is then transport and tempo only, which is the honest reading
+  // of a run nobody is steering.
+  if (kind === "idle") return null;
 
   // Each state gets the width its content needs; the bar animates between them
   // rather than reflowing instantly around a stretched flex child.
-  const width =
-    kind === "mode" || kind === "guard"
-      ? "w-[520px]"
-      : kind === "replay"
-        ? "w-[470px]"
-        : "w-[290px]";
+  const width = kind === "replay" ? "w-[470px]" : "w-[520px]";
   const wash = kind === "guard" ? TONE_WASH.warn : descriptor ? TONE_WASH[descriptor.tone] : null;
 
   return (
     <div
       className={cn(
-        "mx-1 flex h-[42px] max-w-[calc(100vw-6rem)] items-center self-center overflow-hidden rounded-lg",
+        "ml-1 flex h-[42px] max-w-[calc(100vw-6rem)] items-center self-center overflow-hidden rounded-[10px]",
         "transition-[width,background-color,box-shadow] duration-normal ease-emphasized",
         width,
         replaying && !wash ? TONE_WASH.idle : wash
@@ -99,7 +91,6 @@ export default function DockCenter({
           />
         )}
         {kind === "mode" && descriptor && <ModeRail descriptor={descriptor} />}
-        {kind === "browse" && <ModeLauncher onStart={onStartMode} disabled={offline} />}
       </div>
     </div>
   );

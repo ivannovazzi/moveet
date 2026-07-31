@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import FleetPanel, { type FleetPanelProps } from "./FleetPanel";
 import type { JobsPanelProps } from "@/Controls/JobsPanel";
 import type { DispatchFlow } from "@/hooks/useDispatchFlow";
@@ -8,7 +7,7 @@ import { DispatchState } from "@/hooks/useDispatchState";
 import type { JobDraft } from "@/hooks/useJobDraft";
 import type { JobDTO } from "@/types";
 
-// The vehicle list is virtualized and irrelevant here; the Jobs tab is the
+// The vehicle list is virtualized and irrelevant here; the Jobs view is the
 // subject. Stub the leaves so this test isn't measuring react-window.
 vi.mock("@/Controls/Vehicles", () => ({ default: () => <div>vehicle list</div> }));
 vi.mock("@/Controls/Fleets", () => ({ default: () => <div>fleet groups</div> }));
@@ -33,10 +32,15 @@ function createJob(overrides: Partial<JobDTO> = {}): JobDTO {
 let draft: JobDraft;
 let jobs: JobsPanelProps;
 let dispatch: DispatchFlow;
-let onEnterDispatch: ReturnType<typeof vi.fn>;
 
+/**
+ * The Fleet panel is content only now — List / Groups / Dispatch / Jobs are
+ * buttons on the Fleet dock, so `tab` arrives as a prop and the switching
+ * behaviour is covered in `SectionRail.test.tsx`.
+ */
 function renderPanel(overrides: Partial<FleetPanelProps> = {}) {
   const props: FleetPanelProps = {
+    tab: "list",
     vehicles: [],
     filter: "",
     onFilterChange: vi.fn(),
@@ -51,7 +55,6 @@ function renderPanel(overrides: Partial<FleetPanelProps> = {}) {
     onAssignVehicle: vi.fn(),
     onUnassignVehicle: vi.fn(),
     dispatch,
-    onEnterDispatch,
     jobs,
     ...overrides,
   };
@@ -81,51 +84,50 @@ beforeEach(() => {
     onDeleteJob: vi.fn().mockResolvedValue(undefined),
     error: null,
   };
-  onEnterDispatch = vi.fn();
   dispatch = {
     dispatchMode: false,
     dispatchState: DispatchState.BROWSE,
     selectedForDispatch: [],
     assignments: [],
     results: [],
+    error: null,
     toggleDispatchMode: vi.fn(),
   } as unknown as DispatchFlow;
 });
 
-describe("FleetPanel — Jobs tab", () => {
-  it("offers Jobs alongside the other fleet views", () => {
-    renderPanel();
-
-    expect(screen.getByRole("tab", { name: /Jobs/ })).toBeInTheDocument();
-  });
-
-  it("shows the live job count on the tab", () => {
-    jobs.counts = { total: 4, live: 3, queued: 1, breached: 0 };
-    renderPanel();
-
-    expect(screen.getByRole("tab", { name: /Jobs/ })).toHaveTextContent("Jobs3");
-  });
-
-  it("opens the job board when the tab is selected", async () => {
-    const user = userEvent.setup();
+describe("FleetPanel", () => {
+  it("renders the job board for the Jobs view", () => {
     jobs.jobs = [createJob()];
     jobs.counts = { total: 1, live: 1, queued: 0, breached: 0 };
-    renderPanel();
-
-    await user.click(screen.getByRole("tab", { name: /Jobs/ }));
+    renderPanel({ tab: "jobs" });
 
     expect(screen.getByText("JOB-0001")).toBeInTheDocument();
     expect(screen.queryByText("vehicle list")).not.toBeInTheDocument();
   });
 
-  it("summarises live jobs in the panel header", () => {
-    jobs.counts = { total: 5, live: 2, queued: 0, breached: 0 };
+  it("renders the vehicle list for List and Dispatch", () => {
+    renderPanel({ tab: "list" });
+    expect(screen.getByText("vehicle list")).toBeInTheDocument();
+  });
+
+  it("renders fleet groups for the Groups view", () => {
+    renderPanel({ tab: "groups" });
+    expect(screen.getByText("fleet groups")).toBeInTheDocument();
+  });
+
+  it("draws no tab strip of its own — the Fleet dock owns the buttons", () => {
     renderPanel();
+    expect(screen.queryAllByRole("tab")).toHaveLength(0);
+  });
+
+  it("summarises live jobs whichever view is open", () => {
+    jobs.counts = { total: 5, live: 2, queued: 0, breached: 0 };
+    renderPanel({ tab: "groups" });
 
     expect(screen.getByTitle("2 live jobs")).toBeInTheDocument();
   });
 
-  it("calls out breached jobs in the header summary", () => {
+  it("calls out breached jobs in the summary", () => {
     jobs.counts = { total: 5, live: 2, queued: 0, breached: 1 };
     renderPanel();
 
@@ -138,40 +140,10 @@ describe("FleetPanel — Jobs tab", () => {
     expect(screen.queryByTitle(/live jobs/)).not.toBeInTheDocument();
   });
 
-  it("abandons a half-placed job when leaving the Jobs tab", async () => {
-    const user = userEvent.setup();
-    renderPanel();
-    await user.click(screen.getByRole("tab", { name: /Jobs/ }));
+  it("shows a failed dispatch's reason, which the mode rail has no room for", () => {
+    dispatch = { ...dispatch, error: "No route to destination" } as DispatchFlow;
+    renderPanel({ dispatch });
 
-    // Simulate the operator having placed the pickup already.
-    draft.active = true;
-    draft.stage = "dropoff";
-    await user.click(screen.getByRole("tab", { name: /List/ }));
-
-    expect(draft.cancel).toHaveBeenCalled();
-  });
-
-  it("does not cancel anything when leaving Jobs with no placement in flight", async () => {
-    const user = userEvent.setup();
-    renderPanel();
-
-    await user.click(screen.getByRole("tab", { name: /Jobs/ }));
-    await user.click(screen.getByRole("tab", { name: /List/ }));
-
-    expect(draft.cancel).not.toHaveBeenCalled();
-  });
-
-  it("enters dispatch mode from the Dispatch tab, not the Jobs tab", async () => {
-    const user = userEvent.setup();
-    renderPanel();
-
-    await user.click(screen.getByRole("tab", { name: /Jobs/ }));
-    expect(onEnterDispatch).not.toHaveBeenCalled();
-
-    // Entry goes through the guarded handler, not straight at the flow — a
-    // half-drawn polygon elsewhere has to be asked about first.
-    await user.click(screen.getByRole("tab", { name: /Dispatch/ }));
-    expect(onEnterDispatch).toHaveBeenCalled();
-    expect(dispatch.toggleDispatchMode).not.toHaveBeenCalled();
+    expect(screen.getByText("No route to destination")).toBeInTheDocument();
   });
 });

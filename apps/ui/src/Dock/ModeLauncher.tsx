@@ -22,7 +22,7 @@ export default function ModeLauncher({ onStart, disabled = false }: ModeLauncher
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="flex w-full items-center justify-between gap-2 pl-1 pr-1.5">
+    <div className="flex items-center">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
@@ -30,17 +30,18 @@ export default function ModeLauncher({ onStart, disabled = false }: ModeLauncher
             disabled={disabled}
             aria-label="Start a map action"
             className={cn(
-              "flex h-8 items-center gap-2 rounded-lg border border-border-soft bg-foreground/[0.04] pl-2.5 pr-3",
-              "text-[12px] font-medium text-foreground",
-              "transition-[background-color,border-color,color] duration-fast ease-standard",
-              "hover:border-accent/40 hover:bg-accent/10 hover:text-accent",
+              "flex h-[42px] items-center gap-2 rounded-[10px] pl-3 pr-3.5",
+              "text-[11px] font-bold uppercase tracking-[0.08em]",
+              "transition-[background-color,color,box-shadow] duration-fast ease-standard",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
               "disabled:pointer-events-none disabled:opacity-40",
-              open && "border-accent/40 bg-accent/10 text-accent"
+              open
+                ? "bg-accent/[0.14] text-accent shadow-[inset_0_0_0_1px_var(--color-accent-line,oklch(0.62_0.15_250/0.30))]"
+                : "text-accent/90 hover:bg-accent/[0.10] hover:text-accent"
             )}
           >
             <PlusGlyph />
-            New action
+            New
           </button>
         </PopoverTrigger>
         <PopoverContent
@@ -82,11 +83,6 @@ export default function ModeLauncher({ onStart, disabled = false }: ModeLauncher
           </ul>
         </PopoverContent>
       </Popover>
-
-      <span className="hidden items-center gap-1.5 text-[10.5px] text-muted-foreground/70 lg:flex">
-        Search
-        <Kbd>⌘K</Kbd>
-      </span>
     </div>
   );
 }

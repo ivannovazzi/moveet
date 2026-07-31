@@ -4,7 +4,27 @@ import type { DispatchFlow } from "@/hooks/useDispatchFlow";
 import type { JobsPanelProps } from "@/Controls/JobsPanel";
 import { DispatchState } from "@/hooks/useDispatchState";
 import type { ModeGuard } from "@/hooks/useModeGuard";
+import type { useAdapterConfig } from "@/Controls/Adapter/useAdapterConfig";
 import { createModifiers, createStartOptions, createStatus } from "./mocks/types";
+
+/** Adapter state as the dock sees it: lifted to App, one poller for two readers. */
+export function createAdapterState(
+  overrides: Partial<ReturnType<typeof useAdapterConfig>> = {}
+): ReturnType<typeof useAdapterConfig> {
+  return {
+    health: null,
+    config: null,
+    loading: false,
+    error: null,
+    fetchHealth: async () => {},
+    fetchConfig: async () => {},
+    setSource: async () => {},
+    addSink: async () => {},
+    removeSink: async () => {},
+    setRealism: async () => {},
+    ...overrides,
+  } as ReturnType<typeof useAdapterConfig>;
+}
 
 /** A mode guard that lets everything through — the default for dock tests. */
 export function passthroughGuard(): ModeGuard {
@@ -25,6 +45,7 @@ export function createDockProps(
   overrides: Partial<Omit<DockProps, "navigation">> = {}
 ): Omit<DockProps, "navigation"> {
   return {
+    adapter: createAdapterState(),
     connected: true,
     status: createStatus({ running: true }),
     options: createStartOptions(),

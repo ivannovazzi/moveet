@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import type { DispatchFlow } from "@/hooks/useDispatchFlow";
 import type { Fleet, Vehicle } from "@/types";
@@ -6,17 +6,12 @@ import Vehicles from "@/Controls/Vehicles";
 import Fleets from "@/Controls/Fleets";
 import JobsPanel, { type JobsPanelProps } from "@/Controls/JobsPanel";
 import { SuppressPanelHeader } from "@/Controls/PanelPrimitives";
-import {
-  Hairline,
-  PanelHead,
-  PanelScroll,
-  SegTabs,
-  StatusDot,
-  mono,
-  type SegTab,
-} from "./DockPanelKit";
+import { Hairline, PanelScroll, StatusDot, mono } from "./DockPanelKit";
+import type { FleetTabId } from "./dockSections";
 
 export interface FleetPanelProps {
+  /** Which of the Fleet dock's buttons is lit. */
+  tab: FleetTabId;
   vehicles: Vehicle[];
   filter: string;
   onFilterChange: (value: string) => void;
@@ -33,20 +28,12 @@ export interface FleetPanelProps {
   onUnassignVehicle: (fleetId: string, vehicleId: string) => Promise<void>;
   fleetsError?: string | null;
   dispatch: DispatchFlow;
-  /**
-   * Enters dispatch mode *through the mode guard* — switching tabs used to
-   * silently discard an in-progress geofence polygon or job placement.
-   */
-  onEnterDispatch: () => void;
   jobs: JobsPanelProps;
 }
 
-type FleetTab = "list" | "groups" | "dispatch" | "jobs";
-
 /**
- * Summary stats for the panel header's `right` slot (mockup `.p-sub`, hoisted
- * inline): total unit count plus enroute / idle breakdown derived from live
- * speed, and an alert count surfaced only when a dispatch produced failures.
+ * Fleet counts for the panel's summary strip: total, enroute/idle from live
+ * speed, failed dispatches, and the live job count.
  */
 function FleetSummary({
   total,
@@ -60,7 +47,6 @@ function FleetSummary({
   enroute: number;
   idle: number;
   alert: number;
-  /** Live job count — shown only when there is work on the board. */
   jobs: number;
   breached: number;
 }) {
@@ -68,7 +54,7 @@ function FleetSummary({
     <div
       className={cn(
         mono,
-        "flex shrink-0 items-center gap-2.5 self-center whitespace-nowrap text-[11px] text-muted-foreground"
+        "flex items-center gap-2.5 whitespace-nowrap px-[15px] py-2 text-[11px] text-muted-foreground"
       )}
     >
       <span>
@@ -106,33 +92,25 @@ function FleetSummary({
 /**
  * The one thing the dock's mode rail can't say for dispatch: why a dispatch
  * failed. Progress, counts, the primary action and the way out all live on the
- * rail now — this panel used to repeat them in a footer with different verbs
- * ("Exit" / "Clear" / "Done") from the banner saying the same thing on the
- * other side of the screen.
+ * rail.
  */
 function DispatchError({ error }: { error: string | null }) {
   if (!error) return null;
   return (
-    <div className="flex-shrink-0 border-t border-border bg-status-error/[0.07] px-[15px] py-2 text-[11px] leading-tight text-status-error">
+    <div className="border-t border-border bg-status-error/[0.07] px-[15px] py-2 text-[11px] leading-tight text-status-error">
       {error}
     </div>
   );
 }
 
 /**
- * Fleet & Dispatch dock panel. Owns the panel header (title + summary stats)
- * and the List / Groups / Dispatch segmented switch, then renders the shared
- * `Vehicles` and `Fleets` leaves — wrapped in `SuppressPanelHeader` so their
- * own `PanelHeader` collapses (we already own the title) while their in-body
- * controls (the vehicle search box, fleet CRUD) stay intact.
- *
- * The "Dispatch" segment mirrors `dispatch.dispatchMode`: selecting it enters
- * dispatch mode (through the guard), selecting List/Groups exits it. Live
- * dispatch progress and its actions belong to the dock's mode rail, so this
- * panel only adds what the rail has no room for: the failure message. The state
- * machine (`useDispatchState`/`useDispatchFlow`) is unchanged.
+ * Contents of the Fleet panel — content only. The List / Groups / Dispatch /
+ * Jobs switch is the Fleet dock's own row of buttons now, so this component
+ * neither owns tab state nor draws a tab strip; it renders whichever leaf the
+ * dock says is lit.
  */
 export default function FleetPanel({
+  tab,
   vehicles,
   filter,
   onFilterChange,
@@ -149,16 +127,8 @@ export default function FleetPanel({
   onUnassignVehicle,
   fleetsError,
   dispatch,
-  onEnterDispatch,
   jobs,
 }: FleetPanelProps) {
-  const [browseTab, setBrowseTab] = useState<"list" | "groups" | "jobs">("list");
-
-  const inDispatch = dispatch.dispatchMode;
-  // Dispatch mode wins over the local browse tab so the segment reflects the
-  // real (map-affecting) dispatch state, not a stale local selection.
-  const activeTab: FleetTab = inDispatch ? "dispatch" : browseTab;
-
   const stats = useMemo(() => {
     let enroute = 0;
     for (const v of vehicles) {
@@ -172,52 +142,23 @@ export default function FleetPanel({
     };
   }, [vehicles, dispatch.results]);
 
-  const tabs: SegTab<FleetTab>[] = [
-    { value: "list", label: "List" },
-    { value: "groups", label: "Groups", count: fleets.length },
-    { value: "dispatch", label: "Dispatch" },
-    { value: "jobs", label: "Jobs", count: jobs.counts.live },
-  ];
-
-  const handleTabChange = (value: FleetTab) => {
-    if (value === "dispatch") {
-      if (!inDispatch) onEnterDispatch();
-      return;
-    }
-    if (inDispatch) dispatch.toggleDispatchMode();
-    // Leaving the Jobs tab abandons a half-placed job rather than leaving the
-    // map in a picking mode with no visible affordance.
-    if (activeTab === "jobs" && value !== "jobs" && jobs.draft.active) jobs.draft.cancel();
-    setBrowseTab(value);
-  };
-
-  const showGroups = activeTab === "groups";
-  const showJobs = activeTab === "jobs";
-
   return (
     <>
-      <PanelHead
-        eyebrow="Fleet & Dispatch"
-        title="Fleet"
-        right={
-          <FleetSummary
-            total={stats.total}
-            enroute={stats.enroute}
-            idle={stats.idle}
-            alert={stats.alert}
-            jobs={jobs.counts.live}
-            breached={jobs.counts.breached}
-          />
-        }
+      <FleetSummary
+        total={stats.total}
+        enroute={stats.enroute}
+        idle={stats.idle}
+        alert={stats.alert}
+        jobs={jobs.counts.live}
+        breached={jobs.counts.breached}
       />
       <Hairline />
-      <SegTabs tabs={tabs} value={activeTab} onChange={handleTabChange} ariaLabel="Fleet views" />
 
-      {showJobs ? (
+      {tab === "jobs" ? (
         <PanelScroll>
           <JobsPanel {...jobs} />
         </PanelScroll>
-      ) : showGroups ? (
+      ) : tab === "groups" ? (
         <PanelScroll>
           <SuppressPanelHeader>
             <Fleets

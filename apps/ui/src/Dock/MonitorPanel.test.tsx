@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import MonitorPanel, { type MonitorPanelProps } from "./MonitorPanel";
 import type { UseFaults } from "@/hooks/useFaults";
 import type { DeviceFaultStatus } from "@/types";
@@ -42,6 +41,7 @@ function faultsApi(overrides: Partial<UseFaults> = {}): UseFaults {
 
 function props(faults: UseFaults): MonitorPanelProps {
   return {
+    tab: "incidents",
     incidents: {
       incidents: [],
       createRandom: vi.fn(),
@@ -64,44 +64,27 @@ function props(faults: UseFaults): MonitorPanelProps {
   };
 }
 
-describe("MonitorPanel faults tab", () => {
-  it("offers Faults as a tab and opens the panel", async () => {
-    const user = userEvent.setup();
-    render(<MonitorPanel {...props(faultsApi())} />);
-
-    const tab = screen.getByRole("tab", { name: /faults/i });
-    await user.click(tab);
+describe("MonitorPanel", () => {
+  it("renders the faults leaf for the Faults view", () => {
+    render(<MonitorPanel {...props(faultsApi())} tab="faults" />);
 
     expect(screen.getByRole("switch", { name: /enable device fault injection/i })).toBeVisible();
   });
 
-  it("badges the tab with the number of misbehaving devices", () => {
-    render(<MonitorPanel {...props(faultsApi({ status: status({ frozen: 2, dead: 1 }) }))} />);
+  it("renders incidents for the Incidents view", () => {
+    render(<MonitorPanel {...props(faultsApi())} tab="incidents" />);
 
-    expect(screen.getByRole("tab", { name: /faults/i })).toHaveTextContent("3");
+    expect(screen.getByRole("switch", { name: /auto-generate incidents/i })).toBeVisible();
+    expect(
+      screen.queryByRole("switch", { name: /enable device fault injection/i })
+    ).not.toBeInTheDocument();
   });
 
-  it("does not badge a disarmed layer, even with latched counters", () => {
-    render(
-      <MonitorPanel
-        {...props(
-          faultsApi({
-            config: { enabled: false, vehicles: {} },
-            status: status({ frozen: 4, enabled: false }),
-          })
-        )}
-      />
-    );
+  it("draws no tab strip of its own — the Monitor dock owns the buttons", () => {
+    // Geofences and Heat Zones still have their own inner sub-tabs; the
+    // section-level switch is the dock row's job (see SectionRail.test.tsx).
+    render(<MonitorPanel {...props(faultsApi())} tab="incidents" />);
 
-    expect(screen.getByRole("tab", { name: /faults/i })).not.toHaveTextContent("4");
-  });
-
-  it("starts on Incidents so the default view is unchanged", () => {
-    render(<MonitorPanel {...props(faultsApi())} />);
-
-    expect(screen.getByRole("tab", { name: /incidents/i })).toHaveAttribute(
-      "aria-selected",
-      "true"
-    );
+    expect(screen.queryAllByRole("tab")).toHaveLength(0);
   });
 });

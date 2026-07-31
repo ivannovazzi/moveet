@@ -51,6 +51,9 @@ import { useNetwork } from "./hooks/useNetwork";
 import { useRoads } from "./hooks/useRoads";
 import { useDataReady, useOptionsContext, usePOIContext } from "./data/useData";
 import CommandPalette, { buildCommands } from "./components/CommandPalette";
+import StatusLeds from "./Dock/StatusLeds";
+import { useAdapterConfig } from "./Controls/Adapter/useAdapterConfig";
+import { FEED_HEALTH_TONE, feedHealth } from "./Dock/FeedsSection";
 import SessionTimeline, { useSessionEventCapture } from "./components/SessionTimeline";
 import LoadingOverlay from "./components/LoadingOverlay";
 import StartHint from "./components/StartHint";
@@ -167,11 +170,20 @@ export default function App() {
   const recording = useRecording();
   const analytics = useAnalytics();
 
+  // ─── Feeds & sinks ──────────────────────────────────────────────
+  // One poller, two readers: the Settings › Feeds panel and the corner health
+  // lamps. It polls faster while that panel is open (see useAdapterConfig).
+  const adapter = useAdapterConfig(
+    dockNavigation.expanded === "settings" && dockNavigation.tab === "feeds"
+  );
+
   // ─── Device faults ──────────────────────────────────────────────
-  // Status counters are polled only while the Monitor drawer is open; the
+  // Status counters are polled only while the Faults view is open; the
   // configuration itself arrives on `faults:config` either way, so the dock
   // badge stays honest with the panel closed.
-  const faults = useFaults(dockNavigation.openCluster === "monitor");
+  const faults = useFaults(
+    dockNavigation.expanded === "monitor" && dockNavigation.tab === "faults"
+  );
   const faultsEnabled = faults.config?.enabled ?? false;
   const toggleFaults = useCallback(
     () => void faults.configure({ enabled: !faultsEnabled }),
@@ -559,8 +571,32 @@ export default function App() {
                 ready={!mapLoading && connected}
                 onStart={onStartFromHint}
               />
+              {/* Health lamps live in the corner, away from anything pressed. */}
+              <StatusLeds
+                leds={[
+                  {
+                    key: "ws",
+                    label: "WS",
+                    tone: connected ? "ok" : "idle",
+                    title: connected ? "Live socket connected" : "Live socket disconnected",
+                  },
+                  {
+                    key: "sim",
+                    label: "SIM",
+                    tone: status.running ? "ok" : "idle",
+                    title: status.running ? "Simulation running" : "Simulation paused",
+                  },
+                  {
+                    key: "feed",
+                    label: "FEED",
+                    tone: FEED_HEALTH_TONE[feedHealth(adapter.health)],
+                    title: `Feeds & sinks: ${feedHealth(adapter.health).toLowerCase()}`,
+                  },
+                ]}
+              />
               <Dock
                 navigation={dockNavigation}
+                adapter={adapter}
                 status={status}
                 options={options}
                 connected={connected}
@@ -568,6 +604,7 @@ export default function App() {
                 guard={guard}
                 onStartMode={startMode}
                 onEnterDispatch={enterDispatchGuarded}
+                onExitDispatch={handleDone}
                 isRecording={recording.isRecording}
                 onStartRecording={recording.startRecording}
                 onStopRecording={recording.stopRecording}

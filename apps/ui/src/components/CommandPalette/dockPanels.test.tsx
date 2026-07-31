@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 /**
  * Panel switching used to go through the DOM: the palette looked the dock's
@@ -29,6 +29,11 @@ vi.mock("@/utils/client", async () => {
       offGenerateComplete: vi.fn(),
       onGenerateError: vi.fn(),
       offGenerateError: vi.fn(),
+      // …and Scenarios polls its own catalogue.
+      getScenarios: vi.fn().mockResolvedValue({ data: [] }),
+      getScenarioStatus: vi.fn().mockResolvedValue({ data: undefined }),
+      onScenarioEvent: vi.fn(),
+      offScenarioEvent: vi.fn(),
     },
   };
 });
@@ -103,16 +108,19 @@ function Harness() {
 /** Open the palette, type the action's full label, and run it. */
 function runPaletteAction(label: string) {
   fireEvent.keyDown(document, { key: "k", metaKey: true });
-  const input = screen.getByRole("combobox");
+  // Scoped to the palette: an open panel can hold comboboxes of its own (the
+  // fleet assignment picker, for one).
+  const input = within(screen.getByRole("dialog")).getByRole("combobox");
   fireEvent.change(input, { target: { value: label } });
   fireEvent.keyDown(input, { key: "Enter" });
 }
 
 const cluster = (name: string) => screen.getByRole("button", { name });
+/** The section key carries `aria-expanded` whether or not it is open. */
+const sectionButton = (name: string) => cluster(name);
 /**
- * The dock's single panel surface stays mounted while closed, marked
- * `aria-hidden`; role queries skip hidden nodes, so this is exactly the set of
- * *visible* panels.
+ * Panel surfaces stay mounted while closed, marked `aria-hidden`; role queries
+ * skip hidden nodes, so this is exactly the set of *visible* panels.
  */
 const openPanels = () => screen.queryAllByRole("region").map((r) => r.getAttribute("aria-label"));
 
@@ -121,21 +129,21 @@ describe("command palette → dock panels", () => {
     render(<Harness />);
     expect(openPanels()).toEqual([]);
 
-    runPaletteAction("Open Monitor panel");
+    runPaletteAction("Open Monitor › Incidents");
 
     expect(await screen.findByRole("region", { name: "Monitor" })).toBeInTheDocument();
-    expect(cluster("Monitor")).toHaveAttribute("aria-expanded", "true");
+    expect(sectionButton("Monitor")).toHaveAttribute("aria-expanded", "true");
   });
 
-  it("opens each panel-owning cluster by name", async () => {
+  it("opens every section button by name, tabs included", async () => {
     render(<Harness />);
 
     for (const [label, panel] of [
       ["Open Tempo panel", "Tempo"],
-      ["Open Fleet panel", "Fleet"],
-      ["Open Monitor panel", "Monitor"],
-      ["Open Session panel", "Session"],
-      ["Open Settings panel", "Settings"],
+      ["Open Fleet › Groups", "Fleet"],
+      ["Open Monitor › Faults", "Monitor"],
+      ["Open Session › Scenarios", "Session"],
+      ["Open Settings › Advanced", "Settings"],
     ] as const) {
       runPaletteAction(label);
       expect(await screen.findByRole("region", { name: panel })).toBeInTheDocument();
@@ -143,42 +151,51 @@ describe("command palette → dock panels", () => {
     }
   });
 
+  it("lands on the requested tab, not just the section", async () => {
+    render(<Harness />);
+
+    runPaletteAction("Open Monitor › Geofences");
+
+    expect(await screen.findByRole("region", { name: "Monitor" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Geofences/ })).toHaveAttribute("aria-selected", "true");
+  });
+
   it("is idempotent — opening the panel that is already open leaves it open", async () => {
     render(<Harness />);
 
-    runPaletteAction("Open Monitor panel");
+    runPaletteAction("Open Monitor › Incidents");
     expect(await screen.findByRole("region", { name: "Monitor" })).toBeInTheDocument();
 
-    runPaletteAction("Open Monitor panel");
+    runPaletteAction("Open Monitor › Incidents");
 
     expect(screen.getByRole("region", { name: "Monitor" })).toBeInTheDocument();
-    expect(cluster("Monitor")).toHaveAttribute("aria-expanded", "true");
+    expect(sectionButton("Monitor")).toHaveAttribute("aria-expanded", "true");
   });
 
   it("closes whichever panel is open", async () => {
     render(<Harness />);
 
-    runPaletteAction("Open Settings panel");
+    runPaletteAction("Open Settings › Visibility");
     expect(await screen.findByRole("region", { name: "Settings" })).toBeInTheDocument();
 
-    runPaletteAction("Close dock panel");
+    runPaletteAction("Collapse dock section");
 
     await waitFor(() => expect(openPanels()).toEqual([]));
-    expect(cluster("Settings")).toHaveAttribute("aria-expanded", "false");
+    expect(sectionButton("Settings")).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("shares state with the dock's buttons: the active cluster still closes it", async () => {
+  it("shares state with the dock's buttons: collapsing the section closes it", async () => {
     render(<Harness />);
 
-    runPaletteAction("Open Monitor panel");
+    runPaletteAction("Open Monitor › Incidents");
     expect(await screen.findByRole("region", { name: "Monitor" })).toBeInTheDocument();
 
-    // Clicking the cluster the palette activated toggles it shut — the two are
-    // the same state, not two copies of it.
-    fireEvent.click(cluster("Monitor"));
+    // Collapsing the section the palette expanded closes its panel — the two
+    // are the same state, not two copies of it.
+    fireEvent.click(cluster("Collapse Monitor"));
 
     await waitFor(() => expect(openPanels()).toEqual([]));
-    expect(cluster("Monitor")).toHaveAttribute("aria-expanded", "false");
+    expect(sectionButton("Monitor")).toHaveAttribute("aria-expanded", "false");
   });
 
   it("switches panels without reading the dock's markup", async () => {
@@ -186,7 +203,7 @@ describe("command palette → dock panels", () => {
     render(<Harness />);
     querySelector.mockClear();
 
-    runPaletteAction("Open Fleet panel");
+    runPaletteAction("Open Fleet › List");
 
     expect(await screen.findByRole("region", { name: "Fleet" })).toBeInTheDocument();
     // The old bridge found the dock's cluster buttons with

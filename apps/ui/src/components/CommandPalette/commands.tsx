@@ -4,17 +4,15 @@ import type { HeatzoneEditor } from "@/hooks/useHeatzoneEditor";
 import { DispatchState } from "@/hooks/useDispatchState";
 import type { InteractionModeKind } from "@/hooks/useInteractionMode";
 import { MODE_LAUNCH_ITEMS, type ModeDescriptor } from "@/Dock/modeDescriptors";
+import { DOCK_SECTIONS } from "@/Dock/dockSections";
 import { SPEED_PRESETS, speedDescription } from "@/Dock/tempoScale";
 import type { Modifiers, ReplayStatus, StartOptions } from "@/types";
 import {
-  CarIcon,
-  ChartIcon,
   ClockIcon,
   CloseIcon,
   Directions,
   EyeIcon,
   FastForward,
-  GaugeIcon,
   HeatZone,
   Pause,
   Play,
@@ -245,57 +243,38 @@ export function buildCommands(deps: CommandDeps): PaletteAction[] {
     });
   }
 
-  // ── Dock panels ────────────────────────────────────────────────────
-  actions.push(
-    {
-      id: "panel-tempo",
-      label: "Open Tempo panel",
-      keywords: "clock speed time of day",
-      hint: "Panel",
-      icon: <ClockIcon />,
-      run: () => dock.open("tempo"),
-    },
-    {
-      id: "panel-fleet",
-      label: "Open Fleet panel",
-      keywords: "vehicles fleets dispatch jobs list",
-      hint: "Panel",
-      icon: <CarIcon />,
-      run: () => dock.open("fleet"),
-    },
-    {
-      id: "panel-monitor",
-      label: "Open Monitor panel",
-      keywords: "incidents analytics geofences heat zones faults",
-      hint: "Panel",
-      icon: <ChartIcon />,
-      run: () => dock.open("monitor"),
-    },
-    {
-      id: "panel-session",
-      label: "Open Session panel",
-      keywords: "recordings replay scenarios run",
-      hint: "Panel",
-      icon: <Record />,
-      run: () => dock.open("session"),
-    },
-    {
-      id: "panel-settings",
-      label: "Open Settings panel",
-      keywords: "visibility feeds sinks source adapter kafka graphql advanced tuning",
-      hint: "Panel",
-      icon: <GaugeIcon />,
-      run: () => dock.open("settings"),
-    },
-    {
-      id: "panel-close",
-      label: "Close dock panel",
-      keywords: "dismiss hide",
-      hint: "Panel",
-      icon: <CloseIcon />,
-      run: dock.close,
+  // ── Dock sections ──────────────────────────────────────────────────
+  // One entry per section *button*, straight off the same registry the dock
+  // row is built from — so every view the dock can show is reachable by name,
+  // and a new tab needs no palette work.
+  actions.push({
+    id: "panel-tempo",
+    label: "Open Tempo panel",
+    keywords: "clock speed time of day",
+    hint: "Panel",
+    icon: <ClockIcon />,
+    run: dock.toggleTempo,
+  });
+  for (const section of DOCK_SECTIONS) {
+    for (const tab of section.tabs) {
+      actions.push({
+        id: `panel-${section.id}-${tab.id}`,
+        label: `Open ${section.label} › ${tab.label}`,
+        keywords: `${section.label} ${tab.label} panel dock section`,
+        hint: section.label,
+        icon: section.icon,
+        run: () => dock.open(section.id, tab.id),
+      });
     }
-  );
+  }
+  actions.push({
+    id: "panel-close",
+    label: "Collapse dock section",
+    keywords: "dismiss hide close panel",
+    hint: "Panel",
+    icon: <CloseIcon />,
+    run: dock.close,
+  });
 
   // ── Map modes ──────────────────────────────────────────────────────
   // The same four the dock's launcher offers, with the same labels — plus the

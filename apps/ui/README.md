@@ -77,15 +77,26 @@ SimulationService (src/utils/client.ts) — singleton HttpClient + WebSocketClie
     │
 App.tsx — layout, WS lifecycle, vehicle filters/selection, dispatch/geofence/…
     │
-    ├── Dock (src/Dock/) — the bottom bar: transport + tempo on the left, a
-    │                      state-adaptive centre slot (mode launcher / active
-    │                      mode / replay transport / discard prompt), and the
-    │                      Fleet / Monitor / Session / Settings panel clusters
+    ├── Dock (src/Dock/) — the bottom row: an action surface (new dispatch /
+    │                      job / zone), the main dock (transport, tempo, and a
+    │                      context slot that opens for an active mode, a replay
+    │                      or a pending discard), and the sections dock whose
+    │                      four keys unfold their own buttons and panel
     ├── Controls (src/Controls/) — the panel bodies (vehicles, fleets, jobs,
     │                              incidents, analytics, geofences, faults, …)
     ├── Map (src/Map/ + src/components/Map/) — deck.gl WebGL canvas + layers
-    └── SearchBar / Zoom / legends / SessionTimeline
+    └── SearchBar / Zoom / legends / StatusLeds / SessionTimeline
 ```
+
+### Dock anatomy
+
+`Dock/dockSections.tsx` is the registry: each section (Fleet, Monitor, Session,
+Settings) declares its buttons and its panel width, and nothing in it depends on
+live data, so a section always unfolds to the same bar. Counts arrive separately
+as badges on those fixed buttons. Every floating piece is a `DockSurface`, and
+every panel is an `AnchoredPanel` lined up with the button that opened it. Health
+lamps (`StatusLeds`) sit in the top-right corner rather than on the row, since
+they are read and never pressed.
 
 ### Map modes
 

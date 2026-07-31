@@ -72,15 +72,18 @@ function DockHarness(props: Omit<DockProps, "navigation">) {
 }
 
 /**
- * Open the panel the adapter UI now lives in. "Sinks & Source" stopped being
- * its own cluster in the state-adaptive dock: feed health reads on the status
- * chips and the configuration is a Settings tab.
+ * Open the view the adapter UI now lives in. "Sinks & Source" stopped being its
+ * own cluster: feed health reads on the status chips, and the configuration is
+ * the Settings dock's "Feeds & sinks" button.
  */
 async function openAdapterPanel(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "Settings" }));
   expect(await screen.findByRole("region", { name: "Settings" })).toBeInTheDocument();
   await user.click(screen.getByRole("tab", { name: "Feeds & sinks" }));
 }
+
+/** The section key itself carries `aria-expanded`, open or not. */
+const sectionKey = (name: string) => screen.getByRole("button", { name });
 
 describe("adapter panel <-> other panel switching", () => {
   beforeEach(() => {
@@ -92,10 +95,7 @@ describe("adapter panel <-> other panel switching", () => {
     render(<DockHarness {...createDockProps()} />);
 
     await openAdapterPanel(user);
-    expect(screen.getByRole("button", { name: "Settings" })).toHaveAttribute(
-      "aria-expanded",
-      "true"
-    );
+    expect(sectionKey("Settings")).toHaveAttribute("aria-expanded", "true");
 
     // One click on a different cluster must land on that cluster. The bug was
     // that the adapter drawer's own close handler fired afterwards and reset
@@ -103,10 +103,7 @@ describe("adapter panel <-> other panel switching", () => {
     await user.click(screen.getByRole("button", { name: "Monitor" }));
 
     expect(await screen.findByRole("region", { name: "Monitor" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Monitor" })).toHaveAttribute(
-      "aria-expanded",
-      "true"
-    );
+    expect(sectionKey("Monitor")).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("button", { name: "Settings" })).toHaveAttribute(
       "aria-expanded",
       "false"
@@ -124,7 +121,7 @@ describe("adapter panel <-> other panel switching", () => {
 
     await openAdapterPanel(user);
 
-    await user.click(screen.getByRole("button", { name: "Tempo details" }));
+    await user.click(screen.getByRole("button", { name: /Tempo/ }));
 
     expect(await screen.findByRole("region", { name: "Tempo" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Settings" })).not.toBeInTheDocument();
@@ -143,12 +140,12 @@ describe("adapter panel <-> other panel switching", () => {
     expect(screen.queryByRole("region", { name: "Monitor" })).not.toBeInTheDocument();
   });
 
-  it("still closes the adapter panel when its own cluster is clicked again", async () => {
+  it("still closes the adapter panel when its own section is collapsed", async () => {
     const user = userEvent.setup();
     render(<DockHarness {...createDockProps()} />);
 
     await openAdapterPanel(user);
-    await user.click(screen.getByRole("button", { name: "Settings" }));
+    await user.click(sectionKey("Settings"));
 
     await waitFor(() =>
       expect(screen.queryByRole("region", { name: "Settings" })).not.toBeInTheDocument()

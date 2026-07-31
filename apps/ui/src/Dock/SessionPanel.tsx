@@ -1,40 +1,28 @@
-import { useState, type ComponentProps } from "react";
+import type { ComponentProps } from "react";
 import RecordReplay from "@/Controls/RecordReplay";
 import ScenariosPanel from "@/Controls/ScenariosPanel";
 import { SuppressPanelHeader } from "@/Controls/PanelPrimitives";
-import { PanelHead, PanelScroll, PanelTabStrip, type PanelTab } from "./DockPanelKit";
+import { PanelScroll } from "./DockPanelKit";
+import type { SessionTabId } from "./dockSections";
 
 export interface SessionPanelProps {
+  tab: SessionTabId;
   recordings: ComponentProps<typeof RecordReplay>;
 }
 
-type SessionTabId = "recordings" | "scenarios";
-
 /**
- * Session panel — the run itself. Recordings and scenarios both *change what
- * the simulation is doing*, so filing them under Settings (next to layer
- * visibility and physics sliders) mislabelled them as preferences. They live
- * here, one cluster away from the transport controls that share their job.
+ * Contents of the Session panel — the run itself. Recordings and scenarios
+ * both *change what the simulation is doing*, so filing them under Settings
+ * (next to layer visibility and physics sliders) mislabelled them as
+ * preferences. The Session dock's two buttons switch between them.
  */
-export default function SessionPanel({ recordings }: SessionPanelProps) {
-  const [tab, setTab] = useState<SessionTabId>("recordings");
-
-  const tabs: PanelTab<SessionTabId>[] = [
-    { id: "recordings", label: "Recordings" },
-    { id: "scenarios", label: "Scenarios" },
-  ];
-  const activeLabel = tabs.find((t) => t.id === tab)?.label ?? "Recordings";
-
+export default function SessionPanel({ tab, recordings }: SessionPanelProps) {
   return (
-    <>
-      <PanelHead eyebrow="Session" title={activeLabel} />
-      <PanelTabStrip tabs={tabs} value={tab} onChange={setTab} ariaLabel="Session sections" />
-      <PanelScroll>
-        <SuppressPanelHeader>
-          {tab === "recordings" && <RecordReplay {...recordings} />}
-          {tab === "scenarios" && <ScenariosPanel />}
-        </SuppressPanelHeader>
-      </PanelScroll>
-    </>
+    <PanelScroll>
+      <SuppressPanelHeader>
+        {tab === "recordings" && <RecordReplay {...recordings} />}
+        {tab === "scenarios" && <ScenariosPanel />}
+      </SuppressPanelHeader>
+    </PanelScroll>
   );
 }
