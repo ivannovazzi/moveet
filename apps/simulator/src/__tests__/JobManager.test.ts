@@ -15,13 +15,24 @@ class FakeVehicles extends EventEmitter implements JobVehicleGateway {
   unroutable = new Set<string>();
   /** vehicleId → ETA seconds returned by the probe. */
   etas = new Map<string, number>();
+  /**
+   * The fault-projected roster the WS/REST surface serves, when a test arms
+   * one. Deliberately allowed to disagree with the true roster so a test can
+   * prove which of the two assignment actually scores.
+   */
+  reported: VehicleDTO[] | null = null;
 
   constructor(private roster: VehicleDTO[]) {
     super();
   }
 
-  getVehicles(): VehicleDTO[] {
+  getTrueVehicles(): VehicleDTO[] {
     return this.roster;
+  }
+
+  /** The observer's view. Not an assignment input — here as the wrong answer. */
+  getVehicles(): VehicleDTO[] {
+    return this.reported ?? this.roster;
   }
 
   async findAndSetWaypointRoutes(
@@ -169,6 +180,41 @@ describe("JobManager", () => {
       });
 
       expect(job.vehicleId).toBe("near");
+    });
+
+    /**
+     * A device fault changes what a vehicle REPORTS, not where it is. Dispatch
+     * is the simulator's own decision, so arming a fault profile must not move
+     * a job onto a different unit.
+     */
+    it("scores true positions rather than the device-reported fix under nearest", async () => {
+      setup([vehicle("spoofed", 0.11, 0.11), vehicle("other", 1, 1)]);
+      // The spoofed device claims to be 9 degrees out; the vehicle has not moved.
+      vehicles.reported = [vehicle("spoofed", 9, 9), vehicle("other", 1, 1)];
+
+      const job = await manager.createJob({ pickup: PICKUP, dropoff: DROPOFF });
+
+      expect(job.vehicleId).toBe("spoofed");
+    });
+
+    it("shortlists best_eta probes from the positions the probe itself uses", async () => {
+      // Seven candidates, so the ETA shortlist actually truncates and a
+      // mis-scored unit is dropped before it is ever probed.
+      const fillers = [1, 2, 3, 4, 5, 6].map((n) => vehicle(`f${n}`, n, n));
+      setup([vehicle("spoofed", 0.11, 0.11), ...fillers]);
+      vehicles.reported = [vehicle("spoofed", 9, 9), ...fillers];
+      // estimateTo pathfinds from the TRUE position and rates the truly-nearest
+      // unit quickest, so the shortlist has to agree about where it is.
+      vehicles.etas.set("spoofed", 60);
+      for (const filler of fillers) vehicles.etas.set(filler.id, 900);
+
+      const job = await manager.createJob({
+        pickup: PICKUP,
+        dropoff: DROPOFF,
+        strategy: "best_eta",
+      });
+
+      expect(job.vehicleId).toBe("spoofed");
     });
 
     it("uses the named vehicle and marks the job manual when vehicleId is given", async () => {

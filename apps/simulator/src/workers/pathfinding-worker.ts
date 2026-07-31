@@ -1,9 +1,9 @@
 /**
  * Worker thread for A* pathfinding on the road network.
  *
- * Receives the GeoJSON path via `workerData`, builds a lightweight adjacency
- * graph (no circular references), and processes route requests from the main
- * thread.
+ * Receives its bootstrap settings via `workerData` (see
+ * {@link PathfindingWorkerData}), builds a lightweight adjacency graph (no
+ * circular references), and processes route requests from the main thread.
  *
  * Protocol:
  *   Request:  { type: 'findRoute', id: number, startId: string, endId: string, incidentEdges?: Record<string, number> }
@@ -26,11 +26,12 @@
  *
  * The A* heuristic is ALT (landmarks + triangle inequality) with the original
  * haversine bound as a floor; the preprocessing itself is shared with the main
- * thread via `../modules/pathfinding/landmarks`. Because `PathfindingPool` sends
- * workers nothing but `{ geojsonPath }`, each worker recomputes its own landmark
- * tables from the same GeoJSON. Selection is deterministic, so all copies are
- * identical — but they are also duplicated per worker (see the memory note in
- * apps/simulator/CLAUDE.md).
+ * thread via `../modules/pathfinding/landmarks`. The landmark COUNT arrives in
+ * `workerData` (parsed from `PATHFINDING_LANDMARKS` by the zod schema on the
+ * main thread — the bundle must not import that module), but the tables
+ * themselves are recomputed here from the same GeoJSON. Selection is
+ * deterministic, so all copies are identical — but they are also duplicated per
+ * worker (see the memory note in apps/simulator/CLAUDE.md).
  */
 
 import { parentPort, workerData } from "worker_threads";
@@ -41,9 +42,9 @@ import { PathNodeHeap } from "../modules/pathfinding/heap";
 import {
   AltHeuristic,
   type LandmarkIndex,
+  DEFAULT_LANDMARK_COUNT,
   buildCsrPair,
   buildLandmarkIndex,
-  resolveLandmarkCount,
   sortedNodeIds,
 } from "../modules/pathfinding/landmarks";
 import {
@@ -53,6 +54,31 @@ import {
   VALID_HIGHWAYS,
 } from "../modules/roadnetwork/types";
 import type { HighwayType } from "../types";
+
+// ---------------------------------------------------------------------------
+// Bootstrap contract
+// ---------------------------------------------------------------------------
+
+/**
+ * Everything `PathfindingPool` hands a worker at spawn time.
+ *
+ * This is the ONLY channel by which configuration reaches a worker: the bundle
+ * must stay free of the zod/dotenv/pino config module (see the header above and
+ * `scripts/build-worker.mjs`), so `PathfindingPool` resolves settings on the
+ * main thread and passes the resolved values here. `PathfindingPool` imports
+ * this interface as a type, which erases at build time and cannot pull the pool
+ * (and its logger) into the worker bundle.
+ */
+export interface PathfindingWorkerData {
+  /** Path to the GeoJSON road network the worker builds its graph from. */
+  geojsonPath: string;
+  /**
+   * ALT landmarks to precompute, already parsed and clamped from
+   * `PATHFINDING_LANDMARKS` by the zod schema in `utils/config.ts`. `0`
+   * disables preprocessing and restores the pure-haversine heuristic.
+   */
+  landmarkCount?: number;
+}
 
 // ---------------------------------------------------------------------------
 // Lightweight graph types (no circular refs)
@@ -133,7 +159,10 @@ function calculateDistance(p1: [number, number], p2: [number, number]): number {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function buildGraph(geojsonPath: string): Map<string, WorkerNode> {
+function buildGraph(
+  geojsonPath: string,
+  landmarkCount: number = DEFAULT_LANDMARK_COUNT
+): Map<string, WorkerNode> {
   const data: FeatureCollection = JSON.parse(fs.readFileSync(geojsonPath, "utf8"));
   const nodes = new Map<string, WorkerNode>();
 
@@ -264,7 +293,7 @@ function buildGraph(geojsonPath: string): Map<string, WorkerNode> {
 
   // ALT landmark preprocessing over the static base costs (see
   // ../modules/pathfinding/landmarks.ts for the admissibility argument).
-  _alt = buildWorkerLandmarks(nodes);
+  _alt = buildWorkerLandmarks(nodes, landmarkCount);
 
   return nodes;
 }
@@ -278,8 +307,10 @@ function buildGraph(geojsonPath: string): Map<string, WorkerNode> {
  * (`smoothnessFactor === 0` excluded, exactly as the A* loop excludes them),
  * same selection — so both sides derive identical tables from identical GeoJSON.
  */
-function buildWorkerLandmarks(nodes: Map<string, WorkerNode>): AltHeuristic | null {
-  const requested = resolveLandmarkCount();
+function buildWorkerLandmarks(
+  nodes: Map<string, WorkerNode>,
+  requested: number
+): AltHeuristic | null {
   const nodeCount = nodes.size;
   if (requested <= 0 || nodeCount === 0) return null;
 
@@ -457,8 +488,8 @@ function findRoute(
 // ---------------------------------------------------------------------------
 
 if (parentPort) {
-  const geojsonPath: string = workerData.geojsonPath;
-  const nodes = buildGraph(geojsonPath);
+  const { geojsonPath, landmarkCount } = workerData as PathfindingWorkerData;
+  const nodes = buildGraph(geojsonPath, landmarkCount);
 
   parentPort.on(
     "message",

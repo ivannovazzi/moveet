@@ -66,18 +66,21 @@ export const DEFAULT_LANDMARK_COUNT = 4;
 export const MAX_LANDMARK_COUNT = 32;
 
 /**
- * Landmark count from the environment.
+ * Parses and clamps a raw `PATHFINDING_LANDMARKS` value.
  *
- * Read straight from `process.env` rather than `utils/config.ts` on purpose:
- * the pathfinding worker is an esbuild bundle that deliberately avoids pulling
- * in the zod/dotenv/logger config module, and `PathfindingPool` passes the
- * worker nothing but `{ geojsonPath }`, so the worker has no other way to learn
- * the setting. `0` disables ALT entirely and restores the pure-haversine
- * heuristic.
+ * `0` disables ALT entirely and restores the pure-haversine heuristic; blank,
+ * malformed and negative values fall back to the default; anything above
+ * {@link MAX_LANDMARK_COUNT} is clamped rather than rejected.
+ *
+ * This lives beside the constants that define the range and is called by the
+ * zod env schema in `utils/config.ts` — the ONE place the variable is read from
+ * the environment. The dependency deliberately runs config → landmarks and never
+ * the reverse: this module is bundled into the pathfinding worker (esbuild),
+ * which must stay free of zod/dotenv/pino. The worker is handed the resolved
+ * number through `workerData` (see `PathfindingPool`), so nothing on this side
+ * of the boundary touches `process.env`.
  */
-export function resolveLandmarkCount(
-  raw: string | undefined = process.env.PATHFINDING_LANDMARKS
-): number {
+export function resolveLandmarkCount(raw: string | undefined): number {
   if (raw === undefined || raw.trim() === "") return DEFAULT_LANDMARK_COUNT;
   const parsed = Number.parseInt(raw, 10);
   if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_LANDMARK_COUNT;

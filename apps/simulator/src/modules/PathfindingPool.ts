@@ -4,6 +4,10 @@
  * Distributes route requests across N workers via round-robin, each worker
  * holding its own copy of the road-network graph. The main thread only
  * sends lightweight { startId, endId } messages and receives { edgeIds, distance }.
+ *
+ * Workers run as a self-contained esbuild bundle that must not import the
+ * zod/dotenv/pino config module, so anything they need from the environment is
+ * resolved here and handed over in `workerData` ({@link PathfindingWorkerData}).
  */
 
 import { Worker } from "worker_threads";
@@ -11,6 +15,8 @@ import { fileURLToPath } from "url";
 import fs from "fs";
 import path from "path";
 import os from "os";
+import { DEFAULT_LANDMARK_COUNT } from "./pathfinding/landmarks";
+import type { PathfindingWorkerData } from "../workers/pathfinding-worker";
 import logger from "../utils/logger";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -41,6 +47,12 @@ export interface PathfindingPoolOptions {
   requestTimeoutMs?: number;
   /** Maximum number of pending requests before new ones are rejected. */
   maxPendingRequests?: number;
+  /**
+   * ALT landmarks each worker precomputes; `0` disables the preprocessing.
+   * `RoadNetwork` passes `config.pathfindingLandmarks` (the parsed, clamped
+   * `PATHFINDING_LANDMARKS`) so the workers and the main-thread graph agree.
+   */
+  landmarkCount?: number;
 }
 
 export class PathfindingPool {
@@ -55,14 +67,17 @@ export class PathfindingPool {
   constructor(geojsonPath: string, options?: PathfindingPoolOptions | number) {
     // Support legacy signature: constructor(geojsonPath, poolSize?)
     let poolSize: number | undefined;
+    let landmarkCount: number;
     if (typeof options === "number") {
       poolSize = options;
       this.requestTimeoutMs = DEFAULT_REQUEST_TIMEOUT_MS;
       this.maxPendingRequests = DEFAULT_MAX_PENDING_REQUESTS;
+      landmarkCount = DEFAULT_LANDMARK_COUNT;
     } else {
       poolSize = options?.poolSize;
       this.requestTimeoutMs = options?.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
       this.maxPendingRequests = options?.maxPendingRequests ?? DEFAULT_MAX_PENDING_REQUESTS;
+      landmarkCount = options?.landmarkCount ?? DEFAULT_LANDMARK_COUNT;
     }
 
     const size = poolSize ?? Math.min(os.cpus().length, 4);
@@ -89,10 +104,10 @@ export class PathfindingPool {
       workerCandidates.find((p) => fs.existsSync(p)) ??
       workerCandidates[workerCandidates.length - 1];
 
+    const workerData: PathfindingWorkerData = { geojsonPath, landmarkCount };
+
     for (let i = 0; i < size; i++) {
-      const worker = new Worker(workerPath, {
-        workerData: { geojsonPath },
-      });
+      const worker = new Worker(workerPath, { workerData });
 
       worker.on("message", (msg: { type: string; id: number; route: PathfindingResult | null }) => {
         if (msg.type === "result") {

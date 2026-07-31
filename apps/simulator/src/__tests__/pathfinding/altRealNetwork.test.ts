@@ -13,9 +13,11 @@ import { sortedNodeIds } from "../../modules/pathfinding/landmarks";
  * only place the landmark work is exercised at production scale, which is where
  * both the payoff and the risk live:
  *
- *  1. Routes must be IDENTICAL to the pre-ALT heuristic. `PATHFINDING_LANDMARKS=0`
- *     restores exactly the old haversine bound, so an L=0 run is a faithful
- *     baseline. Over long random cross-city pairs this doubles as the empirical
+ *  1. Routes must be IDENTICAL to the pre-ALT heuristic. A landmark count of 0
+ *     (`PATHFINDING_LANDMARKS=0`) restores exactly the old haversine bound, so
+ *     an L=0 run is a faithful baseline. The count is passed straight to
+ *     `RoadNetwork`, the same way `config.pathfindingLandmarks` reaches it in
+ *     production. Over long random cross-city pairs this doubles as the empirical
  *     admissibility check — an overestimating heuristic would surface as a
  *     different (costlier) path.
  *  2. Nodes expanded per route must drop substantially.
@@ -68,54 +70,26 @@ function describeRoute(route: { edges: Edge[]; distance: number } | null): strin
  * comparison battery against it. The `RoadNetwork` stays local so the ~750 MB
  * graph is collectable before the next build.
  */
-function collect(landmarkCount: string): Collected {
-  const previous = process.env.PATHFINDING_LANDMARKS;
-  process.env.PATHFINDING_LANDMARKS = landmarkCount;
-  try {
-    const started = Date.now();
-    const network = new RoadNetwork(networkPath);
-    const buildMs = Date.now() - started;
+function collect(landmarkCount: number): Collected {
+  const started = Date.now();
+  const network = new RoadNetwork(networkPath, { landmarkCount });
+  const buildMs = Date.now() - started;
 
-    // @ts-expect-error — private graph, as the other RoadNetwork tests do.
-    const nodes = network.nodes as Map<string, Node>;
-    // Sorted ids make the sample identical across builds.
-    const ids = sortedNodeIds(nodes.keys());
-    const random = mulberry32(20260725);
+  // @ts-expect-error — private graph, as the other RoadNetwork tests do.
+  const nodes = network.nodes as Map<string, Node>;
+  // Sorted ids make the sample identical across builds.
+  const ids = sortedNodeIds(nodes.keys());
+  const random = mulberry32(20260725);
 
-    const pairs: Array<[string, string]> = [];
-    while (pairs.length < PAIRS) {
-      const a = ids[Math.floor(random() * ids.length)];
-      const b = ids[Math.floor(random() * ids.length)];
-      if (a !== b) pairs.push([a, b]);
-    }
+  const pairs: Array<[string, string]> = [];
+  while (pairs.length < PAIRS) {
+    const a = ids[Math.floor(random() * ids.length)];
+    const b = ids[Math.floor(random() * ids.length)];
+    if (a !== b) pairs.push([a, b]);
+  }
 
-    const run = (): PairResult[] =>
-      pairs.map(([startId, endId]) => {
-        const route = network.findRoute(nodes.get(startId)!, nodes.get(endId)!);
-        return {
-          key: `${startId}->${endId}`,
-          route: describeRoute(route),
-          expanded: network.lastExpandedNodes,
-        };
-      });
-
-    const plain = run();
-
-    // Incident set derived from the first route's own edges, so it actually
-    // perturbs the search rather than penalising untravelled roads. Because the
-    // routes are asserted identical, both runs derive the identical set — which
-    // the test verifies rather than assumes.
-    const firstRoute = network.findRoute(nodes.get(pairs[0][0])!, nodes.get(pairs[0][1])!);
-    const routeEdgeIds = firstRoute ? firstRoute.edges.map((e) => e.id) : [];
-    const incidents = new Map<string, number>();
-    routeEdgeIds.forEach((id, i) => {
-      // Mix slowdowns with hard closures so both dynamic-cost branches are hit.
-      if (i % 7 === 0) incidents.set(id, 0);
-      else if (i % 3 === 0) incidents.set(id, 0.2);
-    });
-    network.setIncidentEdges(new Map(incidents));
-
-    const withIncidents = pairs.slice(0, INCIDENT_PAIRS).map(([startId, endId]) => {
+  const run = (): PairResult[] =>
+    pairs.map(([startId, endId]) => {
       const route = network.findRoute(nodes.get(startId)!, nodes.get(endId)!);
       return {
         key: `${startId}->${endId}`,
@@ -124,17 +98,38 @@ function collect(landmarkCount: string): Collected {
       };
     });
 
+  const plain = run();
+
+  // Incident set derived from the first route's own edges, so it actually
+  // perturbs the search rather than penalising untravelled roads. Because the
+  // routes are asserted identical, both runs derive the identical set — which
+  // the test verifies rather than assumes.
+  const firstRoute = network.findRoute(nodes.get(pairs[0][0])!, nodes.get(pairs[0][1])!);
+  const routeEdgeIds = firstRoute ? firstRoute.edges.map((e) => e.id) : [];
+  const incidents = new Map<string, number>();
+  routeEdgeIds.forEach((id, i) => {
+    // Mix slowdowns with hard closures so both dynamic-cost branches are hit.
+    if (i % 7 === 0) incidents.set(id, 0);
+    else if (i % 3 === 0) incidents.set(id, 0.2);
+  });
+  network.setIncidentEdges(new Map(incidents));
+
+  const withIncidents = pairs.slice(0, INCIDENT_PAIRS).map(([startId, endId]) => {
+    const route = network.findRoute(nodes.get(startId)!, nodes.get(endId)!);
     return {
-      plain,
-      withIncidents,
-      incidentEdgeIds: [...incidents.keys()].sort(),
-      nodeCount: nodes.size,
-      buildMs,
+      key: `${startId}->${endId}`,
+      route: describeRoute(route),
+      expanded: network.lastExpandedNodes,
     };
-  } finally {
-    if (previous === undefined) delete process.env.PATHFINDING_LANDMARKS;
-    else process.env.PATHFINDING_LANDMARKS = previous;
-  }
+  });
+
+  return {
+    plain,
+    withIncidents,
+    incidentEdgeIds: [...incidents.keys()].sort(),
+    nodeCount: nodes.size,
+    buildMs,
+  };
 }
 
 const totals = (results: PairResult[]): number => results.reduce((sum, r) => sum + r.expanded, 0);
@@ -153,8 +148,8 @@ describe.skipIf(!hasRealNetwork)("ALT landmarks on the real road network", () =>
   it(
     "produces byte-identical routes to the pre-ALT haversine heuristic",
     () => {
-      baseline = collect("0");
-      withAlt = collect("4");
+      baseline = collect(0);
+      withAlt = collect(4);
 
       expect(withAlt.nodeCount).toBe(baseline.nodeCount);
       expect(withAlt.plain.length).toBe(PAIRS);
