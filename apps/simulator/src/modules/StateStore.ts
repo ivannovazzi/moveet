@@ -3,6 +3,26 @@ import fs from "fs";
 import path from "path";
 import logger from "../utils/logger";
 import type { AnalyticsSummary, FleetAnalytics, RecordingMetadata } from "../types";
+import {
+  ANALYTICS_BUCKET_AGGREGATION,
+  type AnalyticsBucketInfo,
+  type AnalyticsBucketMeta,
+  type AnalyticsHistoryMeta,
+  type AnalyticsHistoryRow,
+  type AnalyticsOrder,
+} from "@moveet/shared-types";
+
+// Re-exported so the routes and tests that already read the analytics contract
+// from this module keep one import site; the declarations themselves are the
+// shared ones.
+export {
+  ANALYTICS_BUCKET_AGGREGATION,
+  type AnalyticsBucketInfo,
+  type AnalyticsBucketMeta,
+  type AnalyticsHistoryMeta,
+  type AnalyticsHistoryRow,
+  type AnalyticsOrder,
+};
 
 /**
  * Shape of a simulation state snapshot.
@@ -23,122 +43,12 @@ export interface SnapshotMeta {
 
 export interface SnapshotRow extends SnapshotMeta, SnapshotData {}
 
-export interface AnalyticsHistoryRow {
-  id: number;
-  timestamp: string;
-  summary: AnalyticsSummary;
-  fleets: FleetAnalytics[];
-  /**
-   * Present only on downsampled rows. Its absence means the row is a verbatim
-   * stored sample.
-   */
-  bucket?: AnalyticsBucketInfo;
-}
-
 // ─── Analytics history query shaping ────────────────────────────────
-
-/** Sort order of the rows handed back by {@link StateStore.getAnalyticsHistory}. */
-export type AnalyticsOrder = "asc" | "desc";
-
-/** Provenance of a single downsampled row. */
-export interface AnalyticsBucketInfo {
-  /** Bucket width in milliseconds. */
-  durationMs: number;
-  /** Canonical width label, e.g. `"5m"`. */
-  label: string;
-  /** ISO start of the bucket window (inclusive). */
-  start: string;
-  /** ISO end of the bucket window (exclusive). */
-  end: string;
-  /** Stored samples folded into this row. */
-  sampleCount: number;
-  /** ISO timestamp of the oldest sample folded in. */
-  firstTimestamp: string;
-  /** ISO timestamp of the newest sample folded in. */
-  lastTimestamp: string;
-}
-
-/**
- * How each analytics field is folded when a query is bucketed.
- *
- * The distinction matters: `totalDistanceTraveled` and `totalIdleTime` are
- * monotonically accumulating counters — averaging them would understate the
- * fleet and break monotonicity, so the bucket keeps the LAST value. Gauges
- * (`activeVehicles`, `avgSpeed`, `avgRouteEfficiency`) are averaged across the
- * samples in the bucket. `totalVehicles` is a slow-moving gauge (fleet size),
- * so the last value is the honest representative rather than a fractional mean.
- *
- * `fleets[].vehicles` (the per-vehicle `VehicleStats[]`) is NOT aggregated: it
- * is a point-in-time array mixing cumulative counters with per-vehicle gauges
- * and there is no meaningful element-wise fold, so the newest sample's array is
- * carried through verbatim.
- *
- * Shipped inside the response metadata so a caller can never mistake a bucketed
- * counter for a mean.
- */
-export const ANALYTICS_BUCKET_AGGREGATION = {
-  "summary.totalVehicles": "last",
-  "summary.activeVehicles": "mean",
-  "summary.totalDistanceTraveled": "last (cumulative counter)",
-  "summary.avgSpeed": "mean",
-  "summary.totalIdleTime": "last (cumulative counter)",
-  "summary.avgRouteEfficiency": "mean",
-  "summary.timestamp": "bucket start",
-  "fleets[].vehicleCount": "last",
-  "fleets[].activeCount": "mean",
-  "fleets[].totalDistance": "last (cumulative counter)",
-  "fleets[].avgSpeed": "mean",
-  "fleets[].totalIdleTime": "last (cumulative counter)",
-  "fleets[].routeEfficiency": "mean",
-  "fleets[].vehicles": "last (not aggregated)",
-} as const;
-
-/** Bucket summary attached to the metadata of a downsampled query. */
-export interface AnalyticsBucketMeta {
-  durationMs: number;
-  label: string;
-  /** Buckets in the payload. */
-  count: number;
-  /** Stored samples folded into those buckets. */
-  sampleCount: number;
-  /** True when the width was derived from the data rather than requested. */
-  auto: boolean;
-  aggregation: typeof ANALYTICS_BUCKET_AGGREGATION;
-}
-
-/**
- * Everything the caller needs to know about what the query did NOT return.
- *
- * A limited query is answered from the RECENT end of the window, so anything
- * omitted is always older than the payload.
- */
-export interface AnalyticsHistoryMeta {
-  /** Stored rows inside the requested window, before limiting or bucketing. */
-  matched: number;
-  /** Stored rows actually read (and therefore represented in the payload). */
-  scanned: number;
-  /** Entries in the payload (buckets when bucketed, rows otherwise). */
-  returned: number;
-  /** Stored rows in the window that are NOT represented at all. */
-  omitted: number;
-  /** True whenever `omitted > 0` — i.e. the payload is not the whole window. */
-  truncated: boolean;
-  /** Which end of the window survives the limit. Always the newest. */
-  anchor: "newest";
-  /** Limit actually applied after clamping to [1, 10000]. */
-  limit: number;
-  order: AnalyticsOrder;
-  /** Echo of the requested window (`null` = unbounded). */
-  from: string | null;
-  to: string | null;
-  /** Span the payload actually covers (`null` when empty). */
-  coveredFrom: string | null;
-  coveredTo: string | null;
-  /** Oldest/newest stored timestamps inside the requested window. */
-  windowFrom: string | null;
-  windowTo: string | null;
-  bucket: AnalyticsBucketMeta | null;
-}
+//
+// The row, bucket and metadata shapes are the wire contract with the UI, so
+// they live in `@moveet/shared-types` (see its `rest.ts`) rather than here.
+// Only the store-internal pieces below — how a query is asked for, and how the
+// result carries its metadata in-process — are simulator-local.
 
 /**
  * Analytics rows plus their metadata.

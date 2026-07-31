@@ -21,7 +21,10 @@ import type {
   IncidentDTO,
   RecordingMetadata,
   ReplayStatus,
+  AnalyticsSummary,
+  FleetAnalytics,
 } from "../index";
+import { ANALYTICS_BUCKET_AGGREGATION, type AnalyticsAggregatedField } from "../rest";
 
 // Helper to assert a value satisfies a type at compile time
 function assertType<T>(_value: T): void {
@@ -377,5 +380,28 @@ describe("VehicleUpdate telemetry fields", () => {
     expectTypeOf(u.accuracy).toEqualTypeOf<number | undefined>();
     expectTypeOf(u.timestamp).toEqualTypeOf<number | undefined>();
     expectTypeOf(u.connected).toEqualTypeOf<boolean | undefined>();
+  });
+});
+
+describe("ANALYTICS_BUCKET_AGGREGATION", () => {
+  // The map is what the simulator ships inside a bucketed response and what the
+  // UI derives its "counter vs mean" labelling from, so a summary field with no
+  // declared fold is a field one of them will silently guess at. This fails to
+  // compile the moment a measure is added without a decision.
+  it("declares a fold for every aggregated analytics field", () => {
+    type SummaryFolds = `summary.${keyof AnalyticsSummary}`;
+    type FleetFolds = `fleets[].${Exclude<keyof FleetAnalytics, "fleetId">}`;
+    assertType<AnalyticsAggregatedField>(null as unknown as SummaryFolds);
+    assertType<AnalyticsAggregatedField>(null as unknown as FleetFolds);
+
+    // `fleetId` is an identifier, not a measure, so it deliberately has none.
+    expect(ANALYTICS_BUCKET_AGGREGATION).not.toHaveProperty("fleets[].fleetId");
+  });
+
+  it("splits cumulative counters from gauges", () => {
+    expect(ANALYTICS_BUCKET_AGGREGATION["summary.totalDistanceTraveled"]).toMatch(/^last/);
+    expect(ANALYTICS_BUCKET_AGGREGATION["summary.totalIdleTime"]).toMatch(/^last/);
+    expect(ANALYTICS_BUCKET_AGGREGATION["summary.avgSpeed"]).toBe("mean");
+    expect(ANALYTICS_BUCKET_AGGREGATION["summary.activeVehicles"]).toBe("mean");
   });
 });

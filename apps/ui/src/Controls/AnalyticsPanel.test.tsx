@@ -2,11 +2,12 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AnalyticsSummary, FleetAnalytics } from "@/hooks/analyticsStore";
-import type {
-  AnalyticsBucketMeta,
-  AnalyticsHistoryMeta,
-  AnalyticsHistoryRow,
-} from "@/hooks/useAnalytics";
+import {
+  ANALYTICS_BUCKET_AGGREGATION,
+  type AnalyticsBucketMeta,
+  type AnalyticsHistoryMeta,
+  type AnalyticsHistoryRow,
+} from "@moveet/shared-types";
 
 const resetAnalytics = vi.fn();
 
@@ -244,6 +245,7 @@ describe("AnalyticsPanel — server-side bucketing", () => {
     count: 3,
     sampleCount: 180,
     auto: true,
+    aggregation: ANALYTICS_BUCKET_AGGREGATION,
   };
 
   function makeBucketedRow(index: number): AnalyticsHistoryRow {

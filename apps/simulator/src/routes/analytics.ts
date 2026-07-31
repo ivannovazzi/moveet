@@ -1,10 +1,11 @@
 import { Router } from "express";
-import { parseBucketSpec } from "../modules/StateStore";
 import type {
+  AnalyticsHistoryEnvelope,
   AnalyticsHistoryMeta,
   AnalyticsHistoryRow,
   AnalyticsOrder,
-} from "../modules/StateStore";
+} from "@moveet/shared-types";
+import { parseBucketSpec } from "../modules/StateStore";
 import type { RouteContext } from "./types";
 
 /**
@@ -127,7 +128,10 @@ export function createAnalyticsRoutes(ctx: RouteContext): Router {
     }
 
     if (envelope) {
-      res.json({ meta: meta ?? null, rows });
+      // Typed against the shared contract, so the body the UI parses and the
+      // body this writes cannot drift apart silently.
+      const body: AnalyticsHistoryEnvelope = { meta: meta ?? null, rows };
+      res.json(body);
       return;
     }
 

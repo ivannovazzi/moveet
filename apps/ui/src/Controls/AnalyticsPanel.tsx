@@ -9,13 +9,13 @@ import {
   type StatDelta,
 } from "@/components/charts";
 import { Eyebrow, SegTabs, StatusDot, Tag, mono, type SegTab } from "@/Dock/DockPanelKit";
+import type { AnalyticsHistoryMeta } from "@moveet/shared-types";
 import type { AnalyticsSummary, FleetAnalytics } from "@/hooks/analyticsStore";
 import {
   ANALYTICS_RANGES,
   describeAggregation,
   useAnalyticsSeries,
   type AnalyticsHistoryFetcher,
-  type AnalyticsHistoryMeta,
   type AnalyticsRange,
 } from "@/hooks/useAnalytics";
 import { cn } from "@/lib/utils";

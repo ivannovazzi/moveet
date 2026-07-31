@@ -3,6 +3,13 @@ import { downsample } from "@/components/charts";
 import type { ApiResponse } from "@/types";
 import { HttpClient } from "@/utils/httpClient";
 import { config as appConfig } from "@/utils/config";
+import {
+  ANALYTICS_BUCKET_AGGREGATION,
+  type AnalyticsBucketMeta,
+  type AnalyticsHistoryMeta,
+  type AnalyticsHistoryPayload,
+  type AnalyticsHistoryRow,
+} from "@moveet/shared-types";
 import { analyticsStore, type AnalyticsSummary, type FleetAnalytics } from "./analyticsStore";
 
 const POLL_INTERVAL_MS = 1000;
@@ -103,80 +110,6 @@ const HISTORY_BUCKET = "auto";
 
 const PERSISTED_REFRESH_MS = 15_000;
 
-/** Provenance of a single downsampled row (absent on verbatim rows). */
-export interface AnalyticsBucketInfo {
-  durationMs: number;
-  /** Canonical width label, e.g. `"5m"`. */
-  label: string;
-  /** ISO start of the bucket window (inclusive). */
-  start: string;
-  /** ISO end of the bucket window (exclusive). */
-  end: string;
-  /** Stored samples folded into this row. */
-  sampleCount: number;
-  firstTimestamp: string;
-  lastTimestamp: string;
-}
-
-/** A row of the simulator's `analytics_history` table. */
-export interface AnalyticsHistoryRow {
-  id: number;
-  /** ISO-8601 row timestamp. On a bucketed row, the bucket start. */
-  timestamp: string;
-  summary: AnalyticsSummary;
-  fleets: FleetAnalytics[];
-  /** Present only when the server aggregated this row. */
-  bucket?: AnalyticsBucketInfo;
-}
-
-/** Bucket summary the server attaches to a downsampled query. */
-export interface AnalyticsBucketMeta {
-  durationMs: number;
-  label: string;
-  /** Buckets in the payload. */
-  count: number;
-  /** Stored samples folded into those buckets. */
-  sampleCount: number;
-  /** True when the width was derived from the data rather than requested. */
-  auto: boolean;
-  /** Per-field aggregation the server used, keyed by dotted field path. */
-  aggregation?: Record<string, string>;
-}
-
-/**
- * What the server did NOT return. A limited query is answered from the RECENT
- * end, so anything omitted is always older than the payload.
- */
-export interface AnalyticsHistoryMeta {
-  matched: number;
-  scanned: number;
-  returned: number;
-  omitted: number;
-  truncated: boolean;
-  anchor: "newest";
-  limit: number;
-  order: "asc" | "desc";
-  from: string | null;
-  to: string | null;
-  coveredFrom: string | null;
-  coveredTo: string | null;
-  windowFrom: string | null;
-  windowTo: string | null;
-  bucket: AnalyticsBucketMeta | null;
-}
-
-/** Body shape returned by `?envelope=true`. */
-export interface AnalyticsHistoryEnvelope {
-  meta: AnalyticsHistoryMeta | null;
-  rows: AnalyticsHistoryRow[];
-}
-
-/**
- * Either body the endpoint can answer with: the enveloped form we ask for, or
- * the bare array a simulator that predates the bucketing work still returns.
- */
-export type AnalyticsHistoryPayload = AnalyticsHistoryRow[] | AnalyticsHistoryEnvelope;
-
 export interface AnalyticsHistoryQuery {
   /** ISO lower bound of the window. */
   from: string;
@@ -234,8 +167,10 @@ export type BucketedMeasure =
   | "avgRouteEfficiency";
 
 /**
- * How the simulator folds each measure when a query is bucketed. Mirrors its
- * `ANALYTICS_BUCKET_AGGREGATION` map.
+ * How the simulator folds each measure when a query is bucketed, DERIVED from
+ * the shared `ANALYTICS_BUCKET_AGGREGATION` contract rather than restated —
+ * the server's own descriptions ("last (cumulative counter)", "mean") narrowed
+ * to the two cases the panel's copy distinguishes.
  *
  * The split matters: `totalDistanceTraveled` and `totalIdleTime` are
  * monotonically accumulating counters, so a bucket keeps their LAST value —
@@ -243,13 +178,20 @@ export type BucketedMeasure =
  * averaged. Presenting the two identically invites reading a counter as a mean,
  * so the panel labels them apart.
  */
-export const BUCKET_AGGREGATION: Record<BucketedMeasure, "mean" | "last"> = {
-  activeVehicles: "mean",
-  avgSpeed: "mean",
-  totalDistanceTraveled: "last",
-  totalIdleTime: "last",
-  avgRouteEfficiency: "mean",
-};
+export const BUCKET_AGGREGATION = Object.fromEntries(
+  (
+    [
+      "activeVehicles",
+      "avgSpeed",
+      "totalDistanceTraveled",
+      "totalIdleTime",
+      "avgRouteEfficiency",
+    ] as const
+  ).map((measure) => [
+    measure,
+    ANALYTICS_BUCKET_AGGREGATION[`summary.${measure}`].startsWith("last") ? "last" : "mean",
+  ])
+) as Record<BucketedMeasure, "mean" | "last">;
 
 /**
  * Hover copy explaining what one plotted point is. `undefined` when the series

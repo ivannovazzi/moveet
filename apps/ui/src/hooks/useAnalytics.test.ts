@@ -1,13 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  ANALYTICS_BUCKET_AGGREGATION,
+  type AnalyticsAggregatedField,
+  type AnalyticsBucketMeta,
+  type AnalyticsHistoryMeta,
+  type AnalyticsHistoryRow,
+} from "@moveet/shared-types";
+import {
   BUCKET_AGGREGATION,
   describeAggregation,
   fetchAnalyticsHistory,
   readHistoryPayload,
   rowsToSeries,
-  type AnalyticsBucketMeta,
-  type AnalyticsHistoryMeta,
-  type AnalyticsHistoryRow,
 } from "./useAnalytics";
 import type { AnalyticsSummary, FleetAnalytics } from "./analyticsStore";
 
@@ -65,6 +69,7 @@ const BUCKET_META: AnalyticsBucketMeta = {
   count: 2,
   sampleCount: 120,
   auto: true,
+  aggregation: ANALYTICS_BUCKET_AGGREGATION,
 };
 
 function makeMeta(overrides: Partial<AnalyticsHistoryMeta> = {}): AnalyticsHistoryMeta {
@@ -168,13 +173,17 @@ describe("describeAggregation", () => {
     }
   });
 
-  it("mirrors the simulator's own counter/gauge split", () => {
-    expect(BUCKET_AGGREGATION).toEqual({
-      activeVehicles: "mean",
-      avgSpeed: "mean",
-      totalDistanceTraveled: "last",
-      totalIdleTime: "last",
-      avgRouteEfficiency: "mean",
-    });
+  // The split is no longer restated here: `BUCKET_AGGREGATION` is derived from
+  // the shared `ANALYTICS_BUCKET_AGGREGATION` contract, and the derivation
+  // indexes it by `summary.<measure>`, so renaming a field in the simulator
+  // fails to compile here rather than drifting past a hand-copied literal.
+  // What is still worth asserting is that the narrowing itself is faithful.
+  it("narrows every plotted measure to the fold the shared contract states", () => {
+    for (const [measure, fold] of Object.entries(BUCKET_AGGREGATION)) {
+      const declared =
+        ANALYTICS_BUCKET_AGGREGATION[`summary.${measure}` as AnalyticsAggregatedField];
+      expect(declared).toBeDefined();
+      expect(declared).toMatch(fold === "last" ? /^last/ : /^mean$/);
+    }
   });
 });
