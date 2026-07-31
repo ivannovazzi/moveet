@@ -540,7 +540,10 @@ export default function App() {
           data-ready={dataReady ? "" : undefined}
         >
           <ErrorBoundary fallback={<SectionErrorFallback section="Map" />}>
-            <div className="relative flex min-h-0 min-w-0 flex-1">
+            {/* `map-backdrop` paints the map's ground: deck.gl clears its
+                canvas transparent, so this element is what shows between the
+                roads and vehicles. */}
+            <div className="map-backdrop relative flex min-h-0 min-w-0 flex-1">
               <ConnectionStatus connectionInfo={connectionInfo} onRetry={client.retryConnection} />
               <LoadingOverlay visible={mapLoading} />
               <MapView

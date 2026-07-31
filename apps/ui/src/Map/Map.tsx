@@ -196,7 +196,7 @@ export default function Map({
       <DeckGLMap
         data={network}
         strokeOpacity={modifiers.showDirections ? 0.4 : 0}
-        strokeColor="#444"
+        strokeColor="#5b6575"
         strokeWidth={1.5}
         onClick={onMapClick}
         onContextClick={onMapContextClick}
