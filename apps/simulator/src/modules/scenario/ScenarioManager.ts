@@ -1,6 +1,7 @@
 import { EventEmitter } from "events";
 import type { VehicleManager } from "../VehicleManager";
 import type { IncidentManager } from "../IncidentManager";
+import type { JobManager } from "../JobManager";
 import type { SimulationController } from "../SimulationController";
 import {
   scenarioSchema,
@@ -10,12 +11,27 @@ import {
   type ScenarioState,
   type SpawnVehiclesAction,
   type CreateIncidentAction,
+  type CreateJobAction,
   type DispatchAction,
   type SetTrafficProfileAction,
   type ClearIncidentsAction,
   type SetOptionsAction,
 } from "./types";
 import type { VehicleType } from "../../types";
+import { createLogger } from "../../utils/logger";
+
+const log = createLogger("scenario");
+
+/**
+ * Which clock drives event execution.
+ *
+ * `wall` is the operator-facing mode: `setTimeout`s fire against real time so a
+ * scenario plays out in the UI at the speed it was authored at. `manual` is the
+ * headless mode: no timers exist and the caller advances simulated time in
+ * explicit steps, exactly like {@link VehicleManager.advance}. The two never mix
+ * — `start()` selects one, `startManual()` the other.
+ */
+type ClockMode = "wall" | "manual";
 
 export class ScenarioManager extends EventEmitter {
   private scenario: Scenario | null = null;
@@ -26,11 +42,19 @@ export class ScenarioManager extends EventEmitter {
   private eventsExecuted: number = 0;
   private pendingTimer: ReturnType<typeof setTimeout> | null = null;
   private completionTimer: ReturnType<typeof setTimeout> | null = null;
+  private clockMode: ClockMode = "wall";
+  private manualElapsed = 0; // elapsed simulated ms, manual mode only
 
   constructor(
     private vehicleManager: VehicleManager,
     private incidentManager: IncidentManager,
-    private simulationController: SimulationController
+    private simulationController: SimulationController,
+    /**
+     * Optional so the live wiring order and existing callers are unaffected;
+     * a scenario carrying `create_job` events needs it (see
+     * {@link handleCreateJob}).
+     */
+    private jobManager?: JobManager
   ) {
     super();
   }
@@ -75,6 +99,7 @@ export class ScenarioManager extends EventEmitter {
 
     this.resetState();
     this.state = "running";
+    this.clockMode = "wall";
     this.startTime = Date.now();
 
     this.emit("scenario:started", {
@@ -83,6 +108,77 @@ export class ScenarioManager extends EventEmitter {
     });
 
     this.scheduleNextEvent();
+  }
+
+  /**
+   * Begins executing the scenario on a MANUAL clock: no timers are armed, and
+   * nothing happens until {@link advance} is called.
+   *
+   * This is the headless seam the regression harness runs on — the deterministic,
+   * explicit-`dt` counterpart of {@link start}, and the scenario-level mirror of
+   * {@link VehicleManager.advance}. It exists because a scenario driven by
+   * `setTimeout` cannot be fast-forwarded: a 10-minute scenario would take 10
+   * minutes of CI wall-clock, and its events would land at whatever simulated
+   * time the fast-forward happened to have reached.
+   *
+   * @throws {Error} If no scenario is loaded or one is already running.
+   */
+  startManual(): void {
+    if (!this.scenario) {
+      throw new Error("No scenario loaded");
+    }
+    if (this.state === "running") {
+      throw new Error("Scenario is already running");
+    }
+
+    this.resetState();
+    this.state = "running";
+    this.clockMode = "manual";
+
+    this.emit("scenario:started", {
+      name: this.scenario.name,
+      eventCount: this.scenario.events.length,
+    });
+  }
+
+  /**
+   * Advances the scenario by `deltaMs` of SIMULATED time, executing every event
+   * that has come due, in order. Manual mode only; a no-op otherwise.
+   *
+   * Awaits each action, so an async one (`dispatch` pathfinds, `create_job`
+   * assigns a vehicle) has finished before the next event or the caller's next
+   * simulation step runs. Emits `scenario:completed` once the last event has run
+   * AND the authored duration has elapsed, same as the timer path.
+   */
+  async advance(deltaMs: number): Promise<void> {
+    if (this.clockMode !== "manual" || this.state !== "running" || !this.scenario) return;
+
+    this.manualElapsed += deltaMs;
+    const events = this.scenario.events;
+
+    while (
+      this.eventIndex < events.length &&
+      events[this.eventIndex].at * 1000 <= this.manualElapsed
+    ) {
+      const event = events[this.eventIndex];
+      // One failing action must not abandon the rest of the timeline — but it is
+      // reported, because a harness that silently skipped a dispatch would grade
+      // a scenario that never actually ran.
+      try {
+        await this.executeEvent(event);
+      } catch (error) {
+        this.emitEventError(event, error);
+      }
+      this.eventIndex++;
+      this.eventsExecuted++;
+      // An action can stop the scenario (or a caller can, from a listener);
+      // stopping mid-step must not keep draining the timeline.
+      if (this.state !== "running") return;
+    }
+
+    if (this.eventIndex >= events.length && this.manualElapsed >= this.scenario.duration * 1000) {
+      this.handleCompleted();
+    }
   }
 
   /**
@@ -118,7 +214,9 @@ export class ScenarioManager extends EventEmitter {
       nextEventIndex: this.eventIndex,
     });
 
-    this.scheduleNextEvent();
+    // In manual mode there is no timer to re-arm: the caller's next `advance`
+    // picks the timeline back up where it left off.
+    if (this.clockMode === "wall") this.scheduleNextEvent();
   }
 
   /**
@@ -139,6 +237,8 @@ export class ScenarioManager extends EventEmitter {
     this.eventsExecuted = 0;
     this.startTime = 0;
     this.pausedAt = 0;
+    this.manualElapsed = 0;
+    this.clockMode = "wall";
 
     this.emit("scenario:stopped", {
       name,
@@ -177,6 +277,7 @@ export class ScenarioManager extends EventEmitter {
   // ─── Internal ────────────────────────────────────────────────────
 
   private elapsed(): number {
+    if (this.clockMode === "manual") return this.manualElapsed;
     if (this.state === "paused") return this.pausedAt;
     if (this.state === "running") return Date.now() - this.startTime;
     return 0;
@@ -189,6 +290,7 @@ export class ScenarioManager extends EventEmitter {
     this.eventsExecuted = 0;
     this.startTime = 0;
     this.pausedAt = 0;
+    this.manualElapsed = 0;
   }
 
   private clearTimers(): void {
@@ -221,11 +323,30 @@ export class ScenarioManager extends EventEmitter {
     this.pendingTimer = setTimeout(() => {
       this.pendingTimer = null;
       if (this.state !== "running") return;
-      this.executeEvent(event);
+      try {
+        const result = this.executeEvent(event);
+        // An async action's rejection arrives after this tick; without the catch
+        // it would surface as an unhandled rejection.
+        if (result) void result.catch((error: unknown) => this.emitEventError(event, error));
+      } catch (error) {
+        this.emitEventError(event, error);
+      }
       this.eventIndex++;
       this.eventsExecuted++;
       this.scheduleNextEvent();
     }, delay);
+  }
+
+  /** Logs and announces an action that threw, without stopping the scenario. */
+  private emitEventError(event: ScenarioEvent, error: unknown): void {
+    const message = error instanceof Error ? error.message : String(error);
+    log.error(`Scenario action ${event.action.type} at ${event.at}s failed: ${message}`);
+    this.emit("scenario:event-error", {
+      index: this.eventIndex,
+      at: event.at,
+      action: event.action.type,
+      error: message,
+    });
   }
 
   private scheduleCompletion(): void {
@@ -262,7 +383,14 @@ export class ScenarioManager extends EventEmitter {
     });
   }
 
-  private executeEvent(event: ScenarioEvent): void {
+  /**
+   * Runs one event's action.
+   *
+   * Returns a promise for the async actions so the manual (headless) path can
+   * await them; the timer path deliberately does not — a wall-clock scenario
+   * must not let a slow pathfind delay the next event's `setTimeout`.
+   */
+  private executeEvent(event: ScenarioEvent): Promise<void> | void {
     this.emit("scenario:event", {
       index: this.eventIndex,
       at: event.at,
@@ -279,8 +407,7 @@ export class ScenarioManager extends EventEmitter {
         this.handleCreateIncident(action);
         break;
       case "dispatch":
-        void this.handleDispatch(action);
-        break;
+        return this.handleDispatch(action);
       case "set_traffic_profile":
         this.handleSetTrafficProfile(action);
         break;
@@ -290,6 +417,8 @@ export class ScenarioManager extends EventEmitter {
       case "set_options":
         this.handleSetOptions(action);
         break;
+      case "create_job":
+        return this.handleCreateJob(action);
     }
   }
 
@@ -396,5 +525,21 @@ export class ScenarioManager extends EventEmitter {
 
   private handleSetOptions(action: SetOptionsAction): void {
     this.vehicleManager.setOptions(action.options);
+  }
+
+  private async handleCreateJob(action: CreateJobAction): Promise<void> {
+    if (!this.jobManager) {
+      throw new Error(
+        "Scenario contains a create_job event but no JobManager is wired to the ScenarioManager"
+      );
+    }
+
+    await this.jobManager.createJob({
+      pickup: action.pickup,
+      dropoff: action.dropoff,
+      strategy: action.strategy,
+      vehicleId: action.vehicleId,
+      slaSeconds: action.slaSeconds,
+    });
   }
 }

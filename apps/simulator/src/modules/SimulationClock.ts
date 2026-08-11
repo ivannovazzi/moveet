@@ -35,6 +35,15 @@ export class SimulationClock extends EventEmitter {
     }
   }
 
+  /**
+   * Simulated time as epoch ms. The clock-equivalent of `Date.now()`, for
+   * bookkeeping that must move with simulated time rather than wall time (e.g.
+   * dwell deadlines in a headless fast-forward).
+   */
+  now(): number {
+    return this._currentTime.getTime();
+  }
+
   getHour(): number {
     return this._currentTime.getHours();
   }

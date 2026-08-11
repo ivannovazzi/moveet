@@ -387,6 +387,45 @@ See "Scaling WebSocket Clients" below for when to enable it and load-test result
 npm test
 ```
 
+### Scenario Harness (scenario-as-code with assertions)
+
+A scenario file in `data/scenarios/` can carry an `assertions` array, which turns it into a
+regression test the simulator grades against itself. The runner is headless and drives
+simulated time in explicit steps (no wall-clock timers), so a one-hour scenario grades in
+seconds and exits non-zero when an assertion fails — suitable for CI.
+
+```bash
+npm run scenario -- dispatch-regression --vehicles 150
+npm run scenario -- ./my-scenario.json --seed 7 --max-seconds 600 --report report.json
+```
+
+Options: `--vehicles <n>` (synthetic fleet seeded before the timeline), `--step-ms <n>`
+(simulated ms per step, default 1000), `--seed <n>`, `--max-seconds <n>` (cap the simulated
+window, overriding the scenario's `duration`), `--network <path>`, `--report <path>` (write the
+full JSON report), `--json` (print the report instead of a summary). Exit codes: `0` every
+assertion held, `1` an assertion failed or a scenario action threw, `2` the scenario could not
+be run (bad arguments, unreadable or invalid file, missing network).
+
+Assertion types (all optional fields have defaults):
+
+| Type | Fields | Holds when |
+|---|---|---|
+| `all_jobs_completed` | — | every job the scenario created reached `complete` |
+| `job_completion_rate` | `atLeast` (0–1) | completed/created is at least `atLeast` (a run with no jobs scores 1) |
+| `job_failures` | `atMost` (default 0) | no more than `atMost` jobs ended `failed` |
+| `job_eta_percentile` | `percentile` (95), `leg` (`pickup`\|`dropoff`), `lessThanSeconds` | that percentile of assignment ETAs is under the threshold (fails if no job was ever assigned) |
+| `no_stranded_vehicles` | `idleSeconds` (120) | no vehicle stayed at the same position for longer than `idleSeconds` of simulated time |
+| `fleet_avg_speed` | `atLeastKph`, `atMostKph` (optional) | the fleet-mean speed is inside the band |
+
+Every assertion also accepts `label` to override the generated description. Scenarios can
+dispatch work with the `create_job` action (pickup + dropoff + `strategy`), which is what the
+job assertions grade. Assertions are evaluated only by this harness — a scenario played live
+from the UI has no exit code to fail, so `ScenarioManager` ignores them there.
+
+The run is reproducible for a fixed `--seed`: RNG is seeded, waypoint dwell and the
+pathfind-retry cooldown are measured on the simulation clock rather than wall time, and
+in-flight pathfinding is settled at each step boundary.
+
 ### Lint & format
 
 Linting and formatting are handled repo-wide by **Biome**; run from the monorepo root

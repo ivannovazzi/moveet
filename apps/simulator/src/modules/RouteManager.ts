@@ -107,12 +107,29 @@ export class RouteManager extends EventEmitter {
   private static readonly REROUTE_BATCH_SIZE = 20;
   private static readonly REROUTE_STAGGER_MS = 100;
 
+  /**
+   * Clock behind dwell deadlines (`vehicle.dwellUntil`) and the pathfind-retry
+   * cooldown — the two pieces of movement bookkeeping measured in absolute time
+   * rather than in the `deltaMs` the caller passes. Wall time by default,
+   * which is what the live sim wants. The headless runners swap in the
+   * simulation clock: a fast-forward compresses hours of simulated time into
+   * seconds of wall time, so a wall-clock dwell would park a vehicle at its
+   * first stop for the rest of the run — and make the output depend on how fast
+   * the machine ran, which is the opposite of a deterministic generation.
+   */
+  private now: () => number = Date.now;
+
   constructor(
     private network: RoadNetwork,
     private registry: VehicleRegistry,
     private traffic: TrafficManager
   ) {
     super();
+  }
+
+  /** Replaces the dwell clock. See {@link now}. */
+  setTimeSource(now: () => number): void {
+    this.now = now;
   }
 
   // ─── Route getters ────────────────────────────────────────────────
@@ -310,7 +327,7 @@ export class RouteManager extends EventEmitter {
 
       if (wpIndex < vehicle.waypoints.length - 1) {
         const dwellSeconds = waypoint?.dwellTime ?? 10 + rng() * 50;
-        vehicle.dwellUntil = Date.now() + dwellSeconds * 1000;
+        vehicle.dwellUntil = this.now() + dwellSeconds * 1000;
         vehicle.speed = 0; // Will be set by caller via options.minSpeed
 
         const nextLeg = multiRoute.legs[wpIndex + 1];
@@ -327,7 +344,7 @@ export class RouteManager extends EventEmitter {
         this.emit("route:completed", { vehicleId: vehicle.id });
         this.clearWaypointState(vehicle);
         const dwellSeconds = waypoint?.dwellTime ?? 10 + rng() * 50;
-        vehicle.dwellUntil = Date.now() + dwellSeconds * 1000;
+        vehicle.dwellUntil = this.now() + dwellSeconds * 1000;
         vehicle.speed = 0; // Will be set by caller via options.minSpeed
         this.deleteRoute(vehicle.id);
         return null;
@@ -335,7 +352,7 @@ export class RouteManager extends EventEmitter {
     }
 
     const dwellSeconds = 10 + rng() * 50;
-    vehicle.dwellUntil = Date.now() + dwellSeconds * 1000;
+    vehicle.dwellUntil = this.now() + dwellSeconds * 1000;
     vehicle.speed = 0; // Will be set by caller via options.minSpeed
     this.deleteRoute(vehicle.id);
     return null;
@@ -415,7 +432,7 @@ export class RouteManager extends EventEmitter {
    */
   updateVehicle(vehicle: Vehicle, deltaMs: number, options: StartOptions): void {
     if (vehicle.dwellUntil) {
-      if (Date.now() < vehicle.dwellUntil) return;
+      if (this.now() < vehicle.dwellUntil) return;
       vehicle.dwellUntil = undefined;
       // A dwell at an INTERMEDIATE stop already has the next leg loaded (see
       // handleRouteCompleted), so the vehicle resumes its trip. Only a dwell
@@ -431,7 +448,10 @@ export class RouteManager extends EventEmitter {
 
     if (!route || route.edges.length === 0) {
       this.updatePositionCore(vehicle, deltaMs, options);
-      const now = Date.now();
+      // Same clock as dwell: on wall time live, on simulated time headlessly,
+      // where a wall-clock cooldown would gate retries on how fast the machine
+      // ran the fast-forward instead of on simulated seconds.
+      const now = this.now();
       const lastAttempt = this.lastPathfindAttempt.get(vehicle.id) ?? 0;
       if (now - lastAttempt > RouteManager.PATHFIND_COOLDOWN) {
         this.lastPathfindAttempt.set(vehicle.id, now);

@@ -5,13 +5,14 @@ import { createScenarioRoutes } from "../../routes/scenarios";
 import type { RouteContext } from "../../routes/types";
 
 // Mock logger to suppress output
-vi.mock("../../utils/logger", () => ({
-  default: {
+vi.mock("../../utils/logger", () => {
+  const stub = {
     error: vi.fn(),
     info: vi.fn(),
     warn: vi.fn(),
-  },
-}));
+  };
+  return { default: stub, createLogger: () => stub };
+});
 
 // Mock fs for scenario file listing and reading
 vi.mock("fs", async (importOriginal) => {
