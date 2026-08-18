@@ -43,7 +43,7 @@
     "@moveet/shared-types": "*",
     "@scalar/express-api-reference": "^0.10.14",
     "@turf/turf": "^7.4.0",
-    "better-sqlite3": "^12.11.1",
+    "better-sqlite3": "^13.0.3",
     "compression": "^1.8.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
