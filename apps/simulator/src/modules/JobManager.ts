@@ -492,6 +492,15 @@ export class JobManager extends EventEmitter {
     const job = this.jobForVehicle(payload.vehicleId);
     if (!job) return;
     if (payload.reason === "waypoints" && this.ownsWaypoints(job, payload.waypoints)) return;
+    // The unit was claimed but its job route has not been set yet, so any route
+    // change arriving now belongs to what the vehicle was doing BEFORE it was
+    // claimed — typically its own random destination, whose pathfind was already
+    // in flight. Treating that as a re-dispatch re-queues a job that is about to
+    // be routed, and the assignment then finishes against a job that no longer
+    // holds the vehicle (status en_route with no vehicleId, never completing).
+    // Whatever this event says is superseded by the route this assignment is
+    // about to set, so it is safe to ignore.
+    if (this.assigning.has(job.id)) return;
 
     const state = this.runtime.get(job.id);
     if (state) this.clearDwell(state);

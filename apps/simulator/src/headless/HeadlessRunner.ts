@@ -5,7 +5,7 @@ import { IncidentManager } from "../modules/IncidentManager";
 import { RecordingManager } from "../modules/RecordingManager";
 import { config } from "../utils/config";
 import { createLogger } from "../utils/logger";
-import { mulberry32, setAmbientRng } from "../utils/rng";
+import { installSeededRandom } from "./seededRandom";
 import type { RecordingMetadata, VehicleSnapshot } from "../types";
 
 const log = createLogger("headless");
@@ -128,6 +128,11 @@ export class HeadlessRunner {
 
       const clock = vehicleManager.clock;
       clock.setTime(simStart);
+      // Waypoint dwell must be measured in SIMULATED time here: a fast-forward
+      // finishes hours of sim time in seconds of wall time, so a wall-clock
+      // dwell would freeze every vehicle at its first stop for the rest of the
+      // generation — and for a duration that depends on machine speed.
+      vehicleManager.routeManager.setTimeSource(() => clock.now());
 
       // Load the real fleet from the configured source (ids + metadata.devices),
       // assigning each a route so it moves — same path as the live sim. The
@@ -191,22 +196,3 @@ export class HeadlessRunner {
 
 /** Re-exported for clarity; the snapshot shape written per `vehicle` event. */
 export type { VehicleSnapshot };
-
-/**
- * Installs a seeded mulberry32 stream for the duration of a run and returns a
- * restore function. A SINGLE stream backs both:
- *  - the injectable ambient Rng (`src/utils/rng.ts`), which the threaded
- *    placement/routing seams draw from, and
- *  - the global `Math.random` (legacy fallback for any spot not yet threaded),
- * so a given `seed` reproduces the same generated recording byte-for-byte.
- */
-function installSeededRandom(seed: number): () => void {
-  const stream = mulberry32(seed);
-  const restoreAmbient = setAmbientRng(stream);
-  const original = Math.random;
-  Math.random = () => stream.next();
-  return () => {
-    Math.random = original;
-    restoreAmbient();
-  };
-}

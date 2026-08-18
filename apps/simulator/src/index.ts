@@ -65,9 +65,16 @@ const vehicleManager = new VehicleManager(network, fleetManager);
 const simulationController = new SimulationController(vehicleManager, incidentManager);
 const recordingManager = new RecordingManager();
 const generationManager = new GenerationManager();
-const scenarioManager = new ScenarioManager(vehicleManager, incidentManager, simulationController);
 const geoFenceManager = new GeoFenceManager();
 const jobManager = new JobManager(vehicleManager);
+// After jobManager: scenarios can create jobs (`create_job` events), so the
+// scenario layer needs the dispatch module it drives.
+const scenarioManager = new ScenarioManager(
+  vehicleManager,
+  incidentManager,
+  simulationController,
+  jobManager
+);
 
 // ─── Persistence (optional) ─────────────────────────────────────────
 

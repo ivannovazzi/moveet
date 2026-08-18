@@ -773,4 +773,230 @@ describe("ScenarioManager", () => {
       expect(s2.elapsed).toBe(elapsed1); // should not advance while paused
     });
   });
+
+  // ─── Manual clock (headless seam) ────────────────────────────────
+
+  describe("manual clock", () => {
+    it("should require a loaded scenario and reject a double start", () => {
+      expect(() => manager.startManual()).toThrow("No scenario loaded");
+
+      manager.loadScenario(makeScenario());
+      manager.startManual();
+      expect(() => manager.startManual()).toThrow("already running");
+    });
+
+    it("should not execute anything until advance is called", async () => {
+      manager.loadScenario(
+        makeScenario({
+          duration: 30,
+          events: [makeEvent(1, { type: "clear_incidents" })],
+        })
+      );
+      manager.startManual();
+
+      // The wall clock moving must not matter in manual mode.
+      vi.advanceTimersByTime(60_000);
+      expect(mocks.incidentManager.clearAll).not.toHaveBeenCalled();
+
+      await manager.advance(1000);
+      expect(mocks.incidentManager.clearAll).toHaveBeenCalledTimes(1);
+    });
+
+    it("should execute every event that came due in one step, in order", async () => {
+      const seen: number[] = [];
+      manager.on("scenario:event", (payload: { at: number }) => seen.push(payload.at));
+
+      manager.loadScenario(
+        makeScenario({
+          duration: 60,
+          events: [
+            makeEvent(1, { type: "clear_incidents" }),
+            makeEvent(2, { type: "clear_incidents" }),
+            makeEvent(9, { type: "clear_incidents" }),
+          ],
+        })
+      );
+      manager.startManual();
+
+      await manager.advance(5000);
+      expect(seen).toEqual([1, 2]);
+      expect(manager.getStatus().eventsExecuted).toBe(2);
+      expect(manager.getStatus().elapsed).toBe(5);
+
+      await manager.advance(5000);
+      expect(seen).toEqual([1, 2, 9]);
+    });
+
+    it("should await async actions before returning", async () => {
+      let resolveDispatch: (() => void) | undefined;
+      const gate = new Promise<void>((resolve) => {
+        resolveDispatch = resolve;
+      });
+      (mocks.simulationController.setDirections as ReturnType<typeof vi.fn>).mockImplementation(
+        async () => {
+          await gate;
+          return [];
+        }
+      );
+
+      manager.loadScenario(
+        makeScenario({
+          duration: 60,
+          events: [
+            makeEvent(1, {
+              type: "dispatch",
+              vehicleId: "v1",
+              waypoints: [{ lat: 1, lng: 2 }],
+            }),
+          ],
+        })
+      );
+      manager.startManual();
+
+      let settled = false;
+      const advancing = manager.advance(2000).then(() => {
+        settled = true;
+      });
+      await Promise.resolve();
+      expect(settled).toBe(false);
+
+      resolveDispatch?.();
+      await advancing;
+      expect(settled).toBe(true);
+      expect(mocks.simulationController.setDirections).toHaveBeenCalledTimes(1);
+    });
+
+    it("should complete once the last event ran and the duration elapsed", async () => {
+      const completed = vi.fn();
+      manager.on("scenario:completed", completed);
+
+      manager.loadScenario(
+        makeScenario({
+          duration: 10,
+          events: [makeEvent(1, { type: "clear_incidents" })],
+        })
+      );
+      manager.startManual();
+
+      await manager.advance(5000);
+      expect(completed).not.toHaveBeenCalled();
+
+      await manager.advance(5000);
+      expect(completed).toHaveBeenCalledTimes(1);
+      expect(completed.mock.calls[0][0]).toMatchObject({ elapsed: 10 });
+      expect(manager.getStatus().state).toBe("idle");
+    });
+
+    it("should report a throwing action instead of abandoning the timeline", async () => {
+      const errors: Array<{ at: number; action: string; error: string }> = [];
+      manager.on("scenario:event-error", (payload) => errors.push(payload));
+      (mocks.simulationController.setDirections as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new Error("no route")
+      );
+
+      manager.loadScenario(
+        makeScenario({
+          duration: 60,
+          events: [
+            makeEvent(1, {
+              type: "dispatch",
+              vehicleId: "v1",
+              waypoints: [{ lat: 1, lng: 2 }],
+            }),
+            makeEvent(2, { type: "clear_incidents" }),
+          ],
+        })
+      );
+      manager.startManual();
+
+      await manager.advance(3000);
+      expect(errors).toHaveLength(1);
+      expect(errors[0]).toMatchObject({ at: 1, action: "dispatch", error: "no route" });
+      // The later event still ran.
+      expect(mocks.incidentManager.clearAll).toHaveBeenCalledTimes(1);
+    });
+
+    it("should stop advancing while paused and pick up where it left off", async () => {
+      manager.loadScenario(
+        makeScenario({
+          duration: 60,
+          events: [makeEvent(5, { type: "clear_incidents" })],
+        })
+      );
+      manager.startManual();
+
+      await manager.advance(1000);
+      manager.pause();
+      await manager.advance(10_000);
+      expect(mocks.incidentManager.clearAll).not.toHaveBeenCalled();
+
+      manager.resume();
+      await manager.advance(4000);
+      expect(mocks.incidentManager.clearAll).toHaveBeenCalledTimes(1);
+    });
+
+    it("should ignore advance in wall-clock mode and after stop", async () => {
+      manager.loadScenario(
+        makeScenario({
+          duration: 60,
+          events: [makeEvent(1, { type: "clear_incidents" })],
+        })
+      );
+      manager.start(); // wall clock
+      await manager.advance(5000);
+      expect(mocks.incidentManager.clearAll).not.toHaveBeenCalled();
+
+      manager.stop();
+      manager.startManual();
+      manager.stop();
+      await manager.advance(5000);
+      expect(mocks.incidentManager.clearAll).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── create_job ──────────────────────────────────────────────────
+
+  describe("create_job action", () => {
+    const jobEvent = () =>
+      makeEvent(1, {
+        type: "create_job" as const,
+        pickup: { lat: -1.29, lng: 36.82 },
+        dropoff: { lat: -1.3, lng: 36.85 },
+        strategy: "nearest" as const,
+      });
+
+    it("should create the job through the JobManager", async () => {
+      const jobManager = { createJob: vi.fn().mockResolvedValue({ id: "job-1" }) };
+      const withJobs = new ScenarioManager(
+        mocks.vehicleManager,
+        mocks.incidentManager,
+        mocks.simulationController,
+        jobManager as unknown as ConstructorParameters<typeof ScenarioManager>[3]
+      );
+
+      withJobs.loadScenario(makeScenario({ duration: 10, events: [jobEvent()] }));
+      withJobs.startManual();
+      await withJobs.advance(2000);
+
+      expect(jobManager.createJob).toHaveBeenCalledWith({
+        pickup: { lat: -1.29, lng: 36.82 },
+        dropoff: { lat: -1.3, lng: 36.85 },
+        strategy: "nearest",
+        vehicleId: undefined,
+        slaSeconds: undefined,
+      });
+    });
+
+    it("should report a create_job event when no JobManager is wired", async () => {
+      const errors: Array<{ error: string }> = [];
+      manager.on("scenario:event-error", (payload) => errors.push(payload));
+
+      manager.loadScenario(makeScenario({ duration: 10, events: [jobEvent()] }));
+      manager.startManual();
+      await manager.advance(2000);
+
+      expect(errors).toHaveLength(1);
+      expect(errors[0].error).toContain("no JobManager");
+    });
+  });
 });

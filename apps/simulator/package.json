@@ -11,6 +11,8 @@
     "start": "NODE_ENV=production node ./dist/index.js",
     "start:gateway": "NODE_ENV=production node ./dist/ws-gateway.js",
     "build:worker": "node scripts/build-worker.mjs",
+    "prescenario": "npm run build:worker",
+    "scenario": "tsx src/headless/scenario-cli.ts",
     "build": "tsc && npm run build:worker",
     "type-check": "tsc --noEmit",
     "pretest": "npm run build:worker",

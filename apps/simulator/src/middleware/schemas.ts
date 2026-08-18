@@ -220,7 +220,7 @@ export const fleetAssignSchema = z.object({
 
 // ─── Jobs ───────────────────────────────────────────────────────────
 
-const jobStopSchema = z.object({
+export const jobStopSchema = z.object({
   lat: z
     .number()
     .min(-90, "lat must be between -90 and 90")

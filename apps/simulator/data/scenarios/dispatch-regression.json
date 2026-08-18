@@ -1,0 +1,130 @@
+{
+  "name": "Dispatch Regression",
+  "description": "Headless regression harness: seeds a fleet, dispatches four jobs across the Nairobi CBD with an incident on the first pickup corridor, then asserts every job was delivered, response ETAs stayed inside SLA, nothing got stranded and the fleet kept moving. Run with `npm run scenario -- dispatch-regression --vehicles 150`.",
+  "city": "nairobi",
+  "version": 1,
+  "duration": 3600,
+  "events": [
+    {
+      "at": 0,
+      "action": {
+        "type": "set_options",
+        "options": {
+          "minSpeed": 20,
+          "maxSpeed": 60
+        }
+      }
+    },
+    {
+      "at": 5,
+      "action": {
+        "type": "create_job",
+        "pickup": {
+          "lat": -1.2921,
+          "lng": 36.8219,
+          "label": "CBD"
+        },
+        "dropoff": {
+          "lat": -1.3015,
+          "lng": 36.8484,
+          "label": "South B"
+        },
+        "strategy": "nearest"
+      }
+    },
+    {
+      "at": 30,
+      "action": {
+        "type": "create_job",
+        "pickup": {
+          "lat": -1.2833,
+          "lng": 36.8172,
+          "label": "Westlands approach"
+        },
+        "dropoff": {
+          "lat": -1.3084,
+          "lng": 36.8065,
+          "label": "Nairobi West"
+        },
+        "strategy": "best_eta"
+      }
+    },
+    {
+      "at": 60,
+      "action": {
+        "type": "create_incident",
+        "position": {
+          "lat": -1.2921,
+          "lng": 36.8219
+        },
+        "incidentType": "accident",
+        "duration": 180,
+        "severity": 0.6
+      }
+    },
+    {
+      "at": 90,
+      "action": {
+        "type": "create_job",
+        "pickup": {
+          "lat": -1.2975,
+          "lng": 36.8256,
+          "label": "Upper Hill"
+        },
+        "dropoff": {
+          "lat": -1.2694,
+          "lng": 36.8544,
+          "label": "Eastleigh"
+        },
+        "strategy": "nearest"
+      }
+    },
+    {
+      "at": 240,
+      "action": {
+        "type": "clear_incidents"
+      }
+    },
+    {
+      "at": 300,
+      "action": {
+        "type": "create_job",
+        "pickup": {
+          "lat": -1.3015,
+          "lng": 36.8484,
+          "label": "South B"
+        },
+        "dropoff": {
+          "lat": -1.2921,
+          "lng": 36.8219,
+          "label": "CBD"
+        },
+        "strategy": "best_eta"
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "type": "all_jobs_completed"
+    },
+    {
+      "type": "job_failures",
+      "atMost": 0
+    },
+    {
+      "type": "job_eta_percentile",
+      "percentile": 95,
+      "leg": "pickup",
+      "lessThanSeconds": 900,
+      "label": "p95 response ETA under 15 minutes"
+    },
+    {
+      "type": "no_stranded_vehicles",
+      "idleSeconds": 300
+    },
+    {
+      "type": "fleet_avg_speed",
+      "atLeastKph": 5
+    }
+  ]
+}
