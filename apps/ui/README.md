@@ -20,7 +20,7 @@ A React/TypeScript dashboard for the [Moveet](../simulator/) vehicle simulator. 
 ## Tech Stack
 
 - **React 19**, **TypeScript**, **Vite 8**
-- **deck.gl 9** (`@deck.gl/core|layers|react|geo-layers|aggregation-layers|extensions`) + **luma.gl 9** (`@luma.gl/core|webgl`, WebGL2 adapter) for all map rendering
+- **deck.gl 9** (`@deck.gl/core|layers|react|aggregation-layers|extensions`) + **luma.gl 9** (`@luma.gl/core|webgl`, WebGL2 adapter) for all map rendering
 - **Tailwind CSS v4** (`@tailwindcss/vite`) with an oklch design-token `@theme` (dark-only)
 - **shadcn/ui** primitives (Radix-based) with the `cn()` class-merge helper (`clsx` + `tailwind-merge`)
 - **lucide-react** icons, **cmdk** command palette, **sonner** toasts

@@ -56,22 +56,23 @@ describe("map text layer outlines", () => {
     expect(text).toMatch(/sdf:\s*true/);
   });
 
-  it.each(
-    withOutline.map(({ path }) => path)
-  )("%s sizes the atlas to fit the halo it asks for", (path) => {
-    const { text } = withOutline.find((s) => s.path === path)!;
-    const outlineWidth = Number(text.match(/outlineWidth:\s*([\d.]+)/)?.[1]);
-    const radius = Number(text.match(/radius:\s*([\d.]+)/)?.[1]);
-    const buffer = Number(text.match(/buffer:\s*([\d.]+)/)?.[1]);
+  it.each(withOutline.map(({ path }) => path))(
+    "%s sizes the atlas to fit the halo it asks for",
+    (path) => {
+      const { text } = withOutline.find((s) => s.path === path)!;
+      const outlineWidth = Number(text.match(/outlineWidth:\s*([\d.]+)/)?.[1]);
+      const radius = Number(text.match(/radius:\s*([\d.]+)/)?.[1]);
+      const buffer = Number(text.match(/buffer:\s*([\d.]+)/)?.[1]);
 
-    expect(Number.isFinite(outlineWidth)).toBe(true);
-    expect(Number.isFinite(radius)).toBe(true);
-    expect(Number.isFinite(buffer)).toBe(true);
+      expect(Number.isFinite(outlineWidth)).toBe(true);
+      expect(Number.isFinite(radius)).toBe(true);
+      expect(Number.isFinite(buffer)).toBe(true);
 
-    // Above `radius`, deck.gl clamps and the halo stops growing.
-    expect(outlineWidth).toBeLessThanOrEqual(radius);
-    // The halo occupies 0.75 * outlineWidth atlas px; `buffer` is the glyph's
-    // padding in the atlas, so anything smaller clips it.
-    expect(buffer).toBeGreaterThanOrEqual(0.75 * outlineWidth);
-  });
+      // Above `radius`, deck.gl clamps and the halo stops growing.
+      expect(outlineWidth).toBeLessThanOrEqual(radius);
+      // The halo occupies 0.75 * outlineWidth atlas px; `buffer` is the glyph's
+      // padding in the atlas, so anything smaller clips it.
+      expect(buffer).toBeGreaterThanOrEqual(0.75 * outlineWidth);
+    }
+  );
 });
