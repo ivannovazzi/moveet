@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "commander": "^15.0.0",
-    "inquirer": "^14.0.2",
+    "inquirer": "^14.1.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
