@@ -31,7 +31,7 @@
     "graphql-request": "^7.4.0",
     "ioredis": "^6.0.0",
     "kafkajs": "^2.2.4",
-    "mysql2": "^3.23.3",
+    "mysql2": "^3.23.4",
     "pg": "^8.23.0",
     "pino": "^10.3.1",
     "prom-client": "^15.1.3",
