@@ -41,7 +41,7 @@
   "dependencies": {
     "@moveet/server-kit": "*",
     "@moveet/shared-types": "*",
-    "@scalar/express-api-reference": "^0.10.14",
+    "@scalar/express-api-reference": "^0.10.17",
     "@turf/turf": "^7.4.0",
     "better-sqlite3": "^13.0.3",
     "compression": "^1.8.1",
