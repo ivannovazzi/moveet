@@ -55,7 +55,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@apidevtools/swagger-parser": "^12.1.0",
+    "@apidevtools/swagger-parser": "^13.0.0",
     "@types/better-sqlite3": "^9.6.0",
     "@types/compression": "^1.8.1",
     "@types/cors": "^2.8.19",
