@@ -6,93 +6,56 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 
-A real-time vehicle fleet simulator that runs vehicles on actual road networks with A\* pathfinding, realistic motion physics, BPR traffic congestion, time-of-day patterns, geofencing, incident-based rerouting, session recording, and a custom WebGL map rendering engine — no map tile provider required.
+Moveet drives simulated vehicles over real OpenStreetMap road networks and streams their positions in real time. Vehicles route with A\*, slow for traffic and turns, reroute around incidents, and cross geofences. A WebGL map renders the whole fleet without a tile provider.
+
+Use it to develop against a fleet API before real vehicles exist, to load-test a telemetry pipeline, or to replay a scripted scenario in CI.
 
 <!-- Screenshot goes here -->
 
----
+## Quick start
 
-## Contents
-
-- [Features](#features)
-- [Quick start](#quick-start)
-- [Architecture](#architecture)
-- [Network CLI](#network-cli)
-- [Simulator API](#simulator-api)
-- [WebSocket events](#websocket-events)
-- [Adapter plugins](#adapter-plugins)
-- [Configuration](#configuration)
-- [Testing](#testing)
-- [Docker](#docker)
-- [Contributing](#contributing)
-
----
-
-## Features
-
-|                              |                                                                                                                                                                                                                               |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 🗺 **Road-network agnostic** | Ingests any GeoJSON/OSM-derived road graph — swap the file to simulate a different city                                                                                                                                       |
-| 🌐 **Network CLI**           | `apps/network` pipeline: download OSM data from Geofabrik, extract a bbox, filter road classes, export GeoJSON, validate topology, and diff versions — one `prepare` command does it all                                      |
-| 🔀 **A\* pathfinding**       | Haversine heuristic over bidirectional road segments; respects turn restrictions, roundabouts, and road-class access rules; incident-aware route cache                                                                        |
-| 🚗 **Vehicle types**         | Five types (car, truck, motorcycle, ambulance, bus) with distinct speed profiles, acceleration curves, road restrictions, and special behaviours (e.g. ambulances ignore heat-zone penalties)                                 |
-| 🚦 **Traffic realism**       | BPR congestion model (flow/capacity), time-of-day rush-hour/night demand multipliers, traffic-signal intersection delays, surface-smoothness speed factors                                                                    |
-| 🎨 **Custom map renderer**   | deck.gl + luma.gl WebGL scene (Web Mercator viewport, pan/zoom, fly-to); GPU layers for roads, vehicles, POIs, heat-zone contours, incident markers, geofences, breadcrumb trails, and dispatch routes — no Leaflet or Mapbox |
-| 📡 **Real-time WebSocket**   | 100 ms batched broadcast with backpressure handling; streams vehicle positions, routes, heat zones, incidents, geofence events, fleet events, and replay frames                                                               |
-| 🔥 **Heat zones**            | Contour density map (green → red, 50 thresholds) derived from road-network intersection density                                                                                                                               |
-| 🔲 **Geofencing**            | Draw custom polygons on the map; monitor vehicles crossing zone boundaries; enter/exit events broadcast in real time                                                                                                          |
-| ⚠️ **Incidents & rerouting** | Operator-created road incidents trigger live A\* rerouting for all affected vehicles                                                                                                                                          |
-| 🎬 **Recording & replay**    | NDJSON session recording; replay with pause, seek, and 1×/2×/4× speed controls and interpolated progress bar                                                                                                                  |
-| 🚘 **Breadcrumb trails**     | Per-vehicle position history rendered as fading path overlays on the map                                                                                                                                                      |
-| 🚦 **Fleet management**      | Group vehicles into named, colour-coded fleets; assign/unassign at runtime                                                                                                                                                    |
-| 📦 **Job dispatch lifecycle** | Pickup/dropoff jobs assigned by nearest / best-ETA / named vehicle, driven through the full status lifecycle with per-leg ETAs and SLA-breach tracking; placed with two map clicks                                            |
-| 🔌 **Device fault injection** | Per-vehicle device faults injected in the simulator — frozen GPS, clock skew/drift, duplicate and out-of-order messages, battery death, teleport/spoofing — reproducible under a fixed seed, editable at runtime, visible on the WebSocket feed and the adapter push            |
-| 🔍 **POI + road search**     | Typeahead combining road names and points of interest; dispatches selected vehicles to result                                                                                                                                 |
-| 🖥 **Operator UI**           | State-adaptive bottom dock (live/replay transport + Fleet · Monitor · Session · Settings sections), a left-edge icon rail for map-layer visibility and vehicle-type filters, corner health lamps, and a ⌘K command palette                              |
-| 🔌 **Adapter plugins**       | Hot-swappable source and sink plugins; configure via env vars or REST API at runtime                                                                                                                                          |
-| 📊 **Observability**         | Simulator and adapter each expose a Prometheus `/metrics` endpoint (prom-client); an `x-request-id` correlation id flows end to end (simulator → adapter → telemetry envelope `correlation_id` / `trace_id`)                  |
-| 📈 **Optional scale-out**    | WebSocket fan-out runs in-process by default, or moves to a standalone `ws-gateway` process over a Redis pub/sub bus via `WS_TRANSPORT=redis` (compose `scale` profile, off by default)                                       |
-
----
-
-## Quick Start
-
-### Prerequisites
-
-- **Node.js** ≥ 26, npm ≥ 9 (workspace root)
-- **Docker** (optional)
-
-### Run locally
+You need Node.js ≥ 26 and a road network at `apps/simulator/data/network.geojson`.
 
 ```bash
-git clone https://github.com/ivannovazzi/moveet.git
-cd moveet
 npm install
-npm run dev          # starts all three services via Turborepo
+npm run dev:sim     # simulator on :5010
+npm run dev:ui      # UI on :5012, in a second terminal
 ```
 
-| Service       | URL                   |
-| ------------- | --------------------- |
-| Dashboard     | http://localhost:5012 |
-| Simulator API | http://localhost:5010 |
-| Adapter API   | http://localhost:5011 |
+Open [http://localhost:5012](http://localhost:5012). The simulator runs standalone with synthetic vehicles — the adapter is optional.
 
-Or start services individually:
+No road network yet? Build one for any city with the [network CLI](apps/network/):
 
 ```bash
-npm run dev:sim      # simulator only  :5010
-npm run dev:ui       # UI only         :5012
-npm run dev:adapter  # adapter only    :5011
+cd apps/network && npm run dev -- prepare nairobi
 ```
 
-To prepare a road network for a new city:
+This downloads OSM data from Geofabrik, clips a bounding box, keeps the drivable road classes, and writes GeoJSON straight into `apps/simulator/data/`. It needs [osmium-tool](https://osmcode.org/osmium-tool/) ≥ 1.14 installed locally, and runs offline after the first download.
+
+Prefer Docker? Skip the build entirely:
 
 ```bash
-cd apps/network
-npm run dev -- prepare nairobi   # or any region in regions.json
+curl -O https://raw.githubusercontent.com/ivannovazzi/moveet/main/docker-compose.ghcr.yml
+docker compose -f docker-compose.ghcr.yml up
 ```
 
----
+The images do not bundle a road network, so mount your own GeoJSON or edit the volume in the compose file.
+
+## What it does
+
+**Routing that respects the map.** A\* with a landmark heuristic over a bidirectional road graph, honouring turn restrictions, roundabouts, and road-class access rules. Routes cache, and invalidate when an incident lands on them.
+
+**Motion that looks real.** Five vehicle types with distinct speed and acceleration profiles, BPR congestion, rush-hour and night demand curves, traffic-signal delays at intersections, and surface-smoothness penalties.
+
+**A map with no tile provider.** deck.gl and luma.gl draw roads, vehicles, routes, heat-zone contours, POIs, incidents, geofences, and breadcrumb trails as GPU layers over a Web Mercator viewport. No Leaflet, no Mapbox, no API key.
+
+**Operator controls.** Dispatch jobs with two map clicks and watch them through the full pickup-to-dropoff lifecycle with per-leg ETAs and SLA tracking. Draw geofences, create incidents and see vehicles reroute live, group vehicles into fleets, and search roads and POIs from a ⌘K palette.
+
+**Faults on purpose.** Inject frozen GPS, clock skew, duplicate and out-of-order messages, battery death, and teleport spoofing per vehicle — reproducible under a fixed seed, so a consumer can be tested against bad data deliberately.
+
+**Sessions you can replay.** Record to NDJSON and replay with pause, seek, and 1×/2×/4× speed. Scenarios run headlessly with assertions and a pass/fail grade, which makes them usable as CI tests.
+
+**Somewhere to send it all.** The optional adapter pushes telemetry to an external system through hot-swappable sink plugins — GraphQL, REST, Kafka/Redpanda, Redis, webhook, or stdout — configured by env var or at runtime over its REST API.
 
 ## Architecture
 
@@ -110,430 +73,71 @@ flowchart TD
     ADP -- "source / sink plugins" --> EXT
 ```
 
-**Network** is an offline CLI that turns raw OpenStreetMap data into a simulator-ready GeoJSON road network. Run it once per city; the output drops straight into `apps/simulator/data/`.
+The **simulator** is the core. It builds a routable graph from GeoJSON, moves vehicles on per-vehicle interval timers, and serves a REST API plus a WebSocket feed. Everything else is optional around it.
 
-**Simulator** is the core — it builds a routable graph from GeoJSON, runs vehicles with per-vehicle interval timers, and serves a REST API + WebSocket feed. It works completely standalone.
+The **UI** renders that feed on a WebGL canvas. The **adapter** bridges to an external fleet system. The **network** CLI is an offline one-time step that produces the GeoJSON.
 
-**UI** is a React app that renders everything on a WebGL canvas using deck.gl + luma.gl over a Web Mercator viewport. It has no map-tile dependency — roads, routes, heat-zone contours, POIs, incidents, geofences, breadcrumb trails, and vehicles are all drawn from GeoJSON/API data.
+| Package | Path | Tech | Port |
+| --- | --- | --- | --- |
+| **network** | [`apps/network/`](apps/network/) | Commander · osmium-tool | CLI |
+| **simulator** | [`apps/simulator/`](apps/simulator/) | Express 4 · ws 8 · Turf.js 7 | 5010 |
+| **adapter** | [`apps/adapter/`](apps/adapter/) | Express 4 | 5011 |
+| **ui** | [`apps/ui/`](apps/ui/) | React 19 · deck.gl 9 · Vite · Tailwind v4 | 5012 |
 
-**Adapter** is optional — only needed when you want to push data to an external fleet management system. It hot-swaps source and sink plugins at runtime via its own REST API.
+Two workspace packages carry cross-app code. [`@moveet/shared-types`](packages/shared-types/) owns the contracts — the WebSocket message union and the REST DTOs — so a payload change fails to compile on the other side. [`@moveet/server-kit`](packages/server-kit/) holds the shared server runtime: correlation-id and error middleware, a pino logger with secret redaction, and a retrying HTTP client.
 
-### Simulator internals
+Each package has its own README with deeper notes.
 
-```mermaid
-flowchart LR
-    GJ[GeoJSON<br/>road network] --> RN[RoadNetwork<br/>graph + A*]
-    RN --> VM[VehicleManager<br/>movement · routing · types]
-    VM --> SC[SimulationController<br/>start · stop · options]
-    SC --> RM[RecordingManager]
-    SC --> RP[ReplayManager]
-    SC --> IM[IncidentManager<br/>rerouting]
-    SC --> FM[FleetManager]
-    VM --> JM[JobManager<br/>assignment · lifecycle · SLA]
-    SC --> GF[GeoFenceManager<br/>enter / exit events]
-    SC --> TM[TrafficManager<br/>BPR · time-of-day]
-    SC --> WS[WebSocketBroadcaster<br/>buffer + flush]
-    WS --> TR{WS_TRANSPORT}
-    TR -- inprocess (default) --> CF[ClientFanout<br/>per-client fan-out]
-    TR -- redis --> RB[(Redis pub/sub)]
-    RB --> GW[ws-gateway<br/>standalone process]
-    GW --> CF
-```
+## API
 
-The `WebSocketBroadcaster` keeps the de-duping buffer and 10 Hz flush timer, then delegates egress to a `BroadcastTransport`. By default (`WS_TRANSPORT=inprocess`) it fans out to clients on the simulation thread. Setting `WS_TRANSPORT=redis` publishes serialized envelopes onto a Redis bus that a standalone `ws-gateway` process consumes, running the same `ClientFanout` engine against its own WS server so client count scales independently of the simulator. See `apps/simulator/CLAUDE.md` for the transport seam details.
+The REST and WebSocket surfaces are specified, and CI fails if either drifts from the code:
 
-### Shared packages
+- [`apps/simulator/openapi.yaml`](apps/simulator/openapi.yaml) — the REST surface
+- [`apps/simulator/asyncapi.yaml`](apps/simulator/asyncapi.yaml) — the WebSocket message union
+- `npm run check:api-specs` — verifies both against the implementation
 
-Cross-app code lives in `packages/`:
-
-- **`@moveet/shared-types`**: the single source of truth for the cross-app contracts. It owns the WebSocket message union (`WsMessageMap`, the derived `WebSocketMessage`, and `WsDataMessageType`) and the REST request/response DTOs. The simulator's broadcaster is typed against the union (`broadcast<K extends WsDataMessageType>(type, data)`), so producer and consumer derive from one definition and a payload-shape change fails to compile on the other side.
-- **`@moveet/server-kit`**: shared server runtime infra used by both Node services, namely the `correlationId` and `errorHandler` Express middleware, a pino `logger` factory with secret redaction, and a retrying `httpClient`.
-
----
-
-## Network CLI
-
-`apps/network` is a standalone CLI that turns raw OpenStreetMap data into a simulator-ready GeoJSON road network. It requires a locally installed [osmium-tool](https://osmcode.org/osmium-tool/) (≥ 1.14) and runs entirely offline after the initial Geofabrik download.
-
-### One-command setup
-
-```bash
-cd apps/network
-npm run dev -- prepare nairobi        # interactive wizard if region omitted
-npm run dev -- prepare --output apps/simulator/data/network.geojson
-```
-
-The `prepare` command runs the full pipeline: **download → extract → filter → export → validate**.
-
-### Individual commands
-
-| Command                    | Description                                                                 |
-| -------------------------- | --------------------------------------------------------------------------- |
-| `network download`         | Download country PBF from Geofabrik (cached after first run)                |
-| `network extract`          | Clip a bounding box from the country PBF using osmium                       |
-| `network filter`           | Keep only drivable road classes from the extracted PBF                      |
-| `network export`           | Convert filtered PBF to GeoJSON via osmium                                  |
-| `network validate`         | Run topology checks: orphan nodes, duplicate edges, disconnected components |
-| `network diff <old> <new>` | Compare two network GeoJSON files and report changes                        |
-| `network prepare [region]` | Full pipeline in one step                                                   |
-
-Regions are defined in `regions.json` (covers major cities globally). Pass `--bbox w,s,e,n` for a custom area or `--geofabrik <path>` for a Geofabrik sub-path.
-
----
-
-## Simulator API
-
-> Base URL: `http://localhost:5010`
-
-### Simulation control
-
-| Method | Path       | Description                                       |
-| ------ | ---------- | ------------------------------------------------- |
-| `GET`  | `/status`  | Simulation state (`running`, `ready`, `interval`) |
-| `POST` | `/start`   | Start simulation (accepts options body)           |
-| `POST` | `/stop`    | Stop simulation                                   |
-| `POST` | `/reset`   | Reset to initial state                            |
-| `GET`  | `/options` | Get current simulation options                    |
-| `POST` | `/options` | Update simulation options                         |
-
-### Vehicles & routing
-
-| Method | Path          | Description                                    |
-| ------ | ------------- | ---------------------------------------------- |
-| `GET`  | `/vehicles`   | List all vehicle DTOs                          |
-| `POST` | `/direction`  | Dispatch one or more vehicles to a destination |
-| `GET`  | `/directions` | Get active direction assignments               |
-| `POST` | `/find-node`  | Snap a lat/lng to the nearest graph node       |
-| `POST` | `/find-road`  | Snap a lat/lng to the nearest road edge        |
-| `POST` | `/search`     | Full-text POI search                           |
-
-### Map data
-
-| Method | Path         | Description                |
-| ------ | ------------ | -------------------------- |
-| `GET`  | `/network`   | Full road-network GeoJSON  |
-| `GET`  | `/roads`     | Road segments GeoJSON      |
-| `GET`  | `/pois`      | Points of interest         |
-| `GET`  | `/heatzones` | Current heat zone features |
-| `POST` | `/heatzones` | Regenerate heat zones      |
-
-### Fleets
-
-| Method   | Path                   | Description                    |
-| -------- | ---------------------- | ------------------------------ |
-| `GET`    | `/fleets`              | List all fleets                |
-| `POST`   | `/fleets`              | Create a fleet                 |
-| `DELETE` | `/fleets/:id`          | Delete a fleet                 |
-| `POST`   | `/fleets/:id/assign`   | Assign vehicles to a fleet     |
-| `POST`   | `/fleets/:id/unassign` | Unassign vehicles from a fleet |
-
-### Jobs
-
-Pickup/dropoff work orders. Creating a job also assigns it: the simulator picks a
-free vehicle (`nearest`, `best_eta`, or a named one), routes it through both
-stops, and advances the job through `pending → assigned → en_route → on_scene →
-transporting → complete` off the vehicle's own routing events, tracking ETA and
-SLA breach along the way.
-
-| Method   | Path                 | Description                                       |
-| -------- | -------------------- | ------------------------------------------------- |
-| `GET`    | `/jobs`              | List every job on the board                       |
-| `POST`   | `/jobs`              | Create a job and assign it                        |
-| `POST`   | `/jobs/:id/assign`   | Re-assign a job that has not been picked up yet   |
-| `POST`   | `/jobs/:id/cancel`   | Cancel a live job and release its vehicle         |
-| `DELETE` | `/jobs/:id`          | Remove a finished job from the board              |
-
-Naming a `vehicleId` that is not in the fleet answers `404`; one that is already
-carrying another job answers `409` naming that job. A vehicle taken off its job by
-something else (an operator dispatch, a scenario) re-queues the job if the load was
-not yet collected, and fails it — rather than reporting a delivery — if it was.
-
-In the UI the board is the Fleet dock panel's **Jobs** tab: place a pickup/dropoff
-with two map clicks, watch the SLA countdown, reassign a job that has not been
-picked up, and see which unit is carrying what in the vehicle list and inspector.
-
-### Device faults
-
-Faults injected as properties of the simulated **device** (frozen GPS, clock skew,
-duplicate and out-of-order messages, battery death, teleport/spoofing), as opposed
-to the adapter's realism engine, which degrades the **transport**. Off by default;
-reproducible under a fixed seed. See `apps/simulator/README.md` for the profile
-shape and per-fault semantics.
-
-| Method   | Path                     | Description                                        |
-| -------- | ------------------------ | -------------------------------------------------- |
-| `GET`    | `/faults`                | Configuration plus a live device-state snapshot     |
-| `POST`   | `/faults`                | Update the configuration at runtime                 |
-| `GET`    | `/faults/status`         | Live per-device state and trigger counts            |
-| `POST`   | `/faults/reset`          | Clear latched device state, keeping the config      |
-| `PUT`    | `/faults/vehicles/:id`   | Set one vehicle's fault profile                     |
-| `DELETE` | `/faults/vehicles/:id`   | Remove one vehicle's fault profile                  |
-
-The UI surfaces this as **Monitor → Faults**: arm the layer, set a seed, apply a
-profile preset fleet-wide or to one device, watch the live device counters, and
-clear latched state. Vehicles whose device is misbehaving carry a fault badge in
-the vehicle list, and the inspector shows the active faults, remaining battery and
-clock skew for the selected one.
-
-### Incidents
-
-| Method   | Path                | Description                             |
-| -------- | ------------------- | --------------------------------------- |
-| `GET`    | `/incidents`        | List active incidents                   |
-| `POST`   | `/incidents`        | Create an incident (triggers rerouting) |
-| `DELETE` | `/incidents/:id`    | Clear an incident                       |
-| `POST`   | `/incidents/random` | Create a random incident                |
-
-### Geofences
-
-| Method   | Path                    | Description                                    |
-| -------- | ----------------------- | ---------------------------------------------- |
-| `GET`    | `/geofences`            | List all geofence zones                        |
-| `POST`   | `/geofences`            | Create a geofence (GeoJSON polygon + metadata) |
-| `GET`    | `/geofences/:id`        | Get a geofence                                 |
-| `PUT`    | `/geofences/:id`        | Update a geofence                              |
-| `DELETE` | `/geofences/:id`        | Delete a geofence                              |
-| `PATCH`  | `/geofences/:id/toggle` | Enable / disable a geofence                    |
-
-### Health
-
-| Method | Path       | Description                              |
-| ------ | ---------- | ---------------------------------------- |
-| `GET`  | `/health`  | Uptime and subsystem status              |
-| `GET`  | `/metrics` | Prometheus scrape endpoint (prom-client) |
-
-### Recording & replay
-
-| Method | Path               | Description                         |
-| ------ | ------------------ | ----------------------------------- |
-| `POST` | `/recording/start` | Start recording the session         |
-| `POST` | `/recording/stop`  | Stop recording and save NDJSON file |
-| `GET`  | `/recordings`      | List saved recordings               |
-| `POST` | `/replay/start`    | Load and start a recording replay   |
-| `POST` | `/replay/pause`    | Pause replay                        |
-| `POST` | `/replay/resume`   | Resume replay                       |
-| `POST` | `/replay/stop`     | Stop replay, return to live mode    |
-| `POST` | `/replay/seek`     | Seek to a timestamp (ms)            |
-| `POST` | `/replay/speed`    | Set playback speed multiplier       |
-| `GET`  | `/replay/status`   | Current replay state                |
-
----
-
-## WebSocket Events
-
-Connect to `ws://localhost:5010`. On connect the server sends a `status` and `options` snapshot.
-
-| Event              | Direction       | Payload                                                   |
-| ------------------ | --------------- | --------------------------------------------------------- |
-| `vehicles`         | server → client | Array of `VehicleDTO` (position, speed, heading, fleetId) |
-| `status`           | server → client | `SimulationStatus` (running, ready, interval)             |
-| `options`          | server → client | Current `StartOptions`                                    |
-| `heatzones`        | server → client | `HeatZoneFeature[]`                                       |
-| `direction`        | server → client | Active route + ETA, with a `reason` (`dispatch`/`waypoints`/`random`/`reroute`) |
-| `waypoint:reached` | server → client | Vehicle reached a waypoint                                |
-| `route:completed`  | server → client | Vehicle completed its full route                          |
-| `reset`            | server → client | Simulation was reset                                      |
-| `fleet:created`    | server → client | New fleet                                                 |
-| `fleet:deleted`    | server → client | Fleet removed                                             |
-| `fleet:assigned`   | server → client | Vehicles assigned to fleet                                |
-| `job:created`      | server → client | New job, queued                                           |
-| `job:updated`      | server → client | Job lifecycle transition (assignment, status, SLA flag)    |
-| `job:sla-breach`   | server → client | Job passed its SLA deadline unfinished                    |
-| `job:deleted`      | server → client | Job removed from the board                                |
-| `incident:created` | server → client | New incident + affected vehicles                          |
-| `incident:cleared` | server → client | Incident resolved                                         |
-| `vehicle:rerouted` | server → client | Vehicle rerouted around incident                          |
-| `geofence:event`   | server → client | Vehicle entered or exited a geofence zone                 |
-| `faults:config`    | server → client | Device fault-injection configuration changed              |
-
----
-
-## Adapter Plugins
-
-> Base URL: `http://localhost:5011`
-
-### Runtime configuration API
-
-| Method   | Path                  | Description                              |
-| -------- | --------------------- | ---------------------------------------- |
-| `GET`    | `/config`             | Current source + sinks config            |
-| `POST`   | `/config/source`      | Swap the active source plugin            |
-| `POST`   | `/config/sinks`       | Replace the active sink list             |
-| `DELETE` | `/config/sinks/:type` | Remove one sink                          |
-| `GET`    | `/vehicles`           | Vehicles from the current source         |
-| `GET`    | `/fleets`             | Fleets from the current source           |
-| `POST`   | `/sync`               | Push a position update through all sinks |
-| `GET`    | `/health`             | Health check                             |
-| `GET`    | `/metrics`            | Prometheus scrape endpoint (prom-client) |
-
-### Source plugins
-
-```mermaid
-flowchart LR
-    SRC["Source plugin"] --> MGR["Plugin Manager"]
-    subgraph Sources
-        static["<b>static</b><br/>synthetic vehicles"]
-        graphql_s["<b>graphql</b><br/>GraphQL query"]
-        rest_s["<b>rest</b><br/>HTTP GET"]
-        mysql["<b>mysql</b>"]
-        postgres["<b>postgres</b>"]
-    end
-    Sources --> SRC
-```
-
-| Plugin     | Key config fields                                                |
-| ---------- | ---------------------------------------------------------------- |
-| `static`   | `count` (default 20)                                             |
-| `graphql`  | `url`, `query`, `token`, `headers`, `vehiclePath`, `maxVehicles` |
-| `rest`     | `url`, `token`, `headers`, `vehiclePath`, `maxVehicles`          |
-| `mysql`    | `host`, `port`, `user`, `password`, `database`, `query`          |
-| `postgres` | `host`, `port`, `user`, `password`, `database`, `query`          |
-
-### Sink plugins
-
-```mermaid
-flowchart LR
-    MGR["Plugin Manager"] --> SINK["Sink plugin(s)"]
-    subgraph Sinks
-        console["<b>console</b><br/>stdout"]
-        graphql_k["<b>graphql</b><br/>GraphQL mutation"]
-        rest_k["<b>rest</b><br/>HTTP POST"]
-        redpanda["<b>redpanda</b><br/>Kafka / Redpanda"]
-        redis["<b>redis</b>"]
-        webhook["<b>webhook</b><br/>HTTP fire-and-forget"]
-    end
-    SINK --> Sinks
-```
-
-Multiple sinks run simultaneously. Configure via env vars or the runtime API:
-
-```bash
-# Env-var example: Redpanda + webhook
-SOURCE_TYPE=graphql
-SOURCE_CONFIG='{"url":"https://api.example.com/graphql","token":"..."}'
-
-SINK_TYPES=redpanda,webhook
-SINK_REDPANDA_CONFIG='{"brokers":"localhost:9092","topic":"fleet-updates"}'
-SINK_WEBHOOK_CONFIG='{"url":"https://hooks.example.com/fleet"}'
-```
-
----
+Read those rather than a table in a README, which is how the previous one went stale. The simulator serves browsable docs at [`/api-docs`](http://localhost:5010/api-docs) while running, and [`apps/simulator/README.md`](apps/simulator/README.md) walks through the endpoints with examples.
 
 ## Configuration
 
-### Simulator (`apps/simulator/.env`)
+Each app reads its own `.env`. The settings you are most likely to change:
 
-| Variable                | Default                  | Description                                         |
-| ----------------------- | ------------------------ | --------------------------------------------------- |
-| `PORT`                  | `5010`                   | HTTP / WebSocket port                               |
-| `GEOJSON_PATH`          | `./data/network.geojson` | Path to the road-network GeoJSON file               |
-| `VEHICLE_COUNT`         | `70`                     | Number of vehicles to spawn                         |
-| `UPDATE_INTERVAL`       | `500`                    | Position broadcast interval (ms)                    |
-| `MIN_SPEED`             | `20`                     | Minimum vehicle speed (km/h)                        |
-| `MAX_SPEED`             | `60`                     | Maximum vehicle speed (km/h)                        |
-| `ACCELERATION`          | `5`                      | Acceleration rate (km/h per tick)                   |
-| `DECELERATION`          | `7`                      | Deceleration rate (km/h per tick)                   |
-| `TURN_THRESHOLD`        | `30`                     | Bearing change (°) that triggers slowdown           |
-| `SPEED_VARIATION`       | `0.1`                    | Random speed jitter factor `[0, 1]`                 |
-| `HEATZONE_SPEED_FACTOR` | `0.5`                    | Speed multiplier inside heat zones                  |
-| `ADAPTER_URL`           | _(empty)_                | Enable adapter sync (e.g. `http://localhost:5011`)  |
-| `SYNC_ADAPTER_TIMEOUT`  | `5000`                   | Adapter sync timeout (ms)                           |
-| `WS_TRANSPORT`          | `inprocess`              | WebSocket fan-out transport: `inprocess` or `redis` |
-| `REDIS_URL`             | _(empty)_                | Redis bus URL; required when `WS_TRANSPORT=redis`   |
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `GEOJSON_PATH` | `./data/network.geojson` | Road network to load |
+| `VEHICLE_COUNT` | `70` | Vehicles to spawn |
+| `UPDATE_INTERVAL` | `500` | Position broadcast interval (ms) |
+| `ADAPTER_URL` | _(empty)_ | Set it to enable adapter sync |
+| `WS_TRANSPORT` | `inprocess` | `redis` moves fan-out to a standalone gateway |
 
-### Adapter (`apps/adapter/.env`)
+Speed, acceleration, turn thresholds, heat-zone penalties, and the adapter's source and sink plugin config are documented in full in [`apps/simulator/README.md`](apps/simulator/README.md) and [`apps/adapter/README.md`](apps/adapter/README.md).
 
-| Variable             | Default   | Description                                       |
-| -------------------- | --------- | ------------------------------------------------- |
-| `PORT`               | `5011`    | HTTP port                                         |
-| `SOURCE_TYPE`        | `static`  | Active source plugin                              |
-| `SOURCE_CONFIG`      | `{}`      | JSON config for the source plugin                 |
-| `SINK_TYPES`         | _(empty)_ | Comma-separated sink plugin names                 |
-| `SINK_<TYPE>_CONFIG` | `{}`      | JSON config per sink, e.g. `SINK_REDPANDA_CONFIG` |
-
----
-
-## Testing
-
-Tests use [Vitest](https://vitest.dev/) across all four packages. CI enforces 50 % coverage thresholds.
+## Development
 
 ```bash
-npm test                          # all packages via Turborepo
-cd apps/simulator && npm test     # simulator
-cd apps/ui && npm test            # UI
-cd apps/adapter && npm test       # adapter
-cd apps/network && npm test       # network CLI
+npm test              # every workspace, via Turborepo
+npm run type-check
+npm run lint
+npm run check:api-specs
 ```
 
-Simulator test coverage includes: road-network graph, A\* pathfinding, vehicle types and profiles, turn restrictions, BPR traffic manager, time-of-day clock, geofence manager, heat zones, fleet management, incident rerouting, recording/replay lifecycle, geospatial helpers, serializer, config validation, and `SimulationController` lifecycle.
+Tests run on Vitest across all six workspaces, with coverage thresholds enforced in CI. Both Node services expose Prometheus metrics at `/metrics`, and an `x-request-id` flows end to end, through the adapter and into the telemetry envelope as `correlation_id`.
 
----
-
-## Docker
-
-### Pull and run (no build needed)
-
-```bash
-curl -O https://raw.githubusercontent.com/ivannovazzi/moveet/main/docker-compose.ghcr.yml
-docker compose -f docker-compose.ghcr.yml up
-```
-
-The simulator image does not bundle a road network: place a simulator-ready GeoJSON at `./apps/simulator/data/network.geojson` (see [Network CLI](#network-cli)) or edit the volume in the compose file.
-
-Open [http://localhost:5012](http://localhost:5012).
-
-Images (published on every release via GitHub Container Registry):
-
-```
-ghcr.io/ivannovazzi/moveet-simulator
-ghcr.io/ivannovazzi/moveet-adapter
-ghcr.io/ivannovazzi/moveet-ui
-```
-
-### Build from source
-
-All three images build from the single workspace-aware root `Dockerfile` (targets:
-`simulator`, `adapter`, `ui`). From the repo root:
+To build the images from source instead of pulling them:
 
 ```bash
 docker compose up --build
 ```
 
-To scale the WebSocket fan-out onto a standalone `ws-gateway` process backed by Redis, enable the optional `scale` profile (off by default):
+All three targets — `simulator`, `adapter`, `ui` — come from the single workspace-aware root `Dockerfile`. To scale WebSocket fan-out onto a standalone gateway backed by Redis, enable the optional `scale` profile:
 
 ```bash
 WS_TRANSPORT=redis REDIS_URL=redis://redis:6379 docker compose --profile scale up --build
 ```
 
----
-
-## Project Structure
-
-| Package       | Path                                 | Tech                                                           | Port |
-| ------------- | ------------------------------------ | -------------------------------------------------------------- | ---- |
-| **network**   | [`apps/network/`](apps/network/)     | Node.js 26 · Commander · osmium-tool (local install)           | CLI  |
-| **simulator** | [`apps/simulator/`](apps/simulator/) | Node.js 26 · Express 4 · ws 8 · Turf.js 7                      | 5010 |
-| **adapter**   | [`apps/adapter/`](apps/adapter/)     | Node.js 26 · Express 4                                         | 5011 |
-| **ui**        | [`apps/ui/`](apps/ui/)               | React 19 · deck.gl 9 · Vite · TypeScript 6.0 · Tailwind CSS v4 | 5012 |
-
-Shared workspace packages consumed by the apps:
-
-| Package                  | Path                                               | Role                                                                                        |
-| ------------------------ | -------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| **@moveet/shared-types** | [`packages/shared-types/`](packages/shared-types/) | Cross-app contracts: WebSocket message union + REST request/response DTOs                   |
-| **@moveet/server-kit**   | [`packages/server-kit/`](packages/server-kit/)     | Shared server runtime: correlation-id + error middleware, pino logger, retrying HTTP client |
-
-Each package has its own README with deeper architecture notes.
-
----
-
 ## Contributing
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR.
-
-## Security
-
-See [SECURITY.md](SECURITY.md) for the vulnerability disclosure policy.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR. Security policy is in [SECURITY.md](SECURITY.md).
 
 ## License
 
