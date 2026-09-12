@@ -4,6 +4,14 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
+    // Makes supertest connect on the address family it listened on. Its own
+    // `listen(0)` binds the IPv6 wildcard but its URL is hard-coded to
+    // `127.0.0.1`, so the port it is handed may already belong to an unrelated
+    // IPv4-only listener on the machine — which is why the suite intermittently
+    // failed with "Parse Error: Expected HTTP/, RTSP/ or ICE/" under parallel
+    // load. The setup file carries the full diagnosis; do not drop it as
+    // unexplained cruft. (fleetsim-all-vtwk.13)
+    setupFiles: ["./src/__tests__/setup/supertestLoopback.ts"],
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
