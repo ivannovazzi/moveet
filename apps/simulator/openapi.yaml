@@ -5,7 +5,7 @@ info:
     REST API for the Moveet vehicle fleet simulation engine.
     Simulates vehicle movement on real road networks (OpenStreetMap) with
     A* pathfinding, heat zones, incidents, recording/replay, and fleet management.
-  version: 0.1.0 # x-release-please-version
+  version: 0.1.1 # x-release-please-version
   license:
     name: MIT
 
