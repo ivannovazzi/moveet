@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { memo, useCallback, useMemo } from "react";
-import { FixedSizeList, type ListChildComponentProps } from "react-window";
+import { List, type RowComponentProps } from "react-window";
 import type {
   Fleet,
   Vehicle,
@@ -19,7 +19,7 @@ import { FAULT_KIND_LABEL } from "@/lib/faultPresets";
 import { Input } from "@/components/ui/input";
 
 // Row height (px) for the virtualized list — must match the rendered row's
-// real height since FixedSizeList positions rows by index * ROW_HEIGHT. The
+// real height since List positions rows by index * ROW_HEIGHT. The
 // tight-technical redesign uses a single-line 30px row (mockup `.trow`)
 // separated by hairlines rather than gapped cards, so there is no inter-row
 // gap to synthesize (ROW_GAP is 0 and the inset is a no-op).
@@ -148,6 +148,11 @@ interface VehicleRowProps {
   /** Device faults shaping this vehicle's last sample, if its device has a profile. */
   faults: DeviceFaultInfo | undefined;
   style: React.CSSProperties;
+  /** `aria-posinset` / `aria-setsize` for the row's slot in the `role="list"` the
+   *  List component renders. Kept as two primitives rather than react-window's
+   *  `ariaAttributes` object so the memo comparison below still short-circuits. */
+  posInSet: number;
+  setSize: number;
   onSelect: (id: string) => void;
   onToggleForDispatch: ((id: string) => void) | undefined;
   onHover: (id: string) => void;
@@ -172,6 +177,8 @@ const VehicleRow = memo(function VehicleRow({
   jobReference,
   faults,
   style,
+  posInSet,
+  setSize,
   onSelect,
   onToggleForDispatch,
   onHover,
@@ -211,7 +218,13 @@ const VehicleRow = memo(function VehicleRow({
     );
 
   return (
-    <div style={style} className="px-1.5">
+    <div
+      style={style}
+      className="px-1.5"
+      role="listitem"
+      aria-posinset={posInSet}
+      aria-setsize={setSize}
+    >
       <button
         className={cn(
           ROW_GRID,
@@ -320,30 +333,32 @@ interface RowData {
 }
 
 /**
- * Row renderer handed to `FixedSizeList`. Derives per-row values from the
- * shared `itemData` and forwards a narrow, primitive prop set to the memoized
+ * Row renderer handed to `List`. Derives per-row values from the shared
+ * `rowProps` (which react-window 2 spreads onto this component alongside
+ * `index`/`style`) and forwards a narrow, primitive prop set to the memoized
  * `VehicleRow` so unrelated vehicle updates don't force a re-render here.
  */
-function Row({ index, style, data }: ListChildComponentProps<RowData>) {
-  const {
-    vehicles,
-    directions,
-    vehicleFleetMap,
-    selectedForDispatchSet,
-    assignments,
-    results,
-    jobByVehicleId,
-    selectedId,
-    showCheckbox,
-    isDispatch,
-    isResults,
-    isRouteState,
-    onSelectVehicle,
-    onToggleVehicleForDispatch,
-    onHoverVehicle,
-    onUnhoverVehicle,
-  } = data;
-
+function Row({
+  index,
+  style,
+  ariaAttributes,
+  vehicles,
+  directions,
+  vehicleFleetMap,
+  selectedForDispatchSet,
+  assignments,
+  results,
+  jobByVehicleId,
+  selectedId,
+  showCheckbox,
+  isDispatch,
+  isResults,
+  isRouteState,
+  onSelectVehicle,
+  onToggleVehicleForDispatch,
+  onHoverVehicle,
+  onUnhoverVehicle,
+}: RowComponentProps<RowData>) {
   const vehicle = vehicles[index];
   const routeDistance = directions.get(vehicle.id)?.route.distance;
   const vehicleFleet = vehicleFleetMap.get(vehicle.id);
@@ -353,9 +368,11 @@ function Row({ index, style, data }: ListChildComponentProps<RowData>) {
 
   // Inset the row within its slot to reproduce the previous flex `gap`
   // spacing, which react-window's absolutely-positioned items don't get.
+  // v2 positions rows with `transform: translateY(...)` rather than `top`, so
+  // the leading half-gap is applied as a margin instead of an offset.
   const insetStyle: React.CSSProperties = {
     ...style,
-    top: (style.top as number) + ROW_GAP / 2,
+    marginTop: ROW_GAP / 2,
     height: (style.height as number) - ROW_GAP,
   };
 
@@ -378,6 +395,8 @@ function Row({ index, style, data }: ListChildComponentProps<RowData>) {
       jobReference={jobByVehicleId?.get(vehicle.id)?.reference}
       faults={vehicle.faults}
       style={insetStyle}
+      posInSet={ariaAttributes["aria-posinset"]}
+      setSize={ariaAttributes["aria-setsize"]}
       onSelect={onSelectVehicle}
       onToggleForDispatch={onToggleVehicleForDispatch}
       onHover={onHoverVehicle}
@@ -528,17 +547,15 @@ export default function VehicleList({
               </div>
             </div>
             <div ref={listRef} className="min-h-0 flex-1">
-              <FixedSizeList
-                height={listHeight}
-                width="100%"
-                itemCount={visibleVehicles.length}
-                itemSize={ROW_HEIGHT}
-                itemKey={itemKey}
-                itemData={itemData}
+              <List
+                style={{ height: listHeight, width: "100%" }}
+                rowCount={visibleVehicles.length}
+                rowHeight={ROW_HEIGHT}
+                rowKey={itemKey}
+                rowComponent={Row}
+                rowProps={itemData}
                 overscanCount={6}
-              >
-                {Row}
-              </FixedSizeList>
+              />
             </div>
           </>
         )}
