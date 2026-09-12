@@ -231,6 +231,7 @@ export type RecordingEventType =
   | "waypoint"
   | "route:completed"
   | "vehicle:rerouted"
+  | "geofence"
   | "simulation:start"
   | "simulation:stop"
   | "simulation:reset";

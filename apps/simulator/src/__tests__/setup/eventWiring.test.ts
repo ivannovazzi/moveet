@@ -284,6 +284,58 @@ describe("wireEvents", () => {
 
   // ─── Replay events ────────────────────────────────────────────────
 
+  describe("geofence events", () => {
+    const fence = {
+      id: "f1",
+      name: "Zone 1",
+      type: "monitoring" as const,
+      // [lng, lat] ring around [0, 0]
+      polygon: [
+        [-1, -1],
+        [1, -1],
+        [1, 1],
+        [-1, 1],
+      ] as [number, number][],
+      active: true,
+    };
+
+    function vehicleAt(lat: number, lng: number) {
+      return {
+        id: "v1",
+        name: "Vehicle v1",
+        type: "car",
+        position: [lat, lng] as [number, number],
+        speed: 10,
+        heading: 0,
+      };
+    }
+
+    it("should broadcast and record geofence enter/exit crossings", () => {
+      geoFenceManager.addZone(fence);
+
+      geoFenceManager.checkVehicles([vehicleAt(0, 0)] as unknown as Parameters<
+        GeoFenceManager["checkVehicles"]
+      >[0]);
+      geoFenceManager.checkVehicles([vehicleAt(10, 10)] as unknown as Parameters<
+        GeoFenceManager["checkVehicles"]
+      >[0]);
+
+      const broadcast = (broadcaster.broadcast as unknown as ReturnType<typeof vi.fn>).mock.calls
+        .filter(([channel]) => channel === "geofence:event")
+        .map(([, payload]) => payload as { event: string });
+      expect(broadcast.map((e) => e.event)).toEqual(["enter", "exit"]);
+
+      const recorded = (
+        recordingManager.recordEvent as unknown as ReturnType<typeof vi.fn>
+      ).mock.calls
+        .filter(([type]) => type === "geofence")
+        .map(([, payload]) => payload as { event: string });
+      expect(recorded.map((e) => e.event)).toEqual(["enter", "exit"]);
+      // The recorded payload is the live payload, unmodified.
+      expect(recorded).toEqual(broadcast);
+    });
+  });
+
   describe("replay events", () => {
     it("should broadcast replay vehicle events as batch", () => {
       const data = { vehicles: [{ id: "v1" }, { id: "v2" }] };
@@ -312,6 +364,20 @@ describe("wireEvents", () => {
       const data = { id: "inc1" };
       simulationController.emit("replayIncident:cleared", data);
       expect(broadcaster.broadcast).toHaveBeenCalledWith("incident:cleared", data);
+    });
+
+    it("should broadcast replay geofence:event events on the live channel", () => {
+      const data = {
+        type: "geofence:event",
+        fenceId: "f1",
+        fenceName: "Zone 1",
+        vehicleId: "v1",
+        vehicleName: "Vehicle v1",
+        event: "enter",
+        timestamp: new Date().toISOString(),
+      };
+      simulationController.emit("replayGeofence:event", data);
+      expect(broadcaster.broadcast).toHaveBeenCalledWith("geofence:event", data);
     });
 
     it("should broadcast replay heatzones events", () => {

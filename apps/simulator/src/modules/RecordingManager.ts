@@ -193,8 +193,10 @@ export class KeyframeStateAccumulator {
         this.clear();
         break;
       default:
-        // spawn / waypoint / vehicle:rerouted / simulation:start / stop are
-        // transient or already reflected by the events above.
+        // spawn / waypoint / vehicle:rerouted / geofence / simulation:start /
+        // stop are transient or already reflected by the events above. A
+        // geofence crossing is an instantaneous tick with no standing state,
+        // so a keyframe carries nothing for it.
         break;
     }
   }

@@ -5,6 +5,8 @@ import os from "os";
 import { RecordingManager } from "../modules/RecordingManager";
 import { ReplayManager } from "../modules/ReplayManager";
 import { SimulationClock } from "../modules/SimulationClock";
+import { GeoFenceManager } from "../modules/GeoFenceManager";
+import type { GeoFence, GeoFenceEvent } from "@moveet/shared-types";
 import type { StartOptions, VehicleDTO, RecordingHeader, RecordingEvent } from "../types";
 
 // ─── Helpers ────────────────────────────────────────────────────────
@@ -661,5 +663,62 @@ describe("ReplayManager", () => {
 
       vi.useRealTimers();
     });
+  });
+});
+
+// ─── Geofence crossings survive record → replay ─────────────────────
+
+describe("geofence crossings survive record → replay", () => {
+  const fence: GeoFence = {
+    id: "f1",
+    name: "Depot",
+    type: "monitoring",
+    // [lng, lat] ring around [0, 0]
+    polygon: [
+      [-1, -1],
+      [1, -1],
+      [1, 1],
+      [-1, 1],
+    ],
+    active: true,
+  };
+
+  it("re-emits recorded enter/exit events on the live geofence:event channel", async () => {
+    const filePath = tmpFile("geofence-replay.ndjson");
+
+    // ─── Live session: a vehicle drives into the fence and out again ──
+    const rm = new RecordingManager();
+    const gfm = new GeoFenceManager();
+    gfm.addZone(fence);
+
+    const liveEvents: GeoFenceEvent[] = [];
+    gfm.on("geofence:event", (event: GeoFenceEvent) => {
+      liveEvents.push(event);
+      // Exactly the wiring used in setup/eventWiring.ts
+      rm.recordEvent("geofence", event as unknown as Record<string, unknown>);
+    });
+
+    rm.startRecording(defaultOptions, 1, filePath);
+    gfm.checkVehicles([makeVehicle("v1", 0, 0)]);
+    gfm.checkVehicles([makeVehicle("v1", 10, 10)]);
+    rm.stopRecording();
+
+    expect(liveEvents.map((e) => e.event)).toEqual(["enter", "exit"]);
+
+    // ─── Replay the same file ────────────────────────────────────────
+    vi.useFakeTimers();
+    const rp = new ReplayManager();
+    await rp.loadRecording(filePath);
+
+    const replayedEvents: GeoFenceEvent[] = [];
+    rp.on("geofence:event", (data) => replayedEvents.push(data as GeoFenceEvent));
+
+    rp.startReplay(1);
+    vi.advanceTimersByTime(60_000);
+    rp.stopReplay();
+    vi.useRealTimers();
+
+    // A replayed session shows the same geofence ticks the live session did.
+    expect(replayedEvents).toEqual(liveEvents);
   });
 });
