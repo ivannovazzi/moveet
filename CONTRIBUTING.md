@@ -65,6 +65,11 @@ The simulator works standalone with synthetic vehicles. The adapter is only need
   - `npm run lint` (Biome lint across the whole repo) or `npm run lint:fix` (apply safe fixes)
   - `npm run format:check` (Biome format check) or `npm run format` (write)
 - Type-checking is a separate task: `npm run type-check`.
+- API specs are checked against the code: `npm run check:api-specs` diffs
+  `apps/simulator/openapi.yaml` against the registered Express routes and
+  `apps/simulator/asyncapi.yaml` against the WebSocket union in
+  `packages/shared-types/src/ws.ts`. Update the spec in the same commit as the route or
+  message type; CI fails on drift.
 - Follow existing conventions in the codebase. When in doubt, match the style of surrounding code.
 
 ## Testing

@@ -54,6 +54,14 @@ jobs:
       # this dedicated check rather than an app's unit tests.
       - name: Repo-policy checks
         run: npm run test:repo
+      # The two API specs (openapi.yaml, asyncapi.yaml) are hand-maintained, so
+      # they drift silently unless something compares them with the code. This
+      # step does: it diffs the OpenAPI paths against the routes Express
+      # registers, the AsyncAPI messages against the WS union in
+      # packages/shared-types/src/ws.ts, and both version stamps against the
+      # simulator package version.
+      - name: API spec drift check
+        run: npm run check:api-specs
       - name: Upload coverage reports
         if: always()
         uses: actions/upload-artifact@v7

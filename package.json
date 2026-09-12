@@ -30,6 +30,7 @@
     "type-check": "turbo type-check",
     "test:commitlint": "node --test commitlint.config.test.mjs",
     "test:repo": "vitest run --config vitest.repo-policy.config.ts",
+    "check:api-specs": "node scripts/check-api-specs.mjs",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "prepare": "husky"
   },
@@ -41,7 +42,8 @@
     "esbuild": "0.28.2",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
-    "turbo": "^2.10.10"
+    "turbo": "^2.10.10",
+    "yaml": "^2.9.0"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx,mjs,cjs,json,jsonc,css}": [

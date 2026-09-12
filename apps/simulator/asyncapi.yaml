@@ -1,0 +1,1007 @@
+# ─── Moveet Simulator WebSocket API ─────────────────────────────────
+# AsyncAPI description of the simulator's WebSocket surface.
+# packages/shared-types/src/ws.ts is the source of truth for the message
+# union; `npm run check:api-specs` compares this document against it and
+# fails CI when a message type is added, removed or renamed on either side.
+asyncapi: 3.0.0
+info:
+  title: Moveet Simulator WebSocket API
+  version: 0.1.0 # x-release-please-version
+  description: |-
+    Real-time WebSocket surface of the Moveet vehicle fleet simulator.
+
+    Every frame is JSON: `{ "type": <message type>, "data": <payload> }` for
+    data-carrying messages, and `{ "type": <message type> }` for the
+    `connect`/`disconnect` control frames.
+
+    This document is checked against `packages/shared-types/src/ws.ts` — the
+    single source of truth for the message union — by
+    `npm run check:api-specs`, which fails CI on drift. Payload shapes are
+    shared with the REST contract in `openapi.yaml` wherever the same type is
+    served over both transports.
+  license:
+    name: MIT
+defaultContentType: application/json
+servers:
+  local:
+    host: localhost:5010
+    protocol: ws
+    description: Local development server (same port as the REST API)
+channels:
+  simulation:
+    address: /
+    title: Simulation stream
+    description: |-
+      The simulator's single WebSocket endpoint. All messages, in both
+      directions, flow over this one channel; `type` discriminates them.
+    messages:
+      vehicle:
+        $ref: "#/components/messages/vehicle"
+      vehicles:
+        $ref: "#/components/messages/vehicles"
+      status:
+        $ref: "#/components/messages/status"
+      options:
+        $ref: "#/components/messages/options"
+      heatzones:
+        $ref: "#/components/messages/heatzones"
+      direction:
+        $ref: "#/components/messages/direction"
+      reset:
+        $ref: "#/components/messages/reset"
+      fleetCreated:
+        $ref: "#/components/messages/fleetCreated"
+      fleetDeleted:
+        $ref: "#/components/messages/fleetDeleted"
+      fleetAssigned:
+        $ref: "#/components/messages/fleetAssigned"
+      jobCreated:
+        $ref: "#/components/messages/jobCreated"
+      jobUpdated:
+        $ref: "#/components/messages/jobUpdated"
+      jobSlaBreach:
+        $ref: "#/components/messages/jobSlaBreach"
+      jobDeleted:
+        $ref: "#/components/messages/jobDeleted"
+      waypointReached:
+        $ref: "#/components/messages/waypointReached"
+      routeCompleted:
+        $ref: "#/components/messages/routeCompleted"
+      incidentCreated:
+        $ref: "#/components/messages/incidentCreated"
+      incidentCleared:
+        $ref: "#/components/messages/incidentCleared"
+      vehicleRerouted:
+        $ref: "#/components/messages/vehicleRerouted"
+      replayStatus:
+        $ref: "#/components/messages/replayStatus"
+      generateProgress:
+        $ref: "#/components/messages/generateProgress"
+      generateComplete:
+        $ref: "#/components/messages/generateComplete"
+      generateError:
+        $ref: "#/components/messages/generateError"
+      clock:
+        $ref: "#/components/messages/clock"
+      traffic:
+        $ref: "#/components/messages/traffic"
+      analytics:
+        $ref: "#/components/messages/analytics"
+      geofenceEvent:
+        $ref: "#/components/messages/geofenceEvent"
+      scenarioStarted:
+        $ref: "#/components/messages/scenarioStarted"
+      scenarioEvent:
+        $ref: "#/components/messages/scenarioEvent"
+      scenarioPaused:
+        $ref: "#/components/messages/scenarioPaused"
+      scenarioResumed:
+        $ref: "#/components/messages/scenarioResumed"
+      scenarioCompleted:
+        $ref: "#/components/messages/scenarioCompleted"
+      scenarioStopped:
+        $ref: "#/components/messages/scenarioStopped"
+      faultsConfig:
+        $ref: "#/components/messages/faultsConfig"
+      connect:
+        $ref: "#/components/messages/connect"
+      disconnect:
+        $ref: "#/components/messages/disconnect"
+operations:
+  receiveSimulationEvents:
+    action: receive
+    channel:
+      $ref: "#/channels/simulation"
+    title: Simulation events
+    summary: Every message the simulator broadcasts to connected clients.
+    messages:
+      - $ref: "#/components/messages/vehicle"
+      - $ref: "#/components/messages/vehicles"
+      - $ref: "#/components/messages/status"
+      - $ref: "#/components/messages/options"
+      - $ref: "#/components/messages/heatzones"
+      - $ref: "#/components/messages/direction"
+      - $ref: "#/components/messages/reset"
+      - $ref: "#/components/messages/fleetCreated"
+      - $ref: "#/components/messages/fleetDeleted"
+      - $ref: "#/components/messages/fleetAssigned"
+      - $ref: "#/components/messages/jobCreated"
+      - $ref: "#/components/messages/jobUpdated"
+      - $ref: "#/components/messages/jobSlaBreach"
+      - $ref: "#/components/messages/jobDeleted"
+      - $ref: "#/components/messages/waypointReached"
+      - $ref: "#/components/messages/routeCompleted"
+      - $ref: "#/components/messages/incidentCreated"
+      - $ref: "#/components/messages/incidentCleared"
+      - $ref: "#/components/messages/vehicleRerouted"
+      - $ref: "#/components/messages/replayStatus"
+      - $ref: "#/components/messages/generateProgress"
+      - $ref: "#/components/messages/generateComplete"
+      - $ref: "#/components/messages/generateError"
+      - $ref: "#/components/messages/clock"
+      - $ref: "#/components/messages/traffic"
+      - $ref: "#/components/messages/analytics"
+      - $ref: "#/components/messages/geofenceEvent"
+      - $ref: "#/components/messages/scenarioStarted"
+      - $ref: "#/components/messages/scenarioEvent"
+      - $ref: "#/components/messages/scenarioPaused"
+      - $ref: "#/components/messages/scenarioResumed"
+      - $ref: "#/components/messages/scenarioCompleted"
+      - $ref: "#/components/messages/scenarioStopped"
+      - $ref: "#/components/messages/faultsConfig"
+      - $ref: "#/components/messages/connect"
+      - $ref: "#/components/messages/disconnect"
+  sendClientCommands:
+    action: send
+    channel:
+      $ref: "#/channels/simulation"
+    title: Client commands
+    summary: Messages a client may send. Unknown or malformed frames are ignored by the server.
+    messages:
+      - $ref: "#/components/messages/subscribe"
+components:
+  messages:
+    vehicle:
+      name: vehicle
+      title: Vehicle state update
+      summary: A single vehicle moved or changed state. The highest-volume channel.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: vehicle
+          data:
+            $ref: ./openapi.yaml#/components/schemas/VehicleDTO
+    vehicles:
+      name: vehicles
+      title: Vehicle batch update
+      summary: A batch of vehicle states, sent when several vehicles change within one flush window.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: vehicles
+          data:
+            type: array
+            items:
+              $ref: ./openapi.yaml#/components/schemas/VehicleDTO
+    status:
+      name: status
+      title: Simulation status
+      summary: The simulation started, stopped, or changed tick interval.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: status
+          data:
+            $ref: ./openapi.yaml#/components/schemas/SimulationStatus
+    options:
+      name: options
+      title: Simulation options
+      summary: The active simulation options changed.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: options
+          data:
+            $ref: ./openapi.yaml#/components/schemas/StartOptions
+    heatzones:
+      name: heatzones
+      title: Heat zones
+      summary: The full current set of heat zones.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: heatzones
+          data:
+            type: array
+            items:
+              $ref: ./openapi.yaml#/components/schemas/HeatZoneFeature
+    direction:
+      name: direction
+      title: Vehicle direction
+      summary: A vehicle was given a new route, by dispatch, waypoints, wander or an incident reroute.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: direction
+          data:
+            $ref: "#/components/schemas/VehicleDirection"
+    reset:
+      name: reset
+      title: Simulation reset
+      summary: "The simulation was reset: a full snapshot of vehicles and their active routes."
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: reset
+          data:
+            $ref: "#/components/schemas/ResetPayload"
+    fleetCreated:
+      name: fleet:created
+      title: Fleet created
+      summary: A fleet was created.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: fleet:created
+          data:
+            $ref: ./openapi.yaml#/components/schemas/Fleet
+    fleetDeleted:
+      name: fleet:deleted
+      title: Fleet deleted
+      summary: A fleet was deleted.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: fleet:deleted
+          data:
+            $ref: "#/components/schemas/FleetDeletedPayload"
+    fleetAssigned:
+      name: fleet:assigned
+      title: Fleet assignment changed
+      summary: Vehicles were assigned to a fleet, or unassigned when `fleetId` is null.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: fleet:assigned
+          data:
+            $ref: "#/components/schemas/FleetAssignedPayload"
+    jobCreated:
+      name: job:created
+      title: Job created
+      summary: A delivery job was created.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: job:created
+          data:
+            $ref: ./openapi.yaml#/components/schemas/Job
+    jobUpdated:
+      name: job:updated
+      title: Job updated
+      summary: "Any job lifecycle transition: assignment, status change, or SLA flag flip."
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: job:updated
+          data:
+            $ref: ./openapi.yaml#/components/schemas/Job
+    jobSlaBreach:
+      name: job:sla-breach
+      title: Job SLA breached
+      summary: Fires once, the moment a job passes its SLA deadline unfinished.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: job:sla-breach
+          data:
+            $ref: ./openapi.yaml#/components/schemas/Job
+    jobDeleted:
+      name: job:deleted
+      title: Job deleted
+      summary: A job was deleted.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: job:deleted
+          data:
+            $ref: "#/components/schemas/JobDeletedPayload"
+    waypointReached:
+      name: waypoint:reached
+      title: Waypoint reached
+      summary: A vehicle reached one of the waypoints on its multi-stop route.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: waypoint:reached
+          data:
+            $ref: "#/components/schemas/WaypointReachedPayload"
+    routeCompleted:
+      name: route:completed
+      title: Route completed
+      summary: A vehicle finished its route.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: route:completed
+          data:
+            $ref: "#/components/schemas/RouteCompletedPayload"
+    incidentCreated:
+      name: incident:created
+      title: Incident created
+      summary: A road incident was created.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: incident:created
+          data:
+            $ref: ./openapi.yaml#/components/schemas/IncidentDTO
+    incidentCleared:
+      name: incident:cleared
+      title: Incident cleared
+      summary: A road incident expired or was removed.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: incident:cleared
+          data:
+            $ref: "#/components/schemas/IncidentClearedPayload"
+    vehicleRerouted:
+      name: vehicle:rerouted
+      title: Vehicle rerouted
+      summary: A vehicle was rerouted around an incident, keeping the same destination.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: vehicle:rerouted
+          data:
+            $ref: "#/components/schemas/VehicleReroutedPayload"
+    replayStatus:
+      name: replay:status
+      title: Replay status
+      summary: Playback mode or position changed.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: replay:status
+          data:
+            $ref: ./openapi.yaml#/components/schemas/ReplayStatus
+    generateProgress:
+      name: generate:progress
+      title: Generation progress
+      summary: Progress of a headless historical recording generation job.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: generate:progress
+          data:
+            $ref: "#/components/schemas/GenerateProgressPayload"
+    generateComplete:
+      name: generate:complete
+      title: Generation complete
+      summary: A headless generation job finished and produced a recording.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: generate:complete
+          data:
+            $ref: "#/components/schemas/GenerateCompletePayload"
+    generateError:
+      name: generate:error
+      title: Generation failed
+      summary: A headless generation job failed.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: generate:error
+          data:
+            $ref: "#/components/schemas/GenerateErrorPayload"
+    clock:
+      name: clock
+      title: Simulation clock
+      summary: The simulated clock ticked or its speed multiplier changed.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: clock
+          data:
+            $ref: ./openapi.yaml#/components/schemas/ClockState
+    traffic:
+      name: traffic
+      title: Traffic snapshot
+      summary: Per-edge congestion snapshot, broadcast on an interval.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: traffic
+          data:
+            type: array
+            items:
+              $ref: ./openapi.yaml#/components/schemas/TrafficEdge
+    analytics:
+      name: analytics
+      title: Analytics snapshot
+      summary: Fleet-wide analytics, broadcast on an interval.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: analytics
+          data:
+            $ref: "#/components/schemas/AnalyticsSnapshot"
+    geofenceEvent:
+      name: geofence:event
+      title: Geofence event
+      summary: A vehicle entered or exited a geofence.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: geofence:event
+          data:
+            $ref: "#/components/schemas/GeoFenceEvent"
+    scenarioStarted:
+      name: scenario:started
+      title: Scenario started
+      summary: A scenario run started.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: scenario:started
+          data:
+            $ref: "#/components/schemas/ScenarioEventPayload"
+    scenarioEvent:
+      name: scenario:event
+      title: Scenario event executed
+      summary: A scenario step was executed.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: scenario:event
+          data:
+            $ref: "#/components/schemas/ScenarioEventPayload"
+    scenarioPaused:
+      name: scenario:paused
+      title: Scenario paused
+      summary: A scenario run was paused.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: scenario:paused
+          data:
+            $ref: "#/components/schemas/ScenarioEventPayload"
+    scenarioResumed:
+      name: scenario:resumed
+      title: Scenario resumed
+      summary: A paused scenario run resumed.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: scenario:resumed
+          data:
+            $ref: "#/components/schemas/ScenarioEventPayload"
+    scenarioCompleted:
+      name: scenario:completed
+      title: Scenario completed
+      summary: A scenario run ran to completion.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: scenario:completed
+          data:
+            $ref: "#/components/schemas/ScenarioEventPayload"
+    scenarioStopped:
+      name: scenario:stopped
+      title: Scenario stopped
+      summary: A scenario run was stopped before completion.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: scenario:stopped
+          data:
+            $ref: "#/components/schemas/ScenarioEventPayload"
+    faultsConfig:
+      name: faults:config
+      title: Device fault configuration
+      summary: The device fault-injection configuration changed, at startup or at runtime.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: faults:config
+          data:
+            $ref: ./openapi.yaml#/components/schemas/DeviceFaultConfig
+    connect:
+      name: connect
+      title: Connected
+      summary: "Control frame: the client is connected. Carries no data."
+      payload:
+        type: object
+        required:
+          - type
+        properties:
+          type:
+            type: string
+            const: connect
+    disconnect:
+      name: disconnect
+      title: Disconnected
+      summary: "Control frame: the connection was closed. Carries no data."
+      payload:
+        type: object
+        required:
+          - type
+        properties:
+          type:
+            type: string
+            const: disconnect
+    subscribe:
+      name: subscribe
+      title: Subscribe filter
+      summary: Narrows the vehicle stream for this client. A null or absent `filter` clears filtering; an unparseable filter is rejected and the previous one kept.
+      payload:
+        type: object
+        required:
+          - type
+        properties:
+          type:
+            type: string
+            const: subscribe
+          filter:
+            oneOf:
+              - $ref: "#/components/schemas/SubscribeFilter"
+              - type: "null"
+  schemas:
+    VehicleDirection:
+      type: object
+      description: A vehicle's active route and ETA.
+      required:
+        - vehicleId
+        - route
+      properties:
+        vehicleId:
+          type: string
+        route:
+          $ref: ./openapi.yaml#/components/schemas/Route
+        eta:
+          type: number
+          description: Seconds to destination.
+        waypoints:
+          type: array
+          items:
+            $ref: ./openapi.yaml#/components/schemas/Waypoint
+        currentWaypointIndex:
+          type: integer
+        reason:
+          type: string
+          enum:
+            - dispatch
+            - waypoints
+            - random
+            - reroute
+          description: Why the route was set. Absent on a reset-time snapshot, which describes an existing route rather than a change.
+    ResetPayload:
+      type: object
+      required:
+        - vehicles
+        - directions
+      properties:
+        vehicles:
+          type: array
+          items:
+            $ref: ./openapi.yaml#/components/schemas/VehicleDTO
+        directions:
+          type: array
+          items:
+            $ref: "#/components/schemas/VehicleDirection"
+    FleetDeletedPayload:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+    FleetAssignedPayload:
+      type: object
+      required:
+        - fleetId
+        - vehicleIds
+      properties:
+        fleetId:
+          oneOf:
+            - type: string
+            - type: "null"
+          description: Null when the vehicles were unassigned.
+        vehicleIds:
+          type: array
+          items:
+            type: string
+    JobDeletedPayload:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+    WaypointReachedPayload:
+      type: object
+      required:
+        - vehicleId
+        - waypointIndex
+        - remaining
+      properties:
+        vehicleId:
+          type: string
+        waypointIndex:
+          type: integer
+        waypointLabel:
+          type: string
+        remaining:
+          type: integer
+          description: Waypoints still ahead.
+    RouteCompletedPayload:
+      type: object
+      required:
+        - vehicleId
+      properties:
+        vehicleId:
+          type: string
+    IncidentClearedPayload:
+      type: object
+      required:
+        - id
+        - reason
+      properties:
+        id:
+          type: string
+        reason:
+          type: string
+    VehicleReroutedPayload:
+      type: object
+      required:
+        - vehicleId
+        - incidentId
+      properties:
+        vehicleId:
+          type: string
+        incidentId:
+          type: string
+    GenerateProgressPayload:
+      type: object
+      required:
+        - jobId
+        - step
+        - totalSteps
+        - pct
+      properties:
+        jobId:
+          type: string
+        step:
+          type: integer
+        totalSteps:
+          type: integer
+        pct:
+          type: number
+          minimum: 0
+          maximum: 100
+    GeneratedRecording:
+      type: object
+      description: Recording metadata for a headlessly generated session.
+      required:
+        - filePath
+        - duration
+        - eventCount
+        - fileSize
+        - vehicleCount
+        - startTime
+      properties:
+        id:
+          type: integer
+          description: Row id, when persistence is enabled.
+        filePath:
+          type: string
+        duration:
+          type: number
+          description: Milliseconds of simulated time.
+        eventCount:
+          type: integer
+        fileSize:
+          type: integer
+          description: Bytes.
+        vehicleCount:
+          type: integer
+        startTime:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+    GenerateCompletePayload:
+      type: object
+      required:
+        - jobId
+        - recording
+      properties:
+        jobId:
+          type: string
+        recording:
+          $ref: "#/components/schemas/GeneratedRecording"
+    GenerateErrorPayload:
+      type: object
+      required:
+        - jobId
+        - error
+      properties:
+        jobId:
+          type: string
+        error:
+          type: string
+    AnalyticsSnapshot:
+      type: object
+      required:
+        - summary
+        - fleets
+        - timestamp
+      properties:
+        summary:
+          $ref: ./openapi.yaml#/components/schemas/AnalyticsSummary
+        fleets:
+          type: array
+          items:
+            $ref: ./openapi.yaml#/components/schemas/FleetAnalytics
+        timestamp:
+          type: integer
+          description: Epoch milliseconds.
+    GeoFenceEvent:
+      type: object
+      required:
+        - type
+        - fenceId
+        - fenceName
+        - vehicleId
+        - vehicleName
+        - event
+        - timestamp
+      properties:
+        type:
+          type: string
+          const: geofence:event
+        fenceId:
+          type: string
+        fenceName:
+          type: string
+        vehicleId:
+          type: string
+        vehicleName:
+          type: string
+        event:
+          type: string
+          enum:
+            - enter
+            - exit
+        timestamp:
+          type: string
+          format: date-time
+    ScenarioEventPayload:
+      type: object
+      description: Loosely-typed payload shared by every `scenario:*` message; which fields are present depends on the lifecycle stage.
+      properties:
+        type:
+          type: string
+        index:
+          type: integer
+        at:
+          type: number
+          description: Offset in milliseconds from scenario start.
+        action:
+          type: object
+          required:
+            - type
+          properties:
+            type:
+              type: string
+        name:
+          type: string
+        eventCount:
+          type: integer
+        elapsed:
+          type: number
+        eventsExecuted:
+          type: integer
+    BoundingBox:
+      type: object
+      required:
+        - minLat
+        - maxLat
+        - minLng
+        - maxLng
+      properties:
+        minLat:
+          type: number
+        maxLat:
+          type: number
+        minLng:
+          type: number
+        maxLng:
+          type: number
+    SubscribeFilter:
+      type: object
+      description: Every criterion is optional; an omitted criterion filters nothing.
+      properties:
+        fleetIds:
+          type: array
+          items:
+            type: string
+          description: Only vehicles in these fleets. Vehicles with no fleet are excluded.
+        vehicleTypes:
+          type: array
+          items:
+            $ref: ./openapi.yaml#/components/schemas/VehicleType
+        bbox:
+          $ref: "#/components/schemas/BoundingBox"
