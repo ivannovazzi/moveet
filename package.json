@@ -35,14 +35,14 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.5.9",
+    "@biomejs/biome": "^2.5.12",
     "@commitlint/cli": "^20.5.3",
     "@commitlint/config-conventional": "^20.5.3",
     "@vitest/coverage-v8": "^4.1.10",
     "esbuild": "0.28.2",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
-    "turbo": "^2.10.10",
+    "turbo": "^2.10.12",
     "yaml": "^2.9.0"
   },
   "lint-staged": {
