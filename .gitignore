@@ -7,6 +7,8 @@ dist/
 # Test artifacts
 test-results/
 coverage/
+# Vitest 5 writes reporter output, caches and other run artifacts here.
+.vitest/
 
 # OS files
 .DS_Store
