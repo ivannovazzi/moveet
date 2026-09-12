@@ -16,6 +16,7 @@ import type {
   VehicleDirection,
   Heatzone,
   IncidentDTO,
+  GeoFenceEvent,
   IncidentClearedPayload,
   WaypointReachedPayload,
   RouteCompletedPayload,
@@ -167,6 +168,12 @@ export function wireEvents(ctx: EventWiringContext): {
   incidentManager.on("incident:cleared", (data) =>
     recordingManager.recordEvent("incident", { action: "cleared", ...data })
   );
+  // Geofence crossings are point-in-time ticks with no live-state to fold, but
+  // they are a headline feature: without them a recording loses geofencing
+  // entirely and cannot be used to demo or regression-test it.
+  geoFenceManager.on("geofence:event", (event: GeoFenceEvent) =>
+    recordingManager.recordEvent("geofence", event as unknown as Record<string, unknown>)
+  );
 
   // ─── Recording metadata persistence ────────────────────────────────
   if (stateStore) {
@@ -258,6 +265,9 @@ export function wireEvents(ctx: EventWiringContext): {
   );
   simulationController.on("replayVehicle:rerouted", (data) =>
     broadcaster.broadcast("vehicle:rerouted", data as VehicleReroutedPayload)
+  );
+  simulationController.on("replayGeofence:event", (data) =>
+    broadcaster.broadcast("geofence:event", data as GeoFenceEvent)
   );
   simulationController.on("replay:status", (data) => broadcaster.broadcast("replay:status", data));
 

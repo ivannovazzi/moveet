@@ -30,6 +30,7 @@ type EventEmitterMap = {
   "replayWaypoint:reached": [unknown];
   "replayRoute:completed": [unknown];
   "replayVehicle:rerouted": [unknown];
+  "replayGeofence:event": [unknown];
   "replaySimulation:start": [unknown];
   "replaySimulation:stop": [unknown];
   "replaySimulation:reset": [unknown];
@@ -479,6 +480,7 @@ export class SimulationController extends EventEmitter<EventEmitterMap> {
       ["waypoint:reached", "replayWaypoint:reached"],
       ["route:completed", "replayRoute:completed"],
       ["vehicle:rerouted", "replayVehicle:rerouted"],
+      ["geofence:event", "replayGeofence:event"],
       ["simulation:start", "replaySimulation:start"],
       ["simulation:stop", "replaySimulation:stop"],
       ["simulation:reset", "replaySimulation:reset"],

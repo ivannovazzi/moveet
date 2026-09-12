@@ -53,6 +53,7 @@ type ReplayEventMap = {
   "waypoint:reached": [unknown];
   "route:completed": [unknown];
   "vehicle:rerouted": [unknown];
+  "geofence:event": [unknown];
   "simulation:start": [unknown];
   "simulation:stop": [unknown];
   "simulation:reset": [unknown];
@@ -484,6 +485,11 @@ export class ReplayManager extends EventEmitter<ReplayEventMap> {
         break;
       case "vehicle:rerouted":
         this.emit("vehicle:rerouted", event.data);
+        break;
+      case "geofence":
+        // Re-emitted on the same channel the live run uses, so a replayed
+        // session shows the same geofence ticks the live session did.
+        this.emit("geofence:event", event.data);
         break;
       case "simulation:start":
         this.emit("simulation:start", event.data);
