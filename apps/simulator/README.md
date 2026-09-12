@@ -330,6 +330,21 @@ Connect to `ws://localhost:5010` for real-time updates.
 
 Beyond the endpoints shown above, the API also exposes incidents (`/incidents`), geofences (`/geofences`), fleets (`/fleets`), jobs (`/jobs`), device faults (`/faults`), analytics (`/analytics/*`), traffic (`/traffic`, `/traffic-profile`), clock (`/clock`), speed limits (`/speed-limits`), recording, replay (`/replay/status`), scenarios, and state persistence (`/state/save`, `/state/restore`, `/state/snapshots`). See the OpenAPI/Scalar reference served by the app for the full set.
 
+## API Specifications
+
+Two specs describe the simulator's surface, both at the app root:
+
+- `openapi.yaml` — the REST API (OpenAPI 3.0.3). Served raw at `/api-docs.yaml` and
+  rendered by Scalar at `/api-docs`.
+- `asyncapi.yaml` — the WebSocket surface (AsyncAPI 3.0.0). Every message type, its
+  wire `type` discriminator and its payload, with payload shapes shared with
+  `openapi.yaml` wherever the same type is served over both transports.
+
+Both are hand-maintained, so `npm run check:api-specs` (from the repo root, and a
+required CI step) compares them with the code: OpenAPI paths against the routes Express
+registers, AsyncAPI messages against the WS union in `packages/shared-types/src/ws.ts`,
+and both version stamps against this package's version. Any drift fails the build.
+
 ## Docker Usage
 
 ### Build and Run

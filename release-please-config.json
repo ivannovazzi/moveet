@@ -11,7 +11,9 @@
       "extra-files": [
         "apps/simulator/package.json",
         "apps/adapter/package.json",
-        "apps/ui/package.json"
+        "apps/ui/package.json",
+        { "type": "generic", "path": "apps/simulator/openapi.yaml" },
+        { "type": "generic", "path": "apps/simulator/asyncapi.yaml" }
       ]
     }
   }
