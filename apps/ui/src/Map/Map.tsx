@@ -250,7 +250,11 @@ export default function Map({
         )}
         {modifiers.showTrafficOverlay && (
           <Suspense fallback={null}>
-            <TrafficOverlay visible={true} />
+            <TrafficOverlay
+              visible={true}
+              // Stack under the density legend, which owns the top-left slot.
+              legendClassName={modifiers.showDensity ? "left-3 top-[160px]" : "left-3 top-[72px]"}
+            />
           </Suspense>
         )}
 

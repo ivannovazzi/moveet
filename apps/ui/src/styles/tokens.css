@@ -31,14 +31,23 @@
   --color-vehicle-ambulance: oklch(0.63 0.19 25);
   --color-vehicle-bus: oklch(0.62 0.15 250);
 
-  /* Overlay severity — shared "road danger" family for traffic congestion +
-     incidents, resolved at runtime via src/lib/mapColor.ts (deck.gl layers
-     need numeric [r,g,b,a], not CSS strings). Kept separate from
-     --color-status-* (chrome/UI state) so map-overlay colors can be tuned
-     independently even though they start aligned. */
+  /* Overlay severity — "road danger" family for incidents, resolved at
+     runtime via src/lib/mapColor.ts (deck.gl layers need numeric [r,g,b,a],
+     not CSS strings). Kept separate from --color-status-* (chrome/UI state)
+     so map-overlay colors can be tuned independently even though they start
+     aligned. */
   --color-overlay-danger: oklch(0.65 0.2 22);
   --color-overlay-warning: oklch(0.8 0.14 80);
   --color-overlay-ok: oklch(0.74 0.15 152);
+
+  /* Traffic congestion ramp (TrafficOverlay), free flow to jammed. Its own
+     family so the red end can sit at hue ~30: the shared danger red (hue 22)
+     reads magenta once darkened, and incidents keep their own tuning. */
+  --color-traffic-free: oklch(0.74 0.16 150);
+  --color-traffic-slow: oklch(0.85 0.15 95);
+  --color-traffic-heavy: oklch(0.74 0.17 58);
+  --color-traffic-congested: oklch(0.63 0.21 33);
+  --color-traffic-jam: oklch(0.49 0.17 30);
 
   /* Heatzones — vehicle-density metric, deliberately a different hue family
      from --color-overlay-danger so stacked overlays stay visually distinct. */
