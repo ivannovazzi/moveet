@@ -3,28 +3,17 @@
  * canvas so deck.gl's IconLayer can instance them on the GPU.
  *
  * POI icons are one disc per semantic group (see ./categories), each carrying a
- * lucide glyph. The glyph is rasterised by walking the SVG lucide renders and
- * replaying it through Path2D/ctx calls: an `<img>` fed an SVG data URL would
- * decode asynchronously (the atlas is built synchronously at module load) and
- * loaders.gl rejects SVG blobs outright, so an SVG-sourced icon silently never
- * appears. Same reasoning as Direction.tsx's chevron and the vehicle atlas.
+ * glyph replayed onto the canvas from the vendored geometry in ./glyphs. The
+ * glyph is drawn with Path2D/ctx calls rather than an `<img>` fed an SVG data
+ * URL: that would decode asynchronously (the atlas is built synchronously at
+ * module load) and loaders.gl rejects SVG blobs outright, so an SVG-sourced
+ * icon silently never appears. Same reasoning as Direction.tsx's chevron and
+ * the vehicle atlas.
  */
 
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
-import {
-  Bus,
-  Church,
-  Fuel,
-  GraduationCap,
-  HeartPulse,
-  Landmark,
-  ShoppingBag,
-  Ticket,
-  Utensils,
-} from "lucide-react";
 import { resolveMapColor } from "@/lib/mapColor";
-import { GROUP_META, POI_GROUPS, type PoiGroup } from "./categories";
+import { GROUP_META, POI_GROUPS } from "./categories";
+import { POI_GLYPHS, type IconNode } from "./glyphs";
 
 // Cell size includes an internal margin (PAD) so each marker's drop shadow and
 // white halo ring stay within their own atlas cell and don't bleed into the neighbour.
@@ -37,20 +26,6 @@ const GLYPH_VIEWBOX = 24;
 const GLYPH_FILL = 0.58;
 /** Matches lucide's `strokeWidth`, in viewBox units. */
 const GLYPH_STROKE = 2.25;
-
-type LucideGlyph = typeof Bus;
-
-const GROUP_GLYPHS: Record<PoiGroup, LucideGlyph> = {
-  transit: Bus,
-  shop: ShoppingBag,
-  food: Utensils,
-  health: HeartPulse,
-  education: GraduationCap,
-  civic: Landmark,
-  worship: Church,
-  leisure: Ticket,
-  fuel: Fuel,
-};
 
 type IconMappingEntry = {
   x: number;
@@ -95,13 +70,13 @@ function renderDisc(
   ctx.stroke();
 }
 
-function num(el: Element, name: string, fallback = 0): number {
-  const value = Number(el.getAttribute(name));
-  return Number.isFinite(value) ? value : fallback;
+function num(attrs: Record<string, string>, name: string): number {
+  const value = Number(attrs[name]);
+  return Number.isFinite(value) ? value : 0;
 }
 
 /** `"1,2 3,4"` / `"1 2 3 4"` → `[[1,2],[3,4]]`. */
-function parsePoints(raw: string | null): [number, number][] {
+function parsePoints(raw: string | undefined): [number, number][] {
   const nums = (raw ?? "")
     .split(/[\s,]+/)
     .map(Number)
@@ -111,41 +86,54 @@ function parsePoints(raw: string | null): [number, number][] {
   return points;
 }
 
-/** Replay one lucide SVG child element as canvas strokes. */
-function strokeElement(ctx: CanvasRenderingContext2D, el: Element) {
-  switch (el.tagName.toLowerCase()) {
+/**
+ * The SVG element tags the glyph rasteriser understands. Exported so the glyph
+ * data can be tested against it: a lucide refresh that introduces an `ellipse`
+ * would otherwise drop that stroke silently.
+ */
+export const SUPPORTED_GLYPH_TAGS = [
+  "path",
+  "circle",
+  "rect",
+  "line",
+  "polyline",
+  "polygon",
+] as const;
+
+/** Replay one glyph element as canvas strokes. */
+function strokeElement(ctx: CanvasRenderingContext2D, tag: string, attrs: Record<string, string>) {
+  switch (tag) {
     case "path": {
-      const d = el.getAttribute("d");
-      if (d) ctx.stroke(new Path2D(d));
+      if (attrs.d) ctx.stroke(new Path2D(attrs.d));
       return;
     }
     case "circle": {
       ctx.beginPath();
-      ctx.arc(num(el, "cx"), num(el, "cy"), num(el, "r"), 0, Math.PI * 2);
+      ctx.arc(num(attrs, "cx"), num(attrs, "cy"), num(attrs, "r"), 0, Math.PI * 2);
       ctx.stroke();
       return;
     }
     case "rect": {
       ctx.beginPath();
-      ctx.rect(num(el, "x"), num(el, "y"), num(el, "width"), num(el, "height"));
+      ctx.rect(num(attrs, "x"), num(attrs, "y"), num(attrs, "width"), num(attrs, "height"));
       ctx.stroke();
       return;
     }
     case "line": {
       ctx.beginPath();
-      ctx.moveTo(num(el, "x1"), num(el, "y1"));
-      ctx.lineTo(num(el, "x2"), num(el, "y2"));
+      ctx.moveTo(num(attrs, "x1"), num(attrs, "y1"));
+      ctx.lineTo(num(attrs, "x2"), num(attrs, "y2"));
       ctx.stroke();
       return;
     }
     case "polyline":
     case "polygon": {
-      const points = parsePoints(el.getAttribute("points"));
+      const points = parsePoints(attrs.points);
       if (points.length === 0) return;
       ctx.beginPath();
       ctx.moveTo(points[0][0], points[0][1]);
       for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
-      if (el.tagName.toLowerCase() === "polygon") ctx.closePath();
+      if (tag === "polygon") ctx.closePath();
       ctx.stroke();
       return;
     }
@@ -154,23 +142,15 @@ function strokeElement(ctx: CanvasRenderingContext2D, el: Element) {
   }
 }
 
-/**
- * Draw a lucide icon centred on the disc. The component is rendered to markup
- * synchronously and re-parsed, which is the only way to read lucide's path data
- * without vendoring a copy of it.
- */
+/** Draw a vendored glyph centred on the disc, scaled to fill it. */
 function renderGlyph(
   ctx: CanvasRenderingContext2D,
-  Icon: LucideGlyph,
+  glyph: IconNode,
   cx: number,
   cy: number,
   r: number,
   iconColor: string
 ) {
-  const markup = renderToStaticMarkup(createElement(Icon, { strokeWidth: GLYPH_STROKE }));
-  const svg = new DOMParser().parseFromString(markup, "image/svg+xml").documentElement;
-  if (svg?.tagName.toLowerCase() !== "svg") return;
-
   const size = r * 2 * GLYPH_FILL;
   const scale = size / GLYPH_VIEWBOX;
 
@@ -181,7 +161,7 @@ function renderGlyph(
   ctx.lineWidth = GLYPH_STROKE;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  for (const child of Array.from(svg.children)) strokeElement(ctx, child);
+  for (const [tag, attrs] of glyph) strokeElement(ctx, tag, attrs);
   ctx.restore();
 }
 
@@ -218,7 +198,7 @@ export function createPOIIconAtlas(): {
     const cy = ICON_SIZE / 2;
     const r = ICON_SIZE / 2 - ICON_PAD;
     renderDisc(ctx, cx, cy, r, rgbString(GROUP_META[group].token));
-    renderGlyph(ctx, GROUP_GLYPHS[group], cx, cy, r, "rgba(255,255,255,0.98)");
+    renderGlyph(ctx, POI_GLYPHS[group], cx, cy, r, "rgba(255,255,255,0.98)");
     iconMapping[group] = { x, y: 0, width: ICON_SIZE, height: ICON_SIZE, mask: false };
   });
 

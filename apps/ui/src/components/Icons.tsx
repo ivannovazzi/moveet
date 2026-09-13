@@ -12,11 +12,6 @@ import {
   Play as PlayBase,
   MapPin as MapPinBase,
   Route as RouteBase,
-  Store as StoreBase,
-  Trees as TreesBase,
-  Hammer as HammerBase,
-  Building2 as Building2Base,
-  HelpCircle as HelpCircleBase,
   Settings as SettingsBase,
   Search as SearchBase,
   Bus as BusBase,
@@ -77,11 +72,6 @@ export const Pause = aliasIcon(PauseBase);
 export const Play = aliasIcon(PlayBase);
 export const POI = aliasIcon(MapPinBase);
 export const Road = aliasIcon(RouteBase);
-export const Shop = aliasIcon(StoreBase);
-export const Leisure = aliasIcon(TreesBase);
-export const Craft = aliasIcon(HammerBase);
-export const Office = aliasIcon(Building2Base);
-export const Unknown = aliasIcon(HelpCircleBase);
 export const Gear = aliasIcon(SettingsBase);
 export const Search = aliasIcon(SearchBase);
 export const Bus = aliasIcon(BusBase);
