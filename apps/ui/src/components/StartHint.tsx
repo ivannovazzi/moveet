@@ -27,9 +27,11 @@ export interface StartHintProps {
  * so pausing later does NOT bring the tutorial back at someone who has clearly
  * found the transport controls. Dismissing does the same, permanently.
  *
- * Sits above the dock rather than over the map centre: it is a small glass pill
- * on the same visual system as the dock (surface-glass + border + elevation),
- * and only its own box takes pointer events, so the map stays fully draggable.
+ * Sits top-centre, under the search bar, rather than above the dock: that
+ * shelf is now Tempo/section-panel/launcher-popover territory, all of which
+ * would cover it there. It is a small glass pill on the same visual system as
+ * the dock (surface-glass + border + elevation), and only its own box takes
+ * pointer events, so the map stays fully draggable.
  */
 export default function StartHint({ running, ready, onStart, className }: StartHintProps) {
   const [dismissed, setDismissed] = useState(false);
@@ -57,7 +59,7 @@ export default function StartHint({ running, ready, onStart, className }: StartH
       role="status"
       aria-label="Simulation paused"
       className={cn(
-        "absolute bottom-[104px] left-1/2 z-40 -translate-x-1/2",
+        "absolute top-[72px] left-1/2 z-40 -translate-x-1/2",
         "flex max-w-[calc(100vw-2rem)] items-center gap-3 rounded-md border border-border px-3 py-2",
         "surface-glass glass-frost shadow-elevated animate-fade-up",
         className

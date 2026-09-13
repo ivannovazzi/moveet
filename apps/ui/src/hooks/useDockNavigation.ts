@@ -22,6 +22,8 @@ export interface DockNavigation {
   tab: DockTabId | null;
   /** True while the Tempo details panel is open (main dock, not a section). */
   tempoOpen: boolean;
+  /** True while the deck's "New" mode launcher menu is open. */
+  launcherOpen: boolean;
 
   /** Expand `section`, optionally jumping straight to one of its tabs. */
   open: (section: DockSectionId, tab?: DockTabId) => void;
@@ -33,6 +35,10 @@ export interface DockNavigation {
   selectTab: (tab: DockTabId) => void;
   /** Open/close the main dock's Tempo details panel. */
   toggleTempo: () => void;
+  /** Open/close the deck's mode launcher. Opening it closes everything else. */
+  setLauncherOpen: (open: boolean) => void;
+  /** Toggle the launcher from its own key. */
+  toggleLauncher: () => void;
 
   isExpanded: (section: DockSectionId) => boolean;
   /** True when any panel surface is open — Escape's lowest-priority target. */
@@ -42,12 +48,14 @@ export interface DockNavigation {
 export function useDockNavigation(): DockNavigation {
   const [expanded, setExpanded] = useState<DockSectionId | null>(null);
   const [tempoOpen, setTempoOpen] = useState(false);
+  const [launcherOpen, setLauncher] = useState(false);
   // Remembered per section so coming back to Monitor lands where you left it.
   // The section's *shape* never varies; only which of its fixed buttons is lit.
   const [lastTab, setLastTab] = useState<Partial<Record<DockSectionId, DockTabId>>>({});
 
   const open = useCallback((section: DockSectionId, tab?: DockTabId) => {
     setTempoOpen(false);
+    setLauncher(false);
     setExpanded(section);
     if (tab && sectionHasTab(section, tab)) {
       setLastTab((prev) => ({ ...prev, [section]: tab }));
@@ -57,10 +65,12 @@ export function useDockNavigation(): DockNavigation {
   const close = useCallback(() => {
     setExpanded(null);
     setTempoOpen(false);
+    setLauncher(false);
   }, []);
 
   const toggle = useCallback((section: DockSectionId) => {
     setTempoOpen(false);
+    setLauncher(false);
     setExpanded((current) => (current === section ? null : section));
   }, []);
 
@@ -70,6 +80,8 @@ export function useDockNavigation(): DockNavigation {
   expandedRef.current = expanded;
   const tempoRef = useRef(tempoOpen);
   tempoRef.current = tempoOpen;
+  const launcherRef = useRef(launcherOpen);
+  launcherRef.current = launcherOpen;
 
   const selectTab = useCallback((tab: DockTabId) => {
     const section = expandedRef.current;
@@ -79,11 +91,27 @@ export function useDockNavigation(): DockNavigation {
 
   const toggleTempo = useCallback(() => {
     const opening = !tempoRef.current;
-    // The tempo panel and an expanded section are both panels; only one at a
-    // time, so opening tempo collapses the row.
-    if (opening) setExpanded(null);
+    // Tempo, the launcher and an expanded section are three surfaces floating
+    // over the same map; only one of them is ever open, so opening tempo takes
+    // the other two away.
+    if (opening) {
+      setExpanded(null);
+      setLauncher(false);
+    }
     setTempoOpen(opening);
   }, []);
+
+  const setLauncherOpen = useCallback((next: boolean) => {
+    if (next) {
+      setExpanded(null);
+      setTempoOpen(false);
+    }
+    setLauncher(next);
+  }, []);
+
+  const toggleLauncher = useCallback(() => {
+    setLauncherOpen(!launcherRef.current);
+  }, [setLauncherOpen]);
 
   const isExpanded = useCallback((section: DockSectionId) => expanded === section, [expanded]);
 
@@ -94,14 +122,30 @@ export function useDockNavigation(): DockNavigation {
       expanded,
       tab,
       tempoOpen,
+      launcherOpen,
       open,
       close,
       toggle,
       selectTab,
       toggleTempo,
+      setLauncherOpen,
+      toggleLauncher,
       isExpanded,
-      panelOpen: expanded !== null || tempoOpen,
+      panelOpen: expanded !== null || tempoOpen || launcherOpen,
     }),
-    [expanded, tab, tempoOpen, open, close, toggle, selectTab, toggleTempo, isExpanded]
+    [
+      expanded,
+      tab,
+      tempoOpen,
+      launcherOpen,
+      open,
+      close,
+      toggle,
+      selectTab,
+      toggleTempo,
+      setLauncherOpen,
+      toggleLauncher,
+      isExpanded,
+    ]
   );
 }

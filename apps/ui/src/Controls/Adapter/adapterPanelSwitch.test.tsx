@@ -13,8 +13,8 @@ import type { ConfigResponse, HealthResponse } from "./adapterClient";
  * `onOpenChange(false)` -> `closePanel()` -> `activePanel = null`. The click
  * looked like a no-op and had to be repeated.
  *
- * That drawer no longer exists — the adapter UI is now `FeedsSection`, a tab of
- * the Settings panel rendered into the single shared `DockPanel`, and switching
+ * That drawer no longer exists — the adapter UI is now the Settings panel's
+ * Source/Sinks/Realism tabs rendered into the single shared `DockPanel`, and switching
  * clusters is one
  * `setOpenCluster` call. These tests pin that behaviour so the race cannot be
  * reintroduced: a close handler must never run as a side effect of a panel
@@ -74,12 +74,12 @@ function DockHarness(props: Omit<DockProps, "navigation">) {
 /**
  * Open the view the adapter UI now lives in. "Sinks & Source" stopped being its
  * own cluster: feed health reads on the status chips, and the configuration is
- * the Settings dock's "Feeds & sinks" button.
+ * the Settings dock's Source/Sinks/Realism tabs.
  */
 async function openAdapterPanel(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "Settings" }));
   expect(await screen.findByRole("region", { name: "Settings" })).toBeInTheDocument();
-  await user.click(screen.getByRole("tab", { name: "Feeds & sinks" }));
+  await user.click(screen.getByRole("tab", { name: "Source" }));
 }
 
 /** The section key itself carries `aria-expanded`, open or not. */

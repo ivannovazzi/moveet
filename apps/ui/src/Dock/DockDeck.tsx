@@ -76,6 +76,10 @@ export interface DockDeckProps {
   onStartRecording: () => Promise<void>;
   onStopRecording: () => Promise<unknown>;
 
+  /** The mode launcher's menu, owned by `useDockNavigation`. */
+  launcherOpen: boolean;
+  onLauncherOpenChange: (open: boolean) => void;
+
   clock: ClockState;
   tempoOpen: boolean;
   onToggleTempo: () => void;
@@ -116,6 +120,8 @@ export default function DockDeck({
   isRecording,
   onStartRecording,
   onStopRecording,
+  launcherOpen,
+  onLauncherOpenChange,
   clock,
   tempoOpen,
   onToggleTempo,
@@ -197,7 +203,14 @@ export default function DockDeck({
 
         {activity === "mode" && modeDescriptor && <ModeRail descriptor={modeDescriptor} />}
 
-        {clusters.launcher && <ModeLauncher onStart={onStartMode} disabled={!connected} />}
+        {clusters.launcher && (
+          <ModeLauncher
+            onStart={onStartMode}
+            disabled={!connected}
+            open={launcherOpen}
+            onOpenChange={onLauncherOpenChange}
+          />
+        )}
 
         {showTransport && (
           <>

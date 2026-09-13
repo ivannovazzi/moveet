@@ -14,15 +14,30 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
  * button that opened them and stay inside the viewport.
  */
 
+/**
+ * Which edge the floating element lines up with.
+ *
+ * `anchor` puts its left edge under the button that opened it — right for a
+ * panel that belongs to one key (Tempo). `origin-right` puts its *right* edge
+ * on the origin surface's right edge, which is what keeps the section panel
+ * still: the four section keys are one bar, so a panel hung off the bar's right
+ * edge stays exactly where it is while you step Fleet → Monitor → Settings,
+ * instead of sliding to whichever key you last pressed.
+ */
+export type AnchorAlign = "anchor" | "origin-right";
+
 export interface AnchorOffsetInput {
   /** Left edge of the surface the floating element is positioned from. */
   originLeft: number;
+  /** Right edge of that surface. Only read when aligning to it. */
+  originRight?: number;
   /** Left edge of the button it should line up with. */
   anchorLeft: number;
   elementWidth: number;
   viewportWidth: number;
   /** Nudge left of the anchor so padding lines up with the label. */
   inset?: number;
+  align?: AnchorAlign;
 }
 
 /** Keep floating dock surfaces this far inside the viewport edges. */
@@ -38,12 +53,17 @@ const FLOAT_MARGIN = 12;
  */
 export function anchorOffset({
   originLeft,
+  originRight,
   anchorLeft,
   elementWidth,
   viewportWidth,
   inset = 0,
+  align = "anchor",
 }: AnchorOffsetInput): number {
-  const desired = anchorLeft - originLeft - inset;
+  const desired =
+    align === "origin-right"
+      ? (originRight ?? originLeft) - elementWidth - originLeft
+      : anchorLeft - originLeft - inset;
   const min = FLOAT_MARGIN - originLeft;
   const max = viewportWidth - FLOAT_MARGIN - elementWidth - originLeft;
   if (max < min) return Math.round(min);
@@ -70,7 +90,12 @@ export function useAnchorOffset(
   originRef: React.RefObject<HTMLElement | null>,
   anchorRef: React.RefObject<HTMLElement | null>,
   elementRef: React.RefObject<HTMLElement | null>,
-  { active, key, inset = 0 }: { active: boolean; key: string; inset?: number }
+  {
+    active,
+    key,
+    inset = 0,
+    align = "anchor",
+  }: { active: boolean; key: string; inset?: number; align?: AnchorAlign }
 ): AnchorPlacement {
   const [placement, setPlacement] = useState<AnchorPlacement>({ offset: 0, pointer: null });
   // Read through a ref so re-measuring never re-renders on an unchanged result:
@@ -86,10 +111,12 @@ export function useAnchorOffset(
     const elementWidth = element.getBoundingClientRect().width;
     const offset = anchorOffset({
       originLeft: originRect.left,
+      originRight: originRect.right,
       anchorLeft: anchorRect.left,
       elementWidth,
       viewportWidth: window.innerWidth,
       inset,
+      align,
     });
     const anchorCentre = anchorRect.left + anchorRect.width / 2 - (originRect.left + offset);
     const pointer = Math.round(
@@ -98,7 +125,7 @@ export function useAnchorOffset(
     if (placementRef.current.offset === offset && placementRef.current.pointer === pointer) return;
     placementRef.current = { offset, pointer };
     setPlacement(placementRef.current);
-  }, [originRef, anchorRef, elementRef, inset]);
+  }, [originRef, anchorRef, elementRef, inset, align]);
 
   useLayoutEffect(() => {
     if (!active) return;

@@ -42,11 +42,12 @@ export interface VisibilityRailProps {
  * into one key that spreads them (see `VehicleTypeKey`), seated right under the
  * Vehicles layer they narrow. Trails likewise carries its length.
  *
- * Bottom-left, standing on the dock shelf and growing *upward*. Legends grow
- * *downward* from under the search bar (see `LegendStack`, whose max-height
- * reserves this band), so however many overlays are lit the two columns run
- * out of room before they can overlap — which a vertically-centred rail did
- * not: at a 1000px window the traffic legend landed on top of it.
+ * Bottom-left, stacked directly above the `Zoom` cluster (8px gap) and
+ * growing *upward*. Legends grow *downward* from under the search bar (see
+ * `LegendStack`, whose max-height reserves this band plus the zoom cluster
+ * below it), so however many overlays are lit the two columns run out of room
+ * before they can overlap — which a vertically-centred rail did not: at a
+ * 1000px window the traffic legend landed on top of it.
  */
 export default function VisibilityRail({
   modifiers,
@@ -70,7 +71,7 @@ export default function VisibilityRail({
     <div
       role="group"
       aria-label="Layer visibility"
-      className="absolute left-3 bottom-[calc(var(--spacing-above-dock)+0.75rem)] z-10 flex animate-fade-up flex-col gap-0.5 rounded-lg border border-border surface-glass glass-frost p-1 shadow-elevated"
+      className="absolute left-3 bottom-above-dock z-10 flex animate-fade-up flex-col gap-0.5 rounded-lg border border-border surface-glass glass-frost p-1 shadow-elevated"
     >
       {VISIBILITY_LAYERS.map(({ key, label, icon }) => {
         // Density and Jobs are optional modifiers (absent = off), so coerce.

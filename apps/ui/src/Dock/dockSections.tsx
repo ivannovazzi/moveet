@@ -19,7 +19,7 @@ export type DockSectionId = "fleet" | "monitor" | "session" | "settings";
 export type FleetTabId = "list" | "groups" | "dispatch" | "jobs";
 export type MonitorTabId = "incidents" | "analytics" | "geofences" | "heatzones" | "faults";
 export type SessionTabId = "recordings" | "scenarios";
-export type SettingsTabId = "feeds" | "advanced";
+export type SettingsTabId = "source" | "sinks" | "realism" | "advanced";
 
 export type DockTabId = FleetTabId | MonitorTabId | SessionTabId | SettingsTabId;
 
@@ -86,7 +86,9 @@ export const DOCK_SECTIONS: DockSection[] = [
     // Layer visibility is not here: it lives on the map's own left rail as icon
     // keys (see Map/VisibilityRail), where it is one press from what it changes.
     tabs: [
-      { id: "feeds", label: "Feeds & sinks" },
+      { id: "source", label: "Source" },
+      { id: "sinks", label: "Sinks" },
+      { id: "realism", label: "Realism" },
       { id: "advanced", label: "Advanced" },
     ],
     panelWidth: "w-[380px]",

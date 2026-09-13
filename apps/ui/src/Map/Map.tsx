@@ -19,6 +19,7 @@ import { DispatchState } from "@/hooks/useDispatchState";
 import type { InteractionModeKind } from "@/hooks/useInteractionMode";
 import type { WaypointRef } from "@/hooks/useDispatchFlow";
 import { cursorForMode } from "./modeCursor";
+import FleetLegend from "./FleetLegend";
 
 // Lazily load the WebGL canvas so the app shell + control panels can paint
 // before the deck.gl/luma.gl stack (its own `deckgl` vendor chunk) is fetched
@@ -81,6 +82,10 @@ interface MapProps {
   onHoverVehicle?: (id: string | undefined) => void;
   vehicleFleetMap: Map<string, Fleet>;
   hiddenFleetIds: Set<string>;
+  /** The fleet roster, for the fleets legend in the legend column. */
+  fleets?: Fleet[];
+  /** Toggles a fleet's visibility from the fleets legend. */
+  onToggleFleet?: (fleetId: string) => void;
   hiddenVehicleTypes: Set<VehicleType>;
   dispatchState?: DispatchState;
   assignments?: DispatchAssignment[];
@@ -126,6 +131,8 @@ export default function Map({
   onHoverVehicle,
   vehicleFleetMap,
   hiddenFleetIds,
+  fleets = [],
+  onToggleFleet,
   hiddenVehicleTypes,
   dispatchState,
   assignments = [],
@@ -268,6 +275,16 @@ export default function Map({
             <Suspense fallback={null}>
               <Heatmap vehicles={vehicles} legendSlot={legendSlot} />
             </Suspense>
+          )}
+          {/* The fleets legend is the one legend that is operated, not only
+            read; it stacks last and re-enables pointer events on itself. */}
+          {fleets.length > 0 && onToggleFleet && (
+            <FleetLegend
+              fleets={fleets}
+              hiddenFleetIds={hiddenFleetIds}
+              onToggle={onToggleFleet}
+              legendSlot={legendSlot}
+            />
           )}
           <Direction selected={filters.selected} hovered={filters.hovered} />
           {modifiers.showBreadcrumbs && (

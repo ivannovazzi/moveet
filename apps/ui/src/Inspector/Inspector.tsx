@@ -130,7 +130,13 @@ export default function Inspector({ vehicle, poi, fleet, job, onClose }: Inspect
       role="region"
       aria-label="Inspector"
       className={cn(
-        "absolute right-4 top-4 z-40 flex max-h-[calc(100vh-2rem)] w-80 max-w-[calc(100vw-2rem)] flex-col origin-top-right",
+        // Below `StatusLeds` (top-right, `top-3`) rather than `top-4`, so an
+        // open inspector never covers the run's health lamps — the bug this
+        // replaces. `--spacing-below-leds` is the lamps' own top offset plus
+        // their measured height plus an 8px gap (see index.css). Capped above
+        // the dock shelf the same way it was capped above the viewport edge.
+        "absolute right-4 top-[var(--spacing-below-leds)] z-40 flex w-80 max-w-[calc(100vw-2rem)] flex-col origin-top-right",
+        "max-h-[calc(100vh-var(--spacing-below-leds)-var(--spacing-above-dock))]",
         "overflow-hidden rounded-[10px] border border-border surface-glass-strong glass-frost-strong shadow-floating",
         "animate-scale-in"
       )}

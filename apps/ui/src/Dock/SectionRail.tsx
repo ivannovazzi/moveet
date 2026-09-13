@@ -4,6 +4,7 @@ import AnchoredPanel from "./AnchoredPanel";
 import DockSurface from "./DockSurface";
 import SectionTabs from "./SectionTabs";
 import SectionPill from "./SectionPill";
+import { PanelHeaderRow } from "./DockPanelKit";
 import {
   DOCK_SECTIONS,
   dockSection,
@@ -13,6 +14,16 @@ import {
   type DockSectionId,
   type DockTabId,
 } from "./dockSections";
+
+/**
+ * One width for every section panel.
+ *
+ * Per-section widths (420 / 480 / 400 / 380) made the surface resize as well as
+ * re-anchor whenever you stepped Fleet → Monitor → Settings, which read as four
+ * different panels rather than one panel showing four things. The registry
+ * still carries `panelWidth`; nothing reads it.
+ */
+const PANEL_WIDTH = "w-[460px]";
 
 export interface SectionRailProps {
   navigation: DockNavigation;
@@ -25,36 +36,43 @@ export interface SectionRailProps {
   onSelectTab: (tab: DockTabId) => void;
   /** Panel body for the open section's active tab. */
   renderPanel: (section: DockSection) => ReactNode;
+  /**
+   * Optional content for the header's right slot, before the close button — a
+   * health chip, a count, a small action that belongs to the whole section
+   * rather than to one of its views. Panels supply it without having to reach
+   * into the header themselves.
+   */
+  renderHeaderRight?: (section: DockSection) => ReactNode;
 }
 
 /**
  * The sections dock: four icon buttons — Fleet, Monitor, Session, Settings —
  * on one surface, the row's right wing.
  *
- * Selecting one grows that section's own buttons *out of its button*, inline in
- * the same dock, and opens the panel above it. Nothing is hidden, reordered or
- * collapsed to make room: the dock gets longer exactly where the section is, so
- * the views read as belonging to the button you pressed rather than to the bar
- * in general.
+ * The wing is *always* those four keys in a 54px bar. Nothing unfolds inside
+ * it: selecting a key opens the section's panel above, and the section's own
+ * views live in that panel's header. The keys used to expand into their views
+ * inline, which grew the bar to two rows below ~1300px and pushed Session and
+ * Settings off the end of the wing's half of the row. A row of four fixed
+ * targets is the thing muscle memory is built on, so it is the thing that holds
+ * still.
  *
- * The wing lives inside its half of the row (see `Dock`'s grid), and when a
- * section's buttons need more width than the half has, they wrap onto a second
- * line — the dock grows *upward*, keeping its bottom edge and every button
- * visible. It used to scroll them behind a hidden scrollbar instead, which meant
- * "Heat Zones" and "Faults" simply did not exist on a 1440px screen.
+ * The panel hangs off the *bar's* right edge rather than off whichever key you
+ * pressed, so it stays exactly where it is while you step between sections —
+ * only its contents change. The accent pointer underneath still runs back down
+ * to the lit key, so the relationship stays visible without the surface moving.
  */
 export default function SectionRail({
   navigation,
   badges,
   onSelectTab,
   renderPanel,
+  renderHeaderRight,
 }: SectionRailProps) {
   const { expanded, tab, toggle, close } = navigation;
   const surfaceRef = useRef<HTMLDivElement>(null);
-  const activeTabRef = useRef<HTMLButtonElement>(null);
-  // The panel hangs off the section's own button, not the lit tab: switching
-  // views inside a section should change the contents, not slide the surface.
   const pillRefs = useRef(new Map<DockSectionId, HTMLButtonElement | null>());
+  // The pointer points at the lit key; the surface itself doesn't move with it.
   const anchorRef = useRef<HTMLButtonElement | null>(null);
   anchorRef.current = expanded ? (pillRefs.current.get(expanded) ?? null) : null;
 
@@ -67,55 +85,50 @@ export default function SectionRail({
     // from this plain wrapper — same left edge, same height — lets it frost the
     // map behind it. Do not move it back inside `DockSurface`.
     <div className="relative flex min-w-0">
-      <DockSurface
-        ref={surfaceRef}
-        data-dock="sections"
-        // `h-auto` + `shrink`: the wing takes its half of the row and no more, and
-        // grows *upward* when a section's buttons need a second line.
-        className="h-auto min-h-[54px] min-w-0 shrink items-center gap-0.5"
-      >
-        {DOCK_SECTIONS.map((s) => {
-          const open = expanded === s.id;
-          return (
-            <div key={s.id} className="flex min-w-0 items-center gap-0.5">
-              <SectionPill
-                ref={(el) => {
-                  pillRefs.current.set(s.id, el);
-                }}
-                section={s}
-                active={open}
-                // Rolled-up counts are for collapsed keys only: once a section is
-                // open, the count sits on the button that actually owns it, and
-                // the same number in both places reads as two different problems.
-                badge={open ? undefined : rollUpBadge(s.id, badges)}
-                onClick={() => toggle(s.id)}
-              />
-              {open && section && tab && (
-                <SectionTabs
-                  section={section}
-                  activeTab={tab}
-                  badges={badges}
-                  onSelectTab={onSelectTab}
-                  activeTabRef={activeTabRef}
-                />
-              )}
-            </div>
-          );
-        })}
+      <DockSurface ref={surfaceRef} data-dock="sections" className="items-center gap-0.5">
+        {DOCK_SECTIONS.map((s) => (
+          <SectionPill
+            key={s.id}
+            ref={(el) => {
+              pillRefs.current.set(s.id, el);
+            }}
+            section={s}
+            active={expanded === s.id}
+            // Rolled-up counts are for collapsed keys only: once a section is
+            // open, the count sits on the view that actually owns it, and the
+            // same number in both places reads as two different problems.
+            badge={expanded === s.id ? undefined : rollUpBadge(s.id, badges)}
+            onClick={() => toggle(s.id)}
+          />
+        ))}
       </DockSurface>
 
       <AnchoredPanel
         open={section !== null && tab !== null}
         id="dock-section-panel"
         aria-label={section?.label}
-        eyebrow={
-          section && tab
-            ? `${section.label} › ${section.tabs.find((t) => t.id === tab)?.label ?? ""}`
-            : undefined
+        header={
+          section && tab ? (
+            <PanelHeaderRow
+              icon={section.icon}
+              title={section.label}
+              right={renderHeaderRight?.(section)}
+              onClose={close}
+              closeLabel={`Close ${section.label}`}
+            >
+              <SectionTabs
+                section={section}
+                activeTab={tab}
+                badges={badges}
+                onSelectTab={onSelectTab}
+              />
+            </PanelHeaderRow>
+          ) : undefined
         }
         anchorRef={anchorRef}
         originRef={surfaceRef}
-        width={section?.panelWidth ?? "w-[420px]"}
+        width={PANEL_WIDTH}
+        align="origin-right"
         positionKey={`${expanded ?? "none"}:${tab ?? "none"}`}
         onClose={close}
       >

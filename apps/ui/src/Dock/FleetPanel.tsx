@@ -6,7 +6,7 @@ import Vehicles from "@/Controls/Vehicles";
 import Fleets from "@/Controls/Fleets";
 import JobsPanel, { type JobsPanelProps } from "@/Controls/JobsPanel";
 import { SuppressPanelHeader } from "@/Controls/PanelPrimitives";
-import { Hairline, PanelScroll, StatusDot, mono } from "./DockPanelKit";
+import { Hairline, PANEL_BODY_H, PanelScroll, StatusDot, mono } from "./DockPanelKit";
 import type { FleetTabId } from "./dockSections";
 
 export interface FleetPanelProps {
@@ -142,17 +142,26 @@ export default function FleetPanel({
     };
   }, [vehicles, dispatch.results]);
 
+  // The roster summary belongs to the views that show the roster. Over Jobs it
+  // was counting one thing while the body listed another, and over Dispatch the
+  // mode rail is already reporting the selection.
+  const showSummary = tab === "list" || tab === "groups";
+
   return (
     <>
-      <FleetSummary
-        total={stats.total}
-        enroute={stats.enroute}
-        idle={stats.idle}
-        alert={stats.alert}
-        jobs={jobs.counts.live}
-        breached={jobs.counts.breached}
-      />
-      <Hairline />
+      {showSummary && (
+        <>
+          <FleetSummary
+            total={stats.total}
+            enroute={stats.enroute}
+            idle={stats.idle}
+            alert={stats.alert}
+            jobs={jobs.counts.live}
+            breached={jobs.counts.breached}
+          />
+          <Hairline />
+        </>
+      )}
 
       {tab === "jobs" ? (
         <PanelScroll>
@@ -174,8 +183,10 @@ export default function FleetPanel({
         </PanelScroll>
       ) : (
         // Bounded height so the virtualized vehicle list measures a real
-        // window (PanelScroll's auto-height would starve react-window).
-        <div className="flex h-[min(50vh,400px)] min-h-0 flex-col">
+        // window (PanelScroll's auto-height would starve react-window) — the
+        // same envelope every other view scrolls inside, so the panel's top
+        // edge doesn't hop as you step between the Fleet views.
+        <div className={cn("flex min-h-0 flex-col", PANEL_BODY_H)}>
           <SuppressPanelHeader>
             <Vehicles
               filter={filter}

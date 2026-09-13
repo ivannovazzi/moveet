@@ -4,7 +4,6 @@ import Dock from "./Dock/Dock";
 import Inspector from "./Inspector/Inspector";
 import useTracking from "./Controls/useTracking";
 import MapView from "./Map/Map";
-import FleetLegend from "./Map/FleetLegend";
 import VisibilityRail from "./Map/VisibilityRail";
 import SearchBar from "./SearchBar";
 import Zoom from "./Zoom/";
@@ -188,11 +187,12 @@ export default function App() {
   const recording = useRecording();
   const analytics = useAnalytics();
 
-  // ─── Feeds & sinks ──────────────────────────────────────────────
-  // One poller, two readers: the Settings › Feeds panel and the corner health
-  // lamps. It polls faster while that panel is open (see useAdapterConfig).
+  // ─── Adapter feeds ──────────────────────────────────────────────
+  // One poller, two readers: the Settings › Source/Sinks/Realism tabs and the
+  // corner health lamps. It polls faster while one of those tabs is open (see
+  // useAdapterConfig); Settings › Advanced touches nothing adapter-side.
   const adapter = useAdapterConfig(
-    dockNavigation.expanded === "settings" && dockNavigation.tab === "feeds"
+    dockNavigation.expanded === "settings" && dockNavigation.tab !== "advanced"
   );
 
   // ─── Device faults ──────────────────────────────────────────────
@@ -590,6 +590,8 @@ export default function App() {
                 onHoverVehicle={onHoverMapVehicle}
                 vehicleFleetMap={vehicleFleetMap}
                 hiddenFleetIds={hiddenFleetIds}
+                fleets={fleets}
+                onToggleFleet={toggleFleetVisibility}
                 hiddenVehicleTypes={hiddenVehicleTypes}
                 dispatchState={dispatch.dispatchState}
                 assignments={dispatch.assignments}
@@ -620,14 +622,11 @@ export default function App() {
                   onDestinationClick={onDestinationClick}
                   onItemSelect={(item) => setSelectedItem(item)}
                   onItemUnselect={() => setSelectedItem(null)}
+                  vehicles={vehicles}
+                  onSelectVehicle={onSelectVehicle}
                 />
               )}
               <Zoom />
-              <FleetLegend
-                fleets={fleets}
-                hiddenFleetIds={hiddenFleetIds}
-                onToggle={toggleFleetVisibility}
-              />
               {/* Layer visibility and the vehicle-type filters own the left edge
                   as icon keys — see VisibilityRail. Between them they replaced
                   the Settings › Visibility tab and the bottom-left type legend. */}
@@ -662,7 +661,7 @@ export default function App() {
                     key: "feed",
                     label: "FEED",
                     tone: FEED_HEALTH_TONE[feedHealth(adapter.health)],
-                    title: `Feeds & sinks: ${feedHealth(adapter.health).toLowerCase()}`,
+                    title: `Adapter feeds: ${feedHealth(adapter.health).toLowerCase()}`,
                   },
                 ]}
               />

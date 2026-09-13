@@ -18,10 +18,13 @@ import {
  *
  * **Space.** This is a real flex row at the bottom of the app shell, *below*
  * the map container — not another absolutely-positioned overlay. The dock
- * (`bottom-5`, 54 px tall), its panel (`bottom-[86px]`) and `StartHint`
- * (`bottom-[104px]`) are all positioned against the map container's bottom
- * edge, so they keep exactly the space they already claimed and the strip sits
- * below all of it. Nothing overlaps the canvas.
+ * (`bottom-5`, 54 px tall) and its panel (`bottom-[86px]`) are positioned
+ * against the map container's bottom edge, so they keep exactly the space
+ * they already claimed and the strip sits below all of it. `StartHint` moved
+ * up to the top-centre slot under the search bar (`top-[72px]`), out of this
+ * shelf's way entirely — the dock panel now runs the full width above the
+ * dock's right wing and would otherwise cover it here. Nothing overlaps the
+ * canvas.
  *
  * **Seeking.** During a replay a tick's position is its offset into the
  * recording, and clicking it calls the same `seekReplay` path the replay dock's

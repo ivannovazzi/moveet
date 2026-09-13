@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
  *  • all numerics use `font-mono` + `tabular-nums` (see `mono` helper)
  *  • rows are separated by hairlines (`border-border-soft`), never cards
  *  • labels are 9px uppercase with wide tracking (`Eyebrow`)
- *  • panel content width is fixed by `DockPanel` (w-96) — never set your own
+ *  • panel width is fixed by the surface that opens it — never set your own
  */
 
 /** Apply to any element holding aligned digits (IDs, speeds, ETAs, clocks). */
@@ -100,6 +100,63 @@ export function PanelHead({
   );
 }
 
+/**
+ * The one header row every floating dock panel wears: what you opened on the
+ * left, the panel's own switch in the middle, an optional caller slot and the
+ * way out on the right.
+ *
+ * It replaced two headings stacked on top of each other — the panel's eyebrow
+ * ("Fleet › List") repeating a tab strip that was already saying the same
+ * thing, over a second `PanelHead` inside the body. One row, one heading.
+ */
+export function PanelHeaderRow({
+  icon,
+  title,
+  children,
+  right,
+  onClose,
+  closeLabel = "Close panel",
+}: {
+  /** Section glyph, sized to the title. */
+  icon?: React.ReactNode;
+  title: string;
+  /** The panel's own switch (a tab strip), taking the middle of the row. */
+  children?: React.ReactNode;
+  /** Caller slot before the close button (a health chip, a count). */
+  right?: React.ReactNode;
+  onClose: () => void;
+  closeLabel?: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 border-b border-border-soft px-2.5 py-[7px]">
+      <div className="flex shrink-0 items-center gap-1.5 text-foreground [&_svg]:size-[15px]">
+        {icon}
+        <span className="whitespace-nowrap text-[12.5px] font-semibold tracking-[-0.01em]">
+          {title}
+        </span>
+      </div>
+      {children}
+      {right}
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label={closeLabel}
+        title={`${closeLabel} (Esc)`}
+        className={cn(
+          "ml-auto flex size-[22px] shrink-0 items-center justify-center rounded-md",
+          "text-muted-foreground transition-colors duration-fast ease-standard",
+          "hover:bg-foreground/[0.06] hover:text-foreground",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        )}
+      >
+        <svg viewBox="0 0 16 16" aria-hidden className="size-3" fill="none" stroke="currentColor">
+          <path d="M4 4l8 8M12 4l-8 8" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 /** A pill chip stating health/state in a semantic tone. */
 export function HealthChip({ tone, children }: { tone: StatusTone; children: React.ReactNode }) {
   return (
@@ -171,8 +228,19 @@ export function SegTabs<T extends string>({
 }
 
 /**
+ * The one height envelope every dock panel body lives in. Shared so the panel's
+ * top edge doesn't hop when you step between a section's tabs — a scrolling
+ * body and a virtualized list that needs a definite height both measure the
+ * same cap.
+ */
+export const PANEL_BODY_MAX_H = "max-h-[min(60vh,520px)]";
+
+/** Same envelope as a fixed height, for bodies that must measure (react-window). */
+export const PANEL_BODY_H = "h-[min(60vh,520px)]";
+
+/**
  * Scrollable region for panel bodies that can overflow (lists, tables). Caps
- * at the mockup's comfortable height; the panel surface itself stays put.
+ * at `PANEL_BODY_MAX_H`; the panel surface itself stays put.
  */
 export function PanelScroll({
   children,
@@ -181,7 +249,7 @@ export function PanelScroll({
   children: React.ReactNode;
   className?: string;
 }) {
-  return <div className={cn("max-h-[min(52vh,420px)] overflow-y-auto", className)}>{children}</div>;
+  return <div className={cn(PANEL_BODY_MAX_H, "overflow-y-auto", className)}>{children}</div>;
 }
 
 export interface PanelTab<T extends string> {

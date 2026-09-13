@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { InteractionModeKind } from "@/hooks/useInteractionMode";
@@ -10,6 +9,13 @@ export interface ModeLauncherProps {
   onStart: (kind: InteractionModeKind) => void;
   /** Nothing can be started while the simulator is unreachable. */
   disabled?: boolean;
+  /**
+   * Open state lives in `useDockNavigation`, not here: the launcher, the tempo
+   * panel and an expanded section are three surfaces over the same map, and
+   * only one of them is ever open. Local state let two of them coexist.
+   */
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 /**
@@ -18,12 +24,15 @@ export interface ModeLauncherProps {
  * keep their own entry buttons — this is the surface that makes the set
  * discoverable without knowing which panel owns which tool.
  */
-export default function ModeLauncher({ onStart, disabled = false }: ModeLauncherProps) {
-  const [open, setOpen] = useState(false);
-
+export default function ModeLauncher({
+  onStart,
+  disabled = false,
+  open,
+  onOpenChange,
+}: ModeLauncherProps) {
   return (
     <div className="flex items-center">
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={onOpenChange}>
         <PopoverTrigger asChild>
           <button
             type="button"
@@ -56,7 +65,7 @@ export default function ModeLauncher({ onStart, disabled = false }: ModeLauncher
                 <button
                   type="button"
                   onClick={() => {
-                    setOpen(false);
+                    onOpenChange(false);
                     onStart(item.kind);
                   }}
                   className={cn(

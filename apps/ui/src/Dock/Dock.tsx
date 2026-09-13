@@ -17,6 +17,7 @@ import FleetPanel from "./FleetPanel";
 import MonitorPanel from "./MonitorPanel";
 import SessionPanel from "./SessionPanel";
 import SettingsPanel from "./SettingsPanel";
+import { PanelHeaderRow } from "./DockPanelKit";
 import { countMisbehavingDevices } from "@/lib/faultPresets";
 import type {
   DockBadges,
@@ -186,6 +187,7 @@ export default function Dock({
   className,
 }: DockProps) {
   const { expanded, tab, tempoOpen, toggleTempo, selectTab, close } = navigation;
+  const { launcherOpen, setLauncherOpen } = navigation;
   const { clock, setSpeedMultiplier } = useClock();
   const faultyDevices = countMisbehavingDevices(faults.faults.config, faults.faults.status);
 
@@ -365,6 +367,8 @@ export default function Dock({
             isRecording={isRecording}
             onStartRecording={onStartRecording}
             onStopRecording={onStopRecording}
+            launcherOpen={launcherOpen}
+            onLauncherOpenChange={setLauncherOpen}
             clock={clock}
             tempoOpen={tempoOpen}
             onToggleTempo={toggleTempo}
@@ -385,7 +389,7 @@ export default function Dock({
           open={tempoOpen}
           id="dock-tempo-panel"
           aria-label="Tempo"
-          eyebrow="Tempo"
+          header={<PanelHeaderRow title="Tempo" onClose={close} closeLabel="Close Tempo" />}
           anchorRef={tempoBtnRef}
           originRef={mainRef}
           width="w-[340px]"

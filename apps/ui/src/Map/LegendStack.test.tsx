@@ -113,4 +113,8 @@ describe("renderInSlot", () => {
     expect(LEGEND_ORDER.traffic).toBeLessThan(LEGEND_ORDER.heat);
     slot.remove();
   });
+
+  it("reserves the fleets slot after heat", () => {
+    expect(LEGEND_ORDER.heat).toBeLessThan(LEGEND_ORDER.fleets);
+  });
 });

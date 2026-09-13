@@ -129,8 +129,9 @@ describe("VisibilityRail", () => {
   it("stands on the dock shelf rather than floating at mid-height", () => {
     renderRail();
     const rail = screen.getByRole("group", { name: "Layer visibility" });
-    // Legends grow down from the search bar, the rail grows up from the dock.
-    expect(rail.className).toContain("bottom-[calc(var(--spacing-above-dock)+0.75rem)]");
+    // Legends grow down from the search bar, the rail grows up from the dock
+    // shelf it shares with the zoom cluster beside it.
+    expect(rail.className).toContain("bottom-above-dock");
     expect(rail.className).not.toContain("top-1/2");
     expect(rail.className).not.toContain("-translate-y-1/2");
   });

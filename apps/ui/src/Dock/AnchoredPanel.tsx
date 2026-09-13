@@ -1,15 +1,18 @@
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import DockSurface from "./DockSurface";
-import { useAnchorOffset } from "./dockRowLayout";
+import { useAnchorOffset, type AnchorAlign } from "./dockRowLayout";
 
 export interface AnchoredPanelProps {
   open: boolean;
   /** DOM id, so the button that opens it can own `aria-controls`. */
   id: string;
   "aria-label"?: string;
-  /** Micro-caps eyebrow, e.g. `Monitor › Faults`. Names the panel to itself. */
-  eyebrow?: string;
+  /**
+   * The panel's single header row (see `PanelHeaderRow`): what it is, its own
+   * switch, and the way out. There is no second heading inside the body.
+   */
+  header?: React.ReactNode;
   /**
    * The button the panel belongs to. Its left edge lines the panel up, and its
    * centre is where the panel draws its pointer.
@@ -25,8 +28,13 @@ export interface AnchoredPanelProps {
    * this panel, when it isn't the origin.
    */
   ignoreRef?: React.RefObject<HTMLElement | null>;
-  /** Tailwind width class from the section registry. */
+  /** Tailwind width class. One width per surface — never per view. */
   width: string;
+  /**
+   * Which edge holds still: the anchor button's (default) or the origin bar's
+   * right edge. See `AnchorAlign`.
+   */
+  align?: AnchorAlign;
   /** Re-measure when this changes (the open section and its lit view). */
   positionKey: string;
   onClose: () => void;
@@ -54,11 +62,12 @@ const ANCHOR_INSET = 10;
 export default function AnchoredPanel({
   open,
   id,
-  eyebrow,
+  header,
   anchorRef,
   originRef,
   ignoreRef,
   width,
+  align = "anchor",
   positionKey,
   onClose,
   children,
@@ -69,6 +78,7 @@ export default function AnchoredPanel({
     active: open,
     key: `${positionKey}:${width}`,
     inset: ANCHOR_INSET,
+    align,
   });
 
   useEffect(() => {
@@ -110,13 +120,7 @@ export default function AnchoredPanel({
           width
         )}
       >
-        {eyebrow && (
-          <div className="flex items-center justify-between gap-2 border-b border-border-soft px-[13px] py-2">
-            <span className="truncate text-[9.5px] font-bold uppercase tracking-[0.16em] text-muted-foreground/75">
-              {eyebrow}
-            </span>
-          </div>
-        )}
+        {header}
         <div key={positionKey} className="animate-fade-in-fast">
           {children}
         </div>

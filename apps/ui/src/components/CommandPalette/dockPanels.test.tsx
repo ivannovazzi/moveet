@@ -144,6 +144,7 @@ describe("command palette → dock panels", () => {
       ["Open Monitor › Faults", "Monitor"],
       ["Open Session › Scenarios", "Session"],
       ["Open Settings › Advanced", "Settings"],
+      ["Open Settings › Sinks", "Settings"],
     ] as const) {
       runPaletteAction(label);
       expect(await screen.findByRole("region", { name: panel })).toBeInTheDocument();
@@ -175,7 +176,7 @@ describe("command palette → dock panels", () => {
   it("closes whichever panel is open", async () => {
     render(<Harness />);
 
-    runPaletteAction("Open Settings › Feeds & sinks");
+    runPaletteAction("Open Settings › Source");
     expect(await screen.findByRole("region", { name: "Settings" })).toBeInTheDocument();
 
     runPaletteAction("Collapse dock section");
