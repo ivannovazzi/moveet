@@ -14,6 +14,13 @@ const getZoom = vi.fn();
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // The hook waits two frames for the chrome to settle before flying; run
+  // frames synchronously so the assertions below read as before.
+  vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+    cb(0);
+    return 1;
+  });
+  vi.stubGlobal("cancelAnimationFrame", () => {});
   getZoom.mockReturnValue(12);
   vi.mocked(useMapControls).mockReturnValue({
     zoomIn: vi.fn(),

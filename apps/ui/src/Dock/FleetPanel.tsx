@@ -51,27 +51,22 @@ function FleetSummary({
   breached: number;
 }) {
   return (
-    <div
-      className={cn(
-        mono,
-        "flex items-center gap-2.5 whitespace-nowrap px-[15px] py-2 text-[11px] text-muted-foreground"
-      )}
-    >
+    <div className="flex items-center gap-2.5 whitespace-nowrap px-[15px] py-2 text-[11px] text-muted-foreground">
       <span>
-        <span className="font-semibold text-foreground">{total}</span> total
+        <span className={cn(mono, "font-semibold text-foreground")}>{total}</span> vehicles
       </span>
       <span className="flex items-center gap-1 text-status-ok">
         <StatusDot tone="ok" />
-        <span className="font-semibold">{enroute}</span>
+        <span className={cn(mono, "font-semibold")}>{enroute}</span> moving
       </span>
       <span className="flex items-center gap-1">
         <StatusDot tone="idle" />
-        <span className="font-semibold text-foreground">{idle}</span>
+        <span className={cn(mono, "font-semibold text-foreground")}>{idle}</span> idle
       </span>
       {alert > 0 && (
         <span className="flex items-center gap-1 text-status-warn">
           <StatusDot tone="warn" />
-          <span className="font-semibold">{alert}</span>
+          <span className={cn(mono, "font-semibold")}>{alert}</span> alerts
         </span>
       )}
       {jobs > 0 && (
@@ -82,7 +77,13 @@ function FleetSummary({
           )}
           title={breached > 0 ? `${jobs} live jobs, ${breached} past SLA` : `${jobs} live jobs`}
         >
-          <span className="font-semibold">{jobs}</span> jobs
+          <span className={cn(mono, "font-semibold")}>{jobs}</span> jobs
+          {breached > 0 && (
+            <>
+              {" "}
+              (<span className={cn(mono, "font-semibold")}>{breached}</span> late)
+            </>
+          )}
         </span>
       )}
     </div>

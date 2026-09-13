@@ -79,7 +79,7 @@ export default function StartHint({ running, ready, onStart, className }: StartH
         type="button"
         onClick={() => setDismissed(true)}
         aria-label="Dismiss"
-        title="Dismiss"
+        title="Hide"
         className={cn(
           "flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground",
           "transition-[color,background-color] duration-fast ease-standard",

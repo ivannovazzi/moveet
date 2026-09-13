@@ -233,7 +233,7 @@ export default function JobsPanel({
       {ordered.length === 0 && !error ? (
         <div className="px-[15px] pb-3">
           <PanelEmptyState icon={<JobIcon />}>
-            No jobs yet — create one to see the dispatch lifecycle
+            No jobs yet. Press New job to place a pickup and a dropoff.
           </PanelEmptyState>
         </div>
       ) : null}

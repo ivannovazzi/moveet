@@ -36,6 +36,15 @@ export default function useTracking(
     if (flownToRef.current === selected) return;
     if (lng == null || lat == null) return;
     flownToRef.current = selected;
-    focusOn(lng, lat, Math.max(getZoom(), MIN_FOCUS_ZOOM), { duration });
+    // Selecting a vehicle also opens the inspector, which pushes the dock
+    // panel left, which moves the band of map the camera should aim into
+    // (see mapInsets). Those surfaces settle over the next two frames, so the
+    // fly waits for them rather than aiming at where the chrome used to be.
+    const zoom = Math.max(getZoom(), MIN_FOCUS_ZOOM);
+    let frame = 0;
+    frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => focusOn(lng, lat, zoom, { duration }));
+    });
+    return () => cancelAnimationFrame(frame);
   }, [selected, lng, lat, duration, focusOn, getZoom]);
 }

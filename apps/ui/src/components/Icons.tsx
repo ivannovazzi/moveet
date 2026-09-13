@@ -40,6 +40,7 @@ import {
   Ambulance as AmbulanceBase,
   Bike as BikeBase,
   Funnel as FunnelBase,
+  Maximize as MaximizeBase,
   type LucideIcon,
   type LucideProps,
 } from "lucide-react";
@@ -100,3 +101,4 @@ export const TruckIcon = aliasIcon(TruckBase);
 export const AmbulanceIcon = aliasIcon(AmbulanceBase);
 export const MotorcycleIcon = aliasIcon(BikeBase);
 export const FilterIcon = aliasIcon(FunnelBase);
+export const FitIcon = aliasIcon(MaximizeBase);

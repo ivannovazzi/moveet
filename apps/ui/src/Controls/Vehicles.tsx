@@ -290,7 +290,7 @@ const VehicleRow = memo(function VehicleRow({
         ) : (
           <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <StatusDot tone={moving ? "ok" : "idle"} />
-            {moving ? "enroute" : "idle"}
+            {moving ? "Moving" : "Idle"}
           </span>
         )}
 
@@ -518,16 +518,25 @@ export default function VehicleList({
             <button
               type="button"
               onClick={() => onFilterChange("")}
-              className="absolute right-2 flex size-6 items-center justify-center rounded-md border border-transparent bg-accent/50 text-base leading-none text-muted-foreground transition-colors duration-fast ease-standard hover:border-border hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
+              className="absolute right-2 flex size-5 shrink-0 items-center justify-center rounded-full bg-foreground/10 p-0 text-muted-foreground transition-colors hover:bg-foreground/20 hover:text-foreground"
               aria-label="Clear search"
             >
-              ×
+              <svg className="size-2 fill-none" viewBox="0 0 12 12">
+                <path
+                  d="M2 2l8 8M10 2l-8 8"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
+              </svg>
             </button>
           )}
         </div>
         {visibleVehicles.length === 0 ? (
           <PanelEmptyState>
-            {filter ? `No vehicles match "${filter}"` : "No vehicles"}
+            {filter
+              ? `No vehicles match “${filter}”. Clear the search to see all ${vehicles.length}.`
+              : "No vehicles"}
           </PanelEmptyState>
         ) : (
           <>
@@ -537,12 +546,14 @@ export default function VehicleList({
               <div
                 className={cn(
                   ROW_GRID,
-                  "h-6 px-2 text-[9px] font-bold uppercase tracking-[0.12em] text-muted-foreground/75"
+                  "h-6 px-2 text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/75"
                 )}
               >
                 <span>Unit</span>
                 <span>Status</span>
-                <span className="justify-self-end">km/h</span>
+                <span className="justify-self-end" title="km/h">
+                  Speed
+                </span>
                 <span className="justify-self-end">Route</span>
               </div>
             </div>

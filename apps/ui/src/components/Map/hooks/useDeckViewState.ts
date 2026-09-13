@@ -3,6 +3,7 @@ import { WebMercatorViewport, FlyToInterpolator } from "@deck.gl/core";
 import type { MapViewState } from "@deck.gl/core";
 import type { RoadNetwork, Position } from "@/types";
 import type { PanToOptions, DeckViewStateControls } from "../providers/types";
+import { fitPadding, getInsets, visibleCentre } from "../mapInsets";
 
 export type { DeckViewStateControls };
 
@@ -22,6 +23,37 @@ const ZOOM_STEP = 1;
  * Prevents zooming out to empty ocean/continent around a single city.
  */
 const MIN_ZOOM_MARGIN = 1;
+
+/** Air left around a fitted bounding box, on top of whatever the chrome claims. */
+const FIT_PADDING = 40;
+
+/**
+ * The camera centre that puts [lng, lat] in the middle of the part of the map
+ * the chrome is *not* covering (see `mapInsets`).
+ *
+ * The dock, the search bar, the inspector and an open section panel all float
+ * over the canvas, so the viewport's centre is frequently underneath one of
+ * them. Deck's own viewport maths does the conversion: `panByPosition` — the
+ * same call the drag controller uses — asks which map centre puts a given
+ * coordinate under a given pixel, which is exactly the question here with the
+ * pixel being the visible rect's centre rather than the viewport's. Falls back
+ * to the target itself when the viewport has no size yet, or when the chrome
+ * leaves too little room for the shift to be an improvement.
+ */
+function centreForTarget(
+  lng: number,
+  lat: number,
+  zoom: number,
+  width: number,
+  height: number
+): { longitude: number; latitude: number } {
+  const centre = visibleCentre(width, height, getInsets());
+  if (!centre) return { longitude: lng, latitude: lat };
+  const vp = new WebMercatorViewport({ width, height, longitude: lng, latitude: lat, zoom });
+  const panned = vp.panByPosition([lng, lat], centre);
+  if (panned.longitude == null || panned.latitude == null) return { longitude: lng, latitude: lat };
+  return { longitude: panned.longitude, latitude: panned.latitude };
+}
 
 const DEFAULT_VIEW_STATE: MapViewState = {
   longitude: 36.82,
@@ -79,7 +111,9 @@ export function useDeckViewState({ data, width, height }: UseDeckViewStateOption
         [west, south],
         [east, north],
       ],
-      { padding: 40 }
+      // The first fit is the whole network, so it keeps plain padding: the
+      // chrome's bands would squeeze the city into whatever strip is left.
+      { padding: FIT_PADDING }
     );
 
     setViewState((prev) => ({
@@ -122,15 +156,17 @@ export function useDeckViewState({ data, width, height }: UseDeckViewStateOption
     }));
   }, []);
 
-  const panTo = useCallback((lng: number, lat: number, options: PanToOptions) => {
-    setViewState((prev) => ({
-      ...prev,
-      longitude: lng,
-      latitude: lat,
-      transitionDuration: options?.duration ?? 300,
-      transitionInterpolator: new FlyToInterpolator(),
-    }));
-  }, []);
+  const panTo = useCallback(
+    (lng: number, lat: number, options: PanToOptions) => {
+      setViewState((prev) => ({
+        ...prev,
+        ...centreForTarget(lng, lat, prev.zoom ?? DEFAULT_ZOOM, width, height),
+        transitionDuration: options?.duration ?? 300,
+        transitionInterpolator: new FlyToInterpolator(),
+      }));
+    },
+    [width, height]
+  );
 
   const setZoom = useCallback((zoom: number) => {
     setViewState((prev) => ({ ...prev, zoom }));
@@ -148,7 +184,9 @@ export function useDeckViewState({ data, width, height }: UseDeckViewStateOption
           [x0, y0],
           [x1, y1],
         ],
-        { padding: 40 }
+        // Per-side padding, so a box fitted while the Fleet panel is open sits
+        // in the strip of map the panel leaves rather than behind it.
+        { padding: fitPadding(width, height, getInsets(), FIT_PADDING) }
       );
       setViewState((prev) => ({
         ...prev,
@@ -160,16 +198,18 @@ export function useDeckViewState({ data, width, height }: UseDeckViewStateOption
     [width, height]
   );
 
-  const focusOn = useCallback((lng: number, lat: number, zoom: number, options: PanToOptions) => {
-    setViewState((prev) => ({
-      ...prev,
-      longitude: lng,
-      latitude: lat,
-      zoom,
-      transitionDuration: options?.duration ?? 500,
-      transitionInterpolator: new FlyToInterpolator(),
-    }));
-  }, []);
+  const focusOn = useCallback(
+    (lng: number, lat: number, zoom: number, options: PanToOptions) => {
+      setViewState((prev) => ({
+        ...prev,
+        ...centreForTarget(lng, lat, zoom, width, height),
+        zoom,
+        transitionDuration: options?.duration ?? 500,
+        transitionInterpolator: new FlyToInterpolator(),
+      }));
+    },
+    [width, height]
+  );
 
   const controls: DeckViewStateControls = {
     zoomIn,

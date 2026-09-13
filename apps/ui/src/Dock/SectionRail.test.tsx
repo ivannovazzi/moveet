@@ -43,7 +43,7 @@ vi.mock("@/Controls/Adapter/adapterClient", () => ({
 // Imported after the mocks so the hoisted factories are in place.
 import Dock, { type DockProps } from "./Dock";
 import { useDockNavigation } from "@/hooks/useDockNavigation";
-import { createDockProps } from "@/test/dockProps";
+import { createDockProps, passthroughGuard } from "@/test/dockProps";
 import { DOCK_SECTIONS, rollUpBadge, type DockBadges } from "./dockSections";
 
 function renderDock(overrides: Partial<Omit<DockProps, "navigation">> = {}) {
@@ -57,6 +57,58 @@ function renderDock(overrides: Partial<Omit<DockProps, "navigation">> = {}) {
 const pill = (name: string) => screen.getByRole("button", { name });
 const expanded = (name: string) => pill(name).getAttribute("aria-expanded") === "true";
 const tabNames = () => screen.queryAllByRole("tab").map((t) => t.textContent?.trim());
+
+const wingColumn = () => document.querySelector("[data-dock-wing='sections']") as HTMLElement;
+const wingKeys = () =>
+  Array.from(document.querySelectorAll("[data-dock='sections'] button")).map((b) =>
+    b.getAttribute("aria-label")
+  );
+
+describe("the section wing's place on the row", () => {
+  /**
+   * The wing used to be packed against the deck (`justify-start` in its column),
+   * so it slid left and right by ~100px every time the deck changed width —
+   * entering dispatch swaps the live run's keys for a much wider mode rail, and
+   * the discard prompt is wider again. Four keys that move whenever something
+   * else happens are four keys muscle memory can't hold. It is now pinned to the
+   * viewport's right edge, which nothing on the deck can reach.
+   *
+   * jsdom has no layout, so this asserts the rule (the alignment class) and the
+   * consequence (same keys, same order) rather than measuring pixels.
+   */
+  it("hangs off the viewport's right edge, not off the deck's", () => {
+    renderDock();
+    expect(wingColumn().className).toContain("justify-end");
+    expect(wingColumn().className).not.toContain("justify-start");
+  });
+
+  it("keeps the same four keys in the same order whatever the deck is doing", () => {
+    const live = renderDock();
+    expect(wingKeys()).toEqual(["Fleet", "Monitor", "Session", "Settings"]);
+    live.unmount();
+
+    // Mid-mode: the deck is carrying a mode rail instead of the run's keys.
+    const inMode = renderDock({
+      modeDescriptor: {
+        kind: "drawZone",
+        label: "Heat zone",
+        tone: "accent",
+        status: "Drawing",
+        actions: [],
+      } as unknown as DockProps["modeDescriptor"],
+    });
+    expect(wingColumn().className).toContain("justify-end");
+    expect(wingKeys()).toEqual(["Fleet", "Monitor", "Session", "Settings"]);
+    inMode.unmount();
+
+    // Being asked to discard: the deck becomes a prompt, wider again.
+    renderDock({
+      guard: { ...passthroughGuard(), pending: { loses: "4-point zone", run: vi.fn() } },
+    });
+    expect(wingColumn().className).toContain("justify-end");
+    expect(wingKeys()).toEqual(["Fleet", "Monitor", "Session", "Settings"]);
+  });
+});
 
 describe("dock section row", () => {
   it("rests as four labelled pills, none expanded", () => {

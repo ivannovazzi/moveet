@@ -120,6 +120,27 @@ describe("FleetPanel", () => {
     expect(screen.queryAllByRole("tab")).toHaveLength(0);
   });
 
+  it("summarises the roster in plain words", () => {
+    renderPanel({
+      tab: "list",
+      vehicles: [
+        { id: "v1", speed: 40 } as unknown as FleetPanelProps["vehicles"][number],
+        { id: "v2", speed: 0 } as unknown as FleetPanelProps["vehicles"][number],
+      ],
+    });
+
+    expect(screen.getByText("vehicles")).toBeInTheDocument();
+    expect(screen.getByText("moving")).toBeInTheDocument();
+    expect(screen.getByText("idle")).toBeInTheDocument();
+  });
+
+  it("shows late jobs in the summary when the board has breached SLAs", () => {
+    jobs.counts = { total: 5, live: 2, queued: 0, breached: 1 };
+    renderPanel();
+
+    expect(screen.getByText(/late\)/)).toBeInTheDocument();
+  });
+
   it("summarises live jobs whichever view is open", () => {
     jobs.counts = { total: 5, live: 2, queued: 0, breached: 0 };
     renderPanel({ tab: "groups" });

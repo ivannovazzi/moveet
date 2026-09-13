@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import type { VehicleType } from "@/types";
 import {
@@ -46,10 +46,14 @@ export interface VehicleTypeKeyProps {
  *
  * Five permanent keys for types would be half the rail's height spent on a
  * filter that is left alone most of the time, so they collapse into a funnel key
- * that spreads them rightward on hover — and on focus and on click, so a
- * keyboard and a touch screen get the same cluster a mouse does. The flyout is
- * a child of the hovered wrapper and bridges the gap with padding rather than a
- * margin, so crossing into it doesn't pass over dead space and close it.
+ * that spreads them rightward when pressed. Press again, Escape, or a click
+ * outside closes it; Tab still reaches the type keys, and focus leaving the
+ * cluster closes it, so a keyboard gets the same cluster a pointer does.
+ *
+ * Deliberately NOT on hover: the rail is a column of keys the pointer crosses
+ * on its way to any of them, so a hover trigger flashed the spread open on the
+ * way past, and hover-open fighting click-toggle left the cluster stuck open
+ * after a click-then-leave. One press, one state.
  *
  * A count on the key reports how many types are currently filtered out: with the
  * cluster collapsed, the fact that a filter is on at all has to survive on the
@@ -58,6 +62,7 @@ export interface VehicleTypeKeyProps {
  */
 export default function VehicleTypeKey({ hiddenVehicleTypes, onToggle }: VehicleTypeKeyProps) {
   const [open, setOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const hiddenCount = hiddenVehicleTypes.size;
   const filtering = hiddenCount > 0;
 
@@ -67,14 +72,32 @@ export default function VehicleTypeKey({ hiddenVehicleTypes, onToggle }: Vehicle
     if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
   }, []);
 
+  // Dismissal while open: a press anywhere else, or Escape. Same pattern as
+  // `SearchBar` — the mousedown lands before the key's own click, so the
+  // contains() guard is what keeps a press on the key a toggle rather than a
+  // close-then-reopen.
+  useEffect(() => {
+    if (!open) return;
+    const onMouseDown = (e: MouseEvent) => {
+      if (!wrapperRef.current?.contains(e.target as Node | null)) setOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      // Claim the press so the app-level Escape doesn't also clear the
+      // selection underneath the cluster.
+      e.preventDefault();
+      setOpen(false);
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
   return (
-    <div
-      className="relative flex flex-col items-center"
-      onPointerEnter={() => setOpen(true)}
-      onPointerLeave={() => setOpen(false)}
-      onFocus={() => setOpen(true)}
-      onBlur={onBlur}
-    >
+    <div ref={wrapperRef} className="relative flex flex-col items-center" onBlur={onBlur}>
       <button
         type="button"
         aria-expanded={open}
@@ -110,8 +133,8 @@ export default function VehicleTypeKey({ hiddenVehicleTypes, onToggle }: Vehicle
       </button>
 
       {open && (
-        // `pl-2` rather than `ml-2`: the gap between the key and the cluster is
-        // part of the hover target, so the pointer never crosses dead space.
+        // `pl-2` rather than `ml-2`: the gap belongs to the flyout, so a press
+        // in it counts as inside the cluster.
         <div className="absolute left-full top-0 z-10 pl-2">
           <div
             role="group"

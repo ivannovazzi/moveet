@@ -58,4 +58,21 @@ describe("anchorOffset", () => {
 
     expect(400 + offset).toBe(12);
   });
+
+  it("slides left of whatever already holds the right edge, such as an open inspector", () => {
+    // Bar at 1000..1200 on a 1440 screen; a 460 panel would end flush at 1200.
+    // With 348px reserved for the inspector the panel's right edge stops at
+    // 1440 - 12 - 348 = 1080 instead.
+    const offset = anchorOffset({
+      elementWidth: 460,
+      viewportWidth: 1440,
+      originLeft: 1000,
+      originRight: 1200,
+      anchorLeft: 1010,
+      align: "origin-right",
+      reserveRight: 348,
+    });
+
+    expect(1000 + offset + 460).toBe(1080);
+  });
 });

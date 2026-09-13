@@ -28,12 +28,12 @@ interface MapContextMenuProps {
   hasDispatchSelection: boolean;
 }
 
-/** Identify-closest-road is available in every dispatch state. */
+/** Nearest-road is available in every dispatch state. */
 function IdentifyRoadItem({ onFindRoad }: { onFindRoad: () => void }) {
   return (
     <DropdownMenuItem onSelect={onFindRoad}>
       <LocateFixed />
-      Identify closest road
+      Nearest road
     </DropdownMenuItem>
   );
 }
@@ -52,11 +52,12 @@ export default function MapContextMenu({
     case DispatchState.BROWSE:
       return (
         <>
+          <IdentifyRoadItem onFindRoad={onFindRoad} />
           <DropdownMenuItem onSelect={onFindDirections}>
             <Navigation />
-            Find directions to here
+            Directions to here
           </DropdownMenuItem>
-          <IdentifyRoadItem onFindRoad={onFindRoad} />
+          <DropdownMenuSeparator />
           <DropdownMenuItem disabled={!hasSelectedVehicle} onSelect={onSendVehicle}>
             <Send />
             Send selected vehicle here
@@ -74,11 +75,11 @@ export default function MapContextMenu({
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => onCreateIncident?.("closure")}>
                 <Ban />
-                Closure
+                Road closure
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => onCreateIncident?.("construction")}>
                 <Construction />
-                Construction
+                Roadworks
               </DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
@@ -88,11 +89,12 @@ export default function MapContextMenu({
     case DispatchState.ROUTE:
       return (
         <>
+          <IdentifyRoadItem onFindRoad={onFindRoad} />
+          <DropdownMenuSeparator />
           <DropdownMenuItem disabled={!hasDispatchSelection} onSelect={onAddWaypoint}>
             <MapPinPlus />
             Add waypoint here
           </DropdownMenuItem>
-          <IdentifyRoadItem onFindRoad={onFindRoad} />
         </>
       );
 

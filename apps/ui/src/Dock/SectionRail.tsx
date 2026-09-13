@@ -129,7 +129,11 @@ export default function SectionRail({
         originRef={surfaceRef}
         width={PANEL_WIDTH}
         align="origin-right"
+        avoidInsetKey="inspector"
         positionKey={`${expanded ?? "none"}:${tab ?? "none"}`}
+        // The one panel big enough to matter to the camera: 460px of the right
+        // edge and most of the height below it (see `mapInsets`).
+        insetKey="dock-section-panel"
         onClose={close}
       >
         {section ? renderPanel(section) : null}

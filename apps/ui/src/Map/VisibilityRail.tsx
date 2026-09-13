@@ -7,6 +7,17 @@ import type { Modifiers, VehicleType } from "@/types";
 import VehicleTypeKey from "./VehicleTypeKey";
 import { VISIBILITY_LAYERS } from "./visibilityLayers";
 
+/**
+ * A corner badge on a key — the trail length, Density's threshold. Same shape
+ * as the type key's hidden count (`VehicleTypeKey`): absolutely positioned, so
+ * a key growing something to say never moves the keys below it.
+ */
+const BADGE_CLASS = cn(
+  "absolute -right-0.5 -top-0.5 flex h-[14px] min-w-[14px] items-center justify-center",
+  "rounded-full border-[1.5px] border-glass-bot px-[3px]",
+  "font-mono text-[9px] font-bold leading-none tabular-nums"
+);
+
 export interface VisibilityRailProps {
   modifiers: Modifiers;
   onChangeModifiers: <T extends keyof Modifiers>(name: T) => (value: Modifiers[T]) => void;
@@ -41,6 +52,12 @@ export interface VisibilityRailProps {
  * Not every filter is a boolean: the vehicle types are five, so they collapse
  * into one key that spreads them (see `VehicleTypeKey`), seated right under the
  * Vehicles layer they narrow. Trails likewise carries its length.
+ *
+ * Everything a key has to say beyond lit/unlit rides as a corner badge *on* the
+ * key (the type key's hidden count, the trail length, Density's threshold), so
+ * the rail is exactly eleven 34px keys tall whichever of them are on. Chips in
+ * the flow moved every key below them down ~17px the moment one appeared — the
+ * operator clicked Trails and the key they were aiming at next had moved.
  *
  * Bottom-left, stacked directly above the `Zoom` cluster (8px gap) and
  * growing *upward*. Legends grow *downward* from under the search bar (see
@@ -86,11 +103,7 @@ export default function VisibilityRail({
         const starvedHint = `needs ${DENSITY_MIN_VEHICLES}+ vehicles, ${vehicleCount} now`;
         return (
           <Fragment key={key}>
-            <div
-              className={
-                isTrails || densityStarved ? "relative flex flex-col items-center" : undefined
-              }
-            >
+            <div className="relative flex flex-col items-center">
               <button
                 type="button"
                 aria-pressed={Boolean(on)}
@@ -123,24 +136,24 @@ export default function VisibilityRail({
                 {icon}
               </button>
 
-              {/* The threshold Density is waiting for, on the same chip the
-                  trail length uses — but a plain span: there is nothing to
-                  press, it is a readout of why the layer is idle. It is also
-                  the key's accessible description, so it spells the shorthand
-                  out for a reader who can't see the dimmed key next to it. */}
+              {/* The threshold Density is waiting for, as a corner badge — a
+                  plain span, not a button: there is nothing to press, it is a
+                  readout of why the layer is idle. It is also the key's
+                  accessible description, so it spells the shorthand out for a
+                  reader who can't see the dimmed key behind it. */}
               {densityStarved && (
                 <span
                   id={densityHintId}
                   data-testid="density-threshold-chip"
-                  className="mt-0.5 rounded px-1 py-px font-mono text-[9.5px] font-bold leading-[13px] tabular-nums text-muted-foreground"
+                  className={cn(BADGE_CLASS, "bg-muted-foreground text-background")}
                 >
                   <span aria-hidden>{`${DENSITY_MIN_VEHICLES}+`}</span>
                   <span className="sr-only">{starvedHint}</span>
                 </span>
               )}
 
-              {/* Trails is the one layer with a parameter. Its length rides a chip
-                under the key — a readout that is also the way to change it —
+              {/* Trails is the one layer with a parameter. Its length rides a
+                badge on the key — a readout that is also the way to change it —
                 rather than a slider parked in the rail for a layer that is off
                 most of the time. */}
               {isTrails && trailsOn && (
@@ -152,12 +165,12 @@ export default function VisibilityRail({
                     title={`Trail length: ${trail.value} points`}
                     onClick={() => setTrailOpen((open) => !open)}
                     className={cn(
-                      "mt-0.5 cursor-pointer rounded px-1 py-px font-mono text-[9.5px] font-bold leading-[13px] tabular-nums",
-                      "transition-colors duration-fast ease-standard",
+                      BADGE_CLASS,
+                      "cursor-pointer transition-colors duration-fast ease-standard",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       trailOpen
-                        ? "bg-accent/15 text-accent"
-                        : "text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground"
+                        ? "bg-accent text-white"
+                        : "bg-muted-foreground text-background hover:bg-foreground"
                     )}
                   >
                     {trail.value}

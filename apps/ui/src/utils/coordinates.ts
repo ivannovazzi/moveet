@@ -36,3 +36,36 @@ export function toMapPosition([lat, lng]: Position): Position {
 export function toLatLng([lng, lat]: Position): Position {
   return [lat, lng];
 }
+
+/**
+ * The bounding box of a road network, as `[[west, south], [east, north]]` —
+ * the shape `useMapControls().setBounds` (and deck.gl's `fitBounds` under it)
+ * expects.
+ *
+ * Returns `null` for an empty network rather than an infinite box: the caller
+ * (the map-controls cluster's "Fit network" key) disables itself on `null`
+ * instead of flying the camera to nowhere while the network is still loading.
+ */
+export function networkBounds(geojson: {
+  features: { geometry: { coordinates: Position[] } }[];
+}): [Position, Position] | null {
+  let west = Infinity;
+  let south = Infinity;
+  let east = -Infinity;
+  let north = -Infinity;
+
+  for (const feature of geojson.features) {
+    for (const [lng, lat] of feature.geometry.coordinates) {
+      if (lng < west) west = lng;
+      if (lng > east) east = lng;
+      if (lat < south) south = lat;
+      if (lat > north) north = lat;
+    }
+  }
+
+  if (west === Infinity) return null;
+  return [
+    [west, south],
+    [east, north],
+  ];
+}

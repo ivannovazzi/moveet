@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { clearInset, setInset, type MapInsets } from "@/components/Map/mapInsets";
 import DockSurface from "./DockSurface";
 import { useAnchorOffset, type AnchorAlign } from "./dockRowLayout";
 
@@ -37,6 +38,14 @@ export interface AnchoredPanelProps {
   align?: AnchorAlign;
   /** Re-measure when this changes (the open section and its lit view). */
   positionKey: string;
+  /**
+   * Report the band of map this panel covers under this key while it is open,
+   * so camera moves aim around it (see `mapInsets`). Panels that cover a corner
+   * worth steering clear of opt in; a small transient one (Tempo) does not.
+   */
+  insetKey?: string;
+  /** A `mapInsets` contributor (the inspector) this panel is placed clear of. */
+  avoidInsetKey?: string;
   onClose: () => void;
   children: React.ReactNode;
 }
@@ -69,6 +78,8 @@ export default function AnchoredPanel({
   width,
   align = "anchor",
   positionKey,
+  insetKey,
+  avoidInsetKey,
   onClose,
   children,
   ...rest
@@ -79,7 +90,50 @@ export default function AnchoredPanel({
     key: `${positionKey}:${width}`,
     inset: ANCHOR_INSET,
     align,
+    avoidInsetKey,
   });
+
+  // What this panel covers, measured rather than assumed: it is positioned at
+  // run time (`useAnchorOffset` clamps it inside the viewport) and its height is
+  // its contents'. The right band is everything from the panel's left edge to
+  // the viewport's right edge; the bottom band is everything below its top edge,
+  // which already includes the gap down to the dock it stands on.
+  // `offset` and `positionKey` are in the dependency list as re-measure
+  // triggers rather than as values read in here: the panel is placed by
+  // `useAnchorOffset`, so its box is only final once those have settled.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-measure triggers, see above.
+  useEffect(() => {
+    if (!insetKey) return;
+    if (!open) {
+      clearInset(insetKey);
+      return;
+    }
+    const measure = () => {
+      const element = panelRef.current;
+      if (!element) return;
+      const rect = element.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      // The right band only. The panel also covers a slab above the dock, but
+      // claiming that as a bottom band would leave no visible height at all
+      // (the panel is most of the viewport tall), and the map to the left of
+      // it is exactly where the camera should aim.
+      const insets: Partial<MapInsets> = {
+        right: Math.max(0, window.innerWidth - rect.left),
+      };
+      setInset(insetKey, insets);
+    };
+    measure();
+    const onResize = () => measure();
+    window.addEventListener("resize", onResize);
+    const observer =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => measure());
+    if (panelRef.current) observer?.observe(panelRef.current);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", onResize);
+      clearInset(insetKey);
+    };
+  }, [insetKey, open, offset, positionKey]);
 
   useEffect(() => {
     if (!open) return;

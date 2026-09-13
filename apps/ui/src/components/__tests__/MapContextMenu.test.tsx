@@ -35,10 +35,10 @@ function itemFor(text: string) {
 }
 
 describe("MapContextMenu", () => {
-  it("BROWSE: shows directions, identify-road, send-vehicle and a create-incident submenu", () => {
+  it("BROWSE: shows directions, nearest-road, send-vehicle and a create-incident submenu", () => {
     renderMenu();
-    expect(screen.getByText("Find directions to here")).toBeInTheDocument();
-    expect(screen.getByText("Identify closest road")).toBeInTheDocument();
+    expect(screen.getByText("Directions to here")).toBeInTheDocument();
+    expect(screen.getByText("Nearest road")).toBeInTheDocument();
     expect(screen.getByText("Send selected vehicle here")).toBeInTheDocument();
     expect(screen.getByText("Create incident")).toBeInTheDocument();
   });
@@ -52,37 +52,37 @@ describe("MapContextMenu", () => {
     expect(itemFor("Send selected vehicle here")).not.toHaveAttribute("data-disabled");
   });
 
-  it("SELECT: shows only identify-road", () => {
+  it("SELECT: shows only nearest-road", () => {
     renderMenu({ state: DispatchState.SELECT });
-    expect(screen.getByText("Identify closest road")).toBeInTheDocument();
-    expect(screen.queryByText("Find directions to here")).not.toBeInTheDocument();
+    expect(screen.getByText("Nearest road")).toBeInTheDocument();
+    expect(screen.queryByText("Directions to here")).not.toBeInTheDocument();
     expect(screen.queryByText("Send selected vehicle here")).not.toBeInTheDocument();
     expect(screen.queryByText("Add waypoint here")).not.toBeInTheDocument();
   });
 
   it("ROUTE with dispatch selection: add-waypoint is enabled", () => {
     renderMenu({ state: DispatchState.ROUTE, hasDispatchSelection: true });
-    expect(screen.getByText("Identify closest road")).toBeInTheDocument();
+    expect(screen.getByText("Nearest road")).toBeInTheDocument();
     expect(itemFor("Add waypoint here")).not.toHaveAttribute("data-disabled");
   });
 
   it("ROUTE without dispatch selection: add-waypoint is shown but disabled", () => {
     renderMenu({ state: DispatchState.ROUTE, hasDispatchSelection: false });
-    expect(screen.getByText("Identify closest road")).toBeInTheDocument();
+    expect(screen.getByText("Nearest road")).toBeInTheDocument();
     expect(itemFor("Add waypoint here")).toHaveAttribute("data-disabled");
   });
 
-  it("DISPATCH: shows only identify-road", () => {
+  it("DISPATCH: shows only nearest-road", () => {
     renderMenu({ state: DispatchState.DISPATCH });
-    expect(screen.getByText("Identify closest road")).toBeInTheDocument();
-    expect(screen.queryByText("Find directions to here")).not.toBeInTheDocument();
+    expect(screen.getByText("Nearest road")).toBeInTheDocument();
+    expect(screen.queryByText("Directions to here")).not.toBeInTheDocument();
     expect(screen.queryByText("Add waypoint here")).not.toBeInTheDocument();
   });
 
-  it("RESULTS: shows only identify-road", () => {
+  it("RESULTS: shows only nearest-road", () => {
     renderMenu({ state: DispatchState.RESULTS });
-    expect(screen.getByText("Identify closest road")).toBeInTheDocument();
-    expect(screen.queryByText("Find directions to here")).not.toBeInTheDocument();
+    expect(screen.getByText("Nearest road")).toBeInTheDocument();
+    expect(screen.queryByText("Directions to here")).not.toBeInTheDocument();
     expect(screen.queryByText("Add waypoint here")).not.toBeInTheDocument();
   });
 });

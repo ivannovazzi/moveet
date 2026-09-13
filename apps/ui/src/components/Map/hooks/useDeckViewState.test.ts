@@ -1,7 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect } from "vitest";
 import { renderHook, act } from "@testing-library/react";
+import { WebMercatorViewport } from "@deck.gl/core";
 import type { RoadNetwork } from "@/types";
 import { useDeckViewState } from "./useDeckViewState";
+import { resetInsets, setInset } from "../mapInsets";
 
 // Default zoom when no network data is supplied (see DEFAULT_VIEW_STATE).
 const DEFAULT_ZOOM = 12;
@@ -77,5 +79,82 @@ describe("useDeckViewState zoom controls", () => {
       for (let i = 0; i < 30; i++) result.current.controls.zoomOut();
     });
     expect(result.current.viewState.zoom).toBeCloseTo(fittedZoom - 1, 5);
+  });
+});
+
+describe("flying to a target the chrome is covering", () => {
+  afterEach(() => resetInsets());
+
+  it("centres on the target when nothing is covering the map", () => {
+    const { result } = setup();
+    act(() => result.current.controls.focusOn(36.82, -1.29, 15, { duration: 0 }));
+
+    expect(result.current.viewState.longitude).toBeCloseTo(36.82, 6);
+    expect(result.current.viewState.latitude).toBeCloseTo(-1.29, 6);
+    expect(result.current.viewState.zoom).toBe(15);
+  });
+
+  it("offsets the camera so a panelled-over target still lands where you can see it", () => {
+    const { result } = setup();
+    // A 400px panel down the right edge of the 800px viewport: the target has
+    // to sit at x=200, so the camera centre moves east of it.
+    setInset("section-panel", { right: 400 });
+    act(() => result.current.controls.focusOn(36.82, -1.29, 15, { duration: 0 }));
+
+    const { longitude, latitude } = result.current.viewState;
+    expect(longitude!).toBeGreaterThan(36.82);
+    expect(latitude!).toBeCloseTo(-1.29, 6);
+
+    // …and the target projects onto the visible half's centre line.
+    const vp = new WebMercatorViewport({
+      width: 800,
+      height: 600,
+      longitude: longitude!,
+      latitude: latitude!,
+      zoom: 15,
+    });
+    const [x, y] = vp.project([36.82, -1.29]);
+    expect(x).toBeCloseTo(200, 3);
+    expect(y).toBeCloseTo(300, 3);
+  });
+
+  it("centres plainly when the chrome leaves too little map to aim into", () => {
+    const { result } = setup();
+    setInset("everything", { right: 700 });
+    act(() => result.current.controls.focusOn(36.82, -1.29, 15, { duration: 0 }));
+
+    expect(result.current.viewState.longitude).toBeCloseTo(36.82, 6);
+  });
+
+  it("pans with the same offset, at the zoom the user is already on", () => {
+    const { result } = setup();
+    setInset("inspector", { right: 348 });
+    act(() => result.current.controls.panTo(36.82, -1.29, { duration: 0 }));
+
+    expect(result.current.viewState.longitude!).toBeGreaterThan(36.82);
+    expect(result.current.viewState.zoom).toBe(DEFAULT_ZOOM);
+  });
+
+  it("fits a bounding box into the strip the chrome leaves, not the whole viewport", () => {
+    const { result } = setup();
+    act(() =>
+      result.current.controls.setBounds([
+        [36.7, -1.35],
+        [36.9, -1.2],
+      ])
+    );
+    const plain = { ...result.current.viewState };
+
+    setInset("section-panel", { right: 400 });
+    act(() =>
+      result.current.controls.setBounds([
+        [36.7, -1.35],
+        [36.9, -1.2],
+      ])
+    );
+
+    // Less room means a wider-out fit, and a centre pushed away from the panel.
+    expect(result.current.viewState.zoom!).toBeLessThan(plain.zoom!);
+    expect(result.current.viewState.longitude!).toBeGreaterThan(plain.longitude!);
   });
 });

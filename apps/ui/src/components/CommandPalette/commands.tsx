@@ -13,6 +13,7 @@ import {
   CloseIcon,
   Directions,
   FastForward,
+  FitIcon,
   Pause,
   Play,
   Record,
@@ -21,7 +22,11 @@ import {
   Stop,
   TrashIcon,
   WarningTriangle,
+  ZoomIn,
+  ZoomOut,
 } from "@/components/Icons";
+import { controlsRef } from "@/components/Map/providers/controls";
+import { fitNetwork } from "@/Zoom/fitNetwork";
 import type { DockNavigation } from "@/hooks/useDockNavigation";
 import type { PaletteAction } from "./types";
 
@@ -375,6 +380,36 @@ export function buildCommands(deps: CommandDeps): PaletteAction[] {
       run: () => onChangeModifiers(key)(!on),
     });
   }
+
+  // ── Camera (the map-controls cluster, bottom-left) ─────────────────
+  // Straight to the map's controls ref, the same object the cluster's buttons
+  // call — the camera is the map's own state, not something App threads down.
+  actions.push(
+    {
+      id: "camera-fit-network",
+      label: "Fit network",
+      keywords: "zoom extent whole map camera home reset view",
+      hint: "Camera",
+      icon: <FitIcon />,
+      run: fitNetwork,
+    },
+    {
+      id: "camera-zoom-in",
+      label: "Zoom in",
+      keywords: "closer magnify camera view",
+      hint: "Camera",
+      icon: <ZoomIn />,
+      run: () => controlsRef.zoomIn(),
+    },
+    {
+      id: "camera-zoom-out",
+      label: "Zoom out",
+      keywords: "further out wider camera view",
+      hint: "Camera",
+      icon: <ZoomOut />,
+      run: () => controlsRef.zoomOut(),
+    }
+  );
 
   // ── Replay transport (only while a recording is playing back) ──────
   if (replaying) {

@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { calculateRotation, invertLatLng, toMapPosition, toLatLng } from "./coordinates";
+import {
+  calculateRotation,
+  invertLatLng,
+  networkBounds,
+  toLatLng,
+  toMapPosition,
+} from "./coordinates";
 
 describe("calculateRotation", () => {
   it("returns 0 for same angle", () => {
@@ -85,5 +91,60 @@ describe("toLatLng", () => {
   it("is the inverse of toMapPosition", () => {
     const mapPos: [number, number] = [36.817, -1.286];
     expect(toMapPosition(toLatLng(mapPos))).toEqual(mapPos);
+  });
+});
+
+describe("networkBounds", () => {
+  const line = (coordinates: [number, number][]) => ({ geometry: { coordinates } });
+
+  it("returns null for an empty network", () => {
+    expect(networkBounds({ features: [] })).toBeNull();
+  });
+
+  it("returns null when every feature is empty", () => {
+    expect(networkBounds({ features: [line([])] })).toBeNull();
+  });
+
+  it("spans a single feature", () => {
+    expect(
+      networkBounds({
+        features: [
+          line([
+            [36.8, -1.3],
+            [36.9, -1.2],
+          ]),
+        ],
+      })
+    ).toEqual([
+      [36.8, -1.3],
+      [36.9, -1.2],
+    ]);
+  });
+
+  it("spans every feature as [[west, south], [east, north]]", () => {
+    expect(
+      networkBounds({
+        features: [
+          line([
+            [36.85, -1.25],
+            [36.9, -1.2],
+          ]),
+          line([
+            [36.7, -1.4],
+            [36.95, -1.1],
+          ]),
+        ],
+      })
+    ).toEqual([
+      [36.7, -1.4],
+      [36.95, -1.1],
+    ]);
+  });
+
+  it("handles a degenerate one-point network", () => {
+    expect(networkBounds({ features: [line([[36.8, -1.3]])] })).toEqual([
+      [36.8, -1.3],
+      [36.8, -1.3],
+    ]);
   });
 });

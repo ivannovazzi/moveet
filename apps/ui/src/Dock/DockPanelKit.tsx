@@ -60,7 +60,7 @@ export function Eyebrow({
   return (
     <div
       className={cn(
-        "text-[9.5px] font-bold uppercase tracking-[0.18em] text-muted-foreground/75",
+        "text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/70",
         className
       )}
     >
@@ -338,7 +338,7 @@ export function Tag({ tone, children }: { tone: SevTone; children: React.ReactNo
   return (
     <span
       className={cn(
-        "inline-block rounded-[4px] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.06em]",
+        "inline-block rounded-[4px] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em]",
         TAG_TONE[tone]
       )}
     >
@@ -381,7 +381,7 @@ export function LRow({
       <div className="min-w-0">
         <div className="truncate text-[12px] font-medium text-foreground">{primary}</div>
         {secondary != null && (
-          <div className={cn(mono, "mt-0.5 truncate text-[10.5px] text-muted-foreground/60")}>
+          <div className={cn(mono, "mt-0.5 truncate text-[11px] text-muted-foreground/60")}>
             {secondary}
           </div>
         )}

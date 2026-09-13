@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { controlsRef } from "@/components/Map/providers/controls";
 import { toast } from "@/lib/toast";
+import { fitNetwork } from "@/Zoom/fitNetwork";
 
 /**
  * The map's interaction mode — exactly one is active at a time. This is the
@@ -135,7 +137,22 @@ export type GlobalKeyAction =
   | "clear-selection"
   | "close-panel"
   | "start-mode"
+  | "zoom-in"
+  | "zoom-out"
+  | "fit-network"
   | "none";
+
+/**
+ * Camera keys. Unlike the mode shortcuts these work in *any* mode: moving the
+ * camera never changes what a click means, so there is no tool to swap under
+ * the operator. `=` is the unshifted `+` on a US keyboard.
+ */
+const CAMERA_SHORTCUTS: Record<string, GlobalKeyAction> = {
+  "+": "zoom-in",
+  "=": "zoom-in",
+  "-": "zoom-out",
+  "0": "fit-network",
+};
 
 /** Single-letter shortcuts that start a map mode from browse. */
 export const MODE_SHORTCUTS: Record<string, InteractionModeKind> = {
@@ -167,7 +184,9 @@ export interface GlobalKeyContext {
  * inspector) → close the open dock panel. Enter runs the active mode's primary
  * action (close the polygon, submit the pending dispatch) when it is available.
  * A bare letter in `MODE_SHORTCUTS` starts that mode, but only from browse —
- * mid-mode, a stray keypress must never swap the tool under the operator.
+ * mid-mode, a stray keypress must never swap the tool under the operator. The
+ * camera keys (`+`/`=`, `-`, `0`) are the exception: they move the view without
+ * touching the tool, so they work in every mode.
  */
 export function keyActionFor(key: string, ctx: GlobalKeyContext): GlobalKeyAction {
   // While an overlay (context menu / dialog) is open, it owns the keyboard —
@@ -184,6 +203,8 @@ export function keyActionFor(key: string, ctx: GlobalKeyContext): GlobalKeyActio
   if (key === "Enter") {
     return inMode && ctx.canConfirmMode ? "confirm-mode" : "none";
   }
+  const camera = CAMERA_SHORTCUTS[key];
+  if (camera) return camera;
   if (!inMode && MODE_SHORTCUTS[key.toLowerCase()]) return "start-mode";
   return "none";
 }
@@ -194,6 +215,15 @@ export interface GlobalKeyHandlers {
   onClearSelection: () => void;
   onClosePanel: () => void;
   onStartMode: (kind: InteractionModeKind) => void;
+  /**
+   * Camera actions. Optional: with none passed the dispatcher falls back to the
+   * map's module-level controls ref (and, for the fit, the action the
+   * map-controls cluster publishes), which is where the cluster's own buttons
+   * send their clicks anyway.
+   */
+  onZoomIn?: () => void;
+  onZoomOut?: () => void;
+  onFitNetwork?: () => void;
 }
 
 /**
@@ -245,6 +275,15 @@ export function useInteractionKeyboard(ctx: GlobalKeyContext, handlers: GlobalKe
           break;
         case "start-mode":
           h.onStartMode(MODE_SHORTCUTS[e.key.toLowerCase()]);
+          break;
+        case "zoom-in":
+          (h.onZoomIn ?? controlsRef.zoomIn)();
+          break;
+        case "zoom-out":
+          (h.onZoomOut ?? controlsRef.zoomOut)();
+          break;
+        case "fit-network":
+          (h.onFitNetwork ?? fitNetwork)();
           break;
       }
     };

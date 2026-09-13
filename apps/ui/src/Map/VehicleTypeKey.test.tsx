@@ -26,51 +26,80 @@ describe("VehicleTypeKey", () => {
     }
   });
 
-  it("spreads the five types on hover", () => {
+  it("spreads the five types on click, and collapses on a second press", () => {
     renderKey();
 
-    fireEvent.pointerEnter(groupKey().parentElement as HTMLElement);
+    fireEvent.click(groupKey());
 
     expect(cluster()).toBeInTheDocument();
     for (const label of TYPE_LABELS) {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
     }
     expect(groupKey()).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.click(groupKey());
+
+    expect(cluster()).not.toBeInTheDocument();
   });
 
-  it("collapses again when the pointer leaves", () => {
+  it("ignores the pointer crossing the key on its way elsewhere in the rail", () => {
     renderKey();
     const wrapper = groupKey().parentElement as HTMLElement;
 
     fireEvent.pointerEnter(wrapper);
-    expect(cluster()).toBeInTheDocument();
+    fireEvent.pointerEnter(groupKey());
+
+    expect(cluster()).not.toBeInTheDocument();
+  });
+
+  it("does not close on a pointer leave once opened by a press", () => {
+    renderKey();
+    const wrapper = groupKey().parentElement as HTMLElement;
+    fireEvent.click(groupKey());
 
     fireEvent.pointerLeave(wrapper);
 
+    expect(cluster()).toBeInTheDocument();
+  });
+
+  it("closes on a press outside", () => {
+    renderKey();
+    fireEvent.click(groupKey());
+
+    fireEvent.mouseDown(document.body);
+
     expect(cluster()).not.toBeInTheDocument();
   });
 
-  it("spreads on focus too, so the types are reachable by keyboard", () => {
+  it("stays open for a press inside the cluster", () => {
     renderKey();
+    fireEvent.click(groupKey());
 
-    fireEvent.focus(groupKey());
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Car" }));
 
     expect(cluster()).toBeInTheDocument();
   });
 
-  it("spreads on click, for touch", () => {
+  it("closes on Escape, claiming the press so the app doesn't act on it too", () => {
+    renderKey();
+    fireEvent.click(groupKey());
+
+    const handled = fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(cluster()).not.toBeInTheDocument();
+    // `fireEvent` returns false once a listener called preventDefault.
+    expect(handled).toBe(false);
+  });
+
+  it("leaves Escape alone while collapsed", () => {
     renderKey();
 
-    fireEvent.click(groupKey());
-    expect(cluster()).toBeInTheDocument();
-
-    fireEvent.click(groupKey());
-    expect(cluster()).not.toBeInTheDocument();
+    expect(fireEvent.keyDown(document, { key: "Escape" })).toBe(true);
   });
 
   it("stays open while focus moves within the cluster", () => {
     renderKey();
-    fireEvent.focus(groupKey());
+    fireEvent.click(groupKey());
 
     const car = screen.getByRole("button", { name: "Car" });
     fireEvent.blur(groupKey(), { relatedTarget: car });
@@ -80,7 +109,7 @@ describe("VehicleTypeKey", () => {
 
   it("closes when focus leaves the cluster entirely", () => {
     renderKey();
-    fireEvent.focus(groupKey());
+    fireEvent.click(groupKey());
 
     fireEvent.blur(groupKey(), { relatedTarget: document.body });
 

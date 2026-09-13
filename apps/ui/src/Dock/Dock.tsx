@@ -19,6 +19,7 @@ import SessionPanel from "./SessionPanel";
 import SettingsPanel from "./SettingsPanel";
 import { PanelHeaderRow } from "./DockPanelKit";
 import { countMisbehavingDevices } from "@/lib/faultPresets";
+import { DOCK_BAND, SEARCH_BAND, useReportInset } from "@/components/Map/mapInsets";
 import type {
   DockBadges,
   DockSection,
@@ -40,8 +41,10 @@ import type AdvancedTuningTab from "./AdvancedTuningTab";
  *
  * `1fr auto 1fr` puts the deck's centre exactly on the viewport's centre line —
  * permanently, whatever else is on the row — and gives the sections wing its own
- * half to grow into. The wing can never push the deck, and can never grow past
- * its half: it wraps inside it instead of running off screen. The grid itself is
+ * half, in which it sits hard against the viewport's right edge. The wing can
+ * never push the deck, the deck can never move the wing, and neither can grow
+ * past its half: the deck's surface clips its contents instead of running off
+ * screen. The grid itself is
  * click-through; only the surfaces take pointer events (see `DockSurface`), so
  * the empty map either side of the docks still pans.
  */
@@ -132,8 +135,8 @@ export interface DockProps {
  *              mode, replaying, or being asked to discard (see `DockDeck`). It is
  *              as wide as that key set needs and no wider.
  *   sections — right wing: Fleet / Monitor / Session / Settings keys; selecting
- *              one unfolds that section's own buttons beside it and opens its
- *              panel above. Grows rightward inside its half.
+ *              one lights that key and opens its panel above. Pinned to the
+ *              viewport's right edge, so no deck activity ever moves it.
  *
  * Health lamps are not here at all — they live in the top-right corner, where
  * nothing is pressed.
@@ -189,6 +192,12 @@ export default function Dock({
   const { expanded, tab, tempoOpen, toggleTempo, selectTab, close } = navigation;
   const { launcherOpen, setLauncherOpen } = navigation;
   const { clock, setSpeedMultiplier } = useClock();
+
+  // The two bands of map the app's permanent chrome always sits on: the dock
+  // shelf along the bottom and the search bar's slot along the top. Reported so
+  // the camera aims at the map between them rather than at the raw viewport
+  // centre, which is a third of a panel's height below where you can see.
+  useReportInset("dock-chrome", { top: SEARCH_BAND, bottom: DOCK_BAND });
   const faultyDevices = countMisbehavingDevices(faults.faults.config, faults.faults.status);
 
   // The deck is the tempo panel's positioning origin.
@@ -349,7 +358,7 @@ export default function Dock({
       {/* The tempo panel is a sibling of the bar rather than a child: a blurred
           ancestor is a backdrop root, and a panel inside one has nothing to
           frost (see `AnchoredPanel`). */}
-      <div className="relative flex">
+      <div className="relative flex min-w-0">
         <DockSurface
           ref={mainRef}
           data-dock="deck"
@@ -400,9 +409,15 @@ export default function Dock({
         </AnchoredPanel>
       </div>
 
-      {/* Right wing. Left-aligned, so the four section keys sit in the same
-          place whether or not one of them is expanded. */}
-      <div className="flex min-w-0 justify-start">
+      {/* Right wing, pinned to the viewport's right edge (the row is inset by
+          8px either side). It is deliberately NOT packed against the deck: a
+          wing that starts where the deck ends slides left and right by 100px
+          every time the deck changes activity — dispatch's rail is wider than
+          the live run's keys, the guard prompt is wider again — and the four
+          section keys are exactly the targets that must never move. The deck
+          keeps the centre line; the wing keeps the right edge; neither can
+          push the other. */}
+      <div data-dock-wing="sections" className="flex min-w-0 justify-end">
         <SectionRail
           navigation={navigation}
           badges={badges}

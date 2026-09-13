@@ -48,7 +48,7 @@ describe("VehicleList job + device annotations", () => {
     );
 
     expect(screen.getByText("JOB-4F2A")).toBeInTheDocument();
-    expect(screen.queryByText("enroute")).not.toBeInTheDocument();
+    expect(screen.queryByText("Moving")).not.toBeInTheDocument();
   });
 
   it("falls back to the motion state for a free unit", () => {
@@ -60,7 +60,7 @@ describe("VehicleList job + device annotations", () => {
       />
     );
 
-    expect(screen.getByText("enroute")).toBeInTheDocument();
+    expect(screen.getByText("Moving")).toBeInTheDocument();
   });
 
   it("reads as idle when stopped and unassigned", () => {
@@ -71,7 +71,7 @@ describe("VehicleList job + device annotations", () => {
       />
     );
 
-    expect(screen.getByText("idle")).toBeInTheDocument();
+    expect(screen.getByText("Idle")).toBeInTheDocument();
   });
 
   it("badges the fault kind shaping the last sample", () => {

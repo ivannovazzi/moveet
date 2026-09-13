@@ -79,14 +79,15 @@
 
   /* Height of the visibility rail, which stands on the dock shelf at the
      bottom-left and grows upward: 11 keys x 34px = 374, plus 10 x 2px gaps =
-     20, plus 8px of panel padding = 402, plus ~31px when the trail-length and
-     density chips are showing. Rounded up to 433. The zoom cluster stands on
-     the same shelf to the rail's right (see `Zoom`), so it adds width to the
-     column, not height. */
-  --visibility-rail-band: 27.0625rem;
+     20, plus 8px of panel padding = 402. Fixed: everything a key has to say
+     beyond lit/unlit (trail length, Density's threshold, the type key's hidden
+     count) rides as a corner badge on the key, so no state makes the rail
+     taller. The map-controls cluster stands on the same shelf to the rail's
+     right (see `Zoom`), so it adds width to the column, not height. */
+  --visibility-rail-band: 25.125rem;
 
-  /* Where the zoom cluster starts: the rail's 12px inset + its 44px width
-     (34px keys + 2 x 4px padding + 2 x 1px border) + an 8px gap. */
+  /* Where the map-controls cluster starts: the rail's 12px inset + its 44px
+     width (34px keys + 2 x 4px padding + 2 x 1px border) + an 8px gap. */
   --spacing-beside-rail: 4rem;
 
   /* Band at the bottom-left the legend stack must keep clear. The stack

@@ -15,6 +15,8 @@ vi.mock("@/lib/toast", () => ({
 }));
 
 import { toast } from "@/lib/toast";
+import { controlsRef, setMapControlsRef } from "@/components/Map/providers/controls";
+import { setFitNetwork } from "@/Zoom/fitNetwork";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -186,8 +188,20 @@ describe("keyActionFor", () => {
     expect(keyActionFor("q", ctx())).toBe("none");
   });
 
+  it("routes the camera keys in every mode", () => {
+    for (const modeKind of ["browse", "dispatch", "draw-heatzone"] as const) {
+      expect(keyActionFor("+", ctx({ modeKind }))).toBe("zoom-in");
+      expect(keyActionFor("=", ctx({ modeKind }))).toBe("zoom-in");
+      expect(keyActionFor("-", ctx({ modeKind }))).toBe("zoom-out");
+      expect(keyActionFor("0", ctx({ modeKind }))).toBe("fit-network");
+    }
+    // Still nothing while an overlay owns the keyboard.
+    expect(keyActionFor("0", ctx({ overlayOpen: true }))).toBe("none");
+  });
+
   it("ignores other keys", () => {
     expect(keyActionFor("Tab", ctx({ modeKind: "draw-geofence" }))).toBe("none");
+    expect(keyActionFor("1", ctx())).toBe("none");
   });
 
   it("stands down entirely while an overlay is open (menu/dialog owns the keys)", () => {
@@ -240,6 +254,56 @@ describe("useInteractionKeyboard", () => {
     expect(handlers.onExitMode).toHaveBeenCalledOnce();
     expect(handlers.onClearSelection).not.toHaveBeenCalled();
     expect(handlers.onClosePanel).not.toHaveBeenCalled();
+  });
+
+  it("fires the camera handlers for + = - and 0", () => {
+    const handlers = {
+      ...makeHandlers(),
+      onZoomIn: vi.fn(),
+      onZoomOut: vi.fn(),
+      onFitNetwork: vi.fn(),
+    };
+    renderHook(() => useInteractionKeyboard(baseCtx, handlers));
+
+    fireEvent.keyDown(window, { key: "+" });
+    fireEvent.keyDown(window, { key: "=" });
+    fireEvent.keyDown(window, { key: "-" });
+    fireEvent.keyDown(window, { key: "0" });
+
+    expect(handlers.onZoomIn).toHaveBeenCalledTimes(2);
+    expect(handlers.onZoomOut).toHaveBeenCalledOnce();
+    expect(handlers.onFitNetwork).toHaveBeenCalledOnce();
+  });
+
+  it("falls back to the map's own controls when no camera handler is passed", () => {
+    const controls = { ...controlsRef, zoomIn: vi.fn(), zoomOut: vi.fn() };
+    setMapControlsRef(controls);
+    const fit = vi.fn();
+    setFitNetwork(fit);
+    renderHook(() => useInteractionKeyboard(baseCtx, makeHandlers()));
+
+    fireEvent.keyDown(window, { key: "+" });
+    fireEvent.keyDown(window, { key: "-" });
+    fireEvent.keyDown(window, { key: "0" });
+
+    expect(controls.zoomIn).toHaveBeenCalledOnce();
+    expect(controls.zoomOut).toHaveBeenCalledOnce();
+    expect(fit).toHaveBeenCalledOnce();
+    setFitNetwork(null);
+  });
+
+  it("leaves the camera keys alone while typing in an input", () => {
+    const handlers = { ...makeHandlers(), onZoomIn: vi.fn(), onFitNetwork: vi.fn() };
+    renderHook(() => useInteractionKeyboard(baseCtx, handlers));
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+
+    fireEvent.keyDown(input, { key: "+" });
+    fireEvent.keyDown(input, { key: "0" });
+
+    expect(handlers.onZoomIn).not.toHaveBeenCalled();
+    expect(handlers.onFitNetwork).not.toHaveBeenCalled();
+    input.remove();
   });
 
   it("passes the shortcut's mode to onStartMode", () => {

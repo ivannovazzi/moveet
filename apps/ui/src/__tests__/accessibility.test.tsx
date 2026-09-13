@@ -222,8 +222,8 @@ describe("MapContextMenu accessibility", () => {
     renderMenu(DispatchState.BROWSE);
 
     expect(screen.getAllByRole("menuitem").length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByRole("menuitem", { name: "Find directions to here" })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: "Identify closest road" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Directions to here" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Nearest road" })).toBeInTheDocument();
   });
 
   it("exposes a single menu item in SELECT state", () => {
@@ -231,6 +231,6 @@ describe("MapContextMenu accessibility", () => {
 
     const menuItems = screen.getAllByRole("menuitem");
     expect(menuItems).toHaveLength(1);
-    expect(menuItems[0]).toHaveTextContent("Identify closest road");
+    expect(menuItems[0]).toHaveTextContent("Nearest road");
   });
 });

@@ -94,7 +94,9 @@ describe("VehicleList", () => {
 
     render(<VehicleList {...defaultProps} filter="ghost" vehicles={vehicles} />);
 
-    expect(screen.getByText('No vehicles match "ghost"')).toBeInTheDocument();
+    expect(
+      screen.getByText("No vehicles match “ghost”. Clear the search to see all 2.")
+    ).toBeInTheDocument();
   });
 
   it("renders route distance when a direction exists for the vehicle", () => {

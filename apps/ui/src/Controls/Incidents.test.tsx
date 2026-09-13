@@ -28,7 +28,9 @@ describe("Incidents", () => {
 
   it("shows empty state when no incidents", () => {
     render(<Incidents incidents={[]} createRandom={noop} remove={noop} />);
-    expect(screen.getByText("No active incidents")).toBeInTheDocument();
+    expect(
+      screen.getByText("No active incidents. Press + to create one, or turn on Auto.")
+    ).toBeInTheDocument();
   });
 
   it("renders incident items with type labels", () => {

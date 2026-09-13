@@ -113,7 +113,9 @@ export default function Incidents({ incidents, createRandom, remove, error }: In
         </div>
         {error ? <PanelErrorState>{error}</PanelErrorState> : null}
         {incidents.length === 0 && !error ? (
-          <PanelEmptyState icon={<AlertIcon />}>No active incidents</PanelEmptyState>
+          <PanelEmptyState icon={<AlertIcon />}>
+            No active incidents. Press + to create one, or turn on Auto.
+          </PanelEmptyState>
         ) : null}
 
         <LList className="px-0 pb-0 pt-0">

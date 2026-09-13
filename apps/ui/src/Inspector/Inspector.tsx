@@ -8,6 +8,7 @@ import VehicleTelemetry from "./VehicleTelemetry";
 import VehicleEventTimeline from "./VehicleEventTimeline";
 import { useVehicleEventCapture } from "./useVehicleEventCapture";
 import { FAULT_KIND_LABEL } from "@/lib/faultPresets";
+import { useReportInset } from "@/components/Map/mapInsets";
 import type { DeviceFaultInfo } from "@/types";
 
 /**
@@ -113,6 +114,12 @@ export default function Inspector({ vehicle, poi, fleet, job, onClose }: Inspect
   // the app-lifetime home for per-vehicle event capture — history exists for a
   // vehicle selected long after the events happened.
   useVehicleEventCapture();
+
+  // The inspector owns the top-right corner while it is up: its `w-80` (320px)
+  // plus its own `right-4` (16px) plus 12px of air. Reported so flying to the
+  // vehicle it is describing doesn't put that vehicle behind it. Called before
+  // the early return below, so it is unconditional (and clears on close).
+  useReportInset("inspector", vehicle || poi ? { right: 320 + 16 + 12 } : null);
 
   // Escape is deliberately NOT handled here. The inspector is driven by the
   // selection, and Escape-to-clear-selection is one branch of the app's single
