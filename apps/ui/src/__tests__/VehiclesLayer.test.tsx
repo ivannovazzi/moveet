@@ -81,8 +81,8 @@ function getVehiclesLayerData(): Array<{
   isHovered: boolean;
 }> {
   const layers = registeredLayers.get("vehicles") ?? [];
-  // The vehicles layer has id="vehicles" — it's always the second in the array
-  // [ringLayer, vehiclesLayer]
+  // The vehicles layer has id="vehicles" — last in the array
+  // [haloLayer, ringLayer, vehiclesLayer]
   const vehiclesLayer = layers.find(
     (l) => (l as { props: { id: string } }).props.id === "vehicles"
   ) as { props: { data: ReturnType<typeof getVehiclesLayerData> } } | undefined;
@@ -136,7 +136,7 @@ describe("VehiclesLayer (deck.gl)", () => {
     expect(registeredLayers.has("vehicles")).toBe(true);
   });
 
-  it("registers two layers: highlight ring and vehicles", () => {
+  it("registers three layers: selection halo, highlight ring and vehicles", () => {
     vehicleStore.replace([
       {
         id: "v1",
@@ -150,11 +150,12 @@ describe("VehiclesLayer (deck.gl)", () => {
     renderAndTick();
 
     const layers = registeredLayers.get("vehicles")!;
-    expect(layers.length).toBe(2);
+    expect(layers.length).toBe(3);
 
     const ids = layers.map((l) => (l as { props: { id: string } }).props.id);
     expect(ids).toContain("vehicles");
     expect(ids).toContain("vehicle-highlight-ring");
+    expect(ids).toContain("vehicle-selection-halo");
   });
 
   it("produces interpolated data for each vehicle", () => {

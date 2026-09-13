@@ -7,6 +7,7 @@ import { useRegisterLayers } from "../../components/Map/hooks/useDeckLayers";
 import { useMapContext } from "../../components/Map/hooks";
 import { VehicleIconAtlasManager, type VehicleAtlas } from "./vehicleIconAtlas";
 import { shouldAggregate } from "./densityView";
+import { resolveMapColor } from "../../lib/mapColor";
 
 // Type-specific default colors (used when no fleet color). These reference the
 // shared --color-vehicle-* tokens (tokens.css) and are resolved to concrete
@@ -22,8 +23,10 @@ const VEHICLE_TYPE_COLORS: Record<string, string> = {
 
 // Fallback used when a CSS variable can't be resolved (e.g. jsdom in tests).
 const DEFAULT_FILL = "#dcdcdc";
-const SELECTED_STROKE: [number, number, number, number] = [0, 102, 204, 255];
-const SELECTED_BG: [number, number, number, number] = [33, 255, 205, 77];
+/** Selection shares the route's blue so vehicle and route read as one object. */
+const SELECTED_TOKEN = "var(--color-route-selected)";
+const SELECTED_FILL_ALPHA = 70;
+const SELECTED_HALO_ALPHA = 38;
 const HOVER_STROKE: [number, number, number, number] = [251, 201, 1, 255];
 const HOVER_BG: [number, number, number, number] = [251, 201, 1, 40];
 
@@ -603,20 +606,45 @@ export default function VehiclesLayer({
   // only re-evaluates them when they actually change — pure-movement frames
   // re-upload only position/angle, not icon/color attributes.
   const layers = useMemo(() => {
+    // Resolved here, not at module load, so the token is read after the
+    // stylesheet is applied (resolveMapColor caches the first result).
+    const [sr, sg, sb] = resolveMapColor(SELECTED_TOKEN);
+    const selectedStroke: [number, number, number, number] = [sr, sg, sb, 255];
+    const selectedFill: [number, number, number, number] = [sr, sg, sb, SELECTED_FILL_ALPHA];
+    const selectedHalo: [number, number, number, number] = [sr, sg, sb, SELECTED_HALO_ALPHA];
+    const ringKey = `${selectedId ?? ""}|${hoveredId ?? ""}`;
+
+    // Wide soft disc behind the selected vehicle only — findable at any zoom
+    // without a heavier ring competing with the sprite.
+    const haloLayer = new ScatterplotLayer<VehicleIconDatum>({
+      id: "vehicle-selection-halo",
+      data: ringData.filter((d) => d.isSelected),
+      getPosition: (d) => d.position,
+      getFillColor: selectedHalo,
+      getRadius: iconSize * 1.7,
+      radiusUnits: "pixels",
+      stroked: false,
+      pickable: false,
+      transitions: { getRadius: 200 },
+    });
+
     const ringLayer = new ScatterplotLayer<VehicleIconDatum>({
       id: "vehicle-highlight-ring",
       data: ringData,
       getPosition: (d) => d.position,
-      getFillColor: (d) => (d.isSelected ? SELECTED_BG : HOVER_BG),
-      getLineColor: (d) => (d.isSelected ? SELECTED_STROKE : HOVER_STROKE),
-      getRadius: iconSize * 0.75,
+      getFillColor: (d) => (d.isSelected ? selectedFill : HOVER_BG),
+      getLineColor: (d) => (d.isSelected ? selectedStroke : HOVER_STROKE),
+      getRadius: (d) => iconSize * (d.isSelected ? 0.95 : 0.75),
+      getLineWidth: (d) => (d.isSelected ? 3 : 2),
       radiusUnits: "pixels",
+      lineWidthUnits: "pixels",
       stroked: true,
-      lineWidthMinPixels: 2,
       pickable: false,
       updateTriggers: {
-        getFillColor: selectedId ?? hoveredId ?? "",
-        getLineColor: selectedId ?? hoveredId ?? "",
+        getFillColor: ringKey,
+        getLineColor: ringKey,
+        getRadius: [ringKey, iconSize],
+        getLineWidth: ringKey,
       },
       // Animate hover/select transitions instead of popping instantly between
       // colors/radius — deck.gl interpolates internally, no extra state needed.
@@ -654,7 +682,7 @@ export default function VehiclesLayer({
       },
     });
 
-    return [ringLayer, vehiclesLayer];
+    return [haloLayer, ringLayer, vehiclesLayer];
   }, [vehicleData, ringData, atlas, iconSize, handleClick, handleHover, selectedId, hoveredId]);
 
   // Register layers with the DeckGLMap parent

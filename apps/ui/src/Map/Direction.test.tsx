@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render } from "@testing-library/react";
 import type { Edge, Node, Position, Route } from "@/types";
 import type * as UseDirectionsModule from "@/hooks/useDirections";
@@ -27,6 +27,10 @@ vi.mock("@/components/Map/hooks/useDeckLayers", () => ({
   }),
 }));
 
+vi.mock("@/components/Map/hooks", () => ({
+  useMapContext: () => ({ viewState: { zoom: 14 } }),
+}));
+
 // ---------------------------------------------------------------------------
 // Mock useDirections so the test controls the Map reference/content directly,
 // simulating the `new Map(prev)` reference churn produced on every WS update.
@@ -43,7 +47,9 @@ vi.mock("@/hooks/useDirections", async () => {
   };
 });
 
-import DirectionMap from "./Direction";
+import DirectionMap, { sampleArrows, splitRoute } from "./Direction";
+import { vehicleStore } from "@/hooks/vehicleStore";
+import type { VehicleDTO } from "@/types";
 
 function createRoute(distance: number): Route {
   return { edges: [], distance };
@@ -177,6 +183,71 @@ describe("DirectionMap", () => {
     expect(pathLayer).toBeTruthy();
     const data = pathLayer!.props.data as { id: string }[];
     expect(data.map((d) => d.id).sort()).toEqual(["v1--selected", "v2--hovered"]);
+  });
+
+  describe("route progress", () => {
+    afterEach(() => vehicleStore.replace([]));
+
+    it("dims the driven part and draws the rest from the vehicle onward", () => {
+      directionsRef.current = new Map([["v1", createDirectionWithEdges(5)]]);
+      // Store positions are [lat, lng]; lat 2.5 is the midpoint of edge 2.
+      vehicleStore.replace([{ id: "v1", position: [2.5, 0] } as unknown as VehicleDTO]);
+      render(<DirectionMap selected="v1" />);
+
+      const travelled = getLayer("direction-paths-travelled");
+      expect((travelled!.props.data as { path: [number, number][] }[])[0].path).toEqual([
+        [0, 0],
+        [0, 1],
+        [0, 2],
+        [0, 2.5],
+      ]);
+      const remaining = getLayer("direction-paths");
+      expect((remaining!.props.data as { path: [number, number][] }[])[0].path).toEqual([
+        [0, 2.5],
+        [0, 3],
+        [0, 4],
+        [0, 5],
+      ]);
+      expect(getLayer("direction-destination")).toBeTruthy();
+    });
+
+    it("draws the whole route as remaining when the vehicle is unknown", () => {
+      expect(
+        splitRoute(
+          [
+            [0, 0],
+            [0, 1],
+          ],
+          null
+        )
+      ).toEqual({
+        travelled: [],
+        remaining: [
+          [0, 0],
+          [0, 1],
+        ],
+      });
+    });
+
+    it("orients chevrons along the direction of travel", () => {
+      const north = sampleArrows(
+        [
+          [36.8, -1.3],
+          [36.8, -1.29],
+        ],
+        100
+      );
+      expect(north.length).toBeGreaterThan(5);
+      expect(north[0].angle).toBeCloseTo(90);
+      const west = sampleArrows(
+        [
+          [36.81, -1.3],
+          [36.8, -1.3],
+        ],
+        100
+      );
+      expect(Math.abs(west[0].angle)).toBeCloseTo(180);
+    });
   });
 
   describe("step highlight", () => {

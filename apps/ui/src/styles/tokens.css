@@ -53,6 +53,11 @@
      from --color-overlay-danger so stacked overlays stay visually distinct. */
   --color-overlay-density: oklch(0.62 0.19 300);
 
+  /* Vehicle routes (Direction). Selected is the committed blue; hover is a
+     pale cyan preview, kept clear of the warm traffic ramp and the trail. */
+  --color-route-selected: oklch(0.68 0.16 250);
+  --color-route-hover: oklch(0.87 0.08 200);
+
   /* Route/breadcrumb trail tint — distinct from all of the above. */
   --color-overlay-trail: oklch(0.68 0.16 235);
 }
