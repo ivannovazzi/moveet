@@ -3,6 +3,11 @@ import { PathLayer, TextLayer } from "@deck.gl/layers";
 import type { Position, Road } from "@/types";
 import { useMapControls } from "@/components/Map/hooks";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
+import { resolveMapColor } from "@/lib/mapColor";
+import { mapLabelProps } from "@/lib/mapLabels";
+
+/** The selected road draws in the neutral map ink, halo and all. */
+const LABEL_TOKEN = "var(--color-map-label)";
 
 interface DirectionProps {
   road: Road;
@@ -55,7 +60,7 @@ export default function DirectionMap({ road }: DirectionProps) {
         id: "selected-road-paths",
         data: pathData,
         getPath: (d) => d.path,
-        getColor: [255, 255, 255, 255],
+        getColor: resolveMapColor(LABEL_TOKEN),
         getWidth: 2,
         widthUnits: "pixels",
         jointRounded: true,
@@ -66,23 +71,14 @@ export default function DirectionMap({ road }: DirectionProps) {
         pickable: false,
       }),
       new TextLayer({
+        ...mapLabelProps(14),
         id: "selected-road-label",
         data: [{ text: road.name, position: center }],
         getPosition: (d) => d.position,
         getText: (d) => d.text,
-        getColor: [255, 255, 255, 255],
-        getSize: 14,
+        getColor: resolveMapColor(LABEL_TOKEN),
         getTextAnchor: "middle",
         getAlignmentBaseline: "center",
-        fontFamily: "inherit",
-        // SDF is required for deck.gl to draw an outline at all; see the fuller
-        // explanation on the geofence label layer. Halo is 0.75 * outlineWidth
-        // atlas px scaled by getSize / 64, so outlineWidth 8 → 6 atlas px →
-        // ~1.3px on screen at getSize 14. radius must be >= outlineWidth and
-        // buffer >= the halo's 6 atlas px, or the atlas clips it.
-        fontSettings: { sdf: true, radius: 16, buffer: 8 },
-        outlineWidth: 8,
-        outlineColor: [0, 0, 0, 180],
         pickable: false,
       }),
     ];

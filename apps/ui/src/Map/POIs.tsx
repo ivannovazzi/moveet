@@ -7,7 +7,12 @@ import { usePois } from "@/hooks/usePois";
 import { createPOIIconAtlas } from "./POI/iconAtlas";
 import { isBusStop } from "./POI/helpers";
 import { useSettledZoom } from "./hooks/useSettledZoom";
+import { resolveMapColor } from "@/lib/mapColor";
+import { mapLabelProps } from "@/lib/mapLabels";
 import type { POI } from "@/types";
+
+/** POI names are ambient context, so they take the neutral map ink. */
+const LABEL_TOKEN = "var(--color-map-label)";
 
 // Build the atlas once at module level — this is a pure canvas operation.
 const { iconAtlas, iconMapping } = createPOIIconAtlas();
@@ -142,25 +147,15 @@ export default function POIs({ visible, onClick, selectable = true }: POIMarkerP
       // neighbourhood, so overlap stays manageable. (CollisionFilterExtension
       // is deliberately NOT used here — on TextLayer it culls every label.)
       new TextLayer<POI>({
+        ...mapLabelProps(12),
         id: "poi-labels",
         data: showLabels ? visiblePois : [],
         getPosition: (d) => [d.coordinates[1], d.coordinates[0]],
         getText: (d) => d.name ?? "",
-        getColor: [236, 239, 241, 255],
-        getSize: 12,
+        getColor: resolveMapColor(LABEL_TOKEN),
         getTextAnchor: "middle",
         getAlignmentBaseline: "top",
         getPixelOffset: [0, 17],
-        fontFamily: "inherit",
-        fontWeight: "600",
-        // SDF is required for deck.gl to draw an outline at all; see the fuller
-        // explanation on the geofence label layer. Halo is 0.75 * outlineWidth
-        // atlas px scaled by getSize / 64, so outlineWidth 8 → 6 atlas px →
-        // ~1.1px on screen at getSize 12. radius must be >= outlineWidth and
-        // buffer >= the halo's 6 atlas px, or the atlas clips it.
-        fontSettings: { sdf: true, radius: 16, buffer: 8 },
-        outlineWidth: 8,
-        outlineColor: [8, 10, 12, 235],
         pickable: false,
       }),
     ],

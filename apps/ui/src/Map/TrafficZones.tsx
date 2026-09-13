@@ -20,8 +20,9 @@ const DRAW_SIMPLIFY_PX = 4;
 
 const DENSITY_LINE_RGBA = resolveMapColor("var(--color-overlay-density)", 153);
 const SELECTED_LINE_RGBA = resolveMapColor("var(--color-overlay-density)", 255);
-const WHITE_RGBA: [number, number, number, number] = [255, 255, 255, 255];
-const DRAW_RGBA: [number, number, number, number] = [255, 255, 255, 220];
+const LABEL_TOKEN = "var(--color-map-label)";
+const WHITE_RGBA = resolveMapColor(LABEL_TOKEN, 255);
+const DRAW_RGBA = resolveMapColor(LABEL_TOKEN, 220);
 
 interface HeatzoneDatum {
   id: string;

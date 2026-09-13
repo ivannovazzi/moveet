@@ -10,16 +10,20 @@ import { describe, expect, it } from "vitest";
  *
  * This is a source guard rather than a props assertion: the layers live behind
  * map context and a RAF loop, so mounting each one to inspect its props costs
- * far more than it catches. Instead, every map source file that asks for an
+ * far more than it catches. Instead, every source file that asks for an
  * outline must also opt into SDF and size the atlas to fit the halo.
  *
+ * Those settings now live in one place (`src/lib/mapLabels.ts`), which is why
+ * `src/lib` is scanned alongside the map directories — the second test below
+ * makes sure no map file goes back to hand-rolling its own label style.
+ *
  * The check is file-scoped, so it would miss a file with two TextLayers where
- * only one is SDF. That is an accepted limitation — today no map file has more
- * than one text layer, and the failure it does catch (an outline that renders
- * as nothing) is the one that actually shipped.
+ * only one is SDF. That is an accepted limitation — the failure it does catch
+ * (an outline that renders as nothing) is the one that actually shipped.
  */
 
 const MAP_DIRS = ["src/Map", "src/components/Map"];
+const LABEL_DIRS = [...MAP_DIRS, "src/lib"];
 
 function collectSourceFiles(dir: string): string[] {
   let entries: string[];
@@ -37,18 +41,32 @@ function collectSourceFiles(dir: string): string[] {
   });
 }
 
-const sources = MAP_DIRS.flatMap((dir) => collectSourceFiles(dir)).map((path) => ({
-  path,
-  text: readFileSync(path, "utf8"),
-}));
+function read(dirs: string[]) {
+  return dirs
+    .flatMap((dir) => collectSourceFiles(dir))
+    .map((path) => ({ path, text: readFileSync(path, "utf8") }));
+}
 
-const withOutline = sources.filter(({ text }) => text.includes("outlineWidth"));
+const withOutline = read(LABEL_DIRS).filter(({ text }) => text.includes("outlineWidth"));
+const mapSources = read(MAP_DIRS);
 
 describe("map text layer outlines", () => {
-  it("finds the layers that request an outline", () => {
-    // Guards the guard: if the layers move or get renamed, this test should
-    // start failing rather than silently checking an empty set.
-    expect(withOutline.length).toBeGreaterThanOrEqual(3);
+  it("finds the code that requests an outline", () => {
+    // Guards the guard: if the shared style moves or gets renamed, this test
+    // should start failing rather than silently checking an empty set.
+    expect(withOutline.length).toBeGreaterThanOrEqual(1);
+    expect(withOutline.some(({ path }) => path.endsWith("mapLabels.ts"))).toBe(true);
+  });
+
+  it("routes every map text layer through the shared label style", () => {
+    // One voice for map labels: a layer that builds its own TextLayer without
+    // mapLabelProps() would drift on font, weight, or halo — which is how job
+    // and dispatch labels ended up with no halo at all.
+    const offenders = mapSources
+      .filter(({ text }) => text.includes("new TextLayer"))
+      .filter(({ text }) => !text.includes("mapLabelProps("))
+      .map(({ path }) => path);
+    expect(offenders).toEqual([]);
   });
 
   it.each(withOutline.map(({ path }) => path))("%s opts into an SDF atlas", (path) => {

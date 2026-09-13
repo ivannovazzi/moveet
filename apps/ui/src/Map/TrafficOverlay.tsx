@@ -36,7 +36,8 @@ const MIN_WIDTH_PX = 3;
 const MAX_WIDTH_PX = 12;
 
 /** Dark outline drawn under the colour line so it reads over grey roads. */
-const CASING_RGBA: RGBA = [8, 10, 14, 230];
+const CASING_TOKEN = "var(--color-map-casing)";
+const CASING_ALPHA = 230;
 const CASING_SCALE = 1.7;
 const CASING_MIN_PX = 6;
 const CASING_MAX_PX = 18;
@@ -218,7 +219,7 @@ export default function TrafficOverlay({
       new PathLayer<TrafficSegment>({
         ...shared,
         id: "traffic-overlay-casing",
-        getColor: CASING_RGBA,
+        getColor: resolveMapColor(CASING_TOKEN, CASING_ALPHA),
         getWidth: (d) => d.widthMeters * CASING_SCALE,
         widthMinPixels: CASING_MIN_PX,
         widthMaxPixels: CASING_MAX_PX,

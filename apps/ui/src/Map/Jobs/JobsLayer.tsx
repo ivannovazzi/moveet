@@ -3,6 +3,7 @@ import { PathLayer, ScatterplotLayer, TextLayer } from "@deck.gl/layers";
 import type { Layer } from "@deck.gl/core";
 import type { JobDTO, Position } from "@/types";
 import { resolveMapColor } from "@/lib/mapColor";
+import { mapLabelProps } from "@/lib/mapLabels";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 
 export const JOBS_LAYER_ID = "jobs";
@@ -31,7 +32,8 @@ export const JOB_COLOR_TOKENS = {
 /** Key of the draft marker in the pickup layer's data. */
 const DRAFT_KEY = "draft";
 
-const WHITE: RGBA = [255, 255, 255, 255];
+/** Neutral ink for the stop ring, shared with every other map label. */
+const LABEL_TOKEN = "var(--color-map-label)";
 
 /**
  * Which token a stop paints with. Split out from the accessors (and exported)
@@ -146,7 +148,7 @@ export default memo(function JobsLayer({ jobs, draftPickup }: JobsLayerProps) {
         getRadius: 6,
         radiusUnits: "pixels",
         getFillColor: (d) => withAlpha(tokenForStop(d, "pickup"), 255),
-        getLineColor: WHITE,
+        getLineColor: withAlpha(LABEL_TOKEN, 255),
         getLineWidth: 1.5,
         lineWidthUnits: "pixels",
         stroked: true,
@@ -180,16 +182,15 @@ export default memo(function JobsLayer({ jobs, draftPickup }: JobsLayerProps) {
     if (labels.length > 0) {
       result.push(
         new TextLayer<LabelDatum>({
+          ...mapLabelProps(11),
           id: `${JOBS_LAYER_ID}-labels`,
           data: labels,
           getPosition: (d) => d.position,
           getText: (d) => d.text,
           getColor: (d) => withAlpha(d.late ? JOB_COLOR_TOKENS.late : JOB_COLOR_TOKENS.pickup, 255),
-          getSize: 11,
           getTextAnchor: "middle",
           getAlignmentBaseline: "bottom",
           getPixelOffset: [0, -11],
-          fontWeight: "600",
           pickable: false,
           updateTriggers: { getColor: labels.map((l) => l.late) },
         })

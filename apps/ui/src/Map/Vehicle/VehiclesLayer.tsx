@@ -27,8 +27,10 @@ const DEFAULT_FILL = "#dcdcdc";
 const SELECTED_TOKEN = "var(--color-route-selected)";
 const SELECTED_FILL_ALPHA = 70;
 const SELECTED_HALO_ALPHA = 38;
-const HOVER_STROKE: [number, number, number, number] = [251, 201, 1, 255];
-const HOVER_BG: [number, number, number, number] = [251, 201, 1, 40];
+/** Hover is the shared interaction amber, distinct from the selection blue. */
+const HOVER_TOKEN = "var(--color-overlay-hover)";
+const HOVER_STROKE_ALPHA = 255;
+const HOVER_BG_ALPHA = 40;
 
 interface VehiclesLayerProps {
   scale: number;
@@ -612,6 +614,8 @@ export default function VehiclesLayer({
     const selectedStroke: [number, number, number, number] = [sr, sg, sb, 255];
     const selectedFill: [number, number, number, number] = [sr, sg, sb, SELECTED_FILL_ALPHA];
     const selectedHalo: [number, number, number, number] = [sr, sg, sb, SELECTED_HALO_ALPHA];
+    const hoverStroke = resolveMapColor(HOVER_TOKEN, HOVER_STROKE_ALPHA);
+    const hoverBg = resolveMapColor(HOVER_TOKEN, HOVER_BG_ALPHA);
     const ringKey = `${selectedId ?? ""}|${hoveredId ?? ""}`;
 
     // Wide soft disc behind the selected vehicle only — findable at any zoom
@@ -632,8 +636,8 @@ export default function VehiclesLayer({
       id: "vehicle-highlight-ring",
       data: ringData,
       getPosition: (d) => d.position,
-      getFillColor: (d) => (d.isSelected ? selectedFill : HOVER_BG),
-      getLineColor: (d) => (d.isSelected ? selectedStroke : HOVER_STROKE),
+      getFillColor: (d) => (d.isSelected ? selectedFill : hoverBg),
+      getLineColor: (d) => (d.isSelected ? selectedStroke : hoverStroke),
       getRadius: (d) => iconSize * (d.isSelected ? 0.95 : 0.75),
       getLineWidth: (d) => (d.isSelected ? 3 : 2),
       radiusUnits: "pixels",

@@ -3,6 +3,8 @@ import { ScatterplotLayer, PathLayer, TextLayer } from "@deck.gl/layers";
 import type { Vehicle, DispatchAssignment } from "@/types";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 import { useMapContext, useOverlay } from "@/components/Map/hooks";
+import { resolveMapColor } from "@/lib/mapColor";
+import { mapLabelProps } from "@/lib/mapLabels";
 import type { WaypointRef } from "@/hooks/useDispatchFlow";
 
 interface PendingDispatchProps {
@@ -14,10 +16,13 @@ interface PendingDispatchProps {
   onRemoveWaypointGroup: (refs: WaypointRef[]) => void;
 }
 
-const COLOR_RGBA: [number, number, number, number] = [57, 153, 255, 180];
-const COLOR_SOLID_RGBA: [number, number, number, number] = [51, 153, 255, 255];
-const HOVER_RGBA: [number, number, number, number] = [251, 201, 1, 255];
-const WHITE_RGBA: [number, number, number, number] = [255, 255, 255, 255];
+/** The pending-dispatch overlay shares the draw tool's blue; hover is the
+ *  interaction amber used for vehicle hover rings. */
+const DRAW_TOKEN = "var(--color-overlay-draw)";
+const HOVER_TOKEN = "var(--color-overlay-hover)";
+const LABEL_TOKEN = "var(--color-map-label)";
+const LABEL_ALPHA = 180;
+const LINE_ALPHA = 120;
 
 const HIT_PX = 12;
 const DRAG_THRESHOLD_PX = 3;
@@ -237,6 +242,14 @@ export default memo(function PendingDispatch({
   const layers = useMemo(() => {
     if (assignments.length === 0) return [];
 
+    // Resolved here, not at module load: resolveMapColor caches its first
+    // answer, which at module-eval time predates the stylesheet.
+    const drawRgba = resolveMapColor(DRAW_TOKEN);
+    const labelRgba = resolveMapColor(DRAW_TOKEN, LABEL_ALPHA);
+    const lineRgba = resolveMapColor(DRAW_TOKEN, LINE_ALPHA);
+    const hoverRgba = resolveMapColor(HOVER_TOKEN);
+    const inkRgba = resolveMapColor(LABEL_TOKEN);
+
     const multiMarkers: MarkerDatum[] = [];
     const multiLines: LineDatum[] = [];
     const nameLabels: NameLabel[] = [];
@@ -294,7 +307,7 @@ export default memo(function PendingDispatch({
           id: "pending-dispatch-multi-lines",
           data: multiLines,
           getPath: (d) => d.path,
-          getColor: [57, 153, 255, 120],
+          getColor: lineRgba,
           getWidth: 1,
           widthUnits: "pixels",
           jointRounded: true,
@@ -313,8 +326,8 @@ export default memo(function PendingDispatch({
           getPosition: (d) => d.position,
           getRadius: (d) => (d.enlarged ? 8 : 6),
           radiusUnits: "pixels",
-          getFillColor: (d) => (d.enlarged ? HOVER_RGBA : COLOR_SOLID_RGBA),
-          getLineColor: WHITE_RGBA,
+          getFillColor: (d) => (d.enlarged ? hoverRgba : drawRgba),
+          getLineColor: inkRgba,
           getLineWidth: 1.5,
           lineWidthUnits: "pixels",
           stroked: true,
@@ -327,15 +340,14 @@ export default memo(function PendingDispatch({
       );
       result.push(
         new TextLayer<MarkerDatum>({
+          ...mapLabelProps(10),
           id: "pending-dispatch-multi-numbers",
           data: multiMarkers,
           getPosition: (d) => d.position,
           getText: (d) => d.label,
-          getColor: WHITE_RGBA,
-          getSize: 10,
+          getColor: inkRgba,
           getTextAnchor: "middle",
           getAlignmentBaseline: "center",
-          fontWeight: "bold",
           pickable: false,
         })
       );
@@ -345,16 +357,15 @@ export default memo(function PendingDispatch({
     if (nameLabels.length > 0) {
       result.push(
         new TextLayer<NameLabel>({
+          ...mapLabelProps(12),
           id: "pending-dispatch-multi-labels",
           data: nameLabels,
           getPosition: (d) => d.position,
           getText: (d) => d.text,
-          getColor: COLOR_RGBA,
-          getSize: 12,
+          getColor: labelRgba,
           getTextAnchor: "middle",
           getAlignmentBaseline: "bottom",
           getPixelOffset: [0, -14],
-          fontWeight: "500",
           pickable: false,
         })
       );
@@ -370,7 +381,7 @@ export default memo(function PendingDispatch({
           getRadius: (d) => (d.enlarged ? 7 : 5),
           radiusUnits: "pixels",
           getFillColor: [0, 0, 0, 0],
-          getLineColor: (d) => (d.enlarged ? HOVER_RGBA : COLOR_SOLID_RGBA),
+          getLineColor: (d) => (d.enlarged ? hoverRgba : drawRgba),
           getLineWidth: 1.5,
           lineWidthUnits: "pixels",
           stroked: true,
@@ -388,7 +399,7 @@ export default memo(function PendingDispatch({
           getPosition: (d) => d.position,
           getRadius: (d) => (d.enlarged ? 2.5 : 1.5),
           radiusUnits: "pixels",
-          getFillColor: (d) => (d.enlarged ? HOVER_RGBA : COLOR_SOLID_RGBA),
+          getFillColor: (d) => (d.enlarged ? hoverRgba : drawRgba),
           stroked: false,
           pickable: false,
           updateTriggers: {
@@ -399,16 +410,15 @@ export default memo(function PendingDispatch({
       );
       result.push(
         new TextLayer<MarkerDatum>({
+          ...mapLabelProps(12),
           id: "pending-dispatch-single-labels",
           data: singleMarkers,
           getPosition: (d) => d.position,
           getText: (d) => d.label,
-          getColor: COLOR_RGBA,
-          getSize: 12,
+          getColor: labelRgba,
           getTextAnchor: "middle",
           getAlignmentBaseline: "bottom",
           getPixelOffset: [0, -10],
-          fontWeight: "500",
           pickable: false,
         })
       );

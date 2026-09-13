@@ -10,22 +10,27 @@ import { invertLatLng } from "@/utils/coordinates";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 import { useMapContext } from "@/components/Map/hooks";
 import { resolveMapColor } from "@/lib/mapColor";
+import { mapLabelProps } from "@/lib/mapLabels";
 
 type RGBA = [number, number, number, number];
 type LngLat = [number, number];
 
 const SELECTED_TOKEN = "var(--color-route-selected)";
 const HOVER_TOKEN = "var(--color-route-hover)";
+const CASING_TOKEN = "var(--color-map-casing)";
+const LABEL_TOKEN = "var(--color-map-label)";
+/** The driven part of the route recedes to the same grey as an idle vehicle. */
+const TRAVELLED_TOKEN = "var(--color-status-idle)";
 
 const ROUTE_WIDTH_PX = 5;
 /** Dark outline under the remaining route so it separates from roads and traffic. */
-const CASING_RGBA: RGBA = [8, 10, 14, 210];
+const CASING_ALPHA = 210;
 const CASING_WIDTH_PX = 9;
 /** Soft glow under the casing; it is what makes the route findable at city zoom. */
 const GLOW_ALPHA = 55;
 const GLOW_WIDTH_PX = 18;
 /** Already-driven part of the route: present for context, visually recessed. */
-const TRAVELLED_RGBA: RGBA = [148, 163, 184, 150];
+const TRAVELLED_ALPHA = 150;
 const TRAVELLED_WIDTH_PX = 3;
 /** Hover preview dash, in multiples of line width: [dash, gap]. */
 const HOVER_DASH: [number, number] = [2.5, 1.5];
@@ -40,7 +45,7 @@ const SOLID: [number, number] = [0, 0];
 const ARROW_SPACING_PX = 72;
 const MAX_ARROWS = 1500;
 const ARROW_SIZE_PX = 12;
-const ARROW_RGBA: RGBA = [255, 255, 255, 235];
+const ARROW_ALPHA = 235;
 /** Arrows are resampled per half zoom level, not on every zoom frame. */
 const ARROW_ZOOM_STEP = 0.5;
 const EARTH_CIRCUMFERENCE_M = 40_075_016.686;
@@ -276,6 +281,12 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
   }, [selectedDirection, progress]);
 
   const layers = useMemo(() => {
+    // Resolved here, not at module load: resolveMapColor caches its first
+    // answer, which at module-eval time predates the stylesheet.
+    const casingRgba = resolveMapColor(CASING_TOKEN, CASING_ALPHA);
+    const travelledRgba = resolveMapColor(TRAVELLED_TOKEN, TRAVELLED_ALPHA);
+    const labelRgba = resolveMapColor(LABEL_TOKEN);
+
     const items: DirectionData[] = [];
     if (hovered && hoveredDirection && hovered !== selected) {
       items.push({
@@ -380,7 +391,7 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
             id: "direction-paths-travelled",
             data: [{ path: travelled }],
             getPath: (d) => d.path,
-            getColor: TRAVELLED_RGBA,
+            getColor: travelledRgba,
             getWidth: TRAVELLED_WIDTH_PX,
             widthUnits: "pixels",
             jointRounded: true,
@@ -394,7 +405,7 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
             id: "direction-paths-casing",
             data: committed,
             getPath: (d) => d.path,
-            getColor: CASING_RGBA,
+            getColor: casingRgba,
             getWidth: CASING_WIDTH_PX,
             widthUnits: "pixels",
             jointRounded: true,
@@ -432,7 +443,7 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
             getPosition: (d) => d.position,
             getRadius: (d) => (d.halo ? 15 : 7),
             getFillColor: (d) => (d.halo ? [d.color[0], d.color[1], d.color[2], 60] : d.color),
-            getLineColor: (d) => (d.halo ? [0, 0, 0, 0] : [255, 255, 255, 255]),
+            getLineColor: (d) => (d.halo ? [0, 0, 0, 0] : labelRgba),
             getLineWidth: (d) => (d.halo ? 0 : 2.5),
             stroked: true,
             radiusUnits: "pixels",
@@ -458,7 +469,7 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
             getRadius: (d) => (d.isCurrent ? 7 : 4 + d.progress * 2),
             getFillColor: (d) =>
               d.isCurrent ? d.color : [0, 0, 0, Math.round(90 + d.progress * 120)],
-            getLineColor: (d) => (d.isCurrent ? [255, 255, 255, 255] : d.color),
+            getLineColor: (d) => (d.isCurrent ? labelRgba : d.color),
             getLineWidth: 1.5,
             stroked: true,
             lineWidthUnits: "pixels",
@@ -470,33 +481,29 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
     const waypointTextLayer =
       markerData.length > 0
         ? new TextLayer<WaypointData>({
+            ...mapLabelProps(10),
             id: "direction-waypoint-labels",
             data: markerData,
             getPosition: (d) => d.position,
             getText: (d) => d.label,
-            getSize: 10,
-            getColor: (d) => (d.isCurrent ? [255, 255, 255, 255] : d.color),
+            getColor: (d) => (d.isCurrent ? labelRgba : d.color),
             getTextAnchor: "middle",
             getAlignmentBaseline: "center",
-            sizeUnits: "pixels",
-            fontWeight: "bold",
           })
         : null;
 
     const distanceTextLayer =
       labelData.length > 0
         ? new TextLayer<LabelData>({
+            ...mapLabelProps(12),
             id: "direction-distance-labels",
             data: labelData,
             getPosition: (d) => d.position,
             getText: (d) => d.text,
-            getSize: 12,
             getColor: (d) => d.color,
             getTextAnchor: "middle",
             getAlignmentBaseline: "bottom",
             getPixelOffset: [0, -20],
-            sizeUnits: "pixels",
-            fontWeight: 600,
             background: true,
             getBackgroundColor: resolveMapColor("var(--color-popover)", 220),
             backgroundPadding: [6, 3],
@@ -532,7 +539,7 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
         getPosition: (d) => d.position,
         getIcon: () => icon,
         getAngle: (d) => d.angle,
-        getColor: ARROW_RGBA,
+        getColor: resolveMapColor(LABEL_TOKEN, ARROW_ALPHA),
         getSize: ARROW_SIZE_PX,
         sizeUnits: "pixels",
         billboard: false,
@@ -564,8 +571,8 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
     }
     path.push(invertLatLng(edges[end - 1].end.coordinates as Position) as LngLat);
 
-    const core: RGBA = [255, 255, 255, 255];
-    const halo: RGBA = [255, 255, 255, 70];
+    const core: RGBA = resolveMapColor(LABEL_TOKEN);
+    const halo: RGBA = resolveMapColor(LABEL_TOKEN, 70);
     // depth test always passes so the overlay paints over the coincident base
     // route path (same z-plane) instead of z-fighting with it. (luma.gl v9 uses
     // `depthCompare`, not the old `depthTest` flag.)
