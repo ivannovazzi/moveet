@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import type { Heatzone, Position } from "@/types";
 import type { HeatzoneEditor } from "@/hooks/useHeatzoneEditor";
 
@@ -68,11 +67,19 @@ describe("HeatzoneInspector", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("shows the intensity control and delete for the selected zone", () => {
+  it("shows the intensity control for the selected zone", () => {
     editor = makeEditor({ mode: "selected", selectedId: "hz-1" });
     render(<HeatzoneInspector />);
+    expect(screen.getByText("Heat zone intensity")).toBeInTheDocument();
     expect(screen.getByRole("slider", { name: /intensity/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /delete/i })).toBeInTheDocument();
+  });
+
+  // Delete and Done are the mode rail's job (describeHeatzoneEdit) — the panel
+  // must not offer a second copy of either.
+  it("offers no delete or close button", () => {
+    editor = makeEditor({ mode: "selected", selectedId: "hz-1" });
+    render(<HeatzoneInspector />);
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
   });
 
   it("pushes intensity changes to the editor", () => {
@@ -82,13 +89,5 @@ describe("HeatzoneInspector", () => {
     slider.focus();
     fireEvent.keyDown(slider, { key: "ArrowRight" });
     expect(editor.setIntensity).toHaveBeenCalledWith("hz-1", expect.any(Number));
-  });
-
-  it("deletes the selected zone", async () => {
-    editor = makeEditor({ mode: "selected", selectedId: "hz-1" });
-    const user = userEvent.setup();
-    render(<HeatzoneInspector />);
-    await user.click(screen.getByRole("button", { name: /delete/i }));
-    expect(editor.remove).toHaveBeenCalledWith("hz-1");
   });
 });

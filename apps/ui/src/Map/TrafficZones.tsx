@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PolygonLayer, ScatterplotLayer, PathLayer } from "@deck.gl/layers";
+import { PathStyleExtension, type PathStyleExtensionProps } from "@deck.gl/extensions";
 import { useHeatzones } from "@/hooks/useHeatzones";
 import { useHeatzoneEditorContext } from "@/data/HeatzoneEditorContext";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
@@ -18,8 +19,26 @@ const DRAG_THRESHOLD_PX = 3;
 /** Pixel-space Douglas-Peucker tolerance - keeps ~8-40 vertices for a normal lasso. */
 const DRAW_SIMPLIFY_PX = 4;
 
-const DENSITY_LINE_RGBA = resolveMapColor("var(--color-overlay-density)", 153);
-const SELECTED_LINE_RGBA = resolveMapColor("var(--color-overlay-density)", 255);
+/** The lasso's closing edge is dashed — it is implied geometry, not drawn. */
+const dashStyle = new PathStyleExtension({ dash: true });
+const CLOSING_DASH: [number, number] = [3, 3];
+
+const DENSITY_TOKEN = "var(--color-overlay-density)";
+const DENSITY_LINE_RGBA = resolveMapColor(DENSITY_TOKEN, 153);
+const SELECTED_LINE_RGBA = resolveMapColor(DENSITY_TOKEN, 255);
+/** Soft wide halo under the selected zone's outline, so "which one is selected"
+ *  survives a screen full of overlapping zones. */
+const SELECTED_GLOW_RGBA = resolveMapColor(DENSITY_TOKEN, 70);
+
+/**
+ * Committed fill alpha for an intensity in [0,1]. The old ramp (0.2 * intensity)
+ * bottomed out at 12% alpha for a mid-intensity zone — effectively invisible
+ * over the map ground. A floor plus a wider span keeps every zone legible while
+ * intensity still reads as a difference.
+ */
+export function heatzoneFillAlpha(intensity: number): number {
+  return Math.round((0.12 + 0.35 * intensity) * 255);
+}
 /** Shared with every other map label, so it is resolved per use rather than at
  *  module load — a module-load read would cache a pre-stylesheet value under
  *  the shared key and hand it to every layer that asks for the same token. */
@@ -362,17 +381,36 @@ export default function Heatzones({ visible }: { visible: boolean }) {
       intensity: z.properties.intensity,
       selected: z.properties.id === editor.selectedId,
     }));
+    const selected = data.filter((d) => d.selected);
+    const glow =
+      selected.length > 0
+        ? [
+            new PolygonLayer<HeatzoneDatum>({
+              id: "traffic-zones-selected-glow",
+              data: selected,
+              getPolygon: (d) => d.polygon,
+              getLineColor: SELECTED_GLOW_RGBA,
+              getLineWidth: 9,
+              lineWidthUnits: "pixels",
+              filled: false,
+              stroked: true,
+              pickable: false,
+            }),
+          ]
+        : [];
     return [
+      // The glow goes first so the crisp outline paints over it.
+      ...glow,
       new PolygonLayer<HeatzoneDatum>({
         id: "traffic-zones",
         data,
         getPolygon: (d) => d.polygon,
         getFillColor: (d) => {
-          const [r, g, b] = resolveMapColor("var(--color-overlay-density)");
-          return [r, g, b, Math.round(0.2 * d.intensity * 255)];
+          const [r, g, b] = resolveMapColor(DENSITY_TOKEN);
+          return [r, g, b, heatzoneFillAlpha(d.intensity)];
         },
         getLineColor: (d) => (d.selected ? SELECTED_LINE_RGBA : DENSITY_LINE_RGBA),
-        getLineWidth: (d) => (d.selected ? 2.5 : 1),
+        getLineWidth: (d) => (d.selected ? 3 : 1),
         lineWidthUnits: "pixels",
         filled: true,
         stroked: true,
@@ -395,7 +433,25 @@ export default function Heatzones({ visible }: { visible: boolean }) {
   // ── Lasso draw-preview ─────────────────────────────────────────────
   const drawLayers = useMemo(() => {
     if (drawPoints.length < 2) return [];
+    // A bare stroke gave no sense of the area being enclosed. Fill what is
+    // already swept, stroke the swept edge, and dash the edge the release will
+    // close for you.
+    const fill =
+      drawPoints.length >= 3
+        ? [
+            new PolygonLayer<{ polygon: Position[] }>({
+              id: "heatzone-draw-fill",
+              data: [{ polygon: drawPoints }],
+              getPolygon: (d) => d.polygon,
+              getFillColor: resolveMapColor(DENSITY_TOKEN, 50),
+              filled: true,
+              stroked: false,
+              pickable: false,
+            }),
+          ]
+        : [];
     return [
+      ...fill,
       new PathLayer<{ path: Position[] }>({
         id: "heatzone-draw",
         data: [{ path: drawPoints }],
@@ -405,6 +461,18 @@ export default function Heatzones({ visible }: { visible: boolean }) {
         widthUnits: "pixels",
         capRounded: true,
         jointRounded: true,
+        pickable: false,
+      }),
+      new PathLayer<{ path: Position[] }, PathStyleExtensionProps<{ path: Position[] }>>({
+        id: "heatzone-draw-closing",
+        data: [{ path: [drawPoints[drawPoints.length - 1], drawPoints[0]] }],
+        getPath: (d) => d.path,
+        getColor: resolveMapColor(LABEL_TOKEN, 180),
+        getWidth: 1.5,
+        widthUnits: "pixels",
+        getDashArray: CLOSING_DASH,
+        dashJustified: true,
+        extensions: [dashStyle],
         pickable: false,
       }),
     ];
@@ -424,11 +492,11 @@ export default function Heatzones({ visible }: { visible: boolean }) {
         id: "heatzone-handles",
         data: verts,
         getPosition: (d) => d,
-        getRadius: 5,
+        getRadius: 6,
         radiusUnits: "pixels",
         getFillColor: SELECTED_LINE_RGBA,
         getLineColor: inkRgba,
-        getLineWidth: 1.5,
+        getLineWidth: 2,
         lineWidthUnits: "pixels",
         stroked: true,
         pickable: true,
@@ -439,7 +507,7 @@ export default function Heatzones({ visible }: { visible: boolean }) {
         id: "heatzone-move-handle",
         data: [ringCentroid(verts)],
         getPosition: (d) => d,
-        getRadius: 7,
+        getRadius: 8,
         radiusUnits: "pixels",
         getFillColor: inkRgba,
         getLineColor: SELECTED_LINE_RGBA,
@@ -447,6 +515,21 @@ export default function Heatzones({ visible }: { visible: boolean }) {
         lineWidthUnits: "pixels",
         stroked: true,
         pickable: true,
+      }),
+      // Target ring around the move handle: its hit radius is bigger than the
+      // dot, so draw the area the grab actually covers.
+      new ScatterplotLayer<Position>({
+        id: "heatzone-move-ring",
+        data: [ringCentroid(verts)],
+        getPosition: (d) => d,
+        getRadius: 14,
+        radiusUnits: "pixels",
+        getLineColor: resolveMapColor(DENSITY_TOKEN, 110),
+        getLineWidth: 1.5,
+        lineWidthUnits: "pixels",
+        filled: false,
+        stroked: true,
+        pickable: false,
       }),
     ];
   }, [editor.mode, editor.selectedId, editor.draft, heatzones]);

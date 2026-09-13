@@ -37,7 +37,7 @@ vi.mock("@/data/HeatzoneEditorContext", () => ({
   useHeatzoneEditorContext: () => editor,
 }));
 
-import Heatzones from "./TrafficZones";
+import Heatzones, { heatzoneFillAlpha } from "./TrafficZones";
 
 function makeEditor(overrides: Partial<HeatzoneEditor> = {}): HeatzoneEditor {
   return {
@@ -139,6 +139,35 @@ describe("Heatzones display layer", () => {
     render(<Heatzones visible={false} />);
     expect(registeredLayers.get("traffic-zones")).toEqual([]);
   });
+
+  it("ramps the committed fill alpha off a visible floor", () => {
+    expect(heatzoneFillAlpha(0)).toBe(31);
+    expect(heatzoneFillAlpha(0.6)).toBe(Math.round(0.33 * 255));
+    expect(heatzoneFillAlpha(1)).toBe(120);
+    // strictly increasing with intensity
+    expect(heatzoneFillAlpha(0.6)).toBeGreaterThan(heatzoneFillAlpha(0.2));
+  });
+
+  it("adds a wide glow beneath the outline for the selected zone only", () => {
+    heatzones = [ZONE];
+    editor = makeEditor({ mode: "selected", selectedId: "hz-1" });
+    render(<Heatzones visible />);
+    const layers = registeredLayers.get("traffic-zones")! as {
+      props: { id: string; data: unknown[]; filled: boolean; getLineWidth: number };
+    }[];
+    expect(layers.map((l) => l.props.id)).toEqual(["traffic-zones-selected-glow", "traffic-zones"]);
+    const glow = layers[0];
+    expect(glow.props.data).toHaveLength(1);
+    expect(glow.props.filled).toBe(false);
+    expect(glow.props.getLineWidth).toBe(9);
+  });
+
+  it("adds no glow when no zone is selected", () => {
+    heatzones = [ZONE];
+    render(<Heatzones visible />);
+    const layers = registeredLayers.get("traffic-zones")! as { props: { id: string } }[];
+    expect(layers.map((l) => l.props.id)).toEqual(["traffic-zones"]);
+  });
 });
 
 describe("Heatzones vertex handles", () => {
@@ -149,13 +178,27 @@ describe("Heatzones vertex handles", () => {
     const handles = registeredLayers.get("heatzone-handles")! as {
       props: { id: string; data: unknown[]; pickable: boolean };
     }[];
-    expect(handles.length).toBe(2);
+    expect(handles.length).toBe(3);
     const vertexLayer = handles.find((l) => l.props.id === "heatzone-handles")!;
     const moveLayer = handles.find((l) => l.props.id === "heatzone-move-handle")!;
     // one handle per unique vertex of the selected ring
     expect(vertexLayer.props.data.length).toBe(ZONE.geometry.coordinates.length);
     // a single center move handle
     expect(moveLayer.props.data.length).toBe(1);
+  });
+
+  it("draws an unpickable target ring around the move handle", () => {
+    heatzones = [ZONE];
+    editor = makeEditor({ mode: "selected", selectedId: "hz-1" });
+    render(<Heatzones visible />);
+    const handles = registeredLayers.get("heatzone-handles")! as {
+      props: { id: string; filled: boolean; getRadius: number; pickable: boolean };
+    }[];
+    const ring = handles.find((l) => l.props.id === "heatzone-move-ring")!;
+    expect(ring.props.getRadius).toBe(14);
+    expect(ring.props.filled).toBe(false);
+    // The dot under it is the grab target — the ring must not steal the pick.
+    expect(ring.props.pickable).toBe(false);
   });
 
   it("renders no handles when nothing is selected", () => {
@@ -175,9 +218,13 @@ describe("Heatzones lasso draw", () => {
       move(20, 20);
       move(30, 10);
     });
-    // preview path present mid-stroke
-    const preview = registeredLayers.get("heatzone-draw")!;
-    expect(preview.length).toBeGreaterThan(0);
+    // preview fill + stroke + dashed closing edge present mid-stroke
+    const preview = registeredLayers.get("heatzone-draw")! as { props: { id: string } }[];
+    expect(preview.map((l) => l.props.id)).toEqual([
+      "heatzone-draw-fill",
+      "heatzone-draw",
+      "heatzone-draw-closing",
+    ]);
 
     act(() => {
       up(30, 10);
@@ -187,6 +234,37 @@ describe("Heatzones lasso draw", () => {
     // collected geo points = pixel/100
     expect(path.length).toBeGreaterThanOrEqual(3);
     expect(path[0]).toEqual([0.1, 0.1]);
+  });
+});
+
+describe("Heatzones lasso preview shape", () => {
+  it("omits the fill until the stroke has three points", () => {
+    editor = makeEditor({ mode: "draw", isDrawing: true });
+    render(<Heatzones visible />);
+    act(() => {
+      down(10, 10);
+      move(20, 20);
+    });
+    const preview = registeredLayers.get("heatzone-draw")! as { props: { id: string } }[];
+    expect(preview.map((l) => l.props.id)).toEqual(["heatzone-draw", "heatzone-draw-closing"]);
+  });
+
+  it("closes the dashed edge from the last point back to the first", () => {
+    editor = makeEditor({ mode: "draw", isDrawing: true });
+    render(<Heatzones visible />);
+    act(() => {
+      down(10, 10);
+      move(20, 20);
+      move(30, 10);
+    });
+    const preview = registeredLayers.get("heatzone-draw")! as {
+      props: { id: string; data: { path: [number, number][] }[]; getWidth: number };
+    }[];
+    const closing = preview.find((l) => l.props.id === "heatzone-draw-closing")!;
+    const [path] = closing.props.data;
+    expect(path.path[0]).toEqual([0.3, 0.1]);
+    expect(path.path[1]).toEqual([0.1, 0.1]);
+    expect(closing.props.getWidth).toBe(1.5);
   });
 });
 

@@ -15,8 +15,10 @@ import type {
 } from "@/types";
 import type { BoundingBox, GeoFence } from "@moveet/shared-types";
 import type { Filters } from "@/hooks/useVehicles";
-import { DispatchState, cursorForDispatchState } from "@/hooks/useDispatchState";
+import { DispatchState } from "@/hooks/useDispatchState";
+import type { InteractionModeKind } from "@/hooks/useInteractionMode";
 import type { WaypointRef } from "@/hooks/useDispatchFlow";
+import { cursorForMode } from "./modeCursor";
 
 // Lazily load the WebGL canvas so the app shell + control panels can paint
 // before the deck.gl/luma.gl stack (its own `deckgl` vendor chunk) is fetched
@@ -66,6 +68,8 @@ const JobsLayer = lazy(() => import("./Jobs/JobsLayer"));
 
 interface MapProps {
   network: RoadNetwork;
+  /** The active interaction mode — the single source of the map cursor. */
+  modeKind: InteractionModeKind;
   filters: Filters;
   vehicles: Vehicle[];
   modifiers: Modifiers;
@@ -106,12 +110,11 @@ interface MapProps {
   onBboxChange?: (bbox: BoundingBox | null) => void;
   /** Lock map panning (heat-zone tool engaged) so press-drags draw/edit zones. */
   panLocked?: boolean;
-  /** Heat-zone draw mode is active - show a crosshair cursor. */
-  zoneDrawActive?: boolean;
 }
 
 export default function Map({
   network,
+  modeKind,
   vehicles,
   modifiers,
   filters,
@@ -143,16 +146,11 @@ export default function Map({
   drawUndoId,
   onBboxChange,
   panLocked = false,
-  zoneDrawActive = false,
 }: MapProps) {
-  // Derive cursor: the two modal point-picking modes win (crosshair), then
-  // dispatchState, else grab.
-  const cursor =
-    zoneDrawActive || jobPlacementActive
-      ? "crosshair"
-      : dispatchState
-        ? cursorForDispatchState(dispatchState)
-        : "grab";
+  // One cursor table, keyed by the interaction mode (see modeCursor.ts). The
+  // zoneDrawActive / jobPlacementActive flags stay — layers below still read
+  // them for picking — but they no longer decide the cursor.
+  const cursor = cursorForMode(modeKind, dispatchState);
 
   /**
    * The legend column. Overlays have to stay inside `DeckGLMap` (that is where

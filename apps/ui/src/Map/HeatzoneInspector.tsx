@@ -1,17 +1,18 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Range } from "@/components/Inputs";
-import { CloseIcon, TrashIcon } from "@/components/Icons";
 import { useHeatzones } from "@/hooks/useHeatzones";
 import { useHeatzoneEditorContext } from "@/data/HeatzoneEditorContext";
 import type { HeatzoneEditor } from "@/hooks/useHeatzoneEditor";
 import type { Heatzone } from "@/types";
 
 /**
- * Floating panel for the currently selected heat zone: an intensity slider
- * (debounced PATCH via the editor) and a delete action. Anchored above the dock
- * so it never overlaps the transport bar. Renders nothing when no zone is
- * selected.
+ * Floating panel for the currently selected heat zone: the intensity slider
+ * (debounced PATCH via the editor) and nothing else. Delete and Done live on
+ * the dock's mode rail (describeHeatzoneEdit) — this panel used to repeat both,
+ * which gave the same two acts two homes and made the rail look optional.
+ * Anchored above the dock so it never overlaps the transport bar. Renders
+ * nothing when no zone is selected.
  */
 export default function HeatzoneInspector() {
   const editor = useHeatzoneEditorContext();
@@ -43,18 +44,7 @@ function HeatzonePanel({ zone, editor }: { zone: Heatzone; editor: HeatzoneEdito
       role="group"
       aria-label="Heat zone controls"
     >
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-[12px] font-semibold text-foreground">Heat Zone</span>
-        <button
-          type="button"
-          onClick={editor.deselect}
-          aria-label="Close"
-          title="Close"
-          className="flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground [&_svg]:size-3.5"
-        >
-          <CloseIcon />
-        </button>
-      </div>
+      <div className="mb-2 text-[12px] font-semibold text-foreground">Heat zone intensity</div>
 
       <Range
         label="Intensity"
@@ -67,22 +57,6 @@ function HeatzonePanel({ zone, editor }: { zone: Heatzone; editor: HeatzoneEdito
           editor.setIntensity(id, v / 100);
         }}
       />
-
-      <button
-        type="button"
-        onClick={() => editor.remove(id)}
-        aria-label="Delete zone"
-        title="Delete zone"
-        className={cn(
-          "mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg px-2 py-2",
-          "text-[12px] font-medium text-status-error",
-          "border border-status-error/30 hover:bg-status-error/10",
-          "transition-colors duration-fast ease-standard [&_svg]:size-3.5"
-        )}
-      >
-        <TrashIcon />
-        Delete zone
-      </button>
     </div>
   );
 }

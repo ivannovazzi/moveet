@@ -543,11 +543,20 @@ export default function App() {
             {/* `map-backdrop` paints the map's ground: deck.gl clears its
                 canvas transparent, so this element is what shows between the
                 roads and vehicles. */}
-            <div className="map-backdrop relative flex min-h-0 min-w-0 flex-1">
+            {/* `data-mode` paints the modal-mode vignette (see index.css): an
+                inset frame in the mode's own tone, so the map itself says a
+                tool has the next click - not just the dock. Browse is excluded
+                by the CSS selector. */}
+            <div
+              className="map-backdrop relative flex min-h-0 min-w-0 flex-1"
+              data-mode={interaction.mode.kind}
+              data-mode-tone={modeDescriptor?.tone}
+            >
               <ConnectionStatus connectionInfo={connectionInfo} onRetry={client.retryConnection} />
               <LoadingOverlay visible={mapLoading} />
               <MapView
                 network={network}
+                modeKind={interaction.mode.kind}
                 vehicles={vehicles}
                 filters={filters}
                 modifiers={modifiers}
@@ -579,7 +588,6 @@ export default function App() {
                 drawUndoId={geofences.drawUndoId}
                 onBboxChange={onBboxChange}
                 panLocked={heatzoneEditor.mode !== "idle"}
-                zoneDrawActive={heatzoneEditor.mode === "draw"}
               />
               {/* The search bar and the mode banner share the top-center slot:
                 while a mode is active the banner replaces the search bar (mode

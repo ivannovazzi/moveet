@@ -232,6 +232,41 @@
     160px 160px,
     cover;
 }
+/* Modal-mode vignette. While a map tool owns the next click, the map itself
+   says so: a thin inset frame in the mode's tone plus a soft inward shadow that
+   pulls the eye off the chrome and onto the canvas. Purely decorative, so it is
+   a pointer-events-none ::after on the backdrop rather than another element in
+   the tree — it must never intercept a click meant for the tool.
+
+   z-index 5 puts it over the (unlayered) deck canvas but under every HUD piece
+   (search bar, zoom, legends, dock — all z-10 and up), so the frame never
+   paints on top of a control. Browse is excluded by the selector: no mode, no
+   frame. */
+.map-backdrop[data-mode]:not([data-mode="browse"])::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  opacity: 1;
+  box-shadow:
+    inset 0 0 0 2px color-mix(in oklch, var(--color-accent) 70%, transparent),
+    inset 0 0 96px color-mix(in oklch, black 30%, transparent);
+  transition: opacity 200ms ease-out;
+}
+
+.map-backdrop[data-mode][data-mode-tone="warn"]::after {
+  box-shadow:
+    inset 0 0 0 2px color-mix(in oklch, var(--color-status-warn) 70%, transparent),
+    inset 0 0 96px color-mix(in oklch, black 30%, transparent);
+}
+
+@starting-style {
+  .map-backdrop[data-mode]:not([data-mode="browse"])::after {
+    opacity: 0;
+  }
+}
+
 @utility surface-accent {
   background-image: linear-gradient(180deg, oklch(0.658 0.15 250), oklch(0.6 0.15 250));
 }
