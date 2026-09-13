@@ -69,6 +69,17 @@ describe("map text layer outlines", () => {
     expect(offenders).toEqual([]);
   });
 
+  it("never hands the canvas the CSS keyword `inherit` as a font family", () => {
+    // deck.gl builds the SDF glyph atlas with `ctx.font = "600 64px <family>"`.
+    // `inherit` is not a valid font shorthand, so the canvas keeps its 10px
+    // sans-serif default and every glyph rasterises tiny, then scales to
+    // getSize — labels shipped as ~2px dashes at every zoom because of it.
+    const offenders = read(LABEL_DIRS)
+      .filter(({ text }) => /fontFamily:\s*["'`]inherit["'`]/.test(text))
+      .map(({ path }) => path);
+    expect(offenders).toEqual([]);
+  });
+
   it.each(withOutline.map(({ path }) => path))("%s opts into an SDF atlas", (path) => {
     const { text } = withOutline.find((s) => s.path === path)!;
     expect(text).toMatch(/sdf:\s*true/);

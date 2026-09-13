@@ -43,6 +43,7 @@ vi.mock("@/hooks/useSpeedLimits", () => ({
 }));
 
 import POIs from "./POIs";
+import { GROUP_META } from "./POI/categories";
 import SpeedLimitSigns from "./SpeedLimitSigns";
 
 interface LayerLike {
@@ -91,16 +92,45 @@ describe("POIs", () => {
     expect(getIcon(data[0])).toBe("education");
   });
 
-  it("draws transit markers smaller than the rest", () => {
+  it("draws wayfinding anchors larger than the ambient carpet", () => {
     const layer = renderPois([
       createPOI({ id: "p1", name: "Stage", type: "bus_stop" }),
       createPOI({ id: "p2", name: "Shell", type: "fuel" }),
+      createPOI({ id: "p3", name: "Kenyatta Hospital", type: "hospital" }),
+      createPOI({ id: "p4", name: "Java House", type: "cafe" }),
     ]);
 
     const getSize = layer.props.getSize as (d: unknown) => number;
     const data = layer.props.data as unknown[];
-    expect(getSize(data[0])).toBe(16);
+    // transit, fuel and health are anchors — bus stops included.
+    expect(getSize(data[0])).toBe(22);
     expect(getSize(data[1])).toBe(22);
+    expect(getSize(data[2])).toBe(22);
+    expect(getSize(data[3])).toBe(18);
+  });
+
+  it("holds icons apart more widely below street zoom", () => {
+    // The mocked viewport sits at zoom 16, so this is the tight setting.
+    const layer = renderPois([createPOI({ id: "p1", name: "Shell", type: "fuel" })]);
+    const collisionTestProps = layer.props.collisionTestProps as { sizeScale: number };
+    expect(collisionTestProps.sizeScale).toBe(2.5);
+    expect(layer.props.collisionEnabled).toBe(true);
+  });
+
+  it("gates the carpet groups later than the wayfinding anchors", () => {
+    // The icon fades in via getColor alpha, so the gate is observable there.
+    const layer = renderPois([
+      createPOI({ id: "p1", name: "Kenyatta Hospital", type: "hospital" }),
+      createPOI({ id: "p2", name: "Java House", type: "cafe" }),
+    ]);
+    const getColor = layer.props.getColor as (d: unknown) => number[];
+    const data = layer.props.data as { group: string }[];
+    // At the mocked zoom 16 both are past their gate...
+    expect(getColor(data[0])[3]).toBe(255);
+    expect(getColor(data[1])[3]).toBe(255);
+    // ...but the cafe's gate is the later of the two.
+    expect(GROUP_META.food.minZoom).toBeGreaterThan(GROUP_META.health.minZoom);
+    expect(GROUP_META.food.minZoom).toBeGreaterThanOrEqual(14.5);
   });
 
   it("keeps icon collision priority in step with the group meta", () => {

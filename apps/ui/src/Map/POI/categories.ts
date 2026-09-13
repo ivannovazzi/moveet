@@ -186,23 +186,28 @@ export function groupForType(type: string | undefined): PoiGroup | null {
  * wayfinding anchors worth seeing from across the city, while the shop/food/
  * leisure carpet only earns its pixels at street level. `priority` breaks
  * collisions between overlapping markers — higher wins.
+ *
+ * The gates are deliberately late. Nairobi carries ~21,000 POIs, so a
+ * 1600x1000 view at zoom 14-15 used to hold several hundred markers at once
+ * and read as noise; pushing the carpet groups past 14 keeps street zoom to
+ * the handful of anchors an operator is actually navigating by.
  */
 export const GROUP_META: Record<
   PoiGroup,
   { label: string; token: string; minZoom: number; priority: number }
 > = {
   transit: { label: "Transit", token: "var(--color-poi-transit)", minZoom: 13, priority: 8 },
-  shop: { label: "Shops & services", token: "var(--color-poi-shop)", minZoom: 13.5, priority: 3 },
-  food: { label: "Food & drink", token: "var(--color-poi-food)", minZoom: 13.5, priority: 2 },
-  health: { label: "Health", token: "var(--color-poi-health)", minZoom: 11.5, priority: 9 },
+  shop: { label: "Shops & services", token: "var(--color-poi-shop)", minZoom: 14.5, priority: 3 },
+  food: { label: "Food & drink", token: "var(--color-poi-food)", minZoom: 14.5, priority: 2 },
+  health: { label: "Health", token: "var(--color-poi-health)", minZoom: 12.5, priority: 9 },
   education: {
     label: "Education",
     token: "var(--color-poi-education)",
-    minZoom: 12.5,
+    minZoom: 14,
     priority: 5,
   },
-  civic: { label: "Civic", token: "var(--color-poi-civic)", minZoom: 12, priority: 6 },
-  worship: { label: "Worship", token: "var(--color-poi-worship)", minZoom: 13, priority: 4 },
-  leisure: { label: "Leisure", token: "var(--color-poi-leisure)", minZoom: 13.5, priority: 1 },
-  fuel: { label: "Fuel", token: "var(--color-poi-fuel)", minZoom: 12, priority: 7 },
+  civic: { label: "Civic", token: "var(--color-poi-civic)", minZoom: 13.5, priority: 6 },
+  worship: { label: "Worship", token: "var(--color-poi-worship)", minZoom: 14, priority: 4 },
+  leisure: { label: "Leisure", token: "var(--color-poi-leisure)", minZoom: 14.5, priority: 1 },
+  fuel: { label: "Fuel", token: "var(--color-poi-fuel)", minZoom: 12.5, priority: 7 },
 };

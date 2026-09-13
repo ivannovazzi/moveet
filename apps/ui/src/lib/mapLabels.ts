@@ -41,10 +41,91 @@ export interface MapLabelProps {
   fontWeight: number;
   getSize: number;
   sizeUnits: "pixels";
-  fontSettings: { sdf: true; radius: number; buffer: number };
+  characterSet: string[];
+  fontSettings: { sdf: true; fontSize: number; radius: number; buffer: number };
   outlineWidth: number;
   outlineColor: [number, number, number, number];
 }
+
+/**
+ * The atlas is rasterised at this size and every glyph is scaled down by
+ * getSize / ATLAS_FONT_SIZE. deck.gl defaults to 64 already, but the whole
+ * halo geometry documented above is expressed in atlas pixels, so the number
+ * is pinned here rather than inherited.
+ */
+const ATLAS_FONT_SIZE = 64;
+
+/**
+ * Last-resort stack, mirroring `--font-sans` in `src/index.css`. Used when the
+ * document has no resolved family yet (first paint, jsdom) — and it must be a
+ * *concrete* stack, see `labelFontFamily()`.
+ */
+const FALLBACK_FONT_FAMILY = "Inter, system-ui, -apple-system, Segoe UI, sans-serif";
+
+/**
+ * Values that name no actual font: the CSS-wide keywords, and jsdom's stand-in
+ * for "whatever the UA picks", which would reach the canvas as a family called
+ * literally "depends on user agent".
+ */
+const UNUSABLE_FONT_FAMILIES = new Set([
+  "inherit",
+  "initial",
+  "unset",
+  "revert",
+  "revert-layer",
+  "depends on user agent",
+]);
+
+let cachedFontFamily: string | null = null;
+
+/**
+ * A concrete font family for the SDF atlas.
+ *
+ * This must never be the CSS keyword `inherit` (or any other keyword): deck.gl
+ * builds the glyph atlas on an offscreen 2D canvas with
+ * `ctx.font = "600 64px <fontFamily>"`, and a canvas silently rejects an
+ * invalid font shorthand — keeping its 10px sans-serif default. Every glyph is
+ * then rasterised at 10px and scaled to getSize, which is how map labels
+ * shipped as ~2px dashes at every zoom.
+ *
+ * Resolved lazily (the stylesheet may not be applied at module-eval time) and
+ * cached, because the atlas is rebuilt per TextLayer and this reads layout.
+ */
+export function labelFontFamily(): string {
+  if (cachedFontFamily) return cachedFontFamily;
+  let resolved = "";
+  try {
+    resolved = getComputedStyle(document.body).fontFamily?.trim() ?? "";
+  } catch {
+    resolved = "";
+  }
+  cachedFontFamily =
+    resolved && !UNUSABLE_FONT_FAMILIES.has(resolved) ? resolved : FALLBACK_FONT_FAMILY;
+  return cachedFontFamily;
+}
+
+/** Test seam: forget the resolved family so the next call reads the DOM again. */
+export function resetLabelFontFamily(): void {
+  cachedFontFamily = null;
+}
+
+/**
+ * deck.gl's default character set is ASCII 32–128. Nairobi place names carry a
+ * little more than that — typographic quotes and dashes from the OSM `name`
+ * tag, degree signs, ellipses — and any glyph missing from the atlas renders
+ * as a blank box, so the default is extended rather than replaced.
+ */
+const EXTRA_CHARACTERS =
+  "\u00a0\u00b0\u00b7\u00ab\u00bb" + // nbsp, degree, middot, guillemets
+  "\u2010\u2011\u2012\u2013\u2014" + // hyphens and dashes
+  "\u2018\u2019\u201a\u201c\u201d\u201e" + // typographic quotes
+  "\u2022\u2026\u2032\u2033" + // bullet, ellipsis, prime, double prime
+  "\u00e1\u00e4\u00e7\u00e8\u00e9\u00ea\u00ed\u00f1\u00f3\u00f6\u00fa\u00fc"; // accents
+
+const CHARACTER_SET: string[] = [
+  ...Array.from({ length: 128 - 32 }, (_, i) => String.fromCharCode(32 + i)),
+  ...EXTRA_CHARACTERS,
+];
 
 /**
  * Colours resolve on call, not at module load: `resolveMapColor` caches its
@@ -52,11 +133,12 @@ export interface MapLabelProps {
  */
 export function mapLabelProps(size = 11): MapLabelProps {
   return {
-    fontFamily: "inherit",
+    fontFamily: labelFontFamily(),
     fontWeight: 600,
     getSize: size,
     sizeUnits: "pixels",
-    fontSettings: { sdf: true, radius: 16, buffer: 8 },
+    characterSet: CHARACTER_SET,
+    fontSettings: { sdf: true, fontSize: ATLAS_FONT_SIZE, radius: 16, buffer: 8 },
     outlineWidth: 8,
     // In the halo band the shader takes its alpha from outlineColor; 220 keeps
     // labels readable over bright fills without fully hiding what's underneath.

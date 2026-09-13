@@ -20,11 +20,11 @@ const { iconAtlas, iconMapping } = createPOIIconAtlas();
 const collisionFilter = new CollisionFilterExtension();
 
 /**
- * Lowest zoom at which any POI is drawn — the health group's gate. Per-group
- * gates live in GROUP_META.minZoom, so the map fills in by usefulness rather
- * than all at once.
+ * Lowest zoom at which any POI is drawn — the earliest group gate
+ * (health/fuel). Per-group gates live in GROUP_META.minZoom, so the map fills
+ * in by usefulness rather than all at once.
  */
-const MIN_ZOOM = 11.5;
+const MIN_ZOOM = 12.5;
 
 /** Zoom at which persistent name labels appear beneath the markers. */
 const LABEL_ZOOM = 15;
@@ -32,15 +32,27 @@ const LABEL_ZOOM = 15;
 /**
  * Collision spacing multiplier — how much larger the collision hitbox is
  * compared to the rendered icon. 1.0 = no extra spacing, 2.0 = double.
+ *
+ * Wider below zoom 15, where a viewport still spans whole neighbourhoods and
+ * the markers otherwise pack shoulder to shoulder; once you are inside a
+ * street the extra air costs coverage instead of buying legibility.
  */
-const COLLISION_SIZE_SCALE = 2.5;
+const COLLISION_SIZE_SCALE_WIDE = 3.5;
+const COLLISION_SIZE_SCALE_TIGHT = 2.5;
+const COLLISION_TIGHTEN_ZOOM = 15;
 
 /** Fade-in duration in milliseconds. */
 const FADE_DURATION_MS = 500;
 
-/** Bus-stop-style markers stay small; everything else is a full-size disc. */
-const TRANSIT_SIZE = 16;
-const DEFAULT_SIZE = 22;
+/**
+ * Wayfinding anchors — hospitals, fuel, transit — are drawn full size; the
+ * ambient carpet (shops, food, leisure, civic, education, worship) is a size
+ * smaller so it reads as background even where it survives the collision pass.
+ * Bus stops are anchors too, so transit is no longer the small-glyph exception.
+ */
+const ANCHOR_SIZE = 22;
+const DEFAULT_SIZE = 18;
+const ANCHOR_GROUPS: ReadonlySet<PoiGroup> = new Set<PoiGroup>(["health", "transit", "fuel"]);
 
 /** Label size and offset, shared between the TextLayer and the declutter pass. */
 const LABEL_SIZE = 12;
@@ -166,6 +178,9 @@ export default function POIs({ visible, onClick, selectable = true }: POIMarkerP
       .slice(0, MAX_LABEL_CANDIDATES);
   }, [visiblePois, showLabels, labelBounds]);
 
+  const collisionSizeScale =
+    settledZoom >= COLLISION_TIGHTEN_ZOOM ? COLLISION_SIZE_SCALE_TIGHT : COLLISION_SIZE_SCALE_WIDE;
+
   const visibleLabels = useVisibleLabels("poi-labels", labelItems, viewport, settledZoom);
 
   const labelledPois = useMemo(
@@ -183,10 +198,13 @@ export default function POIs({ visible, onClick, selectable = true }: POIMarkerP
         data: visiblePois,
         updateTriggers: {
           getColor: [settledZoom],
+          // collisionTestProps is read when the collision pass rebuilds, so the
+          // spacing switch has to be an explicit trigger like any accessor.
+          getCollisionPriority: [collisionSizeScale],
         },
         getPosition: (d) => [d.poi.coordinates[1], d.poi.coordinates[0]],
         getIcon: (d) => d.group,
-        getSize: (d) => (d.group === "transit" ? TRANSIT_SIZE : DEFAULT_SIZE),
+        getSize: (d) => (ANCHOR_GROUPS.has(d.group) ? ANCHOR_SIZE : DEFAULT_SIZE),
         getColor: (d) => {
           const alpha = settledZoom >= GROUP_META[d.group].minZoom ? 255 : 0;
           return [255, 255, 255, alpha];
@@ -220,7 +238,7 @@ export default function POIs({ visible, onClick, selectable = true }: POIMarkerP
           collisionGroup: "map-markers",
           getCollisionPriority: (d: GroupedPOI) => GROUP_META[d.group].priority,
           collisionTestProps: {
-            sizeScale: COLLISION_SIZE_SCALE,
+            sizeScale: collisionSizeScale,
             sizeMaxPixels: 200,
           },
         } as Record<string, unknown>),
@@ -241,7 +259,7 @@ export default function POIs({ visible, onClick, selectable = true }: POIMarkerP
         pickable: false,
       }),
     ],
-    [visiblePois, labelledPois, onClick, selectable, settledZoom]
+    [visiblePois, labelledPois, onClick, selectable, settledZoom, collisionSizeScale]
   );
 
   useRegisterLayers("pois", layers, 45);

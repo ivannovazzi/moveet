@@ -6,7 +6,9 @@ import {
   type LabelBox,
   type LabelItem,
   LABEL_PRIORITY,
+  labelFontFamily,
   mapLabelProps,
+  resetLabelFontFamily,
   useVisibleLabels,
 } from "./mapLabels";
 
@@ -32,6 +34,55 @@ describe("mapLabelProps", () => {
     expect(props.fontSettings.buffer).toBeGreaterThanOrEqual(0.75 * props.outlineWidth);
     expect(props.getSize).toBe(12);
     expect(props.sizeUnits).toBe("pixels");
+    expect(props.fontSettings.fontSize).toBe(64);
+  });
+
+  it("names a concrete font family, never the CSS keyword", () => {
+    // deck.gl rasterises the atlas with `ctx.font = "600 64px <fontFamily>"`.
+    // A canvas silently ignores an invalid shorthand and keeps its 10px
+    // default, which rendered every map label as a ~2px dash.
+    resetLabelFontFamily();
+    const { fontFamily } = mapLabelProps();
+    expect(typeof fontFamily).toBe("string");
+    expect(fontFamily.length).toBeGreaterThan(0);
+    expect(fontFamily).not.toBe("inherit");
+    expect(fontFamily).not.toMatch(/\b(inherit|initial|unset|revert)\b/);
+  });
+
+  it("falls back to a concrete stack when the document resolves nothing usable", () => {
+    // jsdom answers "depends on user agent", which would reach the canvas as a
+    // family name of that literal text.
+    resetLabelFontFamily();
+    const original = document.body.style.fontFamily;
+    document.body.style.fontFamily = "";
+    expect(labelFontFamily()).toMatch(/sans-serif/);
+    resetLabelFontFamily();
+    document.body.style.fontFamily = original;
+  });
+
+  it("prefers the family the document actually resolves", () => {
+    resetLabelFontFamily();
+    const original = document.body.style.fontFamily;
+    document.body.style.fontFamily = "Inter, sans-serif";
+    expect(labelFontFamily()).toContain("Inter");
+    resetLabelFontFamily();
+    document.body.style.fontFamily = original;
+  });
+
+  it("caches the resolved family across calls", () => {
+    resetLabelFontFamily();
+    const first = labelFontFamily();
+    const original = document.body.style.fontFamily;
+    document.body.style.fontFamily = "Comic Sans MS";
+    expect(labelFontFamily()).toBe(first);
+    resetLabelFontFamily();
+    document.body.style.fontFamily = original;
+  });
+
+  it("covers ASCII plus the punctuation that shows up in place names", () => {
+    const set = new Set(mapLabelProps().characterSet);
+    for (const char of "ABCabc123 &'-/()") expect(set.has(char)).toBe(true);
+    for (const char of "\u2019\u2013\u2026\u00b0") expect(set.has(char)).toBe(true);
   });
 });
 

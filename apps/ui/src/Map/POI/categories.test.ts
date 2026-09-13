@@ -193,8 +193,8 @@ describe("GROUP_META", () => {
 
   it("gates every group inside the street-zoom band", () => {
     for (const group of POI_GROUPS) {
-      expect(GROUP_META[group].minZoom).toBeGreaterThanOrEqual(11);
-      expect(GROUP_META[group].minZoom).toBeLessThanOrEqual(14);
+      expect(GROUP_META[group].minZoom).toBeGreaterThanOrEqual(12);
+      expect(GROUP_META[group].minZoom).toBeLessThanOrEqual(15);
     }
   });
 
