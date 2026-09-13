@@ -20,9 +20,10 @@ const DRAW_SIMPLIFY_PX = 4;
 
 const DENSITY_LINE_RGBA = resolveMapColor("var(--color-overlay-density)", 153);
 const SELECTED_LINE_RGBA = resolveMapColor("var(--color-overlay-density)", 255);
+/** Shared with every other map label, so it is resolved per use rather than at
+ *  module load — a module-load read would cache a pre-stylesheet value under
+ *  the shared key and hand it to every layer that asks for the same token. */
 const LABEL_TOKEN = "var(--color-map-label)";
-const WHITE_RGBA = resolveMapColor(LABEL_TOKEN, 255);
-const DRAW_RGBA = resolveMapColor(LABEL_TOKEN, 220);
 
 interface HeatzoneDatum {
   id: string;
@@ -399,7 +400,7 @@ export default function Heatzones({ visible }: { visible: boolean }) {
         id: "heatzone-draw",
         data: [{ path: drawPoints }],
         getPath: (d) => d.path,
-        getColor: DRAW_RGBA,
+        getColor: resolveMapColor(LABEL_TOKEN, 220),
         getWidth: 2,
         widthUnits: "pixels",
         capRounded: true,
@@ -417,6 +418,7 @@ export default function Heatzones({ visible }: { visible: boolean }) {
     const zone = heatzones.find((z) => z.properties.id === editor.selectedId);
     if (!zone) return [];
     const verts = openRing(effectiveCoords(zone));
+    const inkRgba = resolveMapColor(LABEL_TOKEN);
     return [
       new ScatterplotLayer<Position>({
         id: "heatzone-handles",
@@ -425,7 +427,7 @@ export default function Heatzones({ visible }: { visible: boolean }) {
         getRadius: 5,
         radiusUnits: "pixels",
         getFillColor: SELECTED_LINE_RGBA,
-        getLineColor: WHITE_RGBA,
+        getLineColor: inkRgba,
         getLineWidth: 1.5,
         lineWidthUnits: "pixels",
         stroked: true,
@@ -439,7 +441,7 @@ export default function Heatzones({ visible }: { visible: boolean }) {
         getPosition: (d) => d,
         getRadius: 7,
         radiusUnits: "pixels",
-        getFillColor: WHITE_RGBA,
+        getFillColor: inkRgba,
         getLineColor: SELECTED_LINE_RGBA,
         getLineWidth: 2,
         lineWidthUnits: "pixels",

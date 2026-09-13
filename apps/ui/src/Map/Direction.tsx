@@ -468,7 +468,9 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
             // size, opaque) — a lightweight "progression" cue.
             getRadius: (d) => (d.isCurrent ? 7 : 4 + d.progress * 2),
             getFillColor: (d) =>
-              d.isCurrent ? d.color : [0, 0, 0, Math.round(90 + d.progress * 120)],
+              d.isCurrent
+                ? d.color
+                : resolveMapColor(CASING_TOKEN, Math.round(90 + d.progress * 120)),
             getLineColor: (d) => (d.isCurrent ? labelRgba : d.color),
             getLineWidth: 1.5,
             stroked: true,

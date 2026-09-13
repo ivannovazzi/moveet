@@ -139,15 +139,37 @@ export interface LabelItem {
 // ── Cross-layer registry ───────────────────────────────────────────────────
 // Layers are independent components, so decluttering one against another needs
 // a place outside React for them to meet. This is that place: a module store
-// holding each layer's current candidates, flattened into one snapshot array
-// whose identity changes exactly when the contents do.
+// holding each layer's current candidates, flattened into one snapshot array.
+//
+// The snapshot's identity is load-bearing in both directions, because layers
+// naturally build their `items` inline on every render. A caller re-registering
+// an equal-but-new array must NOT produce a new snapshot, or the subscribers it
+// wakes re-render, rebuild `items`, re-register, and the loop never settles.
+// So the store compares contents (see `signature`) and only publishes on a real
+// change; `useVisibleLabels` keys its own registration on the same signature.
 
 const registry = new Map<string, LabelItem[]>();
 const listeners = new Set<() => void>();
 let snapshot: LabelItem[] = [];
+let snapshotSignature = "";
+
+/** Everything about a label that can change what the declutter decides. */
+function signature(items: LabelItem[]): string {
+  return items
+    .map((item) => {
+      const [dx, dy] = item.pixelOffset ?? [0, 0];
+      const [lng, lat] = item.position;
+      return `${item.id}|${item.text}|${lng}|${lat}|${item.size}|${item.priority}|${dx}|${dy}`;
+    })
+    .join(";");
+}
 
 function publish(): void {
-  snapshot = Array.from(registry.values()).flat();
+  const next = Array.from(registry.values()).flat();
+  const nextSignature = signature(next);
+  if (nextSignature === snapshotSignature) return;
+  snapshot = next;
+  snapshotSignature = nextSignature;
   for (const listener of listeners) listener();
 }
 
@@ -187,10 +209,16 @@ export function useVisibleLabels(
   viewport: LabelViewport | null,
   settledZoom: number
 ): Set<string> {
+  // Callers build `items` inline, so its identity churns every render. Pin the
+  // array to its content signature and let everything downstream key on that.
+  const itemsSignature = signature(items);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `itemsSignature` is the content identity of `items`
+  const stableItems = useMemo(() => items, [itemsSignature]);
+
   useEffect(() => {
-    registerLabels(layerId, items);
+    registerLabels(layerId, stableItems);
     return () => unregisterLabels(layerId);
-  }, [layerId, items]);
+  }, [layerId, stableItems]);
 
   const all = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
@@ -199,18 +227,20 @@ export function useVisibleLabels(
   // rather than leaving the previous zoom's verdict on screen.
   // biome-ignore lint/correctness/useExhaustiveDependencies: settledZoom is a recompute trigger, see above
   return useMemo(() => {
-    if (!viewport) return new Set(items.map((item) => item.id));
+    if (!viewport) return new Set(stableItems.map((item) => item.id));
 
-    // `items` may not have reached the store yet on the render that produced
-    // them (registration happens in an effect), so prefer the live prop over
-    // this layer's snapshot entry and take the other layers from the store.
-    const ownIds = new Set(items.map((item) => item.id));
-    const candidates = [...all.filter((item) => !ownIds.has(item.id)), ...items];
+    // `stableItems` may not have reached the store yet on the render that
+    // produced them (registration happens in an effect), so prefer the live
+    // prop over this layer's snapshot entry and take the rest from the store.
+    const ownIds = new Set(stableItems.map((item) => item.id));
+    const candidates = [...all.filter((item) => !ownIds.has(item.id)), ...stableItems];
 
     const boxes: LabelBox[] = [];
     for (const item of candidates) {
       const projected = viewport.project([item.position[0], item.position[1]]);
-      if (!projected) continue;
+      // A label behind the camera or at a degenerate coordinate projects to
+      // NaN/Infinity; it has no box, so it can neither be placed nor block one.
+      if (!Number.isFinite(projected?.[0]) || !Number.isFinite(projected?.[1])) continue;
       const [dx, dy] = item.pixelOffset ?? [0, 0];
       const { w, h } = estimateLabelSize(item.text, item.size);
       boxes.push({
@@ -227,5 +257,5 @@ export function useVisibleLabels(
     const mine = new Set<string>();
     for (const id of ownIds) if (visible.has(id)) mine.add(id);
     return mine;
-  }, [all, items, viewport, settledZoom]);
+  }, [all, stableItems, viewport, settledZoom]);
 }

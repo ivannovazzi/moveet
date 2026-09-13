@@ -87,4 +87,25 @@ describe("useVisibleLabels", () => {
     expect(pois.result.current).toEqual(new Set(["poi-1"]));
     pois.unmount();
   });
+
+  it("settles when the caller rebuilds its items array every render", () => {
+    // The natural way to call this is with an inline array, which is a fresh
+    // reference each render. If the store republished on every registration,
+    // subscribing would wake the caller, which would rebuild the array, which
+    // would republish — a render loop. It has to converge instead.
+    let renders = 0;
+    const { result, unmount } = renderHook(() => {
+      renders++;
+      return useVisibleLabels(
+        "inline",
+        [item("inline-a", 10, 10, 10), item("inline-b", 400, 400, 10)],
+        identityViewport,
+        12
+      );
+    });
+
+    expect(renders).toBeLessThanOrEqual(3);
+    expect(result.current).toEqual(new Set(["inline-a", "inline-b"]));
+    unmount();
+  });
 });

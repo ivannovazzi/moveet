@@ -27,8 +27,12 @@ function getSharedCtx(): CanvasRenderingContext2D | null {
   return sharedCtx;
 }
 
-/** Fallback used when the color can't be resolved (e.g. jsdom in tests). */
-const FALLBACK: [number, number, number, number] = [128, 128, 128, 255];
+/**
+ * Fallback RGB used when the color can't be resolved (e.g. jsdom in tests).
+ * The requested alpha is kept: callers encode meaning in it (a casing at 210,
+ * a halo at 70), and dropping it made those distinctions untestable.
+ */
+const FALLBACK_RGB: [number, number, number] = [128, 128, 128];
 
 export function resolveMapColor(color: string, alpha = 255): [number, number, number, number] {
   const key = `${color}:${alpha}`;
@@ -45,7 +49,7 @@ export function resolveMapColor(color: string, alpha = 255): [number, number, nu
   }
 
   const ctx = getSharedCtx();
-  let rgba = FALLBACK;
+  let rgba: [number, number, number, number] = [...FALLBACK_RGB, alpha];
   if (ctx) {
     ctx.clearRect(0, 0, 1, 1);
     ctx.fillStyle = cssColor;
