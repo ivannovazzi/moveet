@@ -3,6 +3,22 @@ import { POI_GROUPS } from "./categories";
 import { SUPPORTED_GLYPH_TAGS } from "./iconAtlas";
 import { POI_GLYPHS } from "./glyphs";
 
+/** Attributes the rasteriser reads, per tag. */
+const REQUIRED_ATTRS: Record<string, string[]> = {
+  path: ["d"],
+  circle: ["cx", "cy", "r"],
+  rect: ["x", "y", "width", "height"],
+  line: ["x1", "y1", "x2", "y2"],
+  polyline: ["points"],
+  polygon: ["points"],
+};
+
+/** Everything an element may legally carry: the required set plus rounded-rect radii. */
+const ALLOWED_ATTRS: Record<string, string[]> = {
+  ...REQUIRED_ATTRS,
+  rect: [...REQUIRED_ATTRS.rect, "rx", "ry"],
+};
+
 describe("POI_GLYPHS", () => {
   it("gives every group something to draw", () => {
     for (const group of POI_GROUPS) {
@@ -22,18 +38,23 @@ describe("POI_GLYPHS", () => {
   });
 
   it("gives every element the attributes its tag is drawn from", () => {
-    const required: Record<string, string[]> = {
-      path: ["d"],
-      circle: ["cx", "cy", "r"],
-      rect: ["x", "y", "width", "height"],
-      line: ["x1", "y1", "x2", "y2"],
-      polyline: ["points"],
-      polygon: ["points"],
-    };
     for (const group of POI_GROUPS) {
       for (const [tag, attrs] of POI_GLYPHS[group]) {
-        for (const attr of required[tag]) {
+        for (const attr of REQUIRED_ATTRS[tag]) {
           expect(attrs[attr], `${group}: ${tag}.${attr}`).toBeDefined();
+        }
+      }
+    }
+  });
+
+  it("carries no attribute the rasteriser would silently ignore", () => {
+    // `rx`/`ry` on a rect, a `transform`, a `fill-rule`: anything the draw path
+    // does not read changes the shape in lucide's SVG but not on our canvas, so
+    // it has to fail here rather than ship a subtly different icon.
+    for (const group of POI_GROUPS) {
+      for (const [tag, attrs] of POI_GLYPHS[group]) {
+        for (const attr of Object.keys(attrs)) {
+          expect(ALLOWED_ATTRS[tag], `${group}: ${tag}.${attr}`).toContain(attr);
         }
       }
     }

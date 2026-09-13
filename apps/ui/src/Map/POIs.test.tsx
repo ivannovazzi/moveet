@@ -23,7 +23,15 @@ vi.mock("@/components/Map/hooks/useDeckLayers", () => ({
 }));
 
 vi.mock("@/components/Map/hooks", () => ({
-  useMapContext: () => ({ getZoom: () => 16, viewport: null, viewState: { zoom: 16 } }),
+  useMapContext: () => ({
+    getZoom: () => 16,
+    getBoundingBox: () => [
+      [36.6, -1.45],
+      [37.05, -1.15],
+    ],
+    viewport: null,
+    viewState: { zoom: 16 },
+  }),
 }));
 
 vi.mock("@/hooks/usePois", () => ({

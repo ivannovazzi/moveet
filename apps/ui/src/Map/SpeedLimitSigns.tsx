@@ -34,8 +34,8 @@ const FADE_DURATION_MS = 500;
  * Quantization + debouncing lives in {@link useSettledZoom}.
  */
 
-/** Collision priority — between the POI worship (4) and education (5) groups. */
-const SPEED_LIMIT_PRIORITY = 4;
+/** Collision priority — between worship (4) and education (5). */
+const SPEED_LIMIT_PRIORITY = 4.5;
 
 interface SpeedLimitSignsProps {
   visible: boolean;

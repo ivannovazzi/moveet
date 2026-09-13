@@ -1,13 +1,17 @@
 import { useMemo, useEffect } from "react";
 import { PathLayer, TextLayer } from "@deck.gl/layers";
 import type { Position, Road } from "@/types";
-import { useMapControls } from "@/components/Map/hooks";
+import { useMapContext, useMapControls } from "@/components/Map/hooks";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
+import { useSettledZoom } from "./hooks/useSettledZoom";
 import { resolveMapColor } from "@/lib/mapColor";
-import { mapLabelProps } from "@/lib/mapLabels";
+import { LABEL_PRIORITY, mapLabelProps, useVisibleLabels, type LabelItem } from "@/lib/mapLabels";
 
 /** The selected road draws in the neutral map ink, halo and all. */
 const LABEL_TOKEN = "var(--color-map-label)";
+
+/** Label size, shared between the TextLayer and the declutter pass. */
+const LABEL_SIZE = 14;
 
 interface DirectionProps {
   road: Road;
@@ -39,10 +43,38 @@ function centroid(coords: Position[]): Position {
 
 export default function DirectionMap({ road }: DirectionProps) {
   const { setBounds } = useMapControls();
+  const { viewport, getZoom } = useMapContext();
+  const { settledZoom } = useSettledZoom(getZoom());
 
   useEffect(() => {
     setBounds(getBounds(road.streets.flat()));
   }, [road.streets, setBounds]);
+
+  const center = useMemo(
+    () => (road.streets.length === 0 ? null : centroid(road.streets.flat())),
+    [road]
+  );
+
+  // The road the operator explicitly selected outranks every other label on the
+  // map, so this registers at the top of the priority scale and the POI carpet
+  // yields to it rather than the other way round.
+  const labelItems = useMemo<LabelItem[]>(
+    () =>
+      center === null
+        ? []
+        : [
+            {
+              id: "selected-road",
+              position: [center[0], center[1]],
+              text: road.name,
+              size: LABEL_SIZE,
+              priority: LABEL_PRIORITY.selectedRoad,
+            },
+          ],
+    [center, road.name]
+  );
+
+  const visibleLabels = useVisibleLabels("selected-road-label", labelItems, viewport, settledZoom);
 
   const layers = useMemo(() => {
     if (road.streets.length === 0) return [];
@@ -52,8 +84,7 @@ export default function DirectionMap({ road }: DirectionProps) {
       path: street as [number, number][],
     }));
 
-    const allCoords = road.streets.flat();
-    const center = centroid(allCoords);
+    const showLabel = center !== null && visibleLabels.has("selected-road");
 
     return [
       new PathLayer<(typeof pathData)[number]>({
@@ -71,9 +102,9 @@ export default function DirectionMap({ road }: DirectionProps) {
         pickable: false,
       }),
       new TextLayer({
-        ...mapLabelProps(14),
+        ...mapLabelProps(LABEL_SIZE),
         id: "selected-road-label",
-        data: [{ text: road.name, position: center }],
+        data: showLabel && center ? [{ text: road.name, position: center }] : [],
         getPosition: (d) => d.position,
         getText: (d) => d.text,
         getColor: resolveMapColor(LABEL_TOKEN),
@@ -82,7 +113,7 @@ export default function DirectionMap({ road }: DirectionProps) {
         pickable: false,
       }),
     ];
-  }, [road]);
+  }, [road, center, visibleLabels]);
 
   useRegisterLayers("selected-road", layers);
 

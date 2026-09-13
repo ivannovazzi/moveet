@@ -47,6 +47,27 @@ const LABEL_SIZE = 12;
 const LABEL_OFFSET: [number, number] = [0, 17];
 
 /**
+ * How far past the viewport a POI still counts as a label candidate. A little
+ * slack keeps labels from popping in at the edge as you pan.
+ */
+const LABEL_BOUNDS_MARGIN = 0.25;
+
+/**
+ * Ceiling on label candidates handed to the declutter pass. Nairobi has ~21,000
+ * POIs and a street-zoom viewport can still hold a few thousand; the pass is
+ * O(n log n) across every layer on the map, and no viewport can fit more than a
+ * few dozen labels anyway, so the rest is work with no possible effect on the
+ * picture. Candidates are kept in group-priority order, so the cap trims the
+ * leisure carpet before it trims a hospital.
+ */
+const MAX_LABEL_CANDIDATES = 400;
+
+/** Round to ~100m so an inertial pan doesn't re-slice the candidate set. */
+function quantize(value: number): number {
+  return Math.round(value * 1000) / 1000;
+}
+
+/**
  * Zoom is quantized to discrete steps so deck.gl color transitions can
  * complete between updates instead of restarting on every animation frame.
  * Quantization + debouncing lives in {@link useSettledZoom}.
@@ -70,7 +91,7 @@ interface POIMarkerProps {
 }
 
 export default function POIs({ visible, onClick, selectable = true }: POIMarkerProps) {
-  const { getZoom, viewport } = useMapContext();
+  const { getZoom, getBoundingBox, viewport } = useMapContext();
   const { pois } = usePois();
   const zoom = getZoom();
 
@@ -97,20 +118,53 @@ export default function POIs({ visible, onClick, selectable = true }: POIMarkerP
     return grouped;
   }, [pois, showData, isZooming]);
 
+  // The viewport box, quantised so it is a stable memo key across a pan rather
+  // than a fresh array every animation frame.
+  const [[west, south], [east, north]] = getBoundingBox();
+  const boundsKey = `${quantize(west)}|${quantize(south)}|${quantize(east)}|${quantize(north)}`;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `boundsKey` is the quantised identity of the box
+  const labelBounds = useMemo(() => {
+    if (west === east || south === north) return null;
+    const padX = (east - west) * LABEL_BOUNDS_MARGIN;
+    const padY = (north - south) * LABEL_BOUNDS_MARGIN;
+    return { west: west - padX, east: east + padX, south: south - padY, north: north + padY };
+  }, [boundsKey]);
+
   // Candidate labels are decluttered against every other map label layer, so
   // POI names yield to route, dispatch, job and geofence text. Within POIs the
   // group priority breaks ties, matching the icon collision order.
+  //
+  // Only POIs near the viewport are offered, and only the most useful
+  // MAX_LABEL_CANDIDATES of those: the declutter pass is shared across every
+  // map layer, so feeding it the whole city would tax every other layer too.
   const labelItems = useMemo<LabelItem[]>(() => {
     if (!showLabels) return [];
-    return visiblePois.map(({ poi, group }) => ({
-      id: poi.id,
-      position: [poi.coordinates[1], poi.coordinates[0]] as [number, number],
-      text: poi.name ?? "",
-      size: LABEL_SIZE,
-      priority: LABEL_PRIORITY.poi + GROUP_META[group].priority,
-      pixelOffset: LABEL_OFFSET,
-    }));
-  }, [visiblePois, showLabels]);
+    const candidates: LabelItem[] = [];
+    for (const { poi, group } of visiblePois) {
+      const [lat, lng] = poi.coordinates;
+      if (
+        labelBounds &&
+        (lng < labelBounds.west ||
+          lng > labelBounds.east ||
+          lat < labelBounds.south ||
+          lat > labelBounds.north)
+      ) {
+        continue;
+      }
+      candidates.push({
+        id: poi.id,
+        position: [lng, lat],
+        text: poi.name ?? "",
+        size: LABEL_SIZE,
+        priority: LABEL_PRIORITY.poi + GROUP_META[group].priority,
+        pixelOffset: LABEL_OFFSET,
+      });
+    }
+    if (candidates.length <= MAX_LABEL_CANDIDATES) return candidates;
+    return candidates
+      .sort((a, b) => b.priority - a.priority || a.id.localeCompare(b.id))
+      .slice(0, MAX_LABEL_CANDIDATES);
+  }, [visiblePois, showLabels, labelBounds]);
 
   const visibleLabels = useVisibleLabels("poi-labels", labelItems, viewport, settledZoom);
 

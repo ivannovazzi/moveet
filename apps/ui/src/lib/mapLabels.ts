@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { resolveMapColor } from "./mapColor";
 
 /**
@@ -193,9 +193,51 @@ function getSnapshot(): LabelItem[] {
   return snapshot;
 }
 
-/** The slice of a viewport this module needs — keeps tests free of deck.gl. */
+/**
+ * The slice of a viewport this module needs — keeps tests free of deck.gl, and
+ * is satisfied structurally by deck.gl's `WebMercatorViewport`.
+ *
+ * `width`/`height` drive the off-screen cull and `longitude`/`latitude`/`zoom`
+ * the throttle key. All are optional: without a size nothing is culled by
+ * screen bounds, and without a centre every viewport identity looks alike, so a
+ * bare `{ project }` still behaves exactly as it did before.
+ */
 export interface LabelViewport {
   project(lngLat: number[]): number[];
+  width?: number;
+  height?: number;
+  longitude?: number;
+  latitude?: number;
+  zoom?: number;
+}
+
+/**
+ * How far outside the canvas a label may sit and still be considered. Wide
+ * enough that a label anchored just off-screen still blocks an on-screen
+ * neighbour, so labels don't pop as you pan.
+ */
+const CULL_MARGIN_PX = 64;
+
+/**
+ * Ceiling on how often the pass re-runs while the view is changing. Panning
+ * hands us a brand-new viewport object every animation frame, and the pass is
+ * O(n log n) over every registered label on the map; at 60fps that is the
+ * single most expensive thing on the main thread. 120ms is slow enough to cost
+ * nothing and fast enough that the verdict never visibly lags the gesture.
+ */
+const VIEW_THROTTLE_MS = 120;
+
+/**
+ * A viewport's identity for throttling purposes. Rounded so the sub-pixel
+ * drift of an inertial pan doesn't count as a change: ~1e-4 degrees is about
+ * 11m, and 0.1 zoom levels is well below what moves a label.
+ */
+function viewKey(viewport: LabelViewport | null): string {
+  if (!viewport) return "none";
+  const lng = Math.round((viewport.longitude ?? 0) * 1e4) / 1e4;
+  const lat = Math.round((viewport.latitude ?? 0) * 1e4) / 1e4;
+  const zoom = Math.round((viewport.zoom ?? 0) * 10) / 10;
+  return `${lng}|${lat}|${zoom}|${viewport.width ?? 0}|${viewport.height ?? 0}`;
 }
 
 /**
@@ -211,7 +253,10 @@ export function useVisibleLabels(
 ): Set<string> {
   // Callers build `items` inline, so its identity churns every render. Pin the
   // array to its content signature and let everything downstream key on that.
-  const itemsSignature = signature(items);
+  // The signature itself is memoised on the array identity, so a caller that
+  // hands over a memoised array (the expensive ones do — POIs can register
+  // hundreds) pays nothing per render.
+  const itemsSignature = useMemo(() => signature(items), [items]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: `itemsSignature` is the content identity of `items`
   const stableItems = useMemo(() => items, [itemsSignature]);
 
@@ -222,12 +267,46 @@ export function useVisibleLabels(
 
   const all = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
+  // ── Throttle ────────────────────────────────────────────────────────────
+  // The pass reads the live viewport through a ref, and re-runs only when the
+  // *settled* view key changes. A pan produces a new viewport object per frame
+  // and six of these hooks are mounted at once, so keying the memo on viewport
+  // identity meant six full cross-layer passes per animation frame.
+  const viewportRef = useRef(viewport);
+  viewportRef.current = viewport;
+  const key = viewKey(viewport);
+  const [settledKey, setSettledKey] = useState(key);
+  const lastRunRef = useRef(0);
+  const trailingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (settledKey === key) return;
+    const apply = () => {
+      lastRunRef.current = Date.now();
+      setSettledKey(key);
+    };
+    const elapsed = Date.now() - lastRunRef.current;
+    if (elapsed >= VIEW_THROTTLE_MS) {
+      apply();
+    } else {
+      // Trailing edge, so the frame the gesture ends on still gets a verdict.
+      if (trailingRef.current) clearTimeout(trailingRef.current);
+      trailingRef.current = setTimeout(apply, VIEW_THROTTLE_MS - elapsed);
+    }
+    return () => {
+      if (trailingRef.current) clearTimeout(trailingRef.current);
+    };
+  }, [key, settledKey]);
+
   // `settledZoom` is not read in the body — the viewport already carries the
   // zoom — but it is what re-runs the pass once a zoom gesture comes to rest,
-  // rather than leaving the previous zoom's verdict on screen.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: settledZoom is a recompute trigger, see above
+  // rather than leaving the previous zoom's verdict on screen. `settledKey`
+  // does the same for pans. Between recomputes the memo hands back the last
+  // Set, which is exactly the "keep showing what you decided" behaviour we want.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: settledKey/settledZoom are recompute triggers, see above
   return useMemo(() => {
-    if (!viewport) return new Set(stableItems.map((item) => item.id));
+    const vp = viewportRef.current;
+    if (!vp) return new Set(stableItems.map((item) => item.id));
 
     // `stableItems` may not have reached the store yet on the render that
     // produced them (registration happens in an effect), so prefer the live
@@ -235,27 +314,33 @@ export function useVisibleLabels(
     const ownIds = new Set(stableItems.map((item) => item.id));
     const candidates = [...all.filter((item) => !ownIds.has(item.id)), ...stableItems];
 
+    // Off-screen labels can neither be drawn nor block anything that is drawn,
+    // so they are dropped before the O(n log n) pass rather than sorted first.
+    // At street zoom the POI layer alone offers thousands of candidates and
+    // only a few dozen are on the canvas.
+    const cullWidth = Number.isFinite(vp.width) ? (vp.width as number) : null;
+    const cullHeight = Number.isFinite(vp.height) ? (vp.height as number) : null;
+
     const boxes: LabelBox[] = [];
     for (const item of candidates) {
-      const projected = viewport.project([item.position[0], item.position[1]]);
+      const projected = vp.project([item.position[0], item.position[1]]);
       // A label behind the camera or at a degenerate coordinate projects to
       // NaN/Infinity; it has no box, so it can neither be placed nor block one.
       if (!Number.isFinite(projected?.[0]) || !Number.isFinite(projected?.[1])) continue;
       const [dx, dy] = item.pixelOffset ?? [0, 0];
       const { w, h } = estimateLabelSize(item.text, item.size);
-      boxes.push({
-        id: item.id,
-        x: projected[0] + dx,
-        y: projected[1] + dy,
-        w,
-        h,
-        priority: item.priority,
-      });
+      const x = projected[0] + dx;
+      const y = projected[1] + dy;
+      if (cullWidth !== null && cullHeight !== null) {
+        if (x + w / 2 < -CULL_MARGIN_PX || x - w / 2 > cullWidth + CULL_MARGIN_PX) continue;
+        if (y + h / 2 < -CULL_MARGIN_PX || y - h / 2 > cullHeight + CULL_MARGIN_PX) continue;
+      }
+      boxes.push({ id: item.id, x, y, w, h, priority: item.priority });
     }
 
     const visible = declutter(boxes);
     const mine = new Set<string>();
     for (const id of ownIds) if (visible.has(id)) mine.add(id);
     return mine;
-  }, [all, stableItems, viewport, settledZoom]);
+  }, [all, stableItems, settledKey, settledZoom]);
 }

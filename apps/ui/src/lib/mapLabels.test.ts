@@ -17,6 +17,9 @@ function box(id: string, x: number, y: number, priority: number): LabelBox {
 /** Projects [lng, lat] straight through as pixels, so tests place boxes by hand. */
 const identityViewport = { project: (lngLat: number[]) => [lngLat[0], lngLat[1]] };
 
+/** Same projection, but with a canvas size so the off-screen cull engages. */
+const sizedViewport = { ...identityViewport, width: 800, height: 600 };
+
 function item(id: string, x: number, y: number, priority: number): LabelItem {
   return { id, position: [x, y], text: "abcdef", size: 12, priority };
 }
@@ -86,6 +89,32 @@ describe("useVisibleLabels", () => {
     pois.rerender();
     expect(pois.result.current).toEqual(new Set(["poi-1"]));
     pois.unmount();
+  });
+
+  it("culls off-screen candidates instead of decluttering the whole city", () => {
+    // At street zoom the POI layer offers thousands of candidates and only a
+    // few dozen are on the canvas. The pass has to pay for the visible ones.
+    const onScreen = 50;
+    const items: LabelItem[] = [];
+    for (let i = 0; i < onScreen; i++) {
+      items.push(item(`near-${i}`, 20 + (i % 10) * 70, 20 + Math.floor(i / 10) * 100, 10));
+    }
+    for (let i = 0; i < 4950; i++) {
+      // Well outside 800x600 + the 64px margin, in every direction.
+      items.push(item(`far-${i}`, 5000 + i, 5000 + i, 10));
+    }
+
+    const started = performance.now();
+    const { result, unmount } = renderHook(() =>
+      useVisibleLabels("bulk", items, sizedViewport, 16)
+    );
+    const elapsed = performance.now() - started;
+
+    expect(result.current.size).toBeGreaterThan(0);
+    expect(result.current.size).toBeLessThanOrEqual(onScreen);
+    for (const id of result.current) expect(id.startsWith("near-")).toBe(true);
+    expect(elapsed).toBeLessThan(50);
+    unmount();
   });
 
   it("settles when the caller rebuilds its items array every render", () => {

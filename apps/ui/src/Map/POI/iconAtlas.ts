@@ -24,7 +24,11 @@ const ICON_PAD = 5;
 const GLYPH_VIEWBOX = 24;
 /** Fraction of the disc's diameter the glyph fills. */
 const GLYPH_FILL = 0.58;
-/** Matches lucide's `strokeWidth`, in viewBox units. */
+/**
+ * Glyph stroke width in viewBox units. A deliberate bump over lucide's default
+ * of 2: these are drawn at roughly 22px on a coloured disc, and the thinner
+ * default reads as grey mush against the fill at that size.
+ */
 const GLYPH_STROKE = 2.25;
 
 type IconMappingEntry = {

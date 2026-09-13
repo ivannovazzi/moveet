@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { POI, Road, Vehicle } from "@/types";
 import { CarIcon, POI as POIIcon, Road as RoadIcon, Search } from "@/components/Icons";
+import { groupForType } from "@/Map/POI/categories";
 import { Highlight, score } from "@/SearchBar/fuzzy";
 import { cn } from "@/lib/utils";
 import type { PaletteAction } from "./types";
@@ -165,7 +166,8 @@ export default function CommandPalette({
     if (!q) return [];
     const out: Row[] = [];
     for (const poi of pois) {
-      if (!poi.name) continue;
+      // Only POIs the map is willing to draw — see SearchBar.
+      if (!poi.name || !groupForType(poi.type)) continue;
       const match = score(poi.name, q);
       if (!match) continue;
       out.push({

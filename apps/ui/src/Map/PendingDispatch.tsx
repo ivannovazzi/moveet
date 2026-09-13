@@ -1,5 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { ScatterplotLayer, PathLayer, TextLayer } from "@deck.gl/layers";
+import type { Layer } from "@deck.gl/core";
 import type { Vehicle, DispatchAssignment } from "@/types";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 import { useMapContext, useOverlay } from "@/components/Map/hooks";
@@ -28,6 +29,11 @@ const LINE_ALPHA = 120;
 const HIT_PX = 12;
 const DRAG_THRESHOLD_PX = 3;
 
+/** Stable empty arrays so an inactive memo never re-registers. */
+const NO_LAYERS: Layer[] = [];
+const NO_NAME_LABELS: NameLabel[] = [];
+const NO_SINGLE_MARKERS: SingleMarkerDatum[] = [];
+
 /** Vehicle-name label size and offsets, shared with the declutter pass. */
 const LABEL_SIZE = 12;
 const MULTI_LABEL_OFFSET: [number, number] = [0, -14];
@@ -40,8 +46,15 @@ interface MarkerDatum {
   index: number;
   isMultiStop: boolean;
   enlarged: boolean;
-  /** Only set on single-waypoint markers, which carry the vehicle's name. */
-  vehicleId?: string;
+}
+
+/**
+ * A single-waypoint marker. Its label is the vehicle's name rather than a stop
+ * number, so unlike the multi-stop variant it carries the id the declutter pass
+ * keyed that name on.
+ */
+interface SingleMarkerDatum extends MarkerDatum {
+  vehicleId: string;
 }
 
 interface LineDatum {
@@ -288,13 +301,17 @@ export default memo(function PendingDispatch({
   );
 
   // ── Render layers ─────────────────────────────────────────────────
-  const layers = useMemo(() => {
-    if (assignments.length === 0) return [];
+  // Geometry and name labels live in separate memos: a label verdict changes
+  // whenever anything anywhere on the map moves, and rebuilding the waypoint
+  // markers and connecting lines for that would re-upload them for nothing.
+  const built = useMemo(() => {
+    if (assignments.length === 0) {
+      return { layers: NO_LAYERS, nameLabels: NO_NAME_LABELS, singleMarkers: NO_SINGLE_MARKERS };
+    }
 
     // Resolved here, not at module load: resolveMapColor caches its first
     // answer, which at module-eval time predates the stylesheet.
     const drawRgba = resolveMapColor(DRAW_TOKEN);
-    const labelRgba = resolveMapColor(DRAW_TOKEN, LABEL_ALPHA);
     const lineRgba = resolveMapColor(DRAW_TOKEN, LINE_ALPHA);
     const hoverRgba = resolveMapColor(HOVER_TOKEN);
     const inkRgba = resolveMapColor(LABEL_TOKEN);
@@ -302,7 +319,7 @@ export default memo(function PendingDispatch({
     const multiMarkers: MarkerDatum[] = [];
     const multiLines: LineDatum[] = [];
     const nameLabels: NameLabel[] = [];
-    const singleMarkers: MarkerDatum[] = [];
+    const singleMarkers: SingleMarkerDatum[] = [];
 
     for (const assignment of assignments) {
       const vehicle = vehicleMap.get(assignment.vehicleId);
@@ -349,7 +366,7 @@ export default memo(function PendingDispatch({
       }
     }
 
-    const result = [];
+    const result: Layer[] = [];
 
     // Multi-stop connecting lines
     if (multiLines.length > 0) {
@@ -404,29 +421,10 @@ export default memo(function PendingDispatch({
       );
     }
 
-    // Multi-stop vehicle name labels
-    const visibleNameLabels = nameLabels.filter((label) => visibleMulti.has(label.id));
-    if (visibleNameLabels.length > 0) {
-      result.push(
-        new TextLayer<NameLabel>({
-          ...mapLabelProps(LABEL_SIZE),
-          id: "pending-dispatch-multi-labels",
-          data: visibleNameLabels,
-          getPosition: (d) => d.position,
-          getText: (d) => d.text,
-          getColor: labelRgba,
-          getTextAnchor: "middle",
-          getAlignmentBaseline: "bottom",
-          getPixelOffset: MULTI_LABEL_OFFSET,
-          pickable: false,
-        })
-      );
-    }
-
     // Single-waypoint outer ring
     if (singleMarkers.length > 0) {
       result.push(
-        new ScatterplotLayer<MarkerDatum>({
+        new ScatterplotLayer<SingleMarkerDatum>({
           id: "pending-dispatch-single-outer",
           data: singleMarkers,
           getPosition: (d) => d.position,
@@ -445,7 +443,7 @@ export default memo(function PendingDispatch({
         })
       );
       result.push(
-        new ScatterplotLayer<MarkerDatum>({
+        new ScatterplotLayer<SingleMarkerDatum>({
           id: "pending-dispatch-single-inner",
           data: singleMarkers,
           getPosition: (d) => d.position,
@@ -460,11 +458,40 @@ export default memo(function PendingDispatch({
           },
         })
       );
+    }
+
+    return { layers: result, nameLabels, singleMarkers };
+  }, [assignments, vehicleMap, hoverKey, dragKey, editable]);
+
+  const labelLayers = useMemo<Layer[]>(() => {
+    const labelRgba = resolveMapColor(DRAW_TOKEN, LABEL_ALPHA);
+    const result: Layer[] = [];
+
+    const multi = built.nameLabels.filter((label) => visibleMulti.has(label.id));
+    if (multi.length > 0) {
       result.push(
-        new TextLayer<MarkerDatum>({
+        new TextLayer<NameLabel>({
+          ...mapLabelProps(LABEL_SIZE),
+          id: "pending-dispatch-multi-labels",
+          data: multi,
+          getPosition: (d) => d.position,
+          getText: (d) => d.text,
+          getColor: labelRgba,
+          getTextAnchor: "middle",
+          getAlignmentBaseline: "bottom",
+          getPixelOffset: MULTI_LABEL_OFFSET,
+          pickable: false,
+        })
+      );
+    }
+
+    const single = built.singleMarkers.filter((marker) => visibleSingle.has(marker.vehicleId));
+    if (single.length > 0) {
+      result.push(
+        new TextLayer<SingleMarkerDatum>({
           ...mapLabelProps(LABEL_SIZE),
           id: "pending-dispatch-single-labels",
-          data: singleMarkers.filter((marker) => visibleSingle.has(marker.vehicleId ?? "")),
+          data: single,
           getPosition: (d) => d.position,
           getText: (d) => d.label,
           getColor: labelRgba,
@@ -476,8 +503,13 @@ export default memo(function PendingDispatch({
       );
     }
 
-    return result;
-  }, [assignments, vehicleMap, hoverKey, dragKey, editable, visibleMulti, visibleSingle]);
+    return result.length === 0 ? NO_LAYERS : result;
+  }, [built, visibleMulti, visibleSingle]);
+
+  const layers = useMemo(
+    () => (labelLayers.length === 0 ? built.layers : [...built.layers, ...labelLayers]),
+    [built, labelLayers]
+  );
 
   useRegisterLayers("pending-dispatch", layers);
 

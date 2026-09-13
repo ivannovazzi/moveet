@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { PolygonLayer, TextLayer } from "@deck.gl/layers";
+import type { Layer } from "@deck.gl/core";
 import type { GeoFence, GeoFenceType } from "@moveet/shared-types";
 import { useMapContext } from "@/components/Map/hooks";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
@@ -11,6 +12,9 @@ type RGBA = [number, number, number, number];
 
 /** Fade in/out duration in milliseconds, matching SpeedLimitSigns. */
 const FADE_DURATION_MS = 500;
+
+/** Stable empty array so an inactive memo never re-registers. */
+const NO_LAYERS: Layer[] = [];
 
 /** Label size, shared between the TextLayer and the declutter pass. */
 const LABEL_SIZE = 11;
@@ -106,8 +110,11 @@ export default function GeofenceLayer({
 
   const visibleLabels = useVisibleLabels("geofence-labels", labelItems, viewport, settledZoom);
 
-  const layers = useMemo(() => {
-    if (fences.length === 0) return [];
+  // Geometry and labels live in separate memos: a label verdict changes
+  // whenever anything anywhere on the map moves, and rebuilding the polygons
+  // for that would re-upload every fence outline for nothing.
+  const geometryLayers = useMemo<Layer[]>(() => {
+    if (fences.length === 0) return NO_LAYERS;
 
     return [
       new PolygonLayer<GeoFence>({
@@ -146,10 +153,17 @@ export default function GeofenceLayer({
           },
         },
       }),
+    ];
+  }, [fences, selectedFenceId, onSelectFence, selectable]);
+
+  const labelLayers = useMemo<Layer[]>(() => {
+    const labelled = fences.filter((fence) => visibleLabels.has(fence.id));
+    if (labelled.length === 0) return NO_LAYERS;
+    return [
       new TextLayer<GeoFence>({
         ...mapLabelProps(LABEL_SIZE),
         id: "geofence-labels",
-        data: fences.filter((fence) => visibleLabels.has(fence.id)),
+        data: labelled,
         getPosition: (d: GeoFence) => centroid(d.polygon),
         getText: (d: GeoFence) => d.name,
         getColor: (d: GeoFence) => getStrokeRgba(d),
@@ -164,7 +178,12 @@ export default function GeofenceLayer({
         },
       }),
     ];
-  }, [fences, selectedFenceId, onSelectFence, selectable, visibleLabels]);
+  }, [fences, visibleLabels]);
+
+  const layers = useMemo(
+    () => (labelLayers.length === 0 ? geometryLayers : [...geometryLayers, ...labelLayers]),
+    [geometryLayers, labelLayers]
+  );
 
   useRegisterLayers("geofences", layers);
 

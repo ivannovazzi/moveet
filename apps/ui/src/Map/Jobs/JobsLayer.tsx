@@ -1,4 +1,4 @@
-import { memo, useMemo } from "react";
+import { useMemo } from "react";
 import { PathLayer, ScatterplotLayer, TextLayer } from "@deck.gl/layers";
 import type { Layer } from "@deck.gl/core";
 import type { JobDTO, Position } from "@/types";
@@ -107,8 +107,13 @@ interface JobsLayerProps {
  * Mounted from `Map.tsx` behind the `showJobs` visibility toggle. Purely
  * derived from the job board — no picking, no interaction: the panel owns job
  * actions, this layer only makes the geography of the queue legible.
+ *
+ * Deliberately not wrapped in `memo()`: it subscribes to the map context, which
+ * publishes a new viewport on every pan frame, so the wrapper only ever added a
+ * props comparison that could not prevent a render. The memos below are what
+ * actually keep the layers stable.
  */
-export default memo(function JobsLayer({ jobs, draftPickup }: JobsLayerProps) {
+export default function JobsLayer({ jobs, draftPickup }: JobsLayerProps) {
   const { viewport, getZoom } = useMapContext();
   const { settledZoom } = useSettledZoom(getZoom());
 
@@ -134,11 +139,13 @@ export default memo(function JobsLayer({ jobs, draftPickup }: JobsLayerProps) {
     settledZoom
   );
 
-  const layers = useMemo(() => {
+  // Geometry and labels live in separate memos: a label verdict changes
+  // whenever anything anywhere on the map moves, and rebuilding the stop
+  // markers and link lines for that would re-upload the whole queue for nothing.
+  const geometryLayers = useMemo(() => {
     const pickups: StopDatum[] = [];
     const dropoffs: StopDatum[] = [];
     const links: LinkDatum[] = [];
-    const labels: LabelDatum[] = [];
 
     for (const job of jobs) {
       const from = toDeck(job.pickup.position);
@@ -147,7 +154,6 @@ export default memo(function JobsLayer({ jobs, draftPickup }: JobsLayerProps) {
       pickups.push({ key: `${job.id}-p`, position: from, late });
       dropoffs.push({ key: `${job.id}-d`, position: to, late });
       links.push({ path: [from, to], late });
-      labels.push({ key: job.id, position: from, text: job.reference, late });
     }
 
     if (draftPickup) {
@@ -214,29 +220,44 @@ export default memo(function JobsLayer({ jobs, draftPickup }: JobsLayerProps) {
       );
     }
 
-    const visible = labels.filter((label) => visibleLabels.has(label.key));
-    if (visible.length > 0) {
-      result.push(
-        new TextLayer<LabelDatum>({
-          ...mapLabelProps(LABEL_SIZE),
-          id: `${JOBS_LAYER_ID}-labels`,
-          data: visible,
-          getPosition: (d) => d.position,
-          getText: (d) => d.text,
-          getColor: (d) => withAlpha(d.late ? JOB_COLOR_TOKENS.late : JOB_COLOR_TOKENS.pickup, 255),
-          getTextAnchor: "middle",
-          getAlignmentBaseline: "bottom",
-          getPixelOffset: LABEL_OFFSET,
-          pickable: false,
-          updateTriggers: { getColor: visible.map((l) => l.late) },
-        })
-      );
-    }
-
     return result;
-  }, [jobs, draftPickup, visibleLabels]);
+  }, [jobs, draftPickup]);
+
+  const labelLayers = useMemo(() => {
+    const labels: LabelDatum[] = [];
+    for (const job of jobs) {
+      if (!visibleLabels.has(job.id)) continue;
+      labels.push({
+        key: job.id,
+        position: toDeck(job.pickup.position),
+        text: job.reference,
+        late: job.slaBreached,
+      });
+    }
+    if (labels.length === 0) return NO_LAYERS;
+    return [
+      new TextLayer<LabelDatum>({
+        ...mapLabelProps(LABEL_SIZE),
+        id: `${JOBS_LAYER_ID}-labels`,
+        data: labels,
+        getPosition: (d) => d.position,
+        getText: (d) => d.text,
+        getColor: (d) => withAlpha(d.late ? JOB_COLOR_TOKENS.late : JOB_COLOR_TOKENS.pickup, 255),
+        getTextAnchor: "middle",
+        getAlignmentBaseline: "bottom",
+        getPixelOffset: LABEL_OFFSET,
+        pickable: false,
+        updateTriggers: { getColor: labels.map((l) => l.late) },
+      }),
+    ];
+  }, [jobs, visibleLabels]);
+
+  const layers = useMemo(
+    () => (labelLayers.length === 0 ? geometryLayers : [...geometryLayers, ...labelLayers]),
+    [geometryLayers, labelLayers]
+  );
 
   useRegisterLayers(JOBS_LAYER_ID, layers);
 
   return null;
-});
+}

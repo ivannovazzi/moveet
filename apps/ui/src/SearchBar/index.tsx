@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import { Command, CommandItem, CommandList } from "cmdk";
 import type { POI, Road } from "@/types";
 import { Directions, POI as POIIcon, Road as RoadIcon } from "@/components/Icons";
+import { groupForType } from "@/Map/POI/categories";
 import { Button } from "@/components/Inputs";
 import { useRoads } from "@/hooks/useRoads";
 import { usePois } from "@/hooks/usePois";
@@ -31,7 +32,9 @@ function fuzzySearch(roads: Road[], pois: POI[], query: string): Result[] {
     if (m) results.push({ item: r, score: m.score, positions: m.positions });
   }
   for (const p of pois) {
-    if (!p.name) continue;
+    // Only POIs the map is willing to draw: surfacing a result that selects an
+    // invisible marker is worse than not offering it.
+    if (!p.name || !groupForType(p.type)) continue;
     const m = score(p.name, query);
     if (m) results.push({ item: p, score: m.score, positions: m.positions });
   }
