@@ -7,6 +7,7 @@ import { TrafficIcon } from "@/components/Icons";
 import { resolveMapColor } from "@/lib/mapColor";
 import type { TrafficEdge } from "@/types";
 import ScaleLegend, { type LegendColor } from "./ScaleLegend";
+import { renderInSlot, type LegendSlot } from "./LegendStack";
 
 type RGBA = [number, number, number, number];
 
@@ -173,22 +174,27 @@ export function buildTrafficSegments(edges: readonly TrafficEdge[]): TrafficSegm
   return Array.from(byKey.values()).sort((x, y) => y.congestion - x.congestion);
 }
 
+/**
+ * Congestion factor as the words a dispatcher uses. The breaks are the colour
+ * stops above, so the legend's tick labels name the same bands the map paints
+ * rather than a second, differently-cut vocabulary.
+ */
 function formatCongestion(value: number): string {
-  return value <= CONGESTION_MIN ? "Jammed" : "Free flow";
+  if (value <= 0.35) return "Jammed";
+  if (value <= 0.5) return "Heavy";
+  if (value <= 0.7) return "Slow";
+  return "Free flow";
 }
 
 const NO_LAYERS: Layer[] = [];
 
 interface TrafficOverlayProps {
   visible: boolean;
-  /** Legend positioning, so Map can keep it clear of other legends. */
-  legendClassName?: string;
+  /** Where the legend is portalled; inline when absent (tests, no stack yet). */
+  legendSlot?: LegendSlot;
 }
 
-export default function TrafficOverlay({
-  visible,
-  legendClassName = "left-3 top-[72px]",
-}: TrafficOverlayProps) {
+export default function TrafficOverlay({ visible, legendSlot }: TrafficOverlayProps) {
   const { edges } = useTraffic();
 
   const segments = useMemo(() => buildTrafficSegments(edges), [edges]);
@@ -239,7 +245,8 @@ export default function TrafficOverlay({
 
   if (!visible) return null;
 
-  return (
+  return renderInSlot(
+    legendSlot,
     <ScaleLegend
       testId="traffic-legend"
       title="Traffic"
@@ -248,7 +255,6 @@ export default function TrafficOverlay({
       colorRange={legendColors}
       domain={LEGEND_DOMAIN}
       formatValue={formatCongestion}
-      className={legendClassName}
     />
   );
 }

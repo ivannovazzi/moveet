@@ -261,8 +261,10 @@ describe("VehicleDensityLayer legend", () => {
     seedVehicles(DENSITY_MIN_VEHICLES);
     renderLayer();
 
-    expect(screen.getByTestId("density-legend-min")).toHaveTextContent("—");
-    expect(screen.getByTestId("density-legend-max")).toHaveTextContent("—");
+    // No numbers at all rather than dashes: the ramp is on screen, the scale
+    // it is quantizing over is not known yet.
+    expect(screen.queryByTestId("density-legend-min")).toBeNull();
+    expect(screen.queryByTestId("density-legend-max")).toBeNull();
   });
 
   it("labels the domain deck.gl actually coloured against", () => {
@@ -305,7 +307,7 @@ describe("VehicleDensityLayer legend", () => {
 
     reportDomain(Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY);
 
-    expect(screen.getByTestId("density-legend-max")).toHaveTextContent("—");
+    expect(screen.queryByTestId("density-legend-max")).toBeNull();
   });
 
   it("drops a stale domain when the density view switches off", () => {
@@ -327,6 +329,6 @@ describe("VehicleDensityLayer legend", () => {
     act(() => {
       vi.advanceTimersByTime(1000);
     });
-    expect(screen.getByTestId("density-legend-max")).toHaveTextContent("—");
+    expect(screen.queryByTestId("density-legend-max")).toBeNull();
   });
 });

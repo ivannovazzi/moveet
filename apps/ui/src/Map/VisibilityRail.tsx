@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from "react";
 import { Range } from "@/components/Inputs";
 import { cn } from "@/lib/utils";
 import { TRAIL_LENGTH_RANGE, useTrailLength } from "@/hooks/useTrailLength";
+import { DENSITY_MIN_VEHICLES } from "./Vehicle/densityView";
 import type { Modifiers, VehicleType } from "@/types";
 import VehicleTypeKey from "./VehicleTypeKey";
 import { VISIBILITY_LAYERS } from "./visibilityLayers";
@@ -12,6 +13,11 @@ export interface VisibilityRailProps {
   /** Vehicle-type filters, spread from the rail's funnel key. */
   hiddenVehicleTypes: Set<VehicleType>;
   onToggleVehicleType: (type: VehicleType) => void;
+  /**
+   * Live fleet size. Density only engages above `DENSITY_MIN_VEHICLES`, so the
+   * rail needs the count to say why a lit Density key is drawing nothing.
+   */
+  vehicleCount: number;
 }
 
 /**
@@ -28,14 +34,18 @@ export interface VisibilityRailProps {
  * into one key that spreads them (see `VehicleTypeKey`), seated right under the
  * Vehicles layer they narrow. Trails likewise carries its length.
  *
- * Left edge, vertically centred: the only stretch of that side nothing else
- * claims (the density scale sits top-left, the fleet legend bottom-right).
+ * Bottom-left, standing on the dock shelf and growing *upward*. Legends grow
+ * *downward* from under the search bar (see `LegendStack`, whose max-height
+ * reserves this band), so however many overlays are lit the two columns run
+ * out of room before they can overlap — which a vertically-centred rail did
+ * not: at a 1000px window the traffic legend landed on top of it.
  */
 export default function VisibilityRail({
   modifiers,
   onChangeModifiers,
   hiddenVehicleTypes,
   onToggleVehicleType,
+  vehicleCount,
 }: VisibilityRailProps) {
   const trail = useTrailLength();
   const [trailOpen, setTrailOpen] = useState(false);
@@ -51,20 +61,31 @@ export default function VisibilityRail({
     <div
       role="group"
       aria-label="Layer visibility"
-      className="absolute left-3 top-1/2 z-10 flex -translate-y-1/2 animate-fade-up flex-col gap-0.5 rounded-lg border border-border surface-glass glass-frost p-1 shadow-elevated"
+      className="absolute left-3 bottom-[calc(var(--spacing-above-dock)+0.75rem)] z-10 flex animate-fade-up flex-col gap-0.5 rounded-lg border border-border surface-glass glass-frost p-1 shadow-elevated"
     >
       {VISIBILITY_LAYERS.map(({ key, label, icon }) => {
         // Density and Jobs are optional modifiers (absent = off), so coerce.
         const on = modifiers[key] ?? false;
         const isTrails = key === "showBreadcrumbs";
+        // Density silently draws nothing below its vehicle threshold, which
+        // read as a broken toggle. Lit-but-inert is now a visible state: the
+        // key dims and carries the count it is waiting for.
+        const densityStarved =
+          key === "showDensity" && Boolean(on) && vehicleCount < DENSITY_MIN_VEHICLES;
+        const starvedTitle = `Density — needs ${DENSITY_MIN_VEHICLES}+ vehicles (${vehicleCount} now)`;
         return (
           <Fragment key={key}>
-            <div className={isTrails ? "relative flex flex-col items-center" : undefined}>
+            <div
+              className={
+                isTrails || densityStarved ? "relative flex flex-col items-center" : undefined
+              }
+            >
               <button
                 type="button"
                 aria-pressed={Boolean(on)}
                 aria-label={label}
-                title={on ? `Hide ${label}` : `Show ${label}`}
+                aria-description={densityStarved ? starvedTitle : undefined}
+                title={densityStarved ? starvedTitle : on ? `Hide ${label}` : `Show ${label}`}
                 onClick={() => onChangeModifiers(key)(!on)}
                 className={cn(
                   "relative flex size-[34px] shrink-0 cursor-pointer items-center justify-center rounded-md",
@@ -73,7 +94,8 @@ export default function VisibilityRail({
                   "[&_svg]:relative [&_svg]:size-4",
                   on
                     ? "bg-accent/[0.10] text-accent"
-                    : "text-muted-foreground/70 hover:bg-foreground/[0.05] hover:text-foreground"
+                    : "text-muted-foreground/70 hover:bg-foreground/[0.05] hover:text-foreground",
+                  densityStarved && "opacity-55"
                 )}
               >
                 {on && (
@@ -84,6 +106,19 @@ export default function VisibilityRail({
                 )}
                 {icon}
               </button>
+
+              {/* The threshold Density is waiting for, on the same chip the
+                  trail length uses — but a plain span: there is nothing to
+                  press, it is a readout of why the layer is idle. */}
+              {densityStarved && (
+                <span
+                  aria-hidden
+                  data-testid="density-threshold-chip"
+                  className="mt-0.5 rounded px-1 py-px font-mono text-[9.5px] font-bold leading-[13px] tabular-nums text-muted-foreground"
+                >
+                  {`${DENSITY_MIN_VEHICLES}+`}
+                </span>
+              )}
 
               {/* Trails is the one layer with a parameter. Its length rides a chip
                 under the key — a readout that is also the way to change it —

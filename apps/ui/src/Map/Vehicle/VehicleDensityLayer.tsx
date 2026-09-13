@@ -7,6 +7,7 @@ import { LayersIcon } from "@/components/Icons";
 import { useMapContext } from "@/components/Map/hooks";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 import ScaleLegend from "../ScaleLegend";
+import { renderInSlot, type LegendSlot } from "../LegendStack";
 import { densityColorRange, hexRadiusMetersForZoom, shouldAggregate } from "./densityView";
 
 export const DENSITY_LAYER_ID = "vehicle-density";
@@ -32,6 +33,8 @@ interface VehicleDensityLayerProps {
   vehicleFleetMap: Map<string, Fleet>;
   hiddenFleetIds: Set<string>;
   hiddenVehicleTypes: Set<VehicleType>;
+  /** Where the legend is portalled; inline when absent (tests, no stack yet). */
+  legendSlot?: LegendSlot;
 }
 
 interface Sample {
@@ -67,6 +70,7 @@ export default function VehicleDensityLayer({
   vehicleFleetMap,
   hiddenFleetIds,
   hiddenVehicleTypes,
+  legendSlot,
 }: VehicleDensityLayerProps) {
   const { viewState } = useMapContext();
   const zoom = viewState?.zoom ?? 0;
@@ -158,7 +162,8 @@ export default function VehicleDensityLayer({
 
   if (!drawing) return null;
 
-  return (
+  return renderInSlot(
+    legendSlot,
     <ScaleLegend
       testId="density-legend"
       title="Vehicles per bin"
@@ -166,11 +171,6 @@ export default function VehicleDensityLayer({
       icon={LayersIcon}
       colorRange={colorRange}
       domain={colorDomain}
-      // Top-left is the only corner nothing else claims: the dock and the
-      // start hint own the bottom centre, the type legend the bottom left, the
-      // zoom controls and fleet legend the bottom right. Below the search bar
-      // rather than beside it, so the two never collide on a narrow window.
-      className="left-3 top-[72px]"
     />
   );
 }

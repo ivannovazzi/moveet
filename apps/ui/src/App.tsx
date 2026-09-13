@@ -606,6 +606,7 @@ export default function App() {
                 onChangeModifiers={onChangeModifiers}
                 hiddenVehicleTypes={hiddenVehicleTypes}
                 onToggleVehicleType={toggleVehicleType}
+                vehicleCount={vehicles.length}
               />
               <StartHint
                 running={status.running}

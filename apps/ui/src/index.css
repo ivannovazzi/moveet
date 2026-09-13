@@ -71,6 +71,13 @@
      zoom, legends — stands on this shelf instead of underneath them. */
   --spacing-above-dock: 5.5rem;
 
+  /* Band at the bottom-left reserved for the visibility rail, which is
+     anchored to the dock shelf and grows upward. The legend stack (top-left,
+     growing down) subtracts this from its max-height, so the two columns run
+     out of room before they can overlap — the collision that used to put the
+     traffic legend on top of the rail at a 1000px window. */
+  --legend-stack-clearance: 14rem;
+
   /* Motion scale — registers the `duration-fast|normal|slow` Tailwind
      transition-duration utilities (Tailwind v4 reads the
      `--transition-duration-*` namespace). Keep transitions on this scale; the

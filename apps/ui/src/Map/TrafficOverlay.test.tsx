@@ -129,6 +129,30 @@ describe("TrafficOverlay", () => {
     }
   });
 
+  it("names the congestion bands the colours paint", () => {
+    render(<TrafficOverlay visible={true} />);
+    const rows = screen.getByTestId("traffic-legend-table").querySelectorAll("li");
+    const labels = Array.from(rows).map((r) => r.textContent);
+    expect(labels.some((l) => l?.includes("Heavy"))).toBe(true);
+    expect(labels.some((l) => l?.includes("Slow"))).toBe(true);
+  });
+
+  it("portals its legend into the legend stack when given a slot", () => {
+    const slot = document.createElement("div");
+    slot.setAttribute("data-testid", "slot");
+    document.body.appendChild(slot);
+
+    render(<TrafficOverlay visible={true} legendSlot={{ current: slot }} />);
+
+    expect(slot.querySelector('[data-testid="traffic-legend"]')).not.toBeNull();
+    slot.remove();
+  });
+
+  it("renders the legend inline when there is no slot", () => {
+    const { container } = render(<TrafficOverlay visible={true} />);
+    expect(container.querySelector('[data-testid="traffic-legend"]')).not.toBeNull();
+  });
+
   it("renders nothing when hidden", () => {
     edges = [edge()];
     render(<TrafficOverlay visible={false} />);

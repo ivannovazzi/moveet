@@ -15,6 +15,7 @@ vi.mock("@/hooks/vehicleStore", () => ({
 
 import VisibilityRail from "./VisibilityRail";
 import { VISIBILITY_LAYERS } from "./visibilityLayers";
+import { DENSITY_MIN_VEHICLES } from "./Vehicle/densityView";
 import { vehicleStore } from "@/hooks/vehicleStore";
 
 beforeEach(() => {
@@ -27,13 +28,18 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function renderRail(overrides: Partial<Modifiers> = {}, onChange = vi.fn(() => vi.fn())) {
+function renderRail(
+  overrides: Partial<Modifiers> = {},
+  onChange = vi.fn(() => vi.fn()),
+  vehicleCount = 0
+) {
   const result = render(
     <VisibilityRail
       modifiers={{ ...createModifiers(), ...overrides } as Modifiers}
       onChangeModifiers={onChange}
       hiddenVehicleTypes={new Set()}
       onToggleVehicleType={vi.fn()}
+      vehicleCount={vehicleCount}
     />
   );
   return { ...result, onChange };
@@ -119,6 +125,61 @@ describe("VisibilityRail", () => {
     expect(setter).toHaveBeenCalledWith(false);
   });
 
+  it("stands on the dock shelf rather than floating at mid-height", () => {
+    renderRail();
+    const rail = screen.getByRole("group", { name: "Layer visibility" });
+    // Legends grow down from the search bar, the rail grows up from the dock.
+    expect(rail.className).toContain("bottom-[calc(var(--spacing-above-dock)+0.75rem)]");
+    expect(rail.className).not.toContain("top-1/2");
+    expect(rail.className).not.toContain("-translate-y-1/2");
+  });
+
+  describe("density threshold", () => {
+    it("says what a lit-but-inert Density key is waiting for", () => {
+      renderRail(
+        { showDensity: true },
+        vi.fn(() => vi.fn()),
+        20
+      );
+
+      expect(screen.getByTestId("density-threshold-chip")).toHaveTextContent(
+        `${DENSITY_MIN_VEHICLES}+`
+      );
+      const densityKey = key("Density");
+      expect(densityKey).toHaveAttribute(
+        "title",
+        `Density — needs ${DENSITY_MIN_VEHICLES}+ vehicles (20 now)`
+      );
+      expect(densityKey).toHaveAttribute(
+        "aria-description",
+        `Density — needs ${DENSITY_MIN_VEHICLES}+ vehicles (20 now)`
+      );
+      expect(densityKey.className).toContain("opacity-55");
+    });
+
+    it("drops the hint once the fleet is big enough for the plate to draw", () => {
+      renderRail(
+        { showDensity: true },
+        vi.fn(() => vi.fn()),
+        250
+      );
+
+      expect(screen.queryByTestId("density-threshold-chip")).toBeNull();
+      expect(key("Density")).toHaveAttribute("title", "Hide Density");
+    });
+
+    it("says nothing about the threshold while Density is off", () => {
+      renderRail(
+        { showDensity: false },
+        vi.fn(() => vi.fn()),
+        20
+      );
+
+      expect(screen.queryByTestId("density-threshold-chip")).toBeNull();
+      expect(key("Density")).toHaveAttribute("title", "Show Density");
+    });
+  });
+
   describe("trail length", () => {
     it("offers no trail-length control while Trails is off", () => {
       renderRail({ showBreadcrumbs: false });
@@ -151,6 +212,7 @@ describe("VisibilityRail", () => {
           onChangeModifiers={vi.fn(() => vi.fn())}
           hiddenVehicleTypes={new Set()}
           onToggleVehicleType={vi.fn()}
+          vehicleCount={0}
         />
       );
 
