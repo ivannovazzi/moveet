@@ -40,7 +40,7 @@ export default function ModeLauncher({
             aria-label="Start a map action"
             className={cn(
               "flex h-[42px] items-center gap-1.5 rounded-[10px] pl-2.5 pr-3",
-              "text-[12.5px] font-semibold",
+              "text-label font-semibold",
               "transition-[background-color,color,box-shadow] duration-fast ease-standard",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
               "disabled:pointer-events-none disabled:opacity-40",
@@ -78,10 +78,10 @@ export default function ModeLauncher({
                     {item.icon}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[12.5px] font-medium text-foreground">
+                    <span className="block truncate text-label font-medium text-foreground">
                       {item.label}
                     </span>
-                    <span className="block truncate text-[11px] text-muted-foreground">
+                    <span className="block truncate text-meta text-muted-foreground">
                       {item.description}
                     </span>
                   </span>

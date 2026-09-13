@@ -71,7 +71,7 @@ export default function TempoInline({
       <ClockIcon />
       <span
         className={cn(
-          "font-mono text-[12px] font-semibold tabular-nums",
+          "font-mono text-label font-semibold tabular-nums",
           isRealTime ? "text-foreground/80" : "text-accent"
         )}
       >

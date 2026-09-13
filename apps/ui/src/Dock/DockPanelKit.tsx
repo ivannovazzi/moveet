@@ -60,7 +60,7 @@ export function Eyebrow({
   return (
     <div
       className={cn(
-        "text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/70",
+        "text-micro font-semibold uppercase tracking-[0.12em] text-muted-foreground/70",
         className
       )}
     >
@@ -91,7 +91,7 @@ export function PanelHead({
     <div className="flex items-start justify-between gap-3 px-[15px] pb-[11px] pt-[13px]">
       <div className="min-w-0">
         <Eyebrow>{eyebrow}</Eyebrow>
-        <div className="mt-[3px] text-[15px] font-semibold tracking-[-0.01em] text-foreground">
+        <div className="mt-[3px] text-title font-semibold tracking-[-0.01em] text-foreground">
           {title}
         </div>
       </div>
@@ -131,7 +131,7 @@ export function PanelHeaderRow({
     <div className="flex items-center gap-2 border-b border-border-soft px-2.5 py-[7px]">
       <div className="flex shrink-0 items-center gap-1.5 text-foreground [&_svg]:size-[15px]">
         {icon}
-        <span className="whitespace-nowrap text-[12.5px] font-semibold tracking-[-0.01em]">
+        <span className="whitespace-nowrap text-label font-semibold tracking-[-0.01em]">
           {title}
         </span>
       </div>
@@ -162,7 +162,7 @@ export function HealthChip({ tone, children }: { tone: StatusTone; children: Rea
   return (
     <span
       className={cn(
-        "shrink-0 self-center whitespace-nowrap rounded-full border px-2 py-[3px] text-[9.5px] font-bold uppercase tracking-[0.08em]",
+        "shrink-0 self-center whitespace-nowrap rounded-full border px-2 py-[3px] text-micro font-bold uppercase tracking-wider",
         TONE_TEXT[tone],
         tone === "ok" && "border-status-ok/35 bg-status-ok/10",
         tone === "warn" && "border-status-warn/35 bg-status-warn/10",
@@ -209,7 +209,7 @@ export function SegTabs<T extends string>({
             aria-selected={selected}
             onClick={() => onChange(t.value)}
             className={cn(
-              "flex flex-1 items-center justify-center gap-1.5 rounded-md py-[5px] text-[11px] font-medium",
+              "flex flex-1 items-center justify-center gap-1.5 rounded-md py-[5px] text-meta font-medium",
               "transition-[color,background-color,box-shadow] duration-fast ease-standard",
               selected
                 ? "bg-foreground/[0.06] text-foreground shadow-[inset_0_0_0_1px_var(--color-border-soft)]"
@@ -218,7 +218,7 @@ export function SegTabs<T extends string>({
           >
             {t.label}
             {t.count != null && (
-              <span className={cn(mono, "text-[10px] text-muted-foreground/70")}>{t.count}</span>
+              <span className={cn(mono, "text-micro text-muted-foreground/70")}>{t.count}</span>
             )}
           </button>
         );
@@ -291,7 +291,7 @@ export function PanelTabStrip<T extends string>({
             aria-selected={selected}
             onClick={() => onChange(id)}
             className={cn(
-              "flex-shrink-0 whitespace-nowrap rounded-md px-2 py-1 text-[10.5px] font-medium",
+              "flex-shrink-0 whitespace-nowrap rounded-md px-2 py-1 text-micro font-medium",
               "transition-[color,background-color] duration-fast ease-standard",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
               selected
@@ -301,7 +301,7 @@ export function PanelTabStrip<T extends string>({
           >
             {label}
             {badge != null && badge > 0 && (
-              <span className={cn(mono, "ml-1 text-[9px] text-status-error")}>{badge}</span>
+              <span className={cn(mono, "ml-1 text-micro text-status-error")}>{badge}</span>
             )}
           </button>
         );
@@ -338,7 +338,7 @@ export function Tag({ tone, children }: { tone: SevTone; children: React.ReactNo
   return (
     <span
       className={cn(
-        "inline-block rounded-[4px] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em]",
+        "inline-block rounded-[4px] px-1.5 py-0.5 text-micro font-bold uppercase tracking-wider",
         TAG_TONE[tone]
       )}
     >
@@ -379,9 +379,9 @@ export function LRow({
     >
       <span className={cn("h-[26px] w-[3px] rounded-[2px]", SEV_BAR[tone])} />
       <div className="min-w-0">
-        <div className="truncate text-[12px] font-medium text-foreground">{primary}</div>
+        <div className="truncate text-label font-medium text-foreground">{primary}</div>
         {secondary != null && (
-          <div className={cn(mono, "mt-0.5 truncate text-[11px] text-muted-foreground/60")}>
+          <div className={cn(mono, "mt-0.5 truncate text-meta text-muted-foreground/60")}>
             {secondary}
           </div>
         )}

@@ -69,7 +69,7 @@ function AdapterTab({
        * instead of two.
        */}
       <div className="flex h-7 items-center justify-end gap-1.5 px-[15px]">
-        <span className="text-[9.5px] font-bold uppercase tracking-[0.18em] text-muted-foreground/75">
+        <span className="text-micro font-bold uppercase tracking-[0.12em] text-muted-foreground/75">
           Adapter ·
         </span>
         <HealthChip tone={FEED_HEALTH_TONE[status]}>{status}</HealthChip>
@@ -80,7 +80,7 @@ function AdapterTab({
       )}
 
       {error && (
-        <div className="mx-3 mb-1 rounded-md border border-status-error/40 bg-status-error/10 px-2 py-1.5 text-[11.5px] text-status-error">
+        <div className="mx-3 mb-1 rounded-md border border-status-error/40 bg-status-error/10 px-2 py-1.5 text-meta text-status-error">
           {error}
         </div>
       )}
@@ -94,7 +94,7 @@ function AdapterTab({
               <div className="h-14 animate-pulse rounded-md bg-muted" />
             </div>
           ) : !health ? (
-            <div className="m-3 rounded-md border border-dashed border-border bg-muted/40 p-4 text-center text-[11.5px] text-muted-foreground">
+            <div className="m-3 rounded-md border border-dashed border-border bg-muted/40 p-4 text-center text-meta text-muted-foreground">
               Adapter service is unreachable. Check the connection settings and try again.
             </div>
           ) : tab === "source" ? (

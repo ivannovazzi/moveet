@@ -323,7 +323,7 @@ export default function ScenariosPanel() {
                   />
                   <div className="min-w-0">
                     <div
-                      className="truncate text-[12px] font-medium text-foreground"
+                      className="truncate text-label font-medium text-foreground"
                       title={file.fileName}
                     >
                       {file.fileName.replace(/\.json$/, "")}
@@ -331,7 +331,7 @@ export default function ScenariosPanel() {
                     <div
                       className={cn(
                         mono,
-                        "mt-0.5 flex gap-2 truncate text-[10.5px] text-muted-foreground/70"
+                        "mt-0.5 flex gap-2 truncate text-micro text-muted-foreground/70"
                       )}
                     >
                       <span>{formatFileSize(file.fileSize)}</span>

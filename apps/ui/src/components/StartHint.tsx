@@ -67,7 +67,7 @@ export default function StartHint({ running, ready, onStart, className }: StartH
     >
       <div className="flex min-w-0 flex-col">
         <span className="text-xs font-medium text-foreground">Simulation is paused</span>
-        <span className="truncate text-[11px] text-muted-foreground">
+        <span className="truncate text-meta text-muted-foreground">
           Start it to put vehicles on the road.
         </span>
       </div>

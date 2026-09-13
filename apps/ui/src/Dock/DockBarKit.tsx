@@ -40,7 +40,7 @@ export function Kbd({ children, className }: { children: React.ReactNode; classN
     <kbd
       className={cn(
         "rounded border border-border bg-foreground/[0.04] px-1 py-px",
-        "font-sans text-[9.5px] font-medium leading-[14px] text-muted-foreground",
+        "font-sans text-micro font-medium leading-none text-muted-foreground",
         className
       )}
     >
@@ -81,7 +81,7 @@ export function RailButton({
       type="button"
       className={cn(
         "flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5",
-        "text-[11.5px] font-medium transition-[background-color,color,filter,opacity] duration-fast ease-standard",
+        "text-meta font-medium transition-[background-color,color,filter,opacity] duration-fast ease-standard",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
         RAIL_BUTTON_VARIANT[variant],
         className
@@ -122,7 +122,7 @@ export function RailLabel({
   return (
     <span
       className={cn(
-        "whitespace-nowrap text-[9.5px] font-bold uppercase leading-none tracking-[0.14em]",
+        "whitespace-nowrap text-micro font-bold uppercase leading-none tracking-[0.12em]",
         className
       )}
     >

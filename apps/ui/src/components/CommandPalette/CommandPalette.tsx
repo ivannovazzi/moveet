@@ -356,7 +356,7 @@ export default function CommandPalette({
               <div key={group} role="group" aria-labelledby={headingId}>
                 <div
                   id={headingId}
-                  className="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
+                  className="px-2 pb-1 pt-2 text-micro font-semibold uppercase tracking-wider text-muted-foreground"
                 >
                   {GROUP_LABEL[group]}
                 </div>
@@ -398,7 +398,7 @@ export default function CommandPalette({
                       {row.hint && (
                         <span
                           className={cn(
-                            "shrink-0 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground opacity-70",
+                            "shrink-0 text-micro font-semibold uppercase tracking-wider text-muted-foreground opacity-70",
                             active && "text-accent opacity-100"
                           )}
                         >
@@ -414,7 +414,7 @@ export default function CommandPalette({
         </div>
 
         {/* ── Footer hints ── */}
-        <div className="flex items-center gap-4 border-t border-border px-4 py-2 text-[10px] uppercase tracking-wider text-muted-foreground">
+        <div className="flex items-center gap-4 border-t border-border px-4 py-2 text-micro uppercase tracking-wider text-muted-foreground">
           <span>↑↓ Navigate</span>
           <span>↵ Run</span>
           <span>Esc Close</span>

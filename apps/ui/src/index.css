@@ -65,6 +65,23 @@
 
   --font-sans: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
 
+  /* One type scale for every small label in the app, replacing the old
+     free-for-all of arbitrary px sizes. Five steps, each with its own
+     line-height: micro (badges, keycaps, lamp labels, column headers) <
+     meta (secondary rows, hints, eyebrows) < label (primary row text, tabs,
+     buttons) < body (search rows, inspector values) < title (panel titles).
+     Larger arbitrary sizes (tempo readout numerals) stay off this scale. */
+  --text-micro: 0.625rem; /* 10px */
+  --text-micro--line-height: 0.875rem;
+  --text-meta: 0.6875rem; /* 11px */
+  --text-meta--line-height: 1rem;
+  --text-label: 0.75rem; /* 12px */
+  --text-label--line-height: 1.0625rem;
+  --text-body: 0.8125rem; /* 13px */
+  --text-body--line-height: 1.125rem;
+  --text-title: 0.9375rem; /* 15px */
+  --text-title--line-height: 1.25rem;
+
   /* The dock row's own offset off the map floor (`bottom-5`). */
   --spacing-dock-row: 1.25rem;
   /* The dock bar's own height (`DockSurface`'s `h-[54px]`). */

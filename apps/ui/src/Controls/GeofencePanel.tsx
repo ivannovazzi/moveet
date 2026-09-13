@@ -91,7 +91,7 @@ export default function GeofencePanel({
           role="tab"
           aria-selected={tab === "zones"}
           className={cn(
-            "-mb-px inline-flex flex-1 items-center justify-center gap-2 border-b-2 border-transparent px-3 py-2 text-[12px] font-medium text-muted-foreground transition-colors duration-fast ease-standard hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
+            "-mb-px inline-flex flex-1 items-center justify-center gap-2 border-b-2 border-transparent px-3 py-2 text-label font-medium text-muted-foreground transition-colors duration-fast ease-standard hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
             tab === "zones" && "border-accent text-foreground"
           )}
           onClick={() => setTab("zones")}
@@ -103,7 +103,7 @@ export default function GeofencePanel({
           role="tab"
           aria-selected={tab === "alerts"}
           className={cn(
-            "-mb-px inline-flex flex-1 items-center justify-center gap-2 border-b-2 border-transparent px-3 py-2 text-[12px] font-medium text-muted-foreground transition-colors duration-fast ease-standard hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
+            "-mb-px inline-flex flex-1 items-center justify-center gap-2 border-b-2 border-transparent px-3 py-2 text-label font-medium text-muted-foreground transition-colors duration-fast ease-standard hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
             tab === "alerts" && "border-accent text-foreground"
           )}
           onClick={() => setTab("alerts")}
@@ -219,10 +219,7 @@ export default function GeofencePanel({
                       <>
                         <Tag tone={tone}>{alert.event}</Tag>
                         <span
-                          className={cn(
-                            mono,
-                            "whitespace-nowrap text-[10.5px] text-muted-foreground"
-                          )}
+                          className={cn(mono, "whitespace-nowrap text-micro text-muted-foreground")}
                         >
                           {formatTimestamp(alert.timestamp)}
                         </span>

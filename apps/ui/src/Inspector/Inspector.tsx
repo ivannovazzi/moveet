@@ -46,7 +46,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return (
     <div className="flex items-baseline justify-between gap-3 border-t border-border-soft px-[15px] py-[9px] first:border-t-0">
       <Eyebrow className="shrink-0">{label}</Eyebrow>
-      <div className="min-w-0 truncate text-right text-[12px] text-foreground">{children}</div>
+      <div className="min-w-0 truncate text-right text-label text-foreground">{children}</div>
     </div>
   );
 }

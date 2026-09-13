@@ -68,7 +68,7 @@ export function PanelHeader({
       className={cn("flex-shrink-0 border-b border-border-soft px-3 py-3", className)}
     >
       {eyebrow ? (
-        <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+        <div className="mb-1 text-micro font-medium uppercase tracking-wider text-muted-foreground">
           {eyebrow}
         </div>
       ) : null}
@@ -223,7 +223,7 @@ export function PanelSectionLabel({ children, className, ...props }: PanelSectio
     <span
       {...props}
       className={cn(
-        "text-[10px] font-medium uppercase tracking-wider text-muted-foreground",
+        "text-micro font-medium uppercase tracking-wider text-muted-foreground",
         className
       )}
     >

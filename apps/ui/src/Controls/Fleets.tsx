@@ -137,7 +137,7 @@ export default function Fleets({
                   }
                   meta={
                     <>
-                      <span className={cn(mono, "text-[11px] text-muted-foreground")}>
+                      <span className={cn(mono, "text-meta text-muted-foreground")}>
                         {fleet.vehicleIds.length}
                       </span>
                       {fleet.source === "external" ? (
@@ -161,7 +161,7 @@ export default function Fleets({
                   <div className="flex flex-col gap-3 border-t border-border-soft px-2 py-2.5">
                     {memberVehicles.length > 0 ? (
                       <div className="flex flex-col gap-1">
-                        <span className="pb-1 text-[10.5px] font-medium uppercase tracking-wide text-muted-foreground">
+                        <span className="pb-1 text-micro font-medium uppercase tracking-wide text-muted-foreground">
                           Assigned
                         </span>
                         {memberVehicles.map((v) => (
@@ -169,7 +169,7 @@ export default function Fleets({
                             key={v.id}
                             className="flex items-center justify-between rounded-sm px-2 py-1 transition-colors duration-fast ease-standard hover:bg-foreground/[0.06]"
                           >
-                            <span className="min-w-0 truncate text-[12px] text-foreground">
+                            <span className="min-w-0 truncate text-label text-foreground">
                               {v.name}
                             </span>
                             <button
@@ -190,7 +190,7 @@ export default function Fleets({
                     ) : null}
 
                     <div className="flex flex-col gap-1">
-                      <span className="pb-1 text-[10.5px] font-medium uppercase tracking-wide text-muted-foreground">
+                      <span className="pb-1 text-micro font-medium uppercase tracking-wide text-muted-foreground">
                         Add vehicles
                       </span>
                       {vehicles.length > 6 ? (
@@ -204,7 +204,7 @@ export default function Fleets({
                         />
                       ) : null}
                       {unassignedVehicles.length === 0 ? (
-                        <span className="py-2 text-[12px] text-muted-foreground">
+                        <span className="py-2 text-label text-muted-foreground">
                           {vehicleFilter ? "No matches" : "All vehicles assigned"}
                         </span>
                       ) : (
@@ -214,7 +214,7 @@ export default function Fleets({
                               key={v.id}
                               className="flex items-center justify-between rounded-sm px-2 py-1 transition-colors duration-fast ease-standard hover:bg-foreground/[0.06]"
                             >
-                              <span className="min-w-0 truncate text-[12px] text-foreground">
+                              <span className="min-w-0 truncate text-label text-foreground">
                                 {v.name}
                               </span>
                               <button

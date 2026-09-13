@@ -162,7 +162,7 @@ export default function JobsPanel({
                   title={option.hint}
                   onClick={() => draft.setStrategy(option.value)}
                   className={cn(
-                    "rounded-md px-2 py-[3px] text-[10.5px] font-medium",
+                    "rounded-md px-2 py-[3px] text-micro font-medium",
                     "transition-[color,background-color] duration-fast ease-standard",
                     selected
                       ? "bg-foreground/[0.06] text-foreground shadow-[inset_0_0_0_1px_var(--color-border-soft)]"
@@ -177,7 +177,7 @@ export default function JobsPanel({
         </div>
 
         <div className="flex items-center gap-2">
-          <label className="flex flex-1 items-center gap-2 text-[10.5px] text-muted-foreground">
+          <label className="flex flex-1 items-center gap-2 text-micro text-muted-foreground">
             <span className="whitespace-nowrap">SLA (min)</span>
             <Input
               type="number"
@@ -192,7 +192,7 @@ export default function JobsPanel({
                 const parsed = Number(e.target.value);
                 if (Number.isFinite(parsed)) draft.setSlaMinutes(parsed);
               }}
-              className={cn(mono, "h-7 w-16 text-[11px]")}
+              className={cn(mono, "h-7 w-16 text-meta")}
             />
           </label>
           {draft.active ? (
@@ -214,7 +214,7 @@ export default function JobsPanel({
 
         {draft.active && (
           <p
-            className="rounded-md border border-accent/35 bg-accent/[0.07] px-2.5 py-1.5 text-[11px] text-foreground"
+            className="rounded-md border border-accent/35 bg-accent/[0.07] px-2.5 py-1.5 text-meta text-foreground"
             role="status"
           >
             {draft.stage === "pickup"
@@ -261,7 +261,7 @@ export default function JobsPanel({
                       <span
                         className={cn(
                           mono,
-                          "whitespace-nowrap text-[11px]",
+                          "whitespace-nowrap text-meta",
                           job.slaBreached ? "text-status-error" : "text-muted-foreground"
                         )}
                         title="Time remaining against the SLA deadline"
@@ -351,7 +351,7 @@ function ReassignRow({
 
   return (
     <div className="flex items-center gap-1.5 border-t border-border-soft px-2 py-2 pl-[13px]">
-      <span className="text-[10.5px] text-muted-foreground">Reassign</span>
+      <span className="text-micro text-muted-foreground">Reassign</span>
       <select
         defaultValue=""
         aria-label={`Reassign ${job.reference}`}
@@ -362,7 +362,7 @@ function ReassignRow({
           void onAssign(strategy ? { strategy: strategy.value } : { vehicleId: value });
         }}
         className={cn(
-          "h-7 min-w-0 flex-1 rounded-md border border-border bg-transparent px-1.5 text-[11px] text-foreground",
+          "h-7 min-w-0 flex-1 rounded-md border border-border bg-transparent px-1.5 text-meta text-foreground",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         )}
       >

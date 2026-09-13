@@ -209,7 +209,7 @@ const VehicleRow = memo(function VehicleRow({
       <span
         className={cn(
           mono,
-          "text-[11px]",
+          "text-meta",
           routeDistance !== undefined ? "text-muted-foreground/70" : "text-muted-foreground/40"
         )}
       >
@@ -260,17 +260,17 @@ const VehicleRow = memo(function VehicleRow({
               style={{ backgroundColor: fleetColor ?? "transparent" }}
             />
           )}
-          <span className={cn(mono, "min-w-0 flex-1 truncate text-[11.5px] text-foreground")}>
+          <span className={cn(mono, "min-w-0 flex-1 truncate text-meta text-foreground")}>
             {name}
           </span>
           {type && type !== "car" && (
-            <span className="flex-shrink-0 rounded-sm bg-foreground/10 px-1 py-px text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+            <span className="flex-shrink-0 rounded-sm bg-foreground/10 px-1 py-px text-micro font-medium uppercase tracking-wide text-muted-foreground">
               {VEHICLE_TYPE_LABELS[type] ?? type}
             </span>
           )}
           {faultSummary && (
             <span
-              className="flex-shrink-0 rounded-sm bg-status-warn/15 px-1 py-px text-[9px] font-medium uppercase tracking-wide text-status-warn"
+              className="flex-shrink-0 rounded-sm bg-status-warn/15 px-1 py-px text-micro font-medium uppercase tracking-wide text-status-warn"
               title={`Device fault: ${faultSummary}`}
             >
               {faultSummary}
@@ -281,14 +281,14 @@ const VehicleRow = memo(function VehicleRow({
         {/* Status: what this unit is doing — its job, if it has one, else motion */}
         {jobReference ? (
           <span
-            className={cn(mono, "flex items-center gap-1.5 text-[11px] text-accent")}
+            className={cn(mono, "flex items-center gap-1.5 text-meta text-accent")}
             title={`Carrying ${jobReference}`}
           >
             <StatusDot tone="accent" />
             {jobReference}
           </span>
         ) : (
-          <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <span className="flex items-center gap-1.5 text-meta text-muted-foreground">
             <StatusDot tone={moving ? "ok" : "idle"} />
             {moving ? "Moving" : "Idle"}
           </span>
@@ -298,7 +298,7 @@ const VehicleRow = memo(function VehicleRow({
         <span
           className={cn(
             mono,
-            "justify-self-end text-[11.5px]",
+            "justify-self-end text-meta",
             moving ? "text-foreground" : "text-muted-foreground/50"
           )}
         >
@@ -546,7 +546,7 @@ export default function VehicleList({
               <div
                 className={cn(
                   ROW_GRID,
-                  "h-6 px-2 text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/75"
+                  "h-6 px-2 text-micro font-bold uppercase tracking-[0.12em] text-muted-foreground/75"
                 )}
               >
                 <span>Unit</span>

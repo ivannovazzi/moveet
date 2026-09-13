@@ -130,9 +130,7 @@ export default function Incidents({ incidents, createRandom, remove, error }: In
                 meta={
                   <>
                     <Tag tone={tone}>{formatSeverity(incident.severity)}</Tag>
-                    <span
-                      className={cn(mono, "whitespace-nowrap text-[11px] text-muted-foreground")}
-                    >
+                    <span className={cn(mono, "whitespace-nowrap text-meta text-muted-foreground")}>
                       {formatTimeRemaining(incident.expiresAt)}
                     </span>
                     <SquaredButton

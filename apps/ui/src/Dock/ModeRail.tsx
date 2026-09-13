@@ -44,7 +44,7 @@ export default function ModeRail({ descriptor }: ModeRailProps) {
       {status && (
         <span
           className={cn(
-            "shrink-0 whitespace-nowrap font-mono text-[11.5px] font-semibold tabular-nums",
+            "shrink-0 whitespace-nowrap font-mono text-meta font-semibold tabular-nums",
             toneText
           )}
         >
@@ -61,7 +61,7 @@ export default function ModeRail({ descriptor }: ModeRailProps) {
       {/* Now the only thing in the rail that isn't a key or a count — and it
           earns it: with no hint text left, this is what says panning is off. */}
       {locksPan && (
-        <span className="flex shrink-0 items-center gap-1 text-[10px] uppercase tracking-[0.1em] text-muted-foreground/70">
+        <span className="flex shrink-0 items-center gap-1 text-micro uppercase tracking-wider text-muted-foreground/70">
           <LockGlyph />
           Pan off
         </span>

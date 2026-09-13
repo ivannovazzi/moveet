@@ -101,12 +101,12 @@ export default function ScaleLegend({
     >
       <div className="flex items-center gap-1.5">
         {Icon && <Icon className="size-3 shrink-0 text-muted-foreground" />}
-        <span className="truncate text-[11px] font-medium tracking-tight text-foreground">
+        <span className="truncate text-meta font-medium tracking-tight text-foreground">
           {title}
         </span>
       </div>
       {subtitle && (
-        <div className="mt-0.5 truncate text-[10px] text-muted-foreground">{subtitle}</div>
+        <div className="mt-0.5 truncate text-micro text-muted-foreground">{subtitle}</div>
       )}
 
       {/*
@@ -144,7 +144,7 @@ export default function ScaleLegend({
         furniture promising a number that is never coming.
       */}
       {breaks && (
-        <div className="mt-1 flex items-baseline justify-between text-[10px] tabular-nums text-muted-foreground">
+        <div className="mt-1 flex items-baseline justify-between text-micro tabular-nums text-muted-foreground">
           <span data-testid={`${testId}-min`}>{formatValue(breaks[0])}</span>
           <span data-testid={`${testId}-max`}>{formatValue(breaks[breaks.length - 1])}</span>
         </div>

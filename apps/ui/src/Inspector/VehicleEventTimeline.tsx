@@ -50,14 +50,14 @@ export default function VehicleEventTimeline({ vehicleId }: VehicleEventTimeline
       <div className="flex items-baseline justify-between gap-3 px-[15px] pb-[6px] pt-[10px]">
         <Eyebrow>Events</Eyebrow>
         {ordered.length > 0 && (
-          <span className={cn(mono, "text-[10px] text-muted-foreground/70")}>
+          <span className={cn(mono, "text-micro text-muted-foreground/70")}>
             {ordered.length} recent
           </span>
         )}
       </div>
 
       {ordered.length === 0 ? (
-        <div className="px-[15px] pb-[10px] text-[11px] text-muted-foreground">
+        <div className="px-[15px] pb-[10px] text-meta text-muted-foreground">
           No events recorded for this vehicle.
         </div>
       ) : (
@@ -82,14 +82,14 @@ export default function VehicleEventTimeline({ vehicleId }: VehicleEventTimeline
                   <Icon className="size-3" strokeWidth={2.25} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[12px] leading-snug text-foreground/90">
+                  <span className="block truncate text-label leading-snug text-foreground/90">
                     {event.label}
                   </span>
                   {event.detail && (
                     <span
                       className={cn(
                         mono,
-                        "mt-0.5 block truncate text-[10px] text-muted-foreground/70"
+                        "mt-0.5 block truncate text-micro text-muted-foreground/70"
                       )}
                     >
                       {event.detail}
@@ -98,7 +98,7 @@ export default function VehicleEventTimeline({ vehicleId }: VehicleEventTimeline
                 </span>
                 <time
                   dateTime={new Date(event.at).toISOString()}
-                  className={cn(mono, "shrink-0 pt-px text-[10px] text-muted-foreground/70")}
+                  className={cn(mono, "shrink-0 pt-px text-micro text-muted-foreground/70")}
                 >
                   {formatEventTime(event.at)}
                 </time>

@@ -52,7 +52,7 @@ export function SmallMultiples({
         {title ? <Eyebrow>{title}</Eyebrow> : <span />}
         <span
           aria-live="polite"
-          className="font-mono text-[10px] tabular-nums text-muted-foreground"
+          className="font-mono text-micro tabular-nums text-muted-foreground"
           data-testid="small-multiples-readout"
         >
           {readIndex != null
@@ -82,7 +82,7 @@ export function SmallMultiples({
         style={{ marginLeft: FACET_INSETS.left, marginRight: FACET_INSETS.right }}
       />
       <div
-        className="flex justify-between pt-1 font-mono text-[9px] tabular-nums text-muted-foreground"
+        className="flex justify-between pt-1 font-mono text-micro tabular-nums text-muted-foreground"
         style={{ paddingLeft: FACET_INSETS.left, paddingRight: FACET_INSETS.right }}
         data-testid="shared-time-axis"
       >

@@ -99,7 +99,7 @@ export function TimeSeriesFacet({
     <div className="flex flex-col gap-1 py-1.5" data-testid={`facet-${series.id}`}>
       <div className="flex items-baseline justify-between gap-2 pl-[34px] pr-2">
         <span
-          className="truncate text-[10.5px] font-medium text-muted-foreground"
+          className="truncate text-micro font-medium text-muted-foreground"
           title={series.hint}
           data-testid={`facet-label-${series.id}`}
         >
@@ -108,12 +108,12 @@ export function TimeSeriesFacet({
         {/* Direct label: exactly one number per facet — the crosshair sample,
             or the latest value when nothing is hovered. Never one per point. */}
         <span
-          className="shrink-0 font-mono text-[11px] font-semibold tabular-nums text-foreground"
+          className="shrink-0 font-mono text-meta font-semibold tabular-nums text-foreground"
           title={series.hint}
         >
           {series.format(shownValue)}
           {series.unit ? (
-            <span className="ml-0.5 font-sans text-[9.5px] font-normal text-muted-foreground">
+            <span className="ml-0.5 font-sans text-micro font-normal text-muted-foreground">
               {series.unit}
             </span>
           ) : null}
@@ -172,7 +172,7 @@ export function TimeSeriesFacet({
             y={geom.scaleY(topTick)}
             textAnchor="end"
             dominantBaseline="middle"
-            className="fill-muted-foreground font-mono text-[8.5px] tabular-nums"
+            className="fill-muted-foreground font-mono text-micro tabular-nums"
           >
             {series.format(topTick)}
           </text>
@@ -181,7 +181,7 @@ export function TimeSeriesFacet({
             y={geom.scaleY(bottomTick)}
             textAnchor="end"
             dominantBaseline="middle"
-            className="fill-muted-foreground font-mono text-[8.5px] tabular-nums"
+            className="fill-muted-foreground font-mono text-micro tabular-nums"
           >
             {series.format(bottomTick)}
           </text>

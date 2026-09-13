@@ -60,9 +60,9 @@ export default function TempoPanel({ clock, onSetMultiplier }: TempoPanelProps) 
             )}
           >
             {clock.speedMultiplier}
-            <span className="text-[15px] font-medium text-muted-foreground">×</span>
+            <span className="text-title font-medium text-muted-foreground">×</span>
           </div>
-          <div className="mt-1.5 text-[11px] text-muted-foreground">
+          <div className="mt-1.5 text-meta text-muted-foreground">
             {speedDescription(clock.speedMultiplier)}
           </div>
         </div>
@@ -97,7 +97,7 @@ export default function TempoPanel({ clock, onSetMultiplier }: TempoPanelProps) 
               onClick={() => onSetMultiplier(preset)}
               className={cn(
                 mono,
-                "rounded-[7px] border py-[7px] text-[12px] font-semibold",
+                "rounded-[7px] border py-[7px] text-label font-semibold",
                 "transition-[color,background-color,box-shadow] duration-fast ease-standard",
                 active
                   ? "border-transparent surface-accent text-white shadow-glow-accent"

@@ -103,7 +103,7 @@ export default function VehicleDirections({ vehicleId, position }: VehicleDirect
         <Hairline />
         <div className="px-[15px] pb-[10px] pt-[10px]">
           <Eyebrow>Directions</Eyebrow>
-          <div className="mt-1 text-[11px] text-muted-foreground">No active route.</div>
+          <div className="mt-1 text-meta text-muted-foreground">No active route.</div>
         </div>
       </div>
     );
@@ -128,7 +128,7 @@ export default function VehicleDirections({ vehicleId, position }: VehicleDirect
       <Hairline />
       <div className="flex shrink-0 items-baseline justify-between gap-3 px-[15px] pb-[6px] pt-[10px]">
         <Eyebrow>Directions</Eyebrow>
-        <div className={cn(mono, "flex items-center gap-1.5 text-[10.5px] text-muted-foreground")}>
+        <div className={cn(mono, "flex items-center gap-1.5 text-micro text-muted-foreground")}>
           <span className="text-foreground">{formatDistance(remaining)}</span>
           {eta && (
             <>
@@ -159,7 +159,7 @@ export default function VehicleDirections({ vehicleId, position }: VehicleDirect
             style={{ width: `${travelledPct}%` }}
           />
         </div>
-        <span className={cn(mono, "shrink-0 text-[10px] text-muted-foreground/70")}>
+        <span className={cn(mono, "shrink-0 text-micro text-muted-foreground/70")}>
           {activeStep >= 0 ? `Step ${activeStep + 1}/${steps.length}` : "Not started"}
         </span>
       </div>
@@ -223,14 +223,14 @@ export default function VehicleDirections({ vehicleId, position }: VehicleDirect
                 <span className="min-w-0 flex-1">
                   <span
                     className={cn(
-                      "block text-[12px] leading-snug",
+                      "block text-label leading-snug",
                       isActive || isPinned ? "font-medium text-foreground" : "text-foreground/90"
                     )}
                   >
                     {step.instruction}
                   </span>
                   {dist && (
-                    <span className={cn(mono, "mt-0.5 block text-[10px] text-muted-foreground/70")}>
+                    <span className={cn(mono, "mt-0.5 block text-micro text-muted-foreground/70")}>
                       {dist}
                     </span>
                   )}

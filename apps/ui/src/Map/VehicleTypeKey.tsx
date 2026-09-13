@@ -123,7 +123,7 @@ export default function VehicleTypeKey({ hiddenVehicleTypes, onToggle }: Vehicle
             className={cn(
               "absolute -right-0.5 -top-0.5 flex h-[14px] min-w-[14px] items-center justify-center",
               "rounded-full border-[1.5px] border-glass-bot bg-accent px-[3px]",
-              "font-mono text-[9px] font-bold leading-none tabular-nums text-white"
+              "font-mono text-micro font-bold leading-none tabular-nums text-white"
             )}
           >
             {hiddenCount}

@@ -58,7 +58,7 @@ const DockCluster = forwardRef<HTMLButtonElement, DockClusterProps>(function Doc
     >
       <span className="flex items-center justify-center [&_svg]:size-[17px]">{icon}</span>
       {label && (
-        <span className="text-[9px] font-semibold uppercase leading-none tracking-[0.06em]">
+        <span className="text-micro font-semibold uppercase leading-none tracking-wider">
           {label}
         </span>
       )}

@@ -258,7 +258,7 @@ export default function SessionTimeline({
         className
       )}
     >
-      <span className="shrink-0 text-[9px] font-semibold uppercase leading-none tracking-[0.08em] text-muted-foreground">
+      <span className="shrink-0 text-micro font-semibold uppercase leading-none tracking-wider text-muted-foreground">
         Session
       </span>
 
@@ -270,7 +270,7 @@ export default function SessionTimeline({
           } are no longer retained — the strip keeps the most recent ${MAX_SESSION_EVENTS}.`}
           className={cn(
             mono,
-            "shrink-0 rounded-sm bg-muted/50 px-1 py-px text-[9px] leading-none text-muted-foreground"
+            "shrink-0 rounded-sm bg-muted/50 px-1 py-px text-micro leading-none text-muted-foreground"
           )}
         >
           +{evicted} earlier
@@ -294,7 +294,7 @@ export default function SessionTimeline({
         )}
 
         {events.length === 0 && (
-          <span className="absolute left-0 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground/70">
+          <span className="absolute left-0 top-1/2 -translate-y-1/2 text-micro text-muted-foreground/70">
             No incidents, geofence events or dispatches yet
           </span>
         )}
@@ -345,7 +345,7 @@ export default function SessionTimeline({
               {merged && (
                 <span
                   aria-hidden
-                  className="absolute -top-px left-1/2 -translate-x-1/2 text-[8px] font-semibold leading-none text-muted-foreground"
+                  className="absolute -top-px left-1/2 -translate-x-1/2 text-micro font-semibold leading-none text-muted-foreground"
                 >
                   {cluster.events.length}
                 </span>
@@ -364,7 +364,7 @@ export default function SessionTimeline({
               aria-hidden
               className={cn("block h-2.5 w-[3px] rounded-full", CATEGORY_TICK[category])}
             />
-            <span className="text-[9px] uppercase tracking-[0.06em]">{label}</span>
+            <span className="text-micro uppercase tracking-wider">{label}</span>
           </li>
         ))}
       </ul>
@@ -372,7 +372,7 @@ export default function SessionTimeline({
       <span
         className={cn(
           mono,
-          "shrink-0 rounded-sm border px-1 py-px text-[9px] uppercase leading-[1.4] tracking-[0.06em]",
+          "shrink-0 rounded-sm border px-1 py-px text-micro uppercase leading-[1.4] tracking-wider",
           seekable
             ? "border-accent/40 bg-accent/10 text-accent"
             : "border-border bg-muted text-muted-foreground"

@@ -56,7 +56,7 @@ export default function StatusLeds({ leds, className }: StatusLedsProps) {
           )}
         >
           <span className={cn("size-[5px] shrink-0 rounded-full", LAMP[tone])} />
-          <span className="text-[9.5px] font-bold uppercase tracking-[0.14em]">{label}</span>
+          <span className="text-micro font-bold uppercase tracking-[0.14em]">{label}</span>
           <span className="sr-only">{title}</span>
         </span>
       ))}

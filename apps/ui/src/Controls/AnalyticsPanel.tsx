@@ -117,31 +117,31 @@ function FleetCard({ fleetId, history }: FleetCardProps) {
     <div className="flex flex-col gap-2.5 py-2.5" data-testid={`fleet-${fleetId}`}>
       <div className="flex items-center gap-2.5">
         <StatusDot tone="ok" />
-        <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-foreground">
+        <span className="min-w-0 flex-1 truncate text-label font-medium text-foreground">
           {fleetId}
         </span>
       </div>
-      <div className={cn(mono, "flex gap-4 text-[12px] text-muted-foreground")}>
+      <div className={cn(mono, "flex gap-4 text-label text-muted-foreground")}>
         <span className="flex items-baseline gap-0.5">
           <span className="font-medium text-foreground">{latest.vehicleCount}</span>
-          <span className="text-[10px] text-muted-foreground"> vehicles</span>
+          <span className="text-micro text-muted-foreground"> vehicles</span>
         </span>
         <span className="flex items-baseline gap-0.5">
           <span className="font-medium text-foreground">{formatSpeed(latest.avgSpeed)}</span>
-          <span className="text-[10px] text-muted-foreground"> km/h</span>
+          <span className="text-micro text-muted-foreground"> km/h</span>
         </span>
         <span className="flex items-baseline gap-0.5">
           <span className="font-medium text-foreground">
             {formatDistance(latest.totalDistance)}
           </span>
-          <span className="text-[10px] text-muted-foreground"> km</span>
+          <span className="text-micro text-muted-foreground"> km</span>
         </span>
       </div>
       {speedHistory.length >= 2 && (
         <div className="flex items-center gap-3">
           <Eyebrow className="shrink-0">Speed</Eyebrow>
           <Sparkline data={speedHistory} height={24} />
-          <span className={cn(mono, "shrink-0 text-[12px] font-semibold text-foreground")}>
+          <span className={cn(mono, "shrink-0 text-label font-semibold text-foreground")}>
             {formatSpeed(latest.avgSpeed)}
           </span>
         </div>
@@ -270,7 +270,7 @@ export default function AnalyticsPanel({
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-1.5">
               <span
-                className="truncate text-[10px] text-muted-foreground"
+                className="truncate text-micro text-muted-foreground"
                 title={
                   bucket
                     ? `Aggregated server-side into ${bucket.label} buckets from ${bucket.sampleCount.toLocaleString()} stored samples. Rates and counts are bucket means; cumulative totals keep the last value in each bucket.`
@@ -300,7 +300,7 @@ export default function AnalyticsPanel({
                     aria-pressed={view === v}
                     onClick={() => setView(v)}
                     className={cn(
-                      "rounded-md px-2 py-1 text-[10.5px] font-medium capitalize",
+                      "rounded-md px-2 py-1 text-micro font-medium capitalize",
                       "transition-colors duration-fast ease-standard",
                       view === v
                         ? "bg-foreground/[0.06] text-foreground"

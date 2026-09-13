@@ -43,7 +43,7 @@ export default function FleetLegend({
     >
       <div className="flex items-center gap-1.5">
         <CarIcon className="size-3 shrink-0 text-muted-foreground" />
-        <span className="truncate text-[11px] font-medium tracking-tight text-foreground">
+        <span className="truncate text-meta font-medium tracking-tight text-foreground">
           Fleets
         </span>
       </div>

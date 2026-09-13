@@ -96,7 +96,7 @@ export default function ReplayRail({
       </span>
 
       <span
-        className="hidden max-w-[110px] shrink truncate text-[11.5px] text-muted-foreground xl:block"
+        className="hidden max-w-[110px] shrink truncate text-meta text-muted-foreground xl:block"
         title={fileName}
       >
         {fileName}
@@ -124,7 +124,7 @@ export default function ReplayRail({
         className="w-[150px] shrink xl:w-[210px]"
       />
 
-      <span className="shrink-0 whitespace-nowrap font-mono text-[11px] tabular-nums text-muted-foreground">
+      <span className="shrink-0 whitespace-nowrap font-mono text-meta tabular-nums text-muted-foreground">
         {formatTime(position / 1000)} / {formatTime(duration / 1000)}
       </span>
 
@@ -136,7 +136,7 @@ export default function ReplayRail({
             aria-pressed={speed === s}
             onClick={() => void onSetReplaySpeed(s)}
             className={cn(
-              "h-7 rounded-md px-1.5 font-mono text-[11px] font-semibold tabular-nums",
+              "h-7 rounded-md px-1.5 font-mono text-meta font-semibold tabular-nums",
               "transition-colors duration-fast ease-standard",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
               speed === s

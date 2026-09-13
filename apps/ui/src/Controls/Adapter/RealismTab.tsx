@@ -41,9 +41,7 @@ export default function RealismTab({ config, loading, onSetRealism }: RealismTab
             key={key}
             tone={s.enabled ? "ok" : "idle"}
             primary={key}
-            meta={
-              <span className="font-mono text-[11px] tabular-nums text-foreground">{value}</span>
-            }
+            meta={<span className="font-mono text-meta tabular-nums text-foreground">{value}</span>}
           />
         ))}
       </LList>

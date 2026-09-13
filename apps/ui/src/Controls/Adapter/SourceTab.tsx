@@ -79,7 +79,7 @@ export default function SourceTab({ health, config, loading, onConnect }: Source
         )}
 
         {!plugin && (
-          <p className="text-[11px] text-muted-foreground/60">
+          <p className="text-meta text-muted-foreground/60">
             Choose a source type to view its configuration.
           </p>
         )}

@@ -167,7 +167,7 @@ export default function TransportCluster({
           className={cn(isRecording && "text-status-error")}
         >
           {isRecording ? (
-            <span className="font-mono text-[10.5px] font-semibold tabular-nums text-status-error">
+            <span className="font-mono text-micro font-semibold tabular-nums text-status-error">
               {formatTime(elapsed)}
             </span>
           ) : (

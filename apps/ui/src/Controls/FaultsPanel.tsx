@@ -67,7 +67,7 @@ export default function FaultsPanel({ faults, vehicles, selectedVehicleId }: Fau
       <div className="flex flex-col gap-2.5 px-[15px] pb-3 pt-1">
         <div className="flex items-center justify-between gap-2">
           <Eyebrow>Fault layer</Eyebrow>
-          <label className="flex items-center gap-2 text-[10.5px] text-muted-foreground">
+          <label className="flex items-center gap-2 text-micro text-muted-foreground">
             <span>{enabled ? "Armed" : "Off"}</span>
             <Switch
               isSelected={enabled}
@@ -78,7 +78,7 @@ export default function FaultsPanel({ faults, vehicles, selectedVehicleId }: Fau
         </div>
 
         <div className="flex items-center gap-2">
-          <label className="flex flex-1 items-center gap-2 text-[10.5px] text-muted-foreground">
+          <label className="flex flex-1 items-center gap-2 text-micro text-muted-foreground">
             <span className="whitespace-nowrap" title="Seeded runs are reproducible">
               Seed
             </span>
@@ -96,7 +96,7 @@ export default function FaultsPanel({ faults, vehicles, selectedVehicleId }: Fau
                 if (parsed === config?.seed) return;
                 void faults.configure({ seed: parsed });
               }}
-              className={cn(mono, "h-7 w-24 text-[11px]")}
+              className={cn(mono, "h-7 w-24 text-meta")}
             />
           </label>
           <Button
@@ -110,7 +110,7 @@ export default function FaultsPanel({ faults, vehicles, selectedVehicleId }: Fau
         </div>
 
         {nothingArmed && (
-          <p className="rounded-md border border-status-warn/35 bg-status-warn/[0.07] px-2.5 py-1.5 text-[11px] text-foreground">
+          <p className="rounded-md border border-status-warn/35 bg-status-warn/[0.07] px-2.5 py-1.5 text-meta text-foreground">
             Armed, but no profile is set — pick a fleet-wide preset or arm one device below.
           </p>
         )}
@@ -140,7 +140,7 @@ export default function FaultsPanel({ faults, vehicles, selectedVehicleId }: Fau
                 <span
                   className={cn(
                     mono,
-                    "text-[13px] font-semibold",
+                    "text-body font-semibold",
                     value === 0
                       ? "text-muted-foreground"
                       : tone === "error"
@@ -152,7 +152,7 @@ export default function FaultsPanel({ faults, vehicles, selectedVehicleId }: Fau
                 >
                   {value}
                 </span>
-                <span className="text-[9.5px] uppercase tracking-wider text-muted-foreground">
+                <span className="text-micro uppercase tracking-wider text-muted-foreground">
                   {label}
                 </span>
               </div>
@@ -169,7 +169,7 @@ export default function FaultsPanel({ faults, vehicles, selectedVehicleId }: Fau
           {config?.default && (
             <button
               type="button"
-              className="text-[10.5px] text-muted-foreground underline-offset-2 hover:text-status-error hover:underline"
+              className="text-micro text-muted-foreground underline-offset-2 hover:text-status-error hover:underline"
               onClick={() => void faults.configure({ default: null })}
             >
               Clear
@@ -187,7 +187,7 @@ export default function FaultsPanel({ faults, vehicles, selectedVehicleId }: Fau
                 aria-pressed={active}
                 onClick={() => void faults.configure({ default: preset.profile })}
                 className={cn(
-                  "rounded-md px-2 py-[3px] text-[10.5px] font-medium",
+                  "rounded-md px-2 py-[3px] text-micro font-medium",
                   "transition-[color,background-color] duration-fast ease-standard",
                   active
                     ? "bg-foreground/[0.06] text-foreground shadow-[inset_0_0_0_1px_var(--color-border-soft)]"
@@ -199,7 +199,7 @@ export default function FaultsPanel({ faults, vehicles, selectedVehicleId }: Fau
             );
           })}
         </div>
-        <p className={cn(mono, "text-[10.5px] text-muted-foreground/60")}>
+        <p className={cn(mono, "text-micro text-muted-foreground/60")}>
           {config?.default ? describeProfile(config.default) : "No fleet-wide profile"}
         </p>
       </div>
@@ -213,7 +213,7 @@ export default function FaultsPanel({ faults, vehicles, selectedVehicleId }: Fau
             aria-label="Vehicle to arm"
             onChange={(e) => setTargetId(e.target.value)}
             className={cn(
-              "h-7 min-w-0 flex-1 rounded-md border border-border bg-transparent px-1.5 text-[11px] text-foreground",
+              "h-7 min-w-0 flex-1 rounded-md border border-border bg-transparent px-1.5 text-meta text-foreground",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             )}
           >
@@ -235,7 +235,7 @@ export default function FaultsPanel({ faults, vehicles, selectedVehicleId }: Fau
               e.target.value = "";
             }}
             className={cn(
-              "h-7 rounded-md border border-border bg-transparent px-1.5 text-[11px] text-foreground",
+              "h-7 rounded-md border border-border bg-transparent px-1.5 text-meta text-foreground",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               "disabled:cursor-not-allowed disabled:opacity-40"
             )}
@@ -288,7 +288,7 @@ function TriggerCounts({ counts }: { counts: Record<DeviceFaultKind, number> }) 
   const fired = (Object.entries(counts) as [DeviceFaultKind, number][]).filter(([, n]) => n > 0);
   if (fired.length === 0) {
     return (
-      <p className={cn(mono, "text-[10.5px] text-muted-foreground/60")}>No faults injected yet</p>
+      <p className={cn(mono, "text-micro text-muted-foreground/60")}>No faults injected yet</p>
     );
   }
   return (

@@ -96,14 +96,14 @@ export default function HeatzonePanel() {
                 >
                   <div
                     className={cn(
-                      "truncate text-[12px] font-medium",
+                      "truncate text-label font-medium",
                       selected ? "text-accent" : "text-foreground"
                     )}
                   >
                     {`Heat zone ${i + 1}`}
                     {selected && " · editing"}
                   </div>
-                  <div className="mt-0.5 truncate font-mono text-[10.5px] tabular-nums text-muted-foreground/60">
+                  <div className="mt-0.5 truncate font-mono text-micro tabular-nums text-muted-foreground/60">
                     {Math.round(z.properties.intensity * 100)}% intensity
                   </div>
                 </button>

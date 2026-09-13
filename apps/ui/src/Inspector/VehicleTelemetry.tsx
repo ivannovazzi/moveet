@@ -37,9 +37,7 @@ function Row({ label, chart, value }: { label: string; chart: React.ReactNode; v
       {/* Holds the chart's width even when the series has no readings yet, so
           the value column stays put instead of sliding left. */}
       <div className="flex min-w-0 flex-1 items-center">{chart}</div>
-      <span className={cn(mono, "shrink-0 text-[11.5px] font-semibold text-foreground")}>
-        {value}
-      </span>
+      <span className={cn(mono, "shrink-0 text-meta font-semibold text-foreground")}>{value}</span>
     </div>
   );
 }
@@ -60,13 +58,13 @@ export default function VehicleTelemetry({ vehicleId }: VehicleTelemetryProps) {
       <Hairline />
       <div className="flex items-baseline justify-between gap-3 px-[15px] pb-[4px] pt-[10px]">
         <Eyebrow>Telemetry</Eyebrow>
-        <span className={cn(mono, "text-[10px] text-muted-foreground/70")}>
+        <span className={cn(mono, "text-micro text-muted-foreground/70")}>
           {WINDOW_SECONDS}s · {SAMPLE_HZ} Hz
         </span>
       </div>
 
       {!hasSeries ? (
-        <div className="px-[15px] pb-[10px] pt-[2px] text-[11px] text-muted-foreground">
+        <div className="px-[15px] pb-[10px] pt-[2px] text-meta text-muted-foreground">
           Collecting telemetry…
         </div>
       ) : (

@@ -279,7 +279,7 @@ export default function SearchBar({
                 <span
                   className={cn(
                     "pointer-events-none absolute right-4 flex shrink-0 items-center rounded border border-border",
-                    "bg-foreground/[0.04] px-1 py-0.5 text-[9.5px] font-semibold text-muted-foreground"
+                    "bg-foreground/[0.04] px-1 py-0.5 text-micro font-semibold text-muted-foreground"
                   )}
                   aria-hidden="true"
                 >
@@ -322,7 +322,7 @@ export default function SearchBar({
                   <div key={group} role="group" aria-labelledby={headingId}>
                     <div
                       id={headingId}
-                      className="px-4 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
+                      className="px-4 pb-1 pt-2 text-micro font-semibold uppercase tracking-wider text-muted-foreground"
                     >
                       {GROUP_LABEL[group]}
                     </div>
@@ -366,12 +366,12 @@ export default function SearchBar({
                               {road ? <RoadIcon /> : <POIIcon />}
                             </span>
                           )}
-                          <span className="min-w-0 flex-1 truncate text-[13px] leading-tight text-muted-foreground">
+                          <span className="min-w-0 flex-1 truncate text-body leading-tight text-muted-foreground">
                             <Highlight text={r.item.name ?? ""} positions={r.positions} />
                           </span>
                           <span
                             className={cn(
-                              "shrink-0 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground opacity-70",
+                              "shrink-0 text-micro font-semibold uppercase tracking-wider text-muted-foreground opacity-70",
                               i === activeIdx && "text-accent opacity-100"
                             )}
                           >

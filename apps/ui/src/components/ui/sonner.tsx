@@ -78,17 +78,17 @@ const Toaster = ({ ...props }: ToasterProps) => {
         classNames: {
           toast: CARD,
           content: "relative flex min-w-0 flex-1 flex-col gap-0.5",
-          title: "text-[12.5px] font-medium leading-[1.35] text-foreground",
-          description: "text-[11.5px] leading-[1.4] text-muted-foreground",
+          title: "text-label font-medium leading-[1.35] text-foreground",
+          description: "text-meta leading-[1.4] text-muted-foreground",
           actionButton: cn(
             "relative ml-1 shrink-0 self-center rounded-md bg-accent px-2.5 py-1",
-            "text-[11.5px] font-medium text-primary-foreground shadow-raised",
+            "text-meta font-medium text-primary-foreground shadow-raised",
             "transition-[filter] duration-fast ease-standard hover:brightness-110",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           ),
           cancelButton: cn(
             "relative ml-1 shrink-0 self-center rounded-md border border-border bg-foreground/[0.04] px-2.5 py-1",
-            "text-[11.5px] font-medium text-muted-foreground",
+            "text-meta font-medium text-muted-foreground",
             "transition-colors duration-fast ease-standard hover:bg-foreground/[0.08] hover:text-foreground"
           ),
           // A flex child at the end, not sonner's floating corner button: with an

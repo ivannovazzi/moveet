@@ -72,7 +72,7 @@ const SectionPill = forwardRef<HTMLButtonElement, SectionPillProps>(function Sec
         <span
           className={cn(
             "absolute -right-0.5 top-0 flex h-[15px] min-w-[15px] items-center justify-center rounded-full",
-            "border-[1.5px] border-glass-bot px-[3px] font-mono text-[9px] font-bold leading-none tabular-nums text-white",
+            "border-[1.5px] border-glass-bot px-[3px] font-mono text-micro font-bold leading-none tabular-nums text-white",
             badge.tone === "error" ? "bg-status-error" : "bg-accent"
           )}
         >

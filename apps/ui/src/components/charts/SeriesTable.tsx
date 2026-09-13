@@ -24,7 +24,7 @@ export function SeriesTable({ timestamps, series, maxRows = 40, caption }: Serie
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full border-collapse text-[10.5px]">
+      <table className="w-full border-collapse text-micro">
         {caption ? <caption className="sr-only">{caption}</caption> : null}
         <thead>
           <tr className="border-b border-border-soft text-left text-muted-foreground">

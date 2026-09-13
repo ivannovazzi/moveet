@@ -335,16 +335,13 @@ export default function RecordReplay({
                     />
                     <div className="min-w-0">
                       <div
-                        className="truncate text-[12px] font-medium text-foreground"
+                        className="truncate text-label font-medium text-foreground"
                         title={file.fileName}
                       >
                         {formatLabel(file)}
                       </div>
                       <div
-                        className={cn(
-                          mono,
-                          "mt-0.5 truncate text-[10.5px] text-muted-foreground/70"
-                        )}
+                        className={cn(mono, "mt-0.5 truncate text-micro text-muted-foreground/70")}
                       >
                         {formatFileSize(file.fileSize)}
                       </div>

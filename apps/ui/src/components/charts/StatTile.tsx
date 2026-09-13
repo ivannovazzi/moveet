@@ -76,12 +76,12 @@ export function StatTile({ label, value, unit, delta, trend, className }: StatTi
         <span className="truncate text-[21px] font-semibold leading-none tracking-[-0.015em] text-foreground">
           {value}
         </span>
-        {unit ? <span className="text-[12px] text-muted-foreground">{unit}</span> : null}
+        {unit ? <span className="text-label text-muted-foreground">{unit}</span> : null}
       </div>
 
       {tone && delta ? (
         <div
-          className={cn("flex items-center gap-1 text-[10.5px] font-medium", tone.className)}
+          className={cn("flex items-center gap-1 text-micro font-medium", tone.className)}
           data-testid="stat-delta"
         >
           <tone.Icon aria-hidden="true" className="size-3 shrink-0" />

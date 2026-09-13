@@ -51,7 +51,7 @@ function FleetSummary({
   breached: number;
 }) {
   return (
-    <div className="flex items-center gap-2.5 whitespace-nowrap px-[15px] py-2 text-[11px] text-muted-foreground">
+    <div className="flex items-center gap-2.5 whitespace-nowrap px-[15px] py-2 text-meta text-muted-foreground">
       <span>
         <span className={cn(mono, "font-semibold text-foreground")}>{total}</span> vehicles
       </span>
@@ -98,7 +98,7 @@ function FleetSummary({
 function DispatchError({ error }: { error: string | null }) {
   if (!error) return null;
   return (
-    <div className="border-t border-border bg-status-error/[0.07] px-[15px] py-2 text-[11px] leading-tight text-status-error">
+    <div className="border-t border-border bg-status-error/[0.07] px-[15px] py-2 text-meta leading-tight text-status-error">
       {error}
     </div>
   );

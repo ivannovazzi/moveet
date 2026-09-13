@@ -24,7 +24,7 @@ export default function GuardPrompt({ pending, onConfirm, onDismiss }: GuardProm
         <WarningTriangle />
         <RailLabel>Discard</RailLabel>
       </span>
-      <span className="min-w-0 max-w-[280px] shrink truncate text-[11.5px] text-foreground">
+      <span className="min-w-0 max-w-[280px] shrink truncate text-meta text-foreground">
         Discard {pending.loses}?
       </span>
       <RailButton variant="quiet" onClick={onDismiss} autoFocus>

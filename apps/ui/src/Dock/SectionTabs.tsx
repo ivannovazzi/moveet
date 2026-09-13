@@ -59,7 +59,7 @@ export default function SectionTabs({
             title={badge && badge.count > 0 ? `${tab.label} — ${badge.label}` : tab.label}
             className={cn(
               "relative flex h-[24px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2",
-              "text-[11px] font-medium",
+              "text-meta font-medium",
               "transition-[color,background-color,box-shadow] duration-fast ease-standard",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
               selected
@@ -75,7 +75,7 @@ export default function SectionTabs({
               <span
                 className={cn(
                   "flex h-[14px] min-w-[14px] items-center justify-center rounded-full px-[3px]",
-                  "font-mono text-[9px] font-bold leading-none tabular-nums text-white",
+                  "font-mono text-micro font-bold leading-none tabular-nums text-white",
                   badge.tone === "error" ? "bg-status-error" : "bg-accent"
                 )}
               >

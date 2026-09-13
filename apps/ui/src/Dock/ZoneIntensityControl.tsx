@@ -25,7 +25,7 @@ export default function ZoneIntensityControl({ value, onChange }: ZoneIntensityC
 
   return (
     <div className="flex shrink-0 items-center gap-2">
-      <span className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground/70">
+      <span className="text-micro uppercase tracking-wider text-muted-foreground/70">
         Intensity
       </span>
       <Slider
@@ -40,7 +40,7 @@ export default function ZoneIntensityControl({ value, onChange }: ZoneIntensityC
           onChange(v / 100);
         }}
       />
-      <span className="w-[3ch] text-right font-mono text-[11.5px] font-semibold tabular-nums text-foreground">
+      <span className="w-[3ch] text-right font-mono text-meta font-semibold tabular-nums text-foreground">
         {pct}
       </span>
     </div>
