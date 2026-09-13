@@ -39,7 +39,7 @@ export default function SectionTabs({
   return (
     <div
       className={cn(
-        "flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto",
+        "flex min-w-0 flex-1 items-center gap-px overflow-x-auto",
         "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         className
       )}
@@ -58,7 +58,7 @@ export default function SectionTabs({
             onClick={() => onSelectTab(tab.id)}
             title={badge && badge.count > 0 ? `${tab.label} — ${badge.label}` : tab.label}
             className={cn(
-              "relative flex h-[24px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2",
+              "relative flex h-[24px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-1.5",
               "text-meta font-medium",
               "transition-[color,background-color,box-shadow] duration-fast ease-standard",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",

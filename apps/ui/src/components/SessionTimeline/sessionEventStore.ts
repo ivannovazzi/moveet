@@ -63,8 +63,16 @@ class SessionEventStore {
    * in the analytics history endpoint.
    */
   private evicted = 0;
+  /**
+   * When this timeline's clock starts — the earlier of the first event and the
+   * moment the strip mounted. It is the left end of the live axis, so it must
+   * survive eviction (the window forgets events, not when the session began).
+   */
+  private startedAt: number | null = null;
 
   record(input: SessionEventInput): void {
+    // Folded into this record's own notification rather than raising a second.
+    this.anchorStart(input.at);
     const event: SessionEvent = { ...input, id: this.nextId++ };
     const next = [...this.events, event];
     if (next.length > MAX_SESSION_EVENTS) {
@@ -90,6 +98,27 @@ class SessionEventStore {
   }
 
   /**
+   * Move the start of the timeline back to `at` if it is earlier than what is
+   * known so far. The strip calls this on mount, so a session that has not
+   * produced a single event still has a real axis to draw.
+   */
+  noteSessionStart(at: number): void {
+    if (this.anchorStart(at)) this.notify();
+  }
+
+  /** Moves the anchor back if `at` is earlier; reports whether it moved. */
+  private anchorStart(at: number): boolean {
+    if (this.startedAt != null && this.startedAt <= at) return false;
+    this.startedAt = at;
+    return true;
+  }
+
+  /** Start of the current timeline, or `null` before anything has anchored it. */
+  sessionStartedAt(): number | null {
+    return this.startedAt;
+  }
+
+  /**
    * Declare which timeline subsequent events belong to. Crossing a boundary
    * (live → a recording, or between recordings) discards the buffer: the two
    * sets of timestamps are not on the same axis and interleaving them would
@@ -106,16 +135,13 @@ class SessionEventStore {
   }
 
   clear(): void {
-    const hadEvicted = this.evicted > 0;
+    // Notify if *anything* observable changes — the eviction badge and the axis
+    // start must not survive a timeline switch that dropped what they describe.
+    const changed = this.events.length > 0 || this.evicted > 0 || this.startedAt !== null;
     this.evicted = 0;
-    if (this.events.length === 0) {
-      // Still notify if the eviction badge was showing — it must not survive a
-      // timeline switch that dropped the events it was counting.
-      if (hadEvicted) this.notify();
-      return;
-    }
+    this.startedAt = null;
     this.events = EMPTY;
-    this.notify();
+    if (changed) this.notify();
   }
 
   /** Test seam: forget the timeline too, so a fresh case starts from live. */
@@ -142,6 +168,7 @@ export const sessionEventStore = new SessionEventStore();
 const subscribe = (callback: () => void) => sessionEventStore.subscribe(callback);
 const getSnapshot = () => sessionEventStore.all();
 const getEvictedSnapshot = () => sessionEventStore.evictedCount();
+const getStartedAtSnapshot = () => sessionEventStore.sessionStartedAt();
 
 /** Every retained session event, oldest → newest. */
 export function useSessionEvents(): readonly SessionEvent[] {
@@ -151,4 +178,9 @@ export function useSessionEvents(): readonly SessionEvent[] {
 /** How many events fell off the old end of the retained window. */
 export function useEvictedSessionEvents(): number {
   return useSyncExternalStore(subscribe, getEvictedSnapshot, getEvictedSnapshot);
+}
+
+/** Start of the current timeline (earliest event or strip mount), or `null`. */
+export function useSessionStartedAt(): number | null {
+  return useSyncExternalStore(subscribe, getStartedAtSnapshot, getStartedAtSnapshot);
 }

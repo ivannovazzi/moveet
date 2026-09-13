@@ -1,12 +1,14 @@
-import { useCallback, useMemo, useRef } from "react";
-import { AlertTriangle, Send, Waypoints, type LucideIcon } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { mono } from "@/Dock/DockPanelKit";
 import type { ReplayStatus } from "@/types";
 import {
   MAX_SESSION_EVENTS,
+  sessionEventStore,
   useEvictedSessionEvents,
   useSessionEvents,
+  useSessionStartedAt,
   type SessionEvent,
   type SessionEventCategory,
 } from "./sessionEventStore";
@@ -20,11 +22,15 @@ import {
  * the map container — not another absolutely-positioned overlay. The dock
  * (`bottom-5`, 54 px tall) and its panel (`bottom-[86px]`) are positioned
  * against the map container's bottom edge, so they keep exactly the space
- * they already claimed and the strip sits below all of it. `StartHint` moved
- * up to the top-centre slot under the search bar (`top-[72px]`), out of this
- * shelf's way entirely — the dock panel now runs the full width above the
- * dock's right wing and would otherwise cover it here. Nothing overlaps the
- * canvas.
+ * they already claimed and the strip sits below all of it. Nothing overlaps
+ * the canvas.
+ *
+ * **Reading as a timeline.** A bar of unexplained marks is a status bar, not a
+ * timeline, so the strip states its axis: where it starts (clock time, or 0 in
+ * a replay), how long it has been running, and where "now" is. The axis runs
+ * from the session start to the present moment and grows continuously — one
+ * `setInterval` tick a second drives it, never the event stream, so a burst of
+ * WebSocket frames costs no extra render here.
  *
  * **Seeking.** During a replay a tick's position is its offset into the
  * recording, and clicking it calls the same `seekReplay` path the replay dock's
@@ -66,11 +72,14 @@ const CATEGORY_NAME: Record<SessionEventCategory, string> = {
   dispatch: "Dispatch",
 };
 
-const LEGEND: { category: SessionEventCategory; label: string; icon: LucideIcon }[] = [
-  { category: "incident", label: "Incident", icon: AlertTriangle },
-  { category: "geofence-enter", label: "Geofence", icon: Waypoints },
-  { category: "dispatch", label: "Dispatch", icon: Send },
+const LEGEND: { category: SessionEventCategory; label: string }[] = [
+  { category: "incident", label: "Incident" },
+  { category: "geofence-enter", label: "Geofence" },
+  { category: "dispatch", label: "Dispatch" },
 ];
+
+export const EMPTY_COPY =
+  "No events yet. Incidents, geofence crossings and dispatches will appear here.";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
@@ -80,6 +89,12 @@ function clockTime(at: number): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
+/** Wall-clock `HH:MM` — the axis ends, where seconds would only be noise. */
+export function axisClock(at: number): string {
+  const d = new Date(at);
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 /** `MM:SS` offset into a recording. */
 function offsetTime(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
@@ -87,10 +102,29 @@ function offsetTime(ms: number): string {
 }
 
 /**
- * Granularity the live axis grows in. The span is rounded UP to a multiple of
- * this, so it changes in discrete jumps rather than continuously.
+ * How long the session has been running: `MM:SS`, widening to `H:MM:SS` only
+ * once there is an hour to show, so the common case stays four digits wide.
  */
-export const LIVE_SPAN_QUANTUM_MS = 60_000;
+export function elapsedLabel(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`;
+}
+
+/**
+ * Shortest live axis we will draw. A session two seconds old would otherwise
+ * put its only two ticks at opposite ends of a 1200 px strip and imply they
+ * were far apart; a floor of a minute keeps early ticks clustered where they
+ * belong and gives the axis a stable meaning from the first second.
+ */
+export const MIN_LIVE_SPAN_MS = 60_000;
+
+/** Live axis length: session start → now, never shorter than the floor. */
+export function liveSpan(startedAt: number, now: number): number {
+  return Math.max(MIN_LIVE_SPAN_MS, now - startedAt);
+}
 
 /**
  * Where each event sits on the axis, as a 0–1 fraction.
@@ -98,22 +132,17 @@ export const LIVE_SPAN_QUANTUM_MS = 60_000;
  * Replay: the recording's own [0, duration] axis, which is what makes a tick
  * directly seekable.
  *
- * Live: anchored at the oldest retained event and spanning a QUANTIZED window.
- * The obvious normalisation — `(at - min) / (max - min)` — rescales on every
- * single event, so every existing tick slides left as the session runs and a
- * position stops meaning anything ("the incident was about a third along" is
- * false a minute later). Rounding the span up to the next quantum instead
- * pins positions until the session actually outgrows the window, at which
- * point everything reflows once, visibly, rather than continuously.
- *
- * The span is derived from the newest event rather than wall-clock `now`, so
- * the axis still only moves when something happens and the strip needs no
- * ticking clock.
+ * Live: `(at - start) / span`, with the span running from the session start to
+ * the present moment. Both ends are *stated* on the strip, so a position means
+ * something concrete ("a third of the way through the session") rather than
+ * being an unlabelled proportion of an invisible window.
  */
 export function tickOffsets(
   events: readonly SessionEvent[],
   seekable: boolean,
-  duration: number
+  duration: number,
+  startedAt: number,
+  span: number
 ): Map<number, number> {
   const out = new Map<number, number>();
   if (seekable) {
@@ -122,27 +151,16 @@ export function tickOffsets(
     }
     return out;
   }
-  if (events.length === 0) return out;
-
-  let min = Number.POSITIVE_INFINITY;
-  let max = Number.NEGATIVE_INFINITY;
   for (const e of events) {
-    if (e.at < min) min = e.at;
-    if (e.at > max) max = e.at;
+    out.set(e.id, Math.min(Math.max((e.at - startedAt) / span, 0), 1));
   }
-  const elapsed = max - min;
-  const span = Math.max(
-    LIVE_SPAN_QUANTUM_MS,
-    Math.ceil(elapsed / LIVE_SPAN_QUANTUM_MS) * LIVE_SPAN_QUANTUM_MS
-  );
-  for (const e of events) out.set(e.id, Math.min((e.at - min) / span, 1));
   return out;
 }
 
 /**
  * Fraction of the strip's width within which two ticks are treated as
- * overlapping. ~1.2% is roughly the 12px hit target at a typical strip width,
- * i.e. the point at which two buttons would sit on top of each other and the
+ * overlapping. ~1.2% is roughly the 12px tick body at a typical strip width,
+ * i.e. the point at which two markers would sit on top of each other and the
  * lower one would become unclickable.
  */
 export const CLUSTER_THRESHOLD = 0.012;
@@ -205,9 +223,32 @@ export default function SessionTimeline({
   const duration = replayStatus.duration ?? 0;
   const seekable = replayStatus.mode === "replay" && duration > 0;
 
+  // The right end of the live axis. One state tick a second — deliberately not
+  // derived from the event stream, so a burst of WS frames re-renders nothing
+  // here and an idle session still shows its clock running.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Mount anchors the axis for a session that has not produced an event yet,
+  // and loses to the first event when that one is older (a strip mounted after
+  // the session began must not claim the session began with it).
+  const mountedAtRef = useRef(now);
+  useEffect(() => {
+    sessionEventStore.noteSessionStart(mountedAtRef.current);
+  }, []);
+  const storedStart = useSessionStartedAt();
+  const startedAt =
+    storedStart != null ? Math.min(storedStart, mountedAtRef.current) : mountedAtRef.current;
+
+  const span = seekable ? duration : liveSpan(startedAt, now);
+  const elapsed = seekable ? (replayStatus.currentTime ?? 0) : Math.max(0, now - startedAt);
+
   const offsets = useMemo(
-    () => tickOffsets(events, seekable, duration),
-    [events, seekable, duration]
+    () => tickOffsets(events, seekable, duration, startedAt, span),
+    [events, seekable, duration, startedAt, span]
   );
   const clusters = useMemo(() => clusterTicks(events, offsets), [events, offsets]);
 
@@ -247,6 +288,8 @@ export default function SessionTimeline({
   );
 
   const playhead = seekable ? Math.min((replayStatus.currentTime ?? 0) / duration, 1) : null;
+  const axisStartLabel = seekable ? offsetTime(0) : axisClock(startedAt);
+  const axisEndLabel = seekable ? offsetTime(duration) : axisClock(now);
 
   return (
     <div
@@ -254,13 +297,21 @@ export default function SessionTimeline({
       aria-label="Session timeline"
       data-seekable={seekable ? "" : undefined}
       className={cn(
-        "flex h-7 shrink-0 items-center gap-2 border-t border-border bg-card/40 px-2",
+        "flex h-8 shrink-0 items-center gap-2 border-t border-border surface-glass glass-frost px-2",
         className
       )}
     >
-      <span className="shrink-0 text-micro font-semibold uppercase leading-none tracking-wider text-muted-foreground">
-        Session
-      </span>
+      <div className="flex shrink-0 items-center gap-1.5">
+        <Clock aria-hidden className="size-3 text-muted-foreground/70" strokeWidth={2} />
+        <span className="text-meta font-medium leading-none text-muted-foreground">Session</span>
+        <span
+          data-testid="session-timeline-elapsed"
+          title={seekable ? "Position in the recording" : "Time since this session started"}
+          className={cn(mono, "text-meta leading-none text-foreground/80")}
+        >
+          {elapsedLabel(elapsed)}
+        </span>
+      </div>
 
       {evicted > 0 && (
         <span
@@ -284,6 +335,22 @@ export default function SessionTimeline({
       >
         <div aria-hidden className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border" />
 
+        {/* Axis ends, inset so they clear the ticks that sit on them. */}
+        <span
+          aria-hidden
+          data-testid="session-timeline-axis-start"
+          className="pointer-events-none absolute left-1 top-1/2 -translate-y-1/2 text-micro leading-none text-muted-foreground/60"
+        >
+          {axisStartLabel}
+        </span>
+        <span
+          aria-hidden
+          data-testid="session-timeline-axis-end"
+          className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 text-micro leading-none text-muted-foreground/60"
+        >
+          {axisEndLabel}
+        </span>
+
         {playhead != null && (
           <div
             aria-hidden
@@ -293,9 +360,17 @@ export default function SessionTimeline({
           />
         )}
 
+        {!seekable && (
+          <div
+            aria-hidden
+            data-testid="session-timeline-now"
+            className="absolute right-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-foreground/60"
+          />
+        )}
+
         {events.length === 0 && (
-          <span className="absolute left-0 top-1/2 -translate-y-1/2 text-micro text-muted-foreground/70">
-            No incidents, geofence events or dispatches yet
+          <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-micro leading-none text-muted-foreground/60">
+            {EMPTY_COPY}
           </span>
         )}
 
@@ -324,10 +399,12 @@ export default function SessionTimeline({
               onClick={() => {
                 if (actionable) activateCluster(cluster);
               }}
+              // 16px of hit area around a 3px mark: the tick stays hairline,
+              // the target stays clickable.
               className={cn(
-                "group absolute top-1/2 flex h-full w-3 -translate-x-1/2 -translate-y-1/2 items-center justify-center",
+                "group absolute top-1/2 flex h-full w-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-sm",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                actionable ? "cursor-pointer" : "cursor-default"
+                actionable ? "cursor-pointer hover:bg-foreground/5" : "cursor-default"
               )}
               style={{ left: `${cluster.offset * 100}%` }}
             >
@@ -339,13 +416,15 @@ export default function SessionTimeline({
                   merged ? "w-[7px]" : "w-[3px]",
                   CATEGORY_TICK[cluster.category],
                   CATEGORY_HEIGHT[cluster.category],
-                  actionable ? "opacity-90 group-hover:scale-y-125" : "opacity-40"
+                  actionable
+                    ? "opacity-90 group-hover:scale-y-125 group-hover:opacity-100"
+                    : "opacity-40"
                 )}
               />
               {merged && (
                 <span
                   aria-hidden
-                  className="absolute -top-px left-1/2 -translate-x-1/2 text-micro font-semibold leading-none text-muted-foreground"
+                  className="absolute top-0 left-1/2 -translate-x-1/2 text-micro font-semibold leading-none text-muted-foreground"
                 >
                   {cluster.events.length}
                 </span>
@@ -357,14 +436,13 @@ export default function SessionTimeline({
 
       {/* Legend — glanceable only, so it is the first thing to drop when narrow. */}
       <ul className="hidden shrink-0 items-center gap-2.5 lg:flex">
-        {LEGEND.map(({ category, label, icon: Icon }) => (
+        {LEGEND.map(({ category, label }) => (
           <li key={category} className="flex items-center gap-1 text-muted-foreground/80">
-            <Icon aria-hidden className="size-2.5" strokeWidth={2.5} />
             <span
               aria-hidden
-              className={cn("block h-2.5 w-[3px] rounded-full", CATEGORY_TICK[category])}
+              className={cn("block size-1.5 rounded-full", CATEGORY_TICK[category])}
             />
-            <span className="text-micro uppercase tracking-wider">{label}</span>
+            <span className="text-micro leading-none">{label}</span>
           </li>
         ))}
       </ul>

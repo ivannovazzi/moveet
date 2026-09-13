@@ -1,8 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, render, screen, fireEvent, within } from "@testing-library/react";
 import type { ReplayStatus } from "@/types";
-import SessionTimeline from "./SessionTimeline";
+import SessionTimeline, { EMPTY_COPY, elapsedLabel } from "./SessionTimeline";
 import { sessionEventStore, type SessionEventInput } from "./sessionEventStore";
+
+/** Wall clock the whole suite mounts at: one minute past the epoch. */
+const NOW = 60_000;
+
+/** Local-time `HH:MM`, computed independently of the component's own helper. */
+function hhmm(at: number): string {
+  const d = new Date(at);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
 
 const LIVE: ReplayStatus = { mode: "live" };
 const REPLAY: ReplayStatus = {
@@ -42,14 +51,22 @@ const categories = () => ticks().map((t) => t.getAttribute("data-category"));
 const leftPct = (el: HTMLElement) => Number.parseFloat(el.style.left);
 
 beforeEach(() => {
+  // The live axis runs session-start → now, so every position assertion needs a
+  // pinned wall clock (and the strip's once-a-second tick needs fake timers).
+  vi.useFakeTimers();
+  vi.setSystemTime(NOW);
   sessionEventStore.reset();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("SessionTimeline rendering", () => {
   it("shows an empty state before anything has happened", () => {
     setup();
     expect(ticks()).toHaveLength(0);
-    expect(screen.getByText("No incidents, geofence events or dispatches yet")).toBeInTheDocument();
+    expect(screen.getByText(EMPTY_COPY)).toBeInTheDocument();
   });
 
   it("renders a tick per event, tagged by category", () => {
@@ -77,9 +94,9 @@ describe("SessionTimeline rendering", () => {
     ).toBeInTheDocument();
   });
 
-  it("places live ticks proportionally within a quantized window", () => {
-    // 0s / 15s / 30s into a session. The window rounds up to one 60s quantum,
-    // so these sit at 0 / 25 / 50 percent — proportional to REAL elapsed time,
+  it("places live ticks proportionally on a start-to-now axis", () => {
+    // 0s / 15s / 30s into a session that is now 60s old, so the span is 60s and
+    // the ticks sit at 0 / 25 / 50 percent — proportional to REAL elapsed time,
     // not stretched to fill the strip.
     seed(
       { category: "incident", at: 0, label: "a" },
@@ -91,36 +108,89 @@ describe("SessionTimeline rendering", () => {
     expect(ticks().map(leftPct)).toEqual([0, 25, 50]);
   });
 
-  it("does not move existing ticks when a later event arrives", () => {
-    // The regression this guards: normalising by (max - min) rescaled the axis
-    // on every event, so ticks slid left as the session ran and a position
-    // stopped meaning anything.
+  it("holds the axis at a one-minute floor while the session is younger", () => {
+    // Twenty seconds in, a (max - min) axis would throw two ticks a few seconds
+    // apart to opposite ends of the strip and imply they were far apart.
+    vi.setSystemTime(20_000);
     seed(
       { category: "incident", at: 0, label: "a" },
       { category: "incident", at: 15_000, label: "b" }
     );
-    const { rerender } = setup();
-    const before = ticks().map(leftPct);
+    setup();
 
-    seed({ category: "incident", at: 30_000, label: "c" });
-    rerender(<SessionTimeline replayStatus={LIVE} onSeek={vi.fn()} onSelectVehicle={vi.fn()} />);
-
-    expect(ticks().map(leftPct).slice(0, 2)).toEqual(before);
+    expect(ticks().map(leftPct)).toEqual([0, 25]);
   });
 
-  it("reflows once when the session outgrows the current quantum", () => {
+  it("grows the axis as the session outruns the floor", () => {
+    vi.setSystemTime(120_000);
+    seed(
+      { category: "incident", at: 0, label: "a" },
+      { category: "incident", at: 60_000, label: "b" }
+    );
+    setup();
+
+    expect(ticks().map(leftPct)).toEqual([0, 50]);
+  });
+
+  it("re-scales on its own clock, without a new event", () => {
     seed(
       { category: "incident", at: 0, label: "a" },
       { category: "incident", at: 30_000, label: "b" }
     );
-    const { rerender } = setup();
+    setup();
     expect(ticks().map(leftPct)).toEqual([0, 50]);
 
-    // Crossing 60s doubles the window, so the 30s tick halves to 25%.
-    seed({ category: "incident", at: 90_000, label: "c" });
-    rerender(<SessionTimeline replayStatus={LIVE} onSeek={vi.fn()} onSelectVehicle={vi.fn()} />);
+    // A minute later nothing has happened, but "now" has moved, so the same
+    // events sit earlier on a longer axis.
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
 
-    expect(ticks().map(leftPct)).toEqual([0, 25, 75]);
+    expect(ticks().map(leftPct)).toEqual([0, 25]);
+  });
+
+  it("anchors the axis at mount when no event is older", () => {
+    // Mounted at NOW with nothing recorded: the axis starts now, not at 1970.
+    setup();
+
+    expect(screen.getByTestId("session-timeline-axis-start")).toHaveTextContent(hhmm(NOW));
+    expect(screen.getByTestId("session-timeline-elapsed")).toHaveTextContent("00:00");
+  });
+
+  it("labels both ends of the live axis with wall-clock time", () => {
+    seed({ category: "incident", at: 0, label: "a" });
+    setup();
+
+    expect(screen.getByTestId("session-timeline-axis-start")).toHaveTextContent(hhmm(0));
+    expect(screen.getByTestId("session-timeline-axis-end")).toHaveTextContent(hhmm(NOW));
+    expect(screen.getByTestId("session-timeline-now")).toBeInTheDocument();
+  });
+
+  it("labels the replay axis with recording offsets instead", () => {
+    setup(REPLAY);
+
+    expect(screen.getByTestId("session-timeline-axis-start")).toHaveTextContent("00:00");
+    expect(screen.getByTestId("session-timeline-axis-end")).toHaveTextContent("01:00");
+    expect(screen.queryByTestId("session-timeline-now")).not.toBeInTheDocument();
+  });
+
+  it("shows elapsed session time, and the replay position while replaying", () => {
+    seed({ category: "incident", at: 0, label: "a" });
+    const { unmount } = setup();
+    // Session began at 0, clock is at NOW.
+    expect(screen.getByTestId("session-timeline-elapsed")).toHaveTextContent("01:00");
+    unmount();
+
+    setup(REPLAY);
+    // 15s into the recording.
+    expect(screen.getByTestId("session-timeline-elapsed")).toHaveTextContent("00:15");
+  });
+
+  it("widens the elapsed readout only once there is an hour to show", () => {
+    expect(elapsedLabel(0)).toBe("00:00");
+    expect(elapsedLabel(754_000)).toBe("12:34");
+    expect(elapsedLabel(3_754_000)).toBe("1:02:34");
+    expect(elapsedLabel(-5_000)).toBe("00:00");
   });
 
   it("places replay ticks at their offset into the recording", () => {

@@ -82,6 +82,16 @@ describe("the section wing's place on the row", () => {
     expect(wingColumn().className).not.toContain("justify-start");
   });
 
+  it("stands on the shell's one 12px outer margin", () => {
+    renderDock();
+    // The row, the lamps, the inspector, the legend stack and the rail all sit
+    // 12px off their edge, so the section panel's own FLOAT_MARGIN (12) lands
+    // its right edge exactly on the wing's.
+    const row = wingColumn().parentElement as HTMLElement;
+    expect(row.className).toContain("inset-x-3");
+    expect(row.className).toContain("bottom-3");
+  });
+
   it("keeps the same four keys in the same order whatever the deck is doing", () => {
     const live = renderDock();
     expect(wingKeys()).toEqual(["Fleet", "Monitor", "Session", "Settings"]);
@@ -250,6 +260,29 @@ describe("dock section row", () => {
 
     await user.click(within(panel).getByRole("button", { name: "Close Session" }));
     expect(expanded("Session")).toBe(false);
+  });
+
+  it("gives Monitor's five views room to spell themselves out", async () => {
+    const user = userEvent.setup();
+    renderDock();
+
+    await user.click(pill("Monitor"));
+    const panel = await screen.findByRole("region", { name: "Monitor" });
+
+    // One width for every section, wide enough for the longest header: the
+    // title, five tabs, a badge and the close button. At 460px "Faults" clipped
+    // to "Fau" the moment the Incidents badge appeared.
+    expect(panel.className).toContain("w-[520px]");
+    expect(
+      within(panel)
+        .getAllByRole("tab")
+        .map((t) => t.textContent)
+    ).toEqual(["Incidents", "Analytics", "Geofences", "Heat zones", "Faults"]);
+    // Tabs never shrink or wrap — a clipped tab is worse than a tight strip.
+    for (const tab of within(panel).getAllByRole("tab")) {
+      expect(tab.className).toContain("shrink-0");
+      expect(tab.className).toContain("whitespace-nowrap");
+    }
   });
 
   it("opens one floating surface at a time: launcher, tempo, or a section", async () => {

@@ -32,16 +32,17 @@ export const NO_INSETS: MapInsets = { top: 0, right: 0, bottom: 0, left: 0 };
 /**
  * Chrome that is always there, reported by `Dock` (see `Dock.tsx`).
  *
- * These mirror `index.css`: `--spacing-above-dock` is
- * `--spacing-dock-row` (20px) + `--spacing-dock-bar` (54px) + 12px = 86px, and
- * the search bar's band is its own `top-4` (16px) + its ~40px height + a gap.
+ * These mirror `index.css`: `DOCK_BAND` is `--spacing-above-dock`, i.e.
+ * `--spacing-dock-row` (12px) + `--spacing-dock-bar` (54px) + 12px = 78px, and
+ * `SEARCH_BAND` is `--spacing-row-2`, i.e. the 12px outer margin + the search
+ * bar's own 50px height + 12px of air = 74px.
  * They are numbers here rather than a `getComputedStyle` read because
  * `--spacing-above-dock` is a `calc()` expression: custom properties come back
  * from the cascade unresolved, so parsing one buys nothing but a parser. If the
  * tokens in `index.css` move, move these with them.
  */
-export const DOCK_BAND = 86;
-export const SEARCH_BAND = 72;
+export const DOCK_BAND = 78;
+export const SEARCH_BAND = 74;
 
 /**
  * Below this much visible width or height the insets are doing more harm than

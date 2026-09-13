@@ -25,11 +25,21 @@ describe("the corner the Inspector claims", () => {
     expect(getInsets().right).toBe(0);
 
     rerender(<Inspector vehicle={createVehicle({ id: "v1" })} onClose={vi.fn()} />);
-    // Its own width (320) + its right offset (16) + 12px of air.
-    expect(getInsets().right).toBe(348);
+    // Its own width (320) + its right offset (12) + 12px of air.
+    expect(getInsets().right).toBe(344);
 
     rerender(<Inspector poi={createPOI({ id: "p1" })} onClose={vi.fn()} />);
-    expect(getInsets().right).toBe(348);
+    expect(getInsets().right).toBe(344);
+  });
+
+  it("sits on the shared 12px margin and the row-two baseline", () => {
+    render(<Inspector vehicle={createVehicle({ id: "v1" })} onClose={vi.fn()} />);
+    const panel = screen.getByRole("region", { name: "Inspector" });
+    expect(panel.className).toContain("right-3");
+    expect(panel.className).toContain("top-[var(--spacing-row-2)]");
+    // The lamps are centred on the search bar inside row one, so clearing the
+    // row clears them too — no separate below-the-lamps offset any more.
+    expect(panel.className).not.toContain("spacing-below-leds");
   });
 
   it("gives the corner back when the selection is cleared, and when it unmounts", () => {
@@ -40,7 +50,7 @@ describe("the corner the Inspector claims", () => {
     expect(getInsets().right).toBe(0);
 
     rerender(<Inspector vehicle={createVehicle({ id: "v1" })} onClose={vi.fn()} />);
-    expect(getInsets().right).toBe(348);
+    expect(getInsets().right).toBe(344);
     unmount();
     expect(getInsets().right).toBe(0);
   });

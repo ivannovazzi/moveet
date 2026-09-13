@@ -99,7 +99,7 @@ export default function Incidents({ incidents, createRandom, remove, error }: In
               onChange={toggleAutoGenerate}
               aria-label="Auto-generate incidents"
             />
-            <span className="text-xs uppercase tracking-wide text-muted-foreground">Auto</span>
+            <span className="text-meta text-muted-foreground">Auto</span>
           </label>
           <SquaredButton
             icon={<span aria-hidden="true">+</span>}

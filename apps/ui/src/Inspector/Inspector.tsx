@@ -116,10 +116,10 @@ export default function Inspector({ vehicle, poi, fleet, job, onClose }: Inspect
   useVehicleEventCapture();
 
   // The inspector owns the top-right corner while it is up: its `w-80` (320px)
-  // plus its own `right-4` (16px) plus 12px of air. Reported so flying to the
+  // plus its own `right-3` (12px) plus 12px of air. Reported so flying to the
   // vehicle it is describing doesn't put that vehicle behind it. Called before
   // the early return below, so it is unconditional (and clears on close).
-  useReportInset("inspector", vehicle || poi ? { right: 320 + 16 + 12 } : null);
+  useReportInset("inspector", vehicle || poi ? { right: 320 + 12 + 12 } : null);
 
   // Escape is deliberately NOT handled here. The inspector is driven by the
   // selection, and Escape-to-clear-selection is one branch of the app's single
@@ -137,13 +137,13 @@ export default function Inspector({ vehicle, poi, fleet, job, onClose }: Inspect
       role="region"
       aria-label="Inspector"
       className={cn(
-        // Below `StatusLeds` (top-right, `top-3`) rather than `top-4`, so an
-        // open inspector never covers the run's health lamps — the bug this
-        // replaces. `--spacing-below-leds` is the lamps' own top offset plus
-        // their measured height plus an 8px gap (see index.css). Capped above
-        // the dock shelf the same way it was capped above the viewport edge.
-        "absolute right-4 top-[var(--spacing-below-leds)] z-40 flex w-80 max-w-[calc(100vw-2rem)] flex-col origin-top-right",
-        "max-h-[calc(100vh-var(--spacing-below-leds)-var(--spacing-above-dock))]",
+        // Row two of the shell, the same baseline the legend stack and the
+        // start hint use: `--spacing-row-2` clears the search bar and, with it,
+        // the lamps centred on that row — so an open inspector never covers the
+        // run's health lamps (the bug this replaces). Capped above the dock
+        // shelf the same way it was capped above the viewport edge.
+        "absolute right-3 top-[var(--spacing-row-2)] z-40 flex w-80 max-w-[calc(100vw-2rem)] flex-col origin-top-right",
+        "max-h-[calc(100vh-var(--spacing-row-2)-var(--spacing-above-dock))]",
         "overflow-hidden rounded-[10px] border border-border surface-glass-strong glass-frost-strong shadow-floating",
         "animate-scale-in"
       )}

@@ -23,7 +23,7 @@ import {
  * different panels rather than one panel showing four things. The registry
  * still carries `panelWidth`; nothing reads it.
  */
-const PANEL_WIDTH = "w-[460px]";
+const PANEL_WIDTH = "w-[520px]";
 
 export interface SectionRailProps {
   navigation: DockNavigation;
@@ -131,7 +131,7 @@ export default function SectionRail({
         align="origin-right"
         avoidInsetKey="inspector"
         positionKey={`${expanded ?? "none"}:${tab ?? "none"}`}
-        // The one panel big enough to matter to the camera: 460px of the right
+        // The one panel big enough to matter to the camera: 520px of the right
         // edge and most of the height below it (see `mapInsets`).
         insetKey="dock-section-panel"
         onClose={close}

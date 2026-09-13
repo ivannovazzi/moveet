@@ -127,21 +127,23 @@ export default function LegendStack({ children, ref }: LegendStackProps) {
       aria-label="Map legends"
       className={[
         // Height budget, measured rather than guessed:
-        //   72px    search bar + its gap (the stack's own top offset)
-        //   86px    --spacing-above-dock, the dock shelf
-        //   520px   --legend-stack-clearance (the bottom-left column's band):
-        //           the zoom cluster, an 8px gap, and the visibility rail
-        //           stacked above it — see index.css for the breakdown.
+        //   74px    --spacing-row-2, the search bar + its gap (the stack's
+        //           own top offset)
+        //   78px    --spacing-above-dock, the dock shelf
+        //   402px   --legend-stack-clearance (the bottom-left column's band,
+        //           the visibility rail's height by definition) — see
+        //           index.css for the breakdown. The map-controls cluster sits
+        //           beside the rail, not above it, so it adds no height.
         // Percentage, not vh: the stack is positioned against the map pane
         // (`map-backdrop`), which is shorter than the viewport by the header.
         // The `max()` floor matters on a short pane: at 608px the subtraction
         // goes negative and a bare calc would clamp the column to nothing,
         // hiding every legend rather than scrolling them.
-        "max-h-[max(140px,calc(100%-72px-var(--spacing-above-dock)-var(--legend-stack-clearance)))]",
+        "max-h-[max(140px,calc(100%-var(--spacing-row-2)-var(--spacing-above-dock)-var(--legend-stack-clearance)))]",
         // Click-through, always: this box covers a tall strip of the map even
         // when it holds one short legend, and the map underneath has to stay
         // draggable.
-        "pointer-events-none absolute left-3 top-[72px] z-10 flex w-[164px] flex-col",
+        "pointer-events-none absolute left-3 top-[var(--spacing-row-2)] z-10 flex w-[164px] flex-col",
       ].join(" ")}
     >
       <div

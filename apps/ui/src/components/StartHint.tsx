@@ -59,7 +59,7 @@ export default function StartHint({ running, ready, onStart, className }: StartH
       role="status"
       aria-label="Simulation paused"
       className={cn(
-        "absolute top-[72px] left-1/2 z-40 -translate-x-1/2",
+        "absolute top-[var(--spacing-row-2)] left-1/2 z-40 -translate-x-1/2",
         "flex max-w-[calc(100vw-2rem)] items-center gap-3 rounded-md border border-border px-3 py-2",
         "surface-glass glass-frost shadow-elevated animate-fade-up",
         className

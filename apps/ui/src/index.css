@@ -82,12 +82,14 @@
   --text-title: 0.9375rem; /* 15px */
   --text-title--line-height: 1.25rem;
 
-  /* The dock row's own offset off the map floor (`bottom-5`). */
-  --spacing-dock-row: 1.25rem;
+  /* The dock row's own offset off the map floor (`bottom-3`). One outer
+     margin, 12px, shared by every edge-anchored surface: the dock row, the
+     lamps, the inspector, the legend stack and the visibility rail. */
+  --spacing-dock-row: 0.75rem;
   /* The dock bar's own height (`DockSurface`'s `h-[54px]`). */
   --spacing-dock-bar: 3.375rem;
   /* The shelf directly above the dock row (`bottom-above-dock`): the row's own
-     offset + its bar height + 12px of air, built from the two tokens above so
+     offset + its bar height + 12px of air = 78px, built from the two tokens above so
      a change to the dock's own geometry can't quietly drift out of step with
      this. The dock's two wings use the full width of that band, so anything
      else anchored to the bottom of the map — the zoom cluster, legends —
@@ -115,13 +117,17 @@
      "clearance" rather than reaching into the rail's own measurement. */
   --legend-stack-clearance: var(--visibility-rail-band);
 
-  /* Offset from the top edge for anything that must clear the run-health
-     lamps (`StatusLeds`, top-right): the lamps' own `top-3` (12px) + their
-     measured height (~34px: the surface's 4px padding on each side plus one
-     ~26px row of a dotted label) + an 8px gap = 54px. The Inspector, the only
-     other top-right occupant, starts here instead of under `top-4` so an open
-     inspector never covers the lamps. */
-  --spacing-below-leds: 3.375rem;
+  /* Top of the lamp cluster (`StatusLeds`, top-right). The lamps are 32px
+     tall and share row one with the 50px-tall search bar, so they are centred
+     on it rather than hung off the same top edge: 12px outer margin +
+     (50 - 32) / 2 = 21px. */
+  --spacing-lamps-top: 1.3125rem;
+
+  /* Baseline for row two — anything that starts below the search bar: the
+     legend stack, the start hint, the inspector. The 12px outer margin + the
+     search bar's own 50px height + 12px of air = 74px. Row one (search, lamps)
+     and row two share this one number, so the two bands can't drift apart. */
+  --spacing-row-2: 4.625rem;
 
   /* Motion scale — registers the `duration-fast|normal|slow` Tailwind
      transition-duration utilities (Tailwind v4 reads the

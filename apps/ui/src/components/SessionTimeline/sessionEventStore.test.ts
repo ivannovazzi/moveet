@@ -70,6 +70,35 @@ describe("sessionEventStore", () => {
     expect(sessionEventStore.size()).toBe(0);
   });
 
+  it("anchors the session start at the earliest thing it has seen", () => {
+    expect(sessionEventStore.sessionStartedAt()).toBeNull();
+
+    sessionEventStore.noteSessionStart(5_000);
+    expect(sessionEventStore.sessionStartedAt()).toBe(5_000);
+
+    // A later mount or event never moves the start forward...
+    sessionEventStore.record(incident({ at: 9_000 }));
+    expect(sessionEventStore.sessionStartedAt()).toBe(5_000);
+
+    // ...but an older event does: it proves the session began earlier.
+    sessionEventStore.record(incident({ at: 1_000 }));
+    expect(sessionEventStore.sessionStartedAt()).toBe(1_000);
+  });
+
+  it("keeps the session start once its event is evicted", () => {
+    // The window forgets events; it must not forget when the session began.
+    for (let i = 0; i < MAX_SESSION_EVENTS + 10; i++) {
+      sessionEventStore.record(incident({ at: 1_000 + i }));
+    }
+    expect(sessionEventStore.sessionStartedAt()).toBe(1_000);
+  });
+
+  it("drops the session start with the buffer on a timeline switch", () => {
+    sessionEventStore.record(incident({ at: 2_000 }));
+    sessionEventStore.setTimeline("replay:run-1.ndjson");
+    expect(sessionEventStore.sessionStartedAt()).toBeNull();
+  });
+
   it("keeps the buffer when the timeline is re-declared unchanged", () => {
     sessionEventStore.setTimeline("replay:run-1.ndjson");
     sessionEventStore.record(incident({ replayTime: 1_000 }));
