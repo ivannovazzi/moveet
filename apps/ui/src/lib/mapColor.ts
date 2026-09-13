@@ -7,7 +7,12 @@
  * conversion, avoiding hand-rolled oklch math and staying correct for any
  * valid CSS color string regardless of how getComputedStyle serializes it.
  *
- * Results are cached per (color, alpha) pair. Safe to call from useMemo, not
+ * Results are cached per (color, alpha) pair — but only when they actually
+ * resolved: an unresolved token (stylesheet not applied yet, typo'd variable)
+ * returns the fallback *uncached*, so the same call after the stylesheet lands
+ * gets the real colour instead of a fallback frozen in for the session.
+ *
+ * Safe to call from useMemo, not
  * from a per-frame hot loop — see VehiclesLayer's own resolveCSSColor for
  * that case (it resolves to a color *string* for the icon atlas, not bytes).
  */
@@ -43,20 +48,41 @@ export function resolveMapColor(color: string, alpha = 255): [number, number, nu
   if (color.startsWith("var(")) {
     const match = color.match(/^var\(([^)]+)\)$/);
     const varName = match?.[1];
-    cssColor = varName
-      ? getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || color
-      : color;
+    const value = varName
+      ? getComputedStyle(document.documentElement).getPropertyValue(varName).trim()
+      : "";
+    // An unresolved token is *not* a colour: handing `var(--x)` to fillStyle is
+    // a silent no-op, so the shared canvas would keep whatever the previous
+    // caller painted and this token would be cached as that unrelated
+    // overlay's colour, forever. Bail to the fallback instead.
+    if (!value) return [...FALLBACK_RGB, alpha];
+    cssColor = value;
   }
 
   const ctx = getSharedCtx();
-  let rgba: [number, number, number, number] = [...FALLBACK_RGB, alpha];
-  if (ctx) {
-    ctx.clearRect(0, 0, 1, 1);
-    ctx.fillStyle = cssColor;
-    ctx.fillRect(0, 0, 1, 1);
-    const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
-    rgba = [r, g, b, alpha];
-  }
+  // No canvas at all (jsdom): also a non-answer, so don't cache it either.
+  if (!ctx) return [...FALLBACK_RGB, alpha];
+
+  ctx.clearRect(0, 0, 1, 1);
+  // Sentinel: an invalid fillStyle assignment leaves the previous value in
+  // place, so reset first and a bad colour reads back as black rather than as
+  // the last overlay that used this canvas.
+  ctx.fillStyle = "#000";
+  ctx.fillStyle = cssColor;
+  ctx.fillRect(0, 0, 1, 1);
+  const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+  const rgba: [number, number, number, number] = [r, g, b, alpha];
   cache.set(key, rgba);
   return rgba;
+}
+
+/**
+ * Drop the resolved-colour cache.
+ *
+ * Only fully resolved colours are cached, so this exists for tests that
+ * restyle a token between renders — and for callers that memoize a ramp of
+ * their own, which must reset both (see `resetHeatColorRange`).
+ */
+export function resetMapColorCache(): void {
+  cache.clear();
 }

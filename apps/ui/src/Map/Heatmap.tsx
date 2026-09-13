@@ -26,6 +26,7 @@ export default function Heatmap({ vehicles, legendSlot }: HeatmapProps) {
       <HeatLayer data={data} />
       {renderInSlot(
         legendSlot,
+        "heat",
         <ScaleLegend
           testId="heat-legend"
           title="Vehicle heat"

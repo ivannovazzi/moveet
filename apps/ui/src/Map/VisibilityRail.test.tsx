@@ -142,18 +142,21 @@ describe("VisibilityRail", () => {
         20
       );
 
-      expect(screen.getByTestId("density-threshold-chip")).toHaveTextContent(
-        `${DENSITY_MIN_VEHICLES}+`
-      );
+      const chip = screen.getByTestId("density-threshold-chip");
+      expect(chip).toHaveTextContent(`${DENSITY_MIN_VEHICLES}+`);
+      // The shorthand is spelled out for anyone who can't see the dimmed key.
+      expect(chip).toHaveTextContent(`needs ${DENSITY_MIN_VEHICLES}+ vehicles, 20 now`);
+
       const densityKey = key("Density");
       expect(densityKey).toHaveAttribute(
         "title",
         `Density — needs ${DENSITY_MIN_VEHICLES}+ vehicles (20 now)`
       );
-      expect(densityKey).toHaveAttribute(
-        "aria-description",
-        `Density — needs ${DENSITY_MIN_VEHICLES}+ vehicles (20 now)`
-      );
+      // The chip *is* the description, rather than a second copy of the text.
+      expect(densityKey.getAttribute("aria-describedby")).toBe(chip.id);
+      expect(chip.id).not.toBe("");
+      // The layer is on; it is the data that hasn't arrived.
+      expect(densityKey).toHaveAttribute("aria-pressed", "true");
       expect(densityKey.className).toContain("opacity-55");
     });
 
@@ -166,6 +169,7 @@ describe("VisibilityRail", () => {
 
       expect(screen.queryByTestId("density-threshold-chip")).toBeNull();
       expect(key("Density")).toHaveAttribute("title", "Hide Density");
+      expect(key("Density")).not.toHaveAttribute("aria-describedby");
     });
 
     it("says nothing about the threshold while Density is off", () => {

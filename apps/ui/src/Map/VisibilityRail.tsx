@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useId, useState } from "react";
 import { Range } from "@/components/Inputs";
 import { cn } from "@/lib/utils";
 import { TRAIL_LENGTH_RANGE, useTrailLength } from "@/hooks/useTrailLength";
@@ -16,6 +16,14 @@ export interface VisibilityRailProps {
   /**
    * Live fleet size. Density only engages above `DENSITY_MIN_VEHICLES`, so the
    * rail needs the count to say why a lit Density key is drawing nothing.
+   *
+   * Only the fleet-size half of `shouldAggregate` is covered here, on purpose.
+   * The other half is zoom, which lives in the deck.gl view state inside
+   * `DeckGLMap` — the rail is App-level furniture and would need that state
+   * lifted and re-rendered on every wheel tick to report it. Fleet size is the
+   * half that stays wrong for minutes at a time (a small sim never reaches the
+   * threshold at all); zoom is one gesture away from fixing itself, and the
+   * plate appearing as you zoom out is its own feedback.
    */
   vehicleCount: number;
 }
@@ -48,6 +56,7 @@ export default function VisibilityRail({
   vehicleCount,
 }: VisibilityRailProps) {
   const trail = useTrailLength();
+  const densityHintId = useId();
   const [trailOpen, setTrailOpen] = useState(false);
   const trailsOn = modifiers.showBreadcrumbs;
 
@@ -73,6 +82,7 @@ export default function VisibilityRail({
         const densityStarved =
           key === "showDensity" && Boolean(on) && vehicleCount < DENSITY_MIN_VEHICLES;
         const starvedTitle = `Density — needs ${DENSITY_MIN_VEHICLES}+ vehicles (${vehicleCount} now)`;
+        const starvedHint = `needs ${DENSITY_MIN_VEHICLES}+ vehicles, ${vehicleCount} now`;
         return (
           <Fragment key={key}>
             <div
@@ -84,7 +94,12 @@ export default function VisibilityRail({
                 type="button"
                 aria-pressed={Boolean(on)}
                 aria-label={label}
-                aria-description={densityStarved ? starvedTitle : undefined}
+                // The chip itself is the description, so point at it rather
+                // than duplicating the sentence in an `aria-description` (still
+                // only a draft attribute, and unsupported by most screen
+                // readers). `aria-pressed` stays true: the layer *is* on, it is
+                // the data that hasn't arrived.
+                aria-describedby={densityStarved ? densityHintId : undefined}
                 title={densityStarved ? starvedTitle : on ? `Hide ${label}` : `Show ${label}`}
                 onClick={() => onChangeModifiers(key)(!on)}
                 className={cn(
@@ -109,14 +124,17 @@ export default function VisibilityRail({
 
               {/* The threshold Density is waiting for, on the same chip the
                   trail length uses — but a plain span: there is nothing to
-                  press, it is a readout of why the layer is idle. */}
+                  press, it is a readout of why the layer is idle. It is also
+                  the key's accessible description, so it spells the shorthand
+                  out for a reader who can't see the dimmed key next to it. */}
               {densityStarved && (
                 <span
-                  aria-hidden
+                  id={densityHintId}
                   data-testid="density-threshold-chip"
                   className="mt-0.5 rounded px-1 py-px font-mono text-[9.5px] font-bold leading-[13px] tabular-nums text-muted-foreground"
                 >
-                  {`${DENSITY_MIN_VEHICLES}+`}
+                  <span aria-hidden>{`${DENSITY_MIN_VEHICLES}+`}</span>
+                  <span className="sr-only">{starvedHint}</span>
                 </span>
               )}
 

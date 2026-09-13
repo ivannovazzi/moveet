@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { HeatmapLayer } from "@deck.gl/aggregation-layers";
 import { useMapContext } from "@/components/Map/hooks";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
-import { resolveMapColor } from "@/lib/mapColor";
+import { resetMapColorCache, resolveMapColor } from "@/lib/mapColor";
 import type { Position } from "@/types";
 
 /** `[r, g, b, a]`, 0-255 — deck.gl's colour array shape. */
@@ -38,9 +38,13 @@ export function heatColorRange(): HeatColor[] {
   return cachedRamp;
 }
 
-/** Test seam — drops the memoized ramp so a restyled token can be re-read. */
+/**
+ * Test seam — drops *both* memos in the path so a restyled token is re-read:
+ * the ramp here and `resolveMapColor`'s own per-colour cache underneath it.
+ */
 export function resetHeatColorRange(): void {
   cachedRamp = null;
+  resetMapColorCache();
 }
 
 /** Zoom used when the map context hasn't published a view state yet. */
@@ -51,9 +55,10 @@ const DEFAULT_ZOOM = 12;
  *
  * A fixed radius is wrong at both ends: 30 px at city zoom smears the whole
  * fleet into one blob, and at street zoom it is a dot per vehicle. The radius
- * therefore grows with zoom, so a kernel covers roughly the same *ground*
- * area (a few blocks) at any scale, clamped at both ends so the layer never
- * degenerates into confetti or a full-screen wash.
+ * therefore grows with zoom — a compromise, not constant ground coverage:
+ * true ground coverage would double the pixel radius per zoom level and blow
+ * past the screen within a few steps, so this covers under 3x across the five
+ * zoom levels that matter and clamps flat outside them.
  *
  * Zoom is bucketed to half-steps first: `HeatmapLayer` re-aggregates when
  * `radiusPixels` changes, and a continuously-varying radius would do that on

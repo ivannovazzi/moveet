@@ -55,6 +55,11 @@ describe("ScaleLegend", () => {
     expect(screen.getByTestId("scale-legend-max")).toHaveTextContent("250");
   });
 
+  it("drops the ramp note once it has a real table to read instead", () => {
+    render(<ScaleLegend title="Vehicles per bin" colorRange={RAMP} domain={[0, 60]} />);
+    expect(screen.queryByTestId("scale-legend-ramp-note")).toBeNull();
+  });
+
   it("exposes every bin boundary in the screen-reader table", () => {
     render(<ScaleLegend title="Vehicles per bin" colorRange={RAMP} domain={[0, 60]} />);
     const rows = screen.getByTestId("scale-legend-table").querySelectorAll("li");
@@ -71,6 +76,10 @@ describe("ScaleLegend", () => {
     expect(screen.queryByTestId("scale-legend-max")).toBeNull();
     expect(screen.queryByTestId("scale-legend-table")).toBeNull();
     expect(screen.getByTestId("scale-legend")).not.toHaveTextContent("—");
+    // Still not silent: the figure says what the bar is.
+    expect(screen.getByTestId("scale-legend-ramp-note")).toHaveTextContent(
+      "Colour ramp, low to high"
+    );
     // The ramp itself is still shown — it is what is on screen.
     expect(screen.getAllByTestId("scale-legend-step")).toHaveLength(RAMP.length);
   });

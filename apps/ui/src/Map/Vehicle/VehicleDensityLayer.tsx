@@ -164,6 +164,7 @@ export default function VehicleDensityLayer({
 
   return renderInSlot(
     legendSlot,
+    "density",
     <ScaleLegend
       testId="density-legend"
       title="Vehicles per bin"

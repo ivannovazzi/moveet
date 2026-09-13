@@ -132,6 +132,16 @@ export default function ScaleLegend({
       </div>
 
       {/*
+        With no domain there is no table either, so the figure would otherwise
+        be announced as a title and nothing else. Say what the bar is instead.
+      */}
+      {!breaks && (
+        <span className="sr-only" data-testid={`${testId}-ramp-note`}>
+          Colour ramp, low to high
+        </span>
+      )}
+
+      {/*
         No domain, no numbers. A ramp with placeholder ends reads as "the
         scale is loading"; some overlays (the heatmap's smoothed density
         field) simply have no countable domain, and dashes there would be

@@ -26,7 +26,10 @@ vi.mock("@/components/Map/hooks", () => ({
   useMapContext: () => ({ viewState: { zoom: ctx.zoom } }),
 }));
 
-import HeatLayer, { heatRadiusForZoom } from "@/components/Map/components/HeatLayer";
+import HeatLayer, {
+  heatRadiusForZoom,
+  resetHeatColorRange,
+} from "@/components/Map/components/HeatLayer";
 import Heatmap from "@/Map/Heatmap";
 import type { Vehicle } from "@/types";
 
@@ -36,6 +39,9 @@ import type { Vehicle } from "@/types";
 beforeEach(() => {
   registeredLayers.clear();
   ctx.zoom = 12;
+  // Clears the ramp memo *and* resolveMapColor's cache underneath it, so a
+  // test can't inherit colours another file resolved.
+  resetHeatColorRange();
 });
 
 interface HeatLayerProps {

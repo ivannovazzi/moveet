@@ -71,12 +71,19 @@
      zoom, legends — stands on this shelf instead of underneath them. */
   --spacing-above-dock: 5.5rem;
 
-  /* Band at the bottom-left reserved for the visibility rail, which is
-     anchored to the dock shelf and grows upward. The legend stack (top-left,
-     growing down) subtracts this from its max-height, so the two columns run
-     out of room before they can overlap — the collision that used to put the
-     traffic legend on top of the rail at a 1000px window. */
-  --legend-stack-clearance: 14rem;
+  /* Height of the visibility rail, which stands on the dock shelf and grows
+     upward: 11 keys x 34px = 374, plus 10 x 2px gaps = 20, plus 8px of panel
+     padding = 402, plus ~31px when the trail-length and density chips are
+     showing, plus the rail's own 12px lift off the shelf. Rounded up to 448. */
+  --visibility-rail-band: 28rem;
+
+  /* Band at the bottom-left the legend stack must keep clear. The stack
+     (top-left, growing down) subtracts this from its max-height, so the two
+     columns run out of room before they can overlap — the collision that used
+     to put the traffic legend on top of the rail at a 1000px window. It is the
+     rail's height by definition; the indirection is so the stack reads as
+     "clearance" rather than reaching into the rail's own measurement. */
+  --legend-stack-clearance: var(--visibility-rail-band);
 
   /* Motion scale — registers the `duration-fast|normal|slow` Tailwind
      transition-duration utilities (Tailwind v4 reads the

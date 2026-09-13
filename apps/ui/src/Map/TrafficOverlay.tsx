@@ -49,13 +49,16 @@ const CASING_MAX_PX = 18;
  * 0.5 is at capacity. Between stops the colour is interpolated, so the overlay
  * reads as a continuous ramp instead of three hard buckets.
  */
-const CONGESTION_STOPS: ReadonlyArray<readonly [number, string]> = [
-  [0.2, "var(--color-traffic-jam)"],
-  [0.35, "var(--color-traffic-congested)"],
-  [0.5, "var(--color-traffic-heavy)"],
-  [0.7, "var(--color-traffic-slow)"],
-  [0.9, "var(--color-traffic-free)"],
+const CONGESTION_STOPS: ReadonlyArray<readonly [number, string, string]> = [
+  [0.2, "var(--color-traffic-jam)", "Jammed"],
+  [0.35, "var(--color-traffic-congested)", "Jammed"],
+  [0.5, "var(--color-traffic-heavy)", "Heavy"],
+  [0.7, "var(--color-traffic-slow)", "Slow"],
+  [0.9, "var(--color-traffic-free)", "Free flow"],
 ];
+
+/** Label of the band a value falls in, past the last stop included. */
+const TOP_BAND_LABEL = CONGESTION_STOPS[CONGESTION_STOPS.length - 1][2];
 
 /** Swatch count for the legend bar. The map itself is continuous. */
 const LEGEND_STEPS = 8;
@@ -175,15 +178,17 @@ export function buildTrafficSegments(edges: readonly TrafficEdge[]): TrafficSegm
 }
 
 /**
- * Congestion factor as the words a dispatcher uses. The breaks are the colour
- * stops above, so the legend's tick labels name the same bands the map paints
- * rather than a second, differently-cut vocabulary.
+ * Congestion factor as the words a dispatcher uses.
+ *
+ * The bands are read off `CONGESTION_STOPS` rather than restated as literals:
+ * the words then name exactly the colours the map paints, and a retuned stop
+ * moves both at once instead of leaving the legend describing the old ramp.
  */
 function formatCongestion(value: number): string {
-  if (value <= 0.35) return "Jammed";
-  if (value <= 0.5) return "Heavy";
-  if (value <= 0.7) return "Slow";
-  return "Free flow";
+  for (const [breakpoint, , label] of CONGESTION_STOPS) {
+    if (value <= breakpoint) return label;
+  }
+  return TOP_BAND_LABEL;
 }
 
 const NO_LAYERS: Layer[] = [];
@@ -247,6 +252,7 @@ export default function TrafficOverlay({ visible, legendSlot }: TrafficOverlayPr
 
   return renderInSlot(
     legendSlot,
+    "traffic",
     <ScaleLegend
       testId="traffic-legend"
       title="Traffic"
