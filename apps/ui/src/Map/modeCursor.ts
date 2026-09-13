@@ -1,6 +1,10 @@
 import { cursorForDispatchState, type DispatchState } from "@/hooks/useDispatchState";
 import type { InteractionModeKind } from "@/hooks/useInteractionMode";
 
+/** Every cursor a mode can ask for. `default` and `grab` are the idle pair
+ *  DeckGLMap's resolveCursor lets hover/drag feedback through. */
+export type MapCursor = "crosshair" | "default" | "grab" | "grabbing" | "wait" | "pointer";
+
 /**
  * The map cursor for the active interaction mode — one table instead of the
  * ad-hoc branch Map.tsx used to derive from a handful of boolean props.
@@ -12,10 +16,6 @@ import type { InteractionModeKind } from "@/hooks/useInteractionMode";
  * its own state machine, and browse is the idle "grab" the map hover/drag
  * feedback in DeckGLMap's getCursor keys off.
  */
-/** Every cursor a mode can ask for. `default` and `grab` are the idle pair
- *  DeckGLMap's resolveCursor lets hover/drag feedback through. */
-export type MapCursor = "crosshair" | "default" | "grab" | "grabbing" | "wait" | "pointer";
-
 export function cursorForMode(kind: InteractionModeKind, dispatchState?: DispatchState): MapCursor {
   switch (kind) {
     case "draw-geofence":

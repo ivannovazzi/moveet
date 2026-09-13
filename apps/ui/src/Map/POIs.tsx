@@ -5,14 +5,17 @@ import { useMapContext } from "@/components/Map/hooks";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 import { usePois } from "@/hooks/usePois";
 import { createPOIIconAtlas } from "./POI/iconAtlas";
-import { GROUP_META, groupForType, type PoiGroup } from "./POI/categories";
+import { GROUP_META, mappableGroup, markerSizeForGroup, type PoiGroup } from "./POI/categories";
 import { useSettledZoom } from "./hooks/useSettledZoom";
 import { resolveMapColor } from "@/lib/mapColor";
-import { LABEL_PRIORITY, mapLabelProps, useVisibleLabels, type LabelItem } from "@/lib/mapLabels";
+import {
+  LABEL_PRIORITY,
+  LABEL_TOKEN,
+  mapLabelProps,
+  useVisibleLabels,
+  type LabelItem,
+} from "@/lib/mapLabels";
 import type { POI } from "@/types";
-
-/** POI names are ambient context, so they take the neutral map ink. */
-const LABEL_TOKEN = "var(--color-map-label)";
 
 // Build the atlas once at module level — this is a pure canvas operation.
 const { iconAtlas, iconMapping } = createPOIIconAtlas();
@@ -44,16 +47,6 @@ const COLLISION_TIGHTEN_ZOOM = 15;
 /** Fade-in duration in milliseconds. */
 const FADE_DURATION_MS = 500;
 
-/**
- * Wayfinding anchors — hospitals, fuel, transit — are drawn full size; the
- * ambient carpet (shops, food, leisure, civic, education, worship) is a size
- * smaller so it reads as background even where it survives the collision pass.
- * Bus stops are anchors too, so transit is no longer the small-glyph exception.
- */
-const ANCHOR_SIZE = 22;
-const DEFAULT_SIZE = 18;
-const ANCHOR_GROUPS: ReadonlySet<PoiGroup> = new Set<PoiGroup>(["health", "transit", "fuel"]);
-
 /** Label size and offset, shared between the TextLayer and the declutter pass. */
 const LABEL_SIZE = 12;
 const LABEL_OFFSET: [number, number] = [0, 17];
@@ -78,12 +71,6 @@ const MAX_LABEL_CANDIDATES = 400;
 function quantize(value: number): number {
   return Math.round(value * 1000) / 1000;
 }
-
-/**
- * Zoom is quantized to discrete steps so deck.gl color transitions can
- * complete between updates instead of restarting on every animation frame.
- * Quantization + debouncing lives in {@link useSettledZoom}.
- */
 
 /** A POI paired with the group it renders as — resolved once, not per accessor. */
 interface GroupedPOI {
@@ -122,8 +109,7 @@ export default function POIs({ visible, onClick, selectable = true }: POIMarkerP
     if (!showData || isZooming) return [] as GroupedPOI[];
     const grouped: GroupedPOI[] = [];
     for (const poi of pois) {
-      if (!poi.name) continue;
-      const group = groupForType(poi.type);
+      const group = mappableGroup(poi);
       if (!group) continue;
       grouped.push({ poi, group });
     }
@@ -198,13 +184,10 @@ export default function POIs({ visible, onClick, selectable = true }: POIMarkerP
         data: visiblePois,
         updateTriggers: {
           getColor: [settledZoom],
-          // collisionTestProps is read when the collision pass rebuilds, so the
-          // spacing switch has to be an explicit trigger like any accessor.
-          getCollisionPriority: [collisionSizeScale],
         },
         getPosition: (d) => [d.poi.coordinates[1], d.poi.coordinates[0]],
         getIcon: (d) => d.group,
-        getSize: (d) => (ANCHOR_GROUPS.has(d.group) ? ANCHOR_SIZE : DEFAULT_SIZE),
+        getSize: (d) => markerSizeForGroup(d.group),
         getColor: (d) => {
           const alpha = settledZoom >= GROUP_META[d.group].minZoom ? 255 : 0;
           return [255, 255, 255, alpha];
@@ -237,6 +220,10 @@ export default function POIs({ visible, onClick, selectable = true }: POIMarkerP
           collisionEnabled: true,
           collisionGroup: "map-markers",
           getCollisionPriority: (d: GroupedPOI) => GROUP_META[d.group].priority,
+          // `collisionTestProps` is not an accessor, so no updateTrigger covers
+          // it; the collision pass reads it live off the layer whenever it
+          // re-renders, and it re-renders because this memo hands deck.gl a new
+          // layer instance whenever `collisionSizeScale` flips.
           collisionTestProps: {
             sizeScale: collisionSizeScale,
             sizeMaxPixels: 200,

@@ -55,7 +55,8 @@ describe("VisibilityRail", () => {
       expect(key(label)).toBeInTheDocument();
     }
     // Icons only: no label text, and no switch widgets left over from the panel.
-    expect(screen.getByRole("group", { name: "Layer visibility" })).toHaveTextContent("");
+    // `toHaveTextContent("")` passes on any text, so assert the emptiness.
+    expect(screen.getByRole("group", { name: "Layer visibility" }).textContent).toBe("");
     expect(screen.queryAllByRole("switch")).toHaveLength(0);
   });
 

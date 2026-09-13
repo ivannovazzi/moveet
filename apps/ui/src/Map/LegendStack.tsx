@@ -22,7 +22,15 @@
  * never sees, since they arrive by portal). An empty `role="group"` with no
  * owned elements is announced by nothing.
  */
-import type { ReactNode, Ref, RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type Ref,
+  type RefObject,
+} from "react";
 import { createPortal } from "react-dom";
 
 /** The stack element an overlay portals its legend into, once mounted. */
@@ -45,6 +53,10 @@ export type LegendKey = keyof typeof LEGEND_ORDER;
  * Portal `legend` into the stack, or render it where it stands when there is
  * no stack (unit tests, and the first paint before the ref is attached).
  * A plain function, not a hook — it is called from JSX.
+ *
+ * The wrapper is `pointer-events-none` like everything else in the column: it
+ * sits over the deck canvas, and a legend that swallowed the pointer would
+ * break map drag under it. Legends are read, not operated.
  */
 export function renderInSlot(
   slot: LegendSlot | undefined,
@@ -52,7 +64,11 @@ export function renderInSlot(
   legend: ReactNode
 ): ReactNode {
   const positioned = (
-    <div style={{ order: LEGEND_ORDER[slotKey] }} data-legend-slot={slotKey}>
+    <div
+      className="pointer-events-none"
+      style={{ order: LEGEND_ORDER[slotKey] }}
+      data-legend-slot={slotKey}
+    >
       {legend}
     </div>
   );
@@ -67,30 +83,77 @@ interface LegendStackProps {
 }
 
 export default function LegendStack({ children, ref }: LegendStackProps) {
+  const columnRef = useRef<HTMLDivElement | null>(null);
+  const [overflowing, setOverflowing] = useState(false);
+
+  // The column is both the portal host (so flex `order` applies to portalled
+  // children) and the element we measure, so the caller's ref and ours share
+  // one callback.
+  const attach = useCallback(
+    (el: HTMLDivElement | null) => {
+      columnRef.current = el;
+      if (typeof ref === "function") ref(el);
+      else if (ref) ref.current = el;
+    },
+    [ref]
+  );
+
+  // Only a column that has actually run out of room may take the pointer, and
+  // then only on the column itself (never the outer box, which spans the whole
+  // height budget whether or not anything is in it). `useResizeObserver` is not
+  // reusable here: it owns its own ref and reports the content box, and the
+  // question is `scrollHeight > clientHeight`. Legends arriving while the
+  // column is already clamped cannot change the verdict, and ones that leave
+  // shrink the box, which is what the observer fires on.
+  useEffect(() => {
+    const el = columnRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const measure = () => setOverflowing(el.scrollHeight - el.clientHeight > 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div
-      ref={ref}
       role="group"
       aria-label="Map legends"
       className={[
         // Height budget, measured rather than guessed:
         //   72px   search bar + its gap (the stack's own top offset)
         //   88px   --spacing-above-dock, the dock shelf
-        //   448px  --visibility-rail-band: 11 keys x 34px = 374, + 10 x 2px
-        //          gaps = 20, + 8px padding = 402, + ~31px for the trail and
-        //          density chips, + the rail's own 12px lift off the shelf.
+        //   448px  --legend-stack-clearance (the visibility rail's band):
+        //          11 keys x 34px = 374, + 10 x 2px gaps = 20, + 8px padding
+        //          = 402, + ~31px for the trail and density chips, + the
+        //          rail's own 12px lift off the shelf.
         // Percentage, not vh: the stack is positioned against the map pane
         // (`map-backdrop`), which is shorter than the viewport by the header.
-        "max-h-[calc(100%-72px-var(--spacing-above-dock)-var(--legend-stack-clearance))]",
-        "pointer-events-auto absolute left-3 top-[72px] z-10 flex w-[164px] flex-col gap-2",
-        // That budget leaves room for roughly one legend on a 700px-tall map,
-        // so the column scrolls rather than clipping the third one away. Each
-        // legend stays `pointer-events-none`, so only the scrollable gutter
-        // takes the pointer and the map is still draggable between legends.
-        "overflow-y-auto overscroll-contain [scrollbar-width:thin]",
+        // The `max()` floor matters on a short pane: at 608px the subtraction
+        // goes negative and a bare calc would clamp the column to nothing,
+        // hiding every legend rather than scrolling them.
+        "max-h-[max(140px,calc(100%-72px-var(--spacing-above-dock)-var(--legend-stack-clearance)))]",
+        // Click-through, always: this box covers a tall strip of the map even
+        // when it holds one short legend, and the map underneath has to stay
+        // draggable.
+        "pointer-events-none absolute left-3 top-[72px] z-10 flex w-[164px] flex-col",
       ].join(" ")}
     >
-      {children}
+      <div
+        ref={attach}
+        className={[
+          "flex max-h-full min-h-0 flex-col gap-2",
+          // That budget leaves room for roughly one legend on a 700px-tall map,
+          // so the column scrolls rather than clipping the third one away — and
+          // only then does it need the pointer, to catch the wheel and the
+          // scrollbar. Below that it stays click-through like its parent.
+          overflowing
+            ? "pointer-events-auto overflow-y-auto overscroll-contain [scrollbar-width:thin]"
+            : "overflow-hidden",
+        ].join(" ")}
+      >
+        {children}
+      </div>
     </div>
   );
 }

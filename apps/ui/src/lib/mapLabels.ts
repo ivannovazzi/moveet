@@ -35,6 +35,19 @@ import { resolveMapColor } from "./mapColor";
  * hence the hand-rolled `declutter()` below.
  */
 
+/**
+ * The two colours of the map's label voice, declared once here rather than in
+ * each layer that draws text: the neutral ink names read in, and the casing
+ * the halo is drawn from.
+ *
+ * They are tokens, not resolved colours, deliberately. `resolveMapColor`
+ * caches its first answer per token, so resolving at module load would cache a
+ * pre-stylesheet value under the shared key and hand it to every layer that
+ * later asks for the same token. Resolve inside the memo that builds the layer.
+ */
+export const LABEL_TOKEN = "var(--color-map-label)";
+export const CASING_TOKEN = "var(--color-map-casing)";
+
 /** Shared TextLayer style props. Spread FIRST, then the layer's own accessors. */
 export interface MapLabelProps {
   fontFamily: string;
@@ -142,7 +155,7 @@ export function mapLabelProps(size = 11): MapLabelProps {
     outlineWidth: 8,
     // In the halo band the shader takes its alpha from outlineColor; 220 keeps
     // labels readable over bright fills without fully hiding what's underneath.
-    outlineColor: resolveMapColor("var(--color-map-casing)", 220),
+    outlineColor: resolveMapColor(CASING_TOKEN, 220),
   };
 }
 

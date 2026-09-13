@@ -180,6 +180,50 @@ export function groupForType(type: string | undefined): PoiGroup | null {
 }
 
 /**
+ * Whether the map will draw this POI at all: it needs a name to label and a
+ * group to style. The raw feed is ~130 OSM types, most of them street
+ * furniture, so the same test gates the markers, the search results and the
+ * command palette — offering a result that selects an invisible marker is
+ * worse than not offering it.
+ */
+interface MappableCandidate {
+  name?: string | null;
+  type?: string;
+}
+
+export function mappableGroup(poi: MappableCandidate): PoiGroup | null {
+  return poi.name ? groupForType(poi.type) : null;
+}
+
+/**
+ * The same test as a predicate, for callers that don't need the group. It
+ * narrows `name`, which those callers go on to search and render.
+ */
+export function isMappablePoi<T extends MappableCandidate>(poi: T): poi is T & { name: string } {
+  return mappableGroup(poi) !== null;
+}
+
+/**
+ * Marker diameter in pixels. Wayfinding anchors — hospitals, fuel, transit —
+ * are drawn full size; the ambient carpet (shops, food, leisure, civic,
+ * education, worship) is a size smaller so it reads as background even where it
+ * survives the collision pass. Shared by the GPU `IconLayer` and the HTML
+ * marker in `POI.tsx`, which used to size transit at 16px and disagree with it.
+ */
+export const ANCHOR_MARKER_PX = 22;
+export const DEFAULT_MARKER_PX = 18;
+
+export const ANCHOR_GROUPS: ReadonlySet<PoiGroup> = new Set<PoiGroup>([
+  "health",
+  "transit",
+  "fuel",
+]);
+
+export function markerSizeForGroup(group: PoiGroup): number {
+  return ANCHOR_GROUPS.has(group) ? ANCHOR_MARKER_PX : DEFAULT_MARKER_PX;
+}
+
+/**
  * Per-group presentation.
  *
  * `minZoom` is the zoom at which the group fades in: health and fuel are

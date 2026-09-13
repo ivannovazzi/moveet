@@ -118,8 +118,21 @@ function strokeElement(ctx: CanvasRenderingContext2D, tag: string, attrs: Record
       return;
     }
     case "rect": {
+      const x = num(attrs, "x");
+      const y = num(attrs, "y");
+      const w = num(attrs, "width");
+      const h = num(attrs, "height");
+      // lucide draws most of its boxes with rounded corners. SVG lets `rx` and
+      // `ry` stand in for each other when only one is given, and a plain
+      // `ctx.rect` would square off a corner the icon has rounded.
+      const rx = attrs.rx !== undefined ? num(attrs, "rx") : attrs.ry ? num(attrs, "ry") : 0;
+      const ry = attrs.ry !== undefined ? num(attrs, "ry") : rx;
       ctx.beginPath();
-      ctx.rect(num(attrs, "x"), num(attrs, "y"), num(attrs, "width"), num(attrs, "height"));
+      if (rx > 0 || ry > 0) {
+        ctx.roundRect(x, y, w, h, [{ x: rx, y: ry }]);
+      } else {
+        ctx.rect(x, y, w, h);
+      }
       ctx.stroke();
       return;
     }

@@ -8,9 +8,10 @@ describe("LegendStack", () => {
     render(<LegendStack />);
     const stack = screen.getByRole("group", { name: "Map legends" });
     expect(stack.className).toContain("flex-col");
-    // It takes the pointer so the column can scroll; the legends inside stay
-    // click-through, and an empty stack has no height to swallow drags with.
-    expect(stack.className).toContain("pointer-events-auto");
+    // The box spans the whole height budget whether or not it holds anything,
+    // so it must never swallow a drag on the map underneath it.
+    expect(stack.className).toContain("pointer-events-none");
+    expect(stack.className).not.toContain("pointer-events-auto");
   });
 
   it("renders its legends in the order it was given them", () => {
@@ -34,17 +35,35 @@ describe("LegendStack", () => {
     expect(stack.className).toContain("var(--legend-stack-clearance)");
     // Percentage of the map pane, not of the viewport: the pane is shorter.
     expect(stack.className).toContain("calc(100%-");
+    // …with a floor, or a short pane clamps the budget to zero and hides every
+    // legend instead of scrolling them.
+    expect(stack.className).toContain("max(140px,");
   });
 
-  it("scrolls rather than clipping a legend away on a short map", () => {
-    render(<LegendStack />);
-    expect(screen.getByRole("group", { name: "Map legends" }).className).toContain(
-      "overflow-y-auto"
-    );
+  it("keeps the column click-through until it actually has to scroll", () => {
+    const { container } = render(<LegendStack />);
+    const column = container.querySelector("[role='group'] > div") as HTMLElement;
+    // jsdom reports no layout, so nothing overflows: the column stays out of
+    // the pointer's way and only clips.
+    expect(column.className).not.toContain("pointer-events-auto");
+    expect(column.className).toContain("overflow-hidden");
   });
 });
 
 describe("renderInSlot", () => {
+  it("keeps the portalled wrapper click-through", () => {
+    const slot = document.createElement("div");
+    document.body.appendChild(slot);
+    const ref = { current: slot as HTMLElement | null };
+
+    render(<div>{renderInSlot(ref, "heat", <span>legend</span>)}</div>);
+
+    const wrapper = slot.querySelector<HTMLElement>("[data-legend-slot='heat']");
+    // A legend is read, not operated: the map has to stay draggable under it.
+    expect(wrapper?.className).toContain("pointer-events-none");
+    slot.remove();
+  });
+
   it("renders inline when there is no stack yet", () => {
     render(<div data-testid="host">{renderInSlot(undefined, "heat", <span>legend</span>)}</div>);
     expect(screen.getByTestId("host")).toHaveTextContent("legend");

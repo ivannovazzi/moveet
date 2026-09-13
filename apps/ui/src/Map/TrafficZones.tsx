@@ -6,6 +6,7 @@ import { useHeatzoneEditorContext } from "@/data/HeatzoneEditorContext";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 import { useMapContext, useOverlay } from "@/components/Map/hooks";
 import { resolveMapColor } from "@/lib/mapColor";
+import { LABEL_TOKEN } from "@/lib/mapLabels";
 import { simplifyPath } from "@/utils/geometry/simplify";
 import type { Heatzone, Position } from "@/types";
 
@@ -23,12 +24,17 @@ const DRAW_SIMPLIFY_PX = 4;
 const dashStyle = new PathStyleExtension({ dash: true });
 const CLOSING_DASH: [number, number] = [3, 3];
 
+/** Every zone colour comes from this one token, at a different alpha. Resolved
+ *  per use rather than at module load — `resolveMapColor` caches its first
+ *  answer per token, and a module-load read would cache a pre-stylesheet value
+ *  and hand it to every layer that later asks for the same token. */
 const DENSITY_TOKEN = "var(--color-overlay-density)";
-const DENSITY_LINE_RGBA = resolveMapColor(DENSITY_TOKEN, 153);
-const SELECTED_LINE_RGBA = resolveMapColor(DENSITY_TOKEN, 255);
+/** A committed zone's outline, and the brighter one the selected zone gets. */
+const ZONE_LINE_ALPHA = 153;
+const SELECTED_LINE_ALPHA = 255;
 /** Soft wide halo under the selected zone's outline, so "which one is selected"
  *  survives a screen full of overlapping zones. */
-const SELECTED_GLOW_RGBA = resolveMapColor(DENSITY_TOKEN, 70);
+const SELECTED_GLOW_ALPHA = 70;
 
 /**
  * Committed fill alpha for an intensity in [0,1]. The old ramp (0.2 * intensity)
@@ -39,11 +45,6 @@ const SELECTED_GLOW_RGBA = resolveMapColor(DENSITY_TOKEN, 70);
 export function heatzoneFillAlpha(intensity: number): number {
   return Math.round((0.12 + 0.35 * intensity) * 255);
 }
-/** Shared with every other map label, so it is resolved per use rather than at
- *  module load — a module-load read would cache a pre-stylesheet value under
- *  the shared key and hand it to every layer that asks for the same token. */
-const LABEL_TOKEN = "var(--color-map-label)";
-
 interface HeatzoneDatum {
   id: string;
   polygon: Position[];
@@ -382,6 +383,9 @@ export default function Heatzones({ visible }: { visible: boolean }) {
       selected: z.properties.id === editor.selectedId,
     }));
     const [fillR, fillG, fillB] = resolveMapColor(DENSITY_TOKEN);
+    const lineRgba = resolveMapColor(DENSITY_TOKEN, ZONE_LINE_ALPHA);
+    const selectedLineRgba = resolveMapColor(DENSITY_TOKEN, SELECTED_LINE_ALPHA);
+    const selectedGlowRgba = resolveMapColor(DENSITY_TOKEN, SELECTED_GLOW_ALPHA);
     const selected = data.filter((d) => d.selected);
     const glow =
       selected.length > 0
@@ -390,7 +394,7 @@ export default function Heatzones({ visible }: { visible: boolean }) {
               id: "traffic-zones-selected-glow",
               data: selected,
               getPolygon: (d) => d.polygon,
-              getLineColor: SELECTED_GLOW_RGBA,
+              getLineColor: selectedGlowRgba,
               getLineWidth: 9,
               lineWidthUnits: "pixels",
               filled: false,
@@ -407,7 +411,7 @@ export default function Heatzones({ visible }: { visible: boolean }) {
         data,
         getPolygon: (d) => d.polygon,
         getFillColor: (d) => [fillR, fillG, fillB, heatzoneFillAlpha(d.intensity)],
-        getLineColor: (d) => (d.selected ? SELECTED_LINE_RGBA : DENSITY_LINE_RGBA),
+        getLineColor: (d) => (d.selected ? selectedLineRgba : lineRgba),
         getLineWidth: (d) => (d.selected ? 3 : 1),
         lineWidthUnits: "pixels",
         filled: true,
@@ -493,6 +497,7 @@ export default function Heatzones({ visible }: { visible: boolean }) {
     if (!zone) return [];
     const verts = openRing(effectiveCoords(zone));
     const inkRgba = resolveMapColor(LABEL_TOKEN);
+    const selectedLineRgba = resolveMapColor(DENSITY_TOKEN, SELECTED_LINE_ALPHA);
     return [
       new ScatterplotLayer<Position>({
         id: "heatzone-handles",
@@ -500,7 +505,7 @@ export default function Heatzones({ visible }: { visible: boolean }) {
         getPosition: (d) => d,
         getRadius: 6,
         radiusUnits: "pixels",
-        getFillColor: SELECTED_LINE_RGBA,
+        getFillColor: selectedLineRgba,
         getLineColor: inkRgba,
         getLineWidth: 2,
         lineWidthUnits: "pixels",
@@ -516,19 +521,21 @@ export default function Heatzones({ visible }: { visible: boolean }) {
         getRadius: 8,
         radiusUnits: "pixels",
         getFillColor: inkRgba,
-        getLineColor: SELECTED_LINE_RGBA,
+        getLineColor: selectedLineRgba,
         getLineWidth: 2,
         lineWidthUnits: "pixels",
         stroked: true,
         pickable: true,
       }),
       // Target ring around the move handle: its hit radius is bigger than the
-      // dot, so draw the area the grab actually covers.
+      // dot, so draw the area the grab actually covers — MOVE_HANDLE_HIT_PX,
+      // plus 1px either side of the 1.5px stroke so the ring reads as the
+      // outside edge of the hit area rather than crossing it.
       new ScatterplotLayer<Position>({
         id: "heatzone-move-ring",
         data: [ringCentroid(verts)],
         getPosition: (d) => d,
-        getRadius: 14,
+        getRadius: MOVE_HANDLE_HIT_PX + 2,
         radiusUnits: "pixels",
         getLineColor: resolveMapColor(DENSITY_TOKEN, 110),
         getLineWidth: 1.5,

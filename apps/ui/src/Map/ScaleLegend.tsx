@@ -71,8 +71,6 @@ export interface ScaleLegendProps {
   domain: readonly [number, number] | null;
   formatValue?: (value: number) => string;
   icon?: LucideIcon;
-  /** Escape hatch for one-off styling; placement comes from `LegendStack`. */
-  className?: string;
   /** Distinguishes multiple legends in the DOM once overlays start sharing this. */
   testId?: string;
 }
@@ -84,7 +82,6 @@ export default function ScaleLegend({
   domain,
   formatValue = defaultFormat,
   icon: Icon,
-  className,
   testId = "scale-legend",
 }: ScaleLegendProps) {
   const breaks = domain ? quantizeBreaks(domain, colorRange.length) : null;
@@ -99,8 +96,7 @@ export default function ScaleLegend({
         // map must stay draggable under it. Placement belongs to the
         // `LegendStack` this renders into, not here.
         "pointer-events-none w-full animate-fade-up",
-        "rounded-lg border border-border surface-glass glass-frost p-2.5 shadow-elevated",
-        className
+        "rounded-lg border border-border surface-glass glass-frost p-2.5 shadow-elevated"
       )}
     >
       <div className="flex items-center gap-1.5">

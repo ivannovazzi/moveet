@@ -3,7 +3,13 @@ import { PathLayer, ScatterplotLayer, TextLayer } from "@deck.gl/layers";
 import type { Layer } from "@deck.gl/core";
 import type { JobDTO, Position } from "@/types";
 import { resolveMapColor } from "@/lib/mapColor";
-import { LABEL_PRIORITY, mapLabelProps, useVisibleLabels, type LabelItem } from "@/lib/mapLabels";
+import {
+  LABEL_PRIORITY,
+  LABEL_TOKEN,
+  mapLabelProps,
+  useVisibleLabels,
+  type LabelItem,
+} from "@/lib/mapLabels";
 import { useMapContext } from "@/components/Map/hooks";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 import { useSettledZoom } from "../hooks/useSettledZoom";
@@ -33,9 +39,6 @@ export const JOB_COLOR_TOKENS = {
 
 /** Key of the draft marker in the pickup layer's data. */
 const DRAFT_KEY = "draft";
-
-/** Neutral ink for the stop ring, shared with every other map label. */
-const LABEL_TOKEN = "var(--color-map-label)";
 
 /** Label size and offset, shared between the TextLayer and the declutter pass. */
 const LABEL_SIZE = 11;

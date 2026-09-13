@@ -11,15 +11,20 @@ import { invertLatLng } from "@/utils/coordinates";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 import { useMapContext } from "@/components/Map/hooks";
 import { resolveMapColor } from "@/lib/mapColor";
-import { LABEL_PRIORITY, mapLabelProps, useVisibleLabels, type LabelItem } from "@/lib/mapLabels";
+import {
+  CASING_TOKEN,
+  LABEL_PRIORITY,
+  LABEL_TOKEN,
+  mapLabelProps,
+  useVisibleLabels,
+  type LabelItem,
+} from "@/lib/mapLabels";
 
 type RGBA = [number, number, number, number];
 type LngLat = [number, number];
 
 const SELECTED_TOKEN = "var(--color-route-selected)";
 const HOVER_TOKEN = "var(--color-route-hover)";
-const CASING_TOKEN = "var(--color-map-casing)";
-const LABEL_TOKEN = "var(--color-map-label)";
 /** The driven part of the route recedes to the same grey as an idle vehicle. */
 const TRAVELLED_TOKEN = "var(--color-status-idle)";
 
@@ -115,6 +120,8 @@ interface WaypointData {
   index: number;
   isCurrent: boolean;
   isCompleted: boolean;
+  /** From a hover preview rather than the committed (selected) route. */
+  preview: boolean;
   color: RGBA;
   label: string;
   stopsLeftLabel?: string;
@@ -343,6 +350,7 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
           index: i,
           isCurrent: i === cwi,
           isCompleted: i < cwi,
+          preview: item.preview,
           color: item.color,
           label: String(i + 1),
           stopsLeftLabel:
@@ -461,7 +469,7 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
     // marks it; a numbered dot under the pin would just double the marker.
     const markerData =
       destinationData.length > 0
-        ? waypointData.filter((wp) => !(wp.isCurrent && wp.color === selectedColor))
+        ? waypointData.filter((wp) => !(wp.isCurrent && !wp.preview))
         : waypointData;
 
     const scatterLayer =

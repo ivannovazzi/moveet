@@ -12,8 +12,7 @@ import {
 import type { POI, Position } from "@/types";
 import { memo } from "react";
 import HTMLMarker from "@/components/Map/components/HTMLMarker";
-import { cn } from "@/lib/utils";
-import { groupForType, type PoiGroup } from "./categories";
+import { groupForType, markerSizeForGroup, type PoiGroup } from "./categories";
 import { getFillForGroup } from "./helpers";
 
 /** Same nine glyphs the icon atlas draws, so the HTML marker matches the GPU one. */
@@ -36,6 +35,9 @@ const GROUP_ICONS: Record<PoiGroup, typeof Bus> = {
  */
 const FALLBACK_GROUP: PoiGroup = "civic";
 
+/** Glyph size as a fraction of the disc, matching the icon atlas's proportions. */
+const GLYPH_RATIO = 0.64;
+
 interface POIMarkerProps {
   poi: POI;
   showLabel?: boolean;
@@ -45,8 +47,13 @@ interface POIMarkerProps {
 const POIMarker = memo(function POIMarker({ poi, showLabel, onClick }: POIMarkerProps) {
   const position = [poi.coordinates[1], poi.coordinates[0]] as Position;
   const group = groupForType(poi.type) ?? FALLBACK_GROUP;
-  const transit = group === "transit";
   const Icon = GROUP_ICONS[group];
+  // The same anchor/carpet sizing the GPU markers use, so the selected POI does
+  // not change size when it crosses from `POIs`' IconLayer to this marker.
+  // Sized inline rather than in classes: the sizes are data, and Tailwind can
+  // only emit the utilities it can see spelled out.
+  const size = markerSizeForGroup(group);
+  const glyph = Math.round(size * GLYPH_RATIO);
   return (
     <HTMLMarker key={poi.id} position={position} onClick={onClick}>
       {showLabel && (
@@ -55,15 +62,16 @@ const POIMarker = memo(function POIMarker({ poi, showLabel, onClick }: POIMarker
         </div>
       )}
       <div
-        className={cn(
-          "flex animate-in fade-in cursor-pointer items-center justify-center transition-transform duration-200 ease-out",
-          transit
-            ? "-ml-[8px] -mt-[8px] h-4 w-4 rounded-full border border-[#ffffff66] hover:scale-150"
-            : "-ml-[11px] -mt-[11px] h-[22px] w-[22px] rounded-full border border-[#ffffff66] hover:scale-[2]"
-        )}
-        style={{ background: getFillForGroup(group) }}
+        className="flex animate-in fade-in cursor-pointer items-center justify-center rounded-full border border-[#ffffff66] transition-transform duration-200 ease-out hover:scale-150"
+        style={{
+          background: getFillForGroup(group),
+          width: size,
+          height: size,
+          marginLeft: -size / 2,
+          marginTop: -size / 2,
+        }}
       >
-        <Icon className={cn("text-[#fffd]", transit ? "h-2.5 w-2.5" : "h-3.5 w-3.5")} />
+        <Icon className="text-[#fffd]" style={{ width: glyph, height: glyph }} />
       </div>
     </HTMLMarker>
   );

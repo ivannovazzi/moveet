@@ -5,6 +5,7 @@ import { useTraffic } from "@/hooks/useTraffic";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 import { TrafficIcon } from "@/components/Icons";
 import { resolveMapColor } from "@/lib/mapColor";
+import { CASING_TOKEN } from "@/lib/mapLabels";
 import type { TrafficEdge } from "@/types";
 import ScaleLegend, { type LegendColor } from "./ScaleLegend";
 import { renderInSlot, type LegendSlot } from "./LegendStack";
@@ -36,8 +37,8 @@ const DEFAULT_WIDTH_M = 5;
 const MIN_WIDTH_PX = 3;
 const MAX_WIDTH_PX = 12;
 
-/** Dark outline drawn under the colour line so it reads over grey roads. */
-const CASING_TOKEN = "var(--color-map-casing)";
+/** Dark outline drawn under the colour line so it reads over grey roads —
+ *  CASING_TOKEN is the shared map-label casing. */
 const CASING_ALPHA = 230;
 const CASING_SCALE = 1.7;
 const CASING_MIN_PX = 6;

@@ -4,6 +4,7 @@ import { PathStyleExtension, type PathStyleExtensionProps } from "@deck.gl/exten
 import { useMapContext, useOverlay } from "@/components/Map/hooks";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 import { resolveMapColor } from "@/lib/mapColor";
+import { LABEL_TOKEN } from "@/lib/mapLabels";
 
 /**
  * Keyboard (Escape to cancel, Enter to close the polygon) is handled by the
@@ -32,7 +33,6 @@ interface GeofenceDrawToolProps {
 /** The in-progress polygon's blue, and the green "close the ring here" target. */
 const DRAW_TOKEN = "var(--color-overlay-draw)";
 const CLOSE_TOKEN = "var(--color-overlay-draw-close)";
-const INK_TOKEN = "var(--color-map-label)";
 
 /** The open chain and the cursor preview are dashed: they mark geometry that
  *  is not committed yet, versus the solid outline of the closed polygon. */
@@ -369,7 +369,7 @@ export default function GeofenceDrawTool({
     const drawHint = resolveMapColor(DRAW_TOKEN, 140);
     const drawRing = resolveMapColor(DRAW_TOKEN, 180);
     const closeLine = resolveMapColor(CLOSE_TOKEN);
-    const inkLine = resolveMapColor(INK_TOKEN);
+    const inkLine = resolveMapColor(LABEL_TOKEN);
 
     const result = [];
 

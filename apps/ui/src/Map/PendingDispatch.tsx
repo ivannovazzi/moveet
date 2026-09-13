@@ -5,7 +5,13 @@ import type { Vehicle, DispatchAssignment } from "@/types";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 import { useMapContext, useOverlay } from "@/components/Map/hooks";
 import { resolveMapColor } from "@/lib/mapColor";
-import { LABEL_PRIORITY, mapLabelProps, useVisibleLabels, type LabelItem } from "@/lib/mapLabels";
+import {
+  LABEL_PRIORITY,
+  LABEL_TOKEN,
+  mapLabelProps,
+  useVisibleLabels,
+  type LabelItem,
+} from "@/lib/mapLabels";
 import { useSettledZoom } from "./hooks/useSettledZoom";
 import type { WaypointRef } from "@/hooks/useDispatchFlow";
 
@@ -22,7 +28,6 @@ interface PendingDispatchProps {
  *  interaction amber used for vehicle hover rings. */
 const DRAW_TOKEN = "var(--color-overlay-draw)";
 const HOVER_TOKEN = "var(--color-overlay-hover)";
-const LABEL_TOKEN = "var(--color-map-label)";
 const LABEL_ALPHA = 180;
 const LINE_ALPHA = 120;
 
@@ -31,20 +36,28 @@ const DRAG_THRESHOLD_PX = 3;
 
 /** Stable empty arrays so an inactive memo never re-registers. */
 const NO_LAYERS: Layer[] = [];
-const NO_NAME_LABELS: NameLabel[] = [];
-const NO_SINGLE_MARKERS: SingleMarkerDatum[] = [];
+const NO_SHAPES: Shapes = {
+  multiMarkers: [],
+  multiLines: [],
+  nameLabels: [],
+  singleMarkers: [],
+};
 
 /** Vehicle-name label size and offsets, shared with the declutter pass. */
 const LABEL_SIZE = 12;
 const MULTI_LABEL_OFFSET: [number, number] = [0, -14];
 const SINGLE_LABEL_OFFSET: [number, number] = [0, -10];
 
-interface MarkerDatum {
+/** A waypoint marker's geometry: everything about it that hovering can't change. */
+interface BaseMarkerDatum {
   key: string;
   position: [number, number]; // [lng, lat]
   label: string; // "1", "2", ...
   index: number;
   isMultiStop: boolean;
+}
+
+interface MarkerDatum extends BaseMarkerDatum {
   enlarged: boolean;
 }
 
@@ -53,8 +66,12 @@ interface MarkerDatum {
  * number, so unlike the multi-stop variant it carries the id the declutter pass
  * keyed that name on.
  */
-interface SingleMarkerDatum extends MarkerDatum {
+interface BaseSingleMarkerDatum extends BaseMarkerDatum {
   vehicleId: string;
+}
+
+interface SingleMarkerDatum extends BaseSingleMarkerDatum {
+  enlarged: boolean;
 }
 
 interface LineDatum {
@@ -65,6 +82,14 @@ interface NameLabel {
   id: string;
   position: [number, number];
   text: string;
+}
+
+/** What the assignments alone determine — the input to both layer memos. */
+interface Shapes {
+  multiMarkers: BaseMarkerDatum[];
+  multiLines: LineDatum[];
+  nameLabels: NameLabel[];
+  singleMarkers: BaseSingleMarkerDatum[];
 }
 
 /** Group identical-position waypoints across assignments so they drag/delete as one. */
@@ -300,26 +325,17 @@ export default memo(function PendingDispatch({
     settledZoom
   );
 
-  // ── Render layers ─────────────────────────────────────────────────
-  // Geometry and name labels live in separate memos: a label verdict changes
-  // whenever anything anywhere on the map moves, and rebuilding the waypoint
-  // markers and connecting lines for that would re-upload them for nothing.
-  const built = useMemo(() => {
-    if (assignments.length === 0) {
-      return { layers: NO_LAYERS, nameLabels: NO_NAME_LABELS, singleMarkers: NO_SINGLE_MARKERS };
-    }
+  // ── Shapes ────────────────────────────────────────────────────────
+  // What the assignments say, with nothing the pointer can change folded in.
+  // The label layers below read `nameLabels` and `singleMarkers` from here, so
+  // a hover — which rebuilds the geometry layers — leaves their inputs alone.
+  const shapes = useMemo<Shapes>(() => {
+    if (assignments.length === 0) return NO_SHAPES;
 
-    // Resolved here, not at module load: resolveMapColor caches its first
-    // answer, which at module-eval time predates the stylesheet.
-    const drawRgba = resolveMapColor(DRAW_TOKEN);
-    const lineRgba = resolveMapColor(DRAW_TOKEN, LINE_ALPHA);
-    const hoverRgba = resolveMapColor(HOVER_TOKEN);
-    const inkRgba = resolveMapColor(LABEL_TOKEN);
-
-    const multiMarkers: MarkerDatum[] = [];
+    const multiMarkers: BaseMarkerDatum[] = [];
     const multiLines: LineDatum[] = [];
     const nameLabels: NameLabel[] = [];
-    const singleMarkers: SingleMarkerDatum[] = [];
+    const singleMarkers: BaseSingleMarkerDatum[] = [];
 
     for (const assignment of assignments) {
       const vehicle = vehicleMap.get(assignment.vehicleId);
@@ -344,7 +360,6 @@ export default memo(function PendingDispatch({
             label: `${i + 1}`,
             index: i + 1,
             isMultiStop: true,
-            enlarged: editable && (key === hoverKey || key === dragKey),
           });
         }
         nameLabels.push({
@@ -361,10 +376,39 @@ export default memo(function PendingDispatch({
           label: assignment.vehicleName,
           index: 1,
           isMultiStop: false,
-          enlarged: editable && (key === hoverKey || key === dragKey),
         });
       }
     }
+
+    return { multiMarkers, multiLines, nameLabels, singleMarkers };
+  }, [assignments, vehicleMap]);
+
+  // ── Render layers ─────────────────────────────────────────────────
+  // Geometry and name labels live in separate memos: a label verdict changes
+  // whenever anything anywhere on the map moves, and rebuilding the waypoint
+  // markers and connecting lines for that would re-upload them for nothing.
+  const geometryLayers = useMemo<Layer[]>(() => {
+    const { multiLines } = shapes;
+    if (shapes.multiMarkers.length === 0 && shapes.singleMarkers.length === 0) return NO_LAYERS;
+
+    // Resolved here, not at module load: resolveMapColor caches its first
+    // answer, which at module-eval time predates the stylesheet.
+    const drawRgba = resolveMapColor(DRAW_TOKEN);
+    const lineRgba = resolveMapColor(DRAW_TOKEN, LINE_ALPHA);
+    const hoverRgba = resolveMapColor(HOVER_TOKEN);
+    const inkRgba = resolveMapColor(LABEL_TOKEN);
+
+    // The one thing the pointer changes, applied here rather than baked into
+    // the shapes above.
+    const isEnlarged = (key: string) => editable && (key === hoverKey || key === dragKey);
+    const multiMarkers: MarkerDatum[] = shapes.multiMarkers.map((m) => ({
+      ...m,
+      enlarged: isEnlarged(m.key),
+    }));
+    const singleMarkers: SingleMarkerDatum[] = shapes.singleMarkers.map((m) => ({
+      ...m,
+      enlarged: isEnlarged(m.key),
+    }));
 
     const result: Layer[] = [];
 
@@ -460,14 +504,14 @@ export default memo(function PendingDispatch({
       );
     }
 
-    return { layers: result, nameLabels, singleMarkers };
-  }, [assignments, vehicleMap, hoverKey, dragKey, editable]);
+    return result.length === 0 ? NO_LAYERS : result;
+  }, [shapes, hoverKey, dragKey, editable]);
 
   const labelLayers = useMemo<Layer[]>(() => {
     const labelRgba = resolveMapColor(DRAW_TOKEN, LABEL_ALPHA);
     const result: Layer[] = [];
 
-    const multi = built.nameLabels.filter((label) => visibleMulti.has(label.id));
+    const multi = shapes.nameLabels.filter((label) => visibleMulti.has(label.id));
     if (multi.length > 0) {
       result.push(
         new TextLayer<NameLabel>({
@@ -485,10 +529,10 @@ export default memo(function PendingDispatch({
       );
     }
 
-    const single = built.singleMarkers.filter((marker) => visibleSingle.has(marker.vehicleId));
+    const single = shapes.singleMarkers.filter((marker) => visibleSingle.has(marker.vehicleId));
     if (single.length > 0) {
       result.push(
-        new TextLayer<SingleMarkerDatum>({
+        new TextLayer<BaseSingleMarkerDatum>({
           ...mapLabelProps(LABEL_SIZE),
           id: "pending-dispatch-single-labels",
           data: single,
@@ -504,11 +548,11 @@ export default memo(function PendingDispatch({
     }
 
     return result.length === 0 ? NO_LAYERS : result;
-  }, [built, visibleMulti, visibleSingle]);
+  }, [shapes.nameLabels, shapes.singleMarkers, visibleMulti, visibleSingle]);
 
   const layers = useMemo(
-    () => (labelLayers.length === 0 ? built.layers : [...built.layers, ...labelLayers]),
-    [built, labelLayers]
+    () => (labelLayers.length === 0 ? geometryLayers : [...geometryLayers, ...labelLayers]),
+    [geometryLayers, labelLayers]
   );
 
   useRegisterLayers("pending-dispatch", layers);

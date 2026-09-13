@@ -5,10 +5,13 @@ import { useMapContext, useMapControls } from "@/components/Map/hooks";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 import { useSettledZoom } from "./hooks/useSettledZoom";
 import { resolveMapColor } from "@/lib/mapColor";
-import { LABEL_PRIORITY, mapLabelProps, useVisibleLabels, type LabelItem } from "@/lib/mapLabels";
-
-/** The selected road draws in the neutral map ink, halo and all. */
-const LABEL_TOKEN = "var(--color-map-label)";
+import {
+  LABEL_PRIORITY,
+  LABEL_TOKEN,
+  mapLabelProps,
+  useVisibleLabels,
+  type LabelItem,
+} from "@/lib/mapLabels";
 
 /** Label size, shared between the TextLayer and the declutter pass. */
 const LABEL_SIZE = 14;

@@ -13,7 +13,8 @@ const REQUIRED_ATTRS: Record<string, string[]> = {
   polygon: ["points"],
 };
 
-/** Everything an element may legally carry: the required set plus rounded-rect radii. */
+/** Everything an element may legally carry: the required set plus the rounded-rect
+ *  radii `strokeElement` draws through `ctx.roundRect`. */
 const ALLOWED_ATTRS: Record<string, string[]> = {
   ...REQUIRED_ATTRS,
   rect: [...REQUIRED_ATTRS.rect, "rx", "ry"],
@@ -48,9 +49,9 @@ describe("POI_GLYPHS", () => {
   });
 
   it("carries no attribute the rasteriser would silently ignore", () => {
-    // `rx`/`ry` on a rect, a `transform`, a `fill-rule`: anything the draw path
-    // does not read changes the shape in lucide's SVG but not on our canvas, so
-    // it has to fail here rather than ship a subtly different icon.
+    // A `transform`, a `fill-rule`: anything the draw path does not read changes
+    // the shape in lucide's SVG but not on our canvas, so it has to fail here
+    // rather than ship a subtly different icon.
     for (const group of POI_GROUPS) {
       for (const [tag, attrs] of POI_GLYPHS[group]) {
         for (const attr of Object.keys(attrs)) {

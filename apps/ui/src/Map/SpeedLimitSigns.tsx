@@ -28,12 +28,6 @@ const COLLISION_SIZE_SCALE = 4.0;
 /** Fade-in duration in milliseconds. */
 const FADE_DURATION_MS = 500;
 
-/**
- * Zoom is quantized to discrete steps so deck.gl color transitions can
- * complete between updates instead of restarting on every animation frame.
- * Quantization + debouncing lives in {@link useSettledZoom}.
- */
-
 /** Collision priority — between worship (4) and education (5). */
 const SPEED_LIMIT_PRIORITY = 4.5;
 

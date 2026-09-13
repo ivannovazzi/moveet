@@ -147,9 +147,7 @@ export default function Map({
   onBboxChange,
   panLocked = false,
 }: MapProps) {
-  // One cursor table, keyed by the interaction mode (see modeCursor.ts). The
-  // zoneDrawActive / jobPlacementActive flags stay — layers below still read
-  // them for picking — but they no longer decide the cursor.
+  // One cursor table, keyed by the interaction mode (see modeCursor.ts).
   const cursor = cursorForMode(modeKind, dispatchState);
 
   /**

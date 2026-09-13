@@ -53,8 +53,10 @@ export default function ModeRail({ descriptor }: ModeRailProps) {
       )}
 
       {/* The mode's inline control (heat-zone intensity), right after the
-          readout it belongs to and before any key. */}
-      {control}
+          readout it belongs to and before any key. `aria-live="off"` because
+          the rail is a live region: without it, every frame of a slider drag
+          re-announces the whole rail. */}
+      <span aria-live="off">{control}</span>
 
       {/* Now the only thing in the rail that isn't a key or a count — and it
           earns it: with no hint text left, this is what says panning is off. */}
