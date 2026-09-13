@@ -3,8 +3,10 @@ import { PathLayer, ScatterplotLayer, TextLayer } from "@deck.gl/layers";
 import type { Layer } from "@deck.gl/core";
 import type { JobDTO, Position } from "@/types";
 import { resolveMapColor } from "@/lib/mapColor";
-import { mapLabelProps } from "@/lib/mapLabels";
+import { LABEL_PRIORITY, mapLabelProps, useVisibleLabels, type LabelItem } from "@/lib/mapLabels";
+import { useMapContext } from "@/components/Map/hooks";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
+import { useSettledZoom } from "../hooks/useSettledZoom";
 
 export const JOBS_LAYER_ID = "jobs";
 
@@ -34,6 +36,13 @@ const DRAFT_KEY = "draft";
 
 /** Neutral ink for the stop ring, shared with every other map label. */
 const LABEL_TOKEN = "var(--color-map-label)";
+
+/** Label size and offset, shared between the TextLayer and the declutter pass. */
+const LABEL_SIZE = 11;
+const LABEL_OFFSET: [number, number] = [0, -11];
+
+/** A job past its SLA outranks the rest of the queue for label space. */
+const LATE_LABEL_BOOST = 5;
 
 /**
  * Which token a stop paints with. Split out from the accessors (and exported)
@@ -71,6 +80,7 @@ interface LinkDatum {
 }
 
 interface LabelDatum {
+  key: string;
   position: [number, number];
   text: string;
   late: boolean;
@@ -99,6 +109,31 @@ interface JobsLayerProps {
  * actions, this layer only makes the geography of the queue legible.
  */
 export default memo(function JobsLayer({ jobs, draftPickup }: JobsLayerProps) {
+  const { viewport, getZoom } = useMapContext();
+  const { settledZoom } = useSettledZoom(getZoom());
+
+  // Job references are decluttered against every other map label, so a dense
+  // queue can't bury the selected route's readout (or its own neighbours).
+  const labelItems = useMemo<LabelItem[]>(
+    () =>
+      jobs.map((job) => ({
+        id: job.id,
+        position: toDeck(job.pickup.position),
+        text: job.reference,
+        size: LABEL_SIZE,
+        priority: LABEL_PRIORITY.job + (job.slaBreached ? LATE_LABEL_BOOST : 0),
+        pixelOffset: LABEL_OFFSET,
+      })),
+    [jobs]
+  );
+
+  const visibleLabels = useVisibleLabels(
+    `${JOBS_LAYER_ID}-labels`,
+    labelItems,
+    viewport,
+    settledZoom
+  );
+
   const layers = useMemo(() => {
     const pickups: StopDatum[] = [];
     const dropoffs: StopDatum[] = [];
@@ -112,7 +147,7 @@ export default memo(function JobsLayer({ jobs, draftPickup }: JobsLayerProps) {
       pickups.push({ key: `${job.id}-p`, position: from, late });
       dropoffs.push({ key: `${job.id}-d`, position: to, late });
       links.push({ path: [from, to], late });
-      labels.push({ position: from, text: job.reference, late });
+      labels.push({ key: job.id, position: from, text: job.reference, late });
     }
 
     if (draftPickup) {
@@ -179,26 +214,27 @@ export default memo(function JobsLayer({ jobs, draftPickup }: JobsLayerProps) {
       );
     }
 
-    if (labels.length > 0) {
+    const visible = labels.filter((label) => visibleLabels.has(label.key));
+    if (visible.length > 0) {
       result.push(
         new TextLayer<LabelDatum>({
-          ...mapLabelProps(11),
+          ...mapLabelProps(LABEL_SIZE),
           id: `${JOBS_LAYER_ID}-labels`,
-          data: labels,
+          data: visible,
           getPosition: (d) => d.position,
           getText: (d) => d.text,
           getColor: (d) => withAlpha(d.late ? JOB_COLOR_TOKENS.late : JOB_COLOR_TOKENS.pickup, 255),
           getTextAnchor: "middle",
           getAlignmentBaseline: "bottom",
-          getPixelOffset: [0, -11],
+          getPixelOffset: LABEL_OFFSET,
           pickable: false,
-          updateTriggers: { getColor: labels.map((l) => l.late) },
+          updateTriggers: { getColor: visible.map((l) => l.late) },
         })
       );
     }
 
     return result;
-  }, [jobs, draftPickup]);
+  }, [jobs, draftPickup, visibleLabels]);
 
   useRegisterLayers(JOBS_LAYER_ID, layers);
 

@@ -10,15 +10,21 @@
  * system is the oklch `@theme` block in index.css plus Tailwind utilities.
  */
 :root {
-  /* POI category fills — consumed by Map/POI/helpers.ts getFillByType().
-     oklch siblings of the theme palette (index.css) instead of raw legacy
-     hex, so POI colors sit coherently next to --color-primary/--color-status-*. */
+  /* POI group fills — one per semantic group in Map/POI/categories.ts, read by
+     the icon atlas (canvas) and by the selected-POI HTML marker. The raw ~130
+     OSM amenity types collapse into these nine, so the map has nine colours to
+     learn rather than a grey "unknown" carpet. oklch siblings of the theme
+     palette (index.css), so POI colors sit coherently next to
+     --color-primary/--color-status-*. */
+  --color-poi-transit: oklch(0.78 0.07 250);
   --color-poi-shop: oklch(0.7 0.15 55);
+  --color-poi-food: oklch(0.72 0.16 30);
+  --color-poi-health: oklch(0.68 0.19 15);
+  --color-poi-education: oklch(0.7 0.13 210);
+  --color-poi-civic: oklch(0.7 0.12 75);
+  --color-poi-worship: oklch(0.66 0.12 300);
   --color-poi-leisure: oklch(0.72 0.14 152);
-  --color-poi-craft: oklch(0.64 0.12 285);
-  --color-poi-office: oklch(0.7 0.12 75);
-  --color-poi-bus: oklch(0.78 0.07 250);
-  --color-poi-default: oklch(0.65 0.015 255);
+  --color-poi-fuel: oklch(0.8 0.15 95);
 
   /* Vehicle rendering — resolved at runtime by VehiclesLayer.resolveCSSColor()
      and mirrored in the rail's VehicleTypeKey icons. Per-type defaults when a

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { IconLayer, PathLayer, ScatterplotLayer, TextLayer } from "@deck.gl/layers";
 import { PathStyleExtension, type PathStyleExtensionProps } from "@deck.gl/extensions";
+import type { Layer } from "@deck.gl/core";
 import type { Position } from "@/types";
 import { useDirections, type DirectionState } from "@/hooks/useDirections";
 import { useDirectionHighlight } from "@/hooks/directionHighlightStore";
@@ -10,7 +11,7 @@ import { invertLatLng } from "@/utils/coordinates";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 import { useMapContext } from "@/components/Map/hooks";
 import { resolveMapColor } from "@/lib/mapColor";
-import { mapLabelProps } from "@/lib/mapLabels";
+import { LABEL_PRIORITY, mapLabelProps, useVisibleLabels, type LabelItem } from "@/lib/mapLabels";
 
 type RGBA = [number, number, number, number];
 type LngLat = [number, number];
@@ -43,6 +44,9 @@ const SOLID: [number, number] = [0, 0];
  * icon; making chevrons pickable would steal hover from the route and vehicles.)
  */
 const ARROW_SPACING_PX = 72;
+/** Distance-readout label size and offset, shared with the declutter pass. */
+const DISTANCE_LABEL_SIZE = 12;
+const DISTANCE_LABEL_OFFSET: [number, number] = [0, -20];
 const MAX_ARROWS = 1500;
 const ARROW_SIZE_PX = 12;
 const ARROW_ALPHA = 235;
@@ -257,7 +261,7 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
   const hoveredDirection = hovered ? directions.get(hovered) : undefined;
   const selectedDirection = selected ? directions.get(selected) : undefined;
   const progress = useRouteProgress(selected, selectedDirection);
-  const { viewState } = useMapContext();
+  const { viewState, viewport } = useMapContext();
   const zoomBucket = Math.round((viewState?.zoom ?? 12) / ARROW_ZOOM_STEP) * ARROW_ZOOM_STEP;
 
   // Selected route geometry, split at the vehicle. Shared by the route layers
@@ -280,7 +284,9 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
     };
   }, [selectedDirection, progress]);
 
-  const layers = useMemo(() => {
+  // The distance readouts are decluttered against every other map label, so
+  // they are built here and attached below, once the pass has run.
+  const built = useMemo(() => {
     // Resolved here, not at module load: resolveMapColor caches its first
     // answer, which at module-eval time predates the stylesheet.
     const casingRgba = resolveMapColor(CASING_TOKEN, CASING_ALPHA);
@@ -305,7 +311,7 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
       });
     }
 
-    if (items.length === 0) return [];
+    if (items.length === 0) return { layers: [] as Layer[], labelData: [] as LabelData[] };
 
     // Build path data using geo coords [lng, lat] — deck.gl MapView handles projection
     const travelled = selectedRoute?.travelled ?? [];
@@ -494,35 +500,61 @@ export default function DirectionMap({ selected, hovered }: DirectionProps) {
           })
         : null;
 
-    const distanceTextLayer =
-      labelData.length > 0
-        ? new TextLayer<LabelData>({
-            ...mapLabelProps(12),
-            id: "direction-distance-labels",
-            data: labelData,
-            getPosition: (d) => d.position,
-            getText: (d) => d.text,
-            getColor: (d) => d.color,
-            getTextAnchor: "middle",
-            getAlignmentBaseline: "bottom",
-            getPixelOffset: [0, -20],
-            background: true,
-            getBackgroundColor: resolveMapColor("var(--color-popover)", 220),
-            backgroundPadding: [6, 3],
-          })
-        : null;
-
-    return [
-      glowLayer,
-      travelledLayer,
-      casingLayer,
-      pathLayer,
-      destinationLayer,
-      scatterLayer,
-      waypointTextLayer,
-      distanceTextLayer,
-    ].filter((l): l is NonNullable<typeof l> => l !== null);
+    return {
+      layers: [
+        glowLayer,
+        travelledLayer,
+        casingLayer,
+        pathLayer,
+        destinationLayer,
+        scatterLayer,
+        waypointTextLayer,
+      ].filter((l): l is NonNullable<typeof l> => l !== null) as Layer[],
+      labelData,
+    };
   }, [hovered, hoveredDirection, selected, selectedDirection, selectedRoute]);
+
+  const distanceLabelItems = useMemo<LabelItem[]>(
+    () =>
+      built.labelData.map((d) => ({
+        id: d.id,
+        position: d.position,
+        text: d.text,
+        size: DISTANCE_LABEL_SIZE,
+        priority: LABEL_PRIORITY.routeDistance,
+        pixelOffset: DISTANCE_LABEL_OFFSET,
+      })),
+    [built]
+  );
+
+  const visibleDistances = useVisibleLabels(
+    "direction-distance-labels",
+    distanceLabelItems,
+    viewport ?? null,
+    zoomBucket
+  );
+
+  const layers = useMemo(() => {
+    const data = built.labelData.filter((d) => visibleDistances.has(d.id));
+    if (data.length === 0) return built.layers;
+    return [
+      ...built.layers,
+      new TextLayer<LabelData>({
+        ...mapLabelProps(DISTANCE_LABEL_SIZE),
+        id: "direction-distance-labels",
+        data,
+        getPosition: (d) => d.position,
+        getText: (d) => d.text,
+        getColor: (d) => d.color,
+        getTextAnchor: "middle",
+        getAlignmentBaseline: "bottom",
+        getPixelOffset: DISTANCE_LABEL_OFFSET,
+        background: true,
+        getBackgroundColor: resolveMapColor("var(--color-popover)", 220),
+        backgroundPadding: [6, 3],
+      }),
+    ];
+  }, [built, visibleDistances]);
 
   useRegisterLayers("directions", layers);
 

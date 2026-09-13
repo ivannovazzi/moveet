@@ -4,7 +4,8 @@ import type { Vehicle, DispatchAssignment } from "@/types";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 import { useMapContext, useOverlay } from "@/components/Map/hooks";
 import { resolveMapColor } from "@/lib/mapColor";
-import { mapLabelProps } from "@/lib/mapLabels";
+import { LABEL_PRIORITY, mapLabelProps, useVisibleLabels, type LabelItem } from "@/lib/mapLabels";
+import { useSettledZoom } from "./hooks/useSettledZoom";
 import type { WaypointRef } from "@/hooks/useDispatchFlow";
 
 interface PendingDispatchProps {
@@ -27,6 +28,11 @@ const LINE_ALPHA = 120;
 const HIT_PX = 12;
 const DRAG_THRESHOLD_PX = 3;
 
+/** Vehicle-name label size and offsets, shared with the declutter pass. */
+const LABEL_SIZE = 12;
+const MULTI_LABEL_OFFSET: [number, number] = [0, -14];
+const SINGLE_LABEL_OFFSET: [number, number] = [0, -10];
+
 interface MarkerDatum {
   key: string;
   position: [number, number]; // [lng, lat]
@@ -34,6 +40,8 @@ interface MarkerDatum {
   index: number;
   isMultiStop: boolean;
   enlarged: boolean;
+  /** Only set on single-waypoint markers, which carry the vehicle's name. */
+  vehicleId?: string;
 }
 
 interface LineDatum {
@@ -41,6 +49,7 @@ interface LineDatum {
 }
 
 interface NameLabel {
+  id: string;
   position: [number, number];
   text: string;
 }
@@ -74,8 +83,9 @@ export default memo(function PendingDispatch({
   onMoveWaypointGroup,
   onRemoveWaypointGroup,
 }: PendingDispatchProps) {
-  const { viewport } = useMapContext();
+  const { viewport, getZoom } = useMapContext();
   const { mapHTMLElement } = useOverlay();
+  const { settledZoom } = useSettledZoom(getZoom());
 
   const [hoverKey, setHoverKey] = useState<string | null>(null);
   const [dragKey, setDragKey] = useState<string | null>(null);
@@ -238,6 +248,45 @@ export default memo(function PendingDispatch({
     };
   }, [editable, mapHTMLElement]);
 
+  // ── Label declutter ───────────────────────────────────────────────
+  // Vehicle names on pending waypoints are decluttered against every other map
+  // label. The waypoint *numbers* are deliberately left out: they sit inside
+  // their own marker, so hiding one would leave an unlabelled dot.
+  const { multiLabels, singleLabels } = useMemo(() => {
+    const multi: LabelItem[] = [];
+    const single: LabelItem[] = [];
+    for (const assignment of assignments) {
+      if (!vehicleMap.has(assignment.vehicleId) || assignment.waypoints.length === 0) continue;
+      const [lat, lng] = assignment.waypoints[0].position;
+      const item: LabelItem = {
+        id: assignment.vehicleId,
+        position: [lng, lat],
+        text: assignment.vehicleName,
+        size: LABEL_SIZE,
+        priority: LABEL_PRIORITY.dispatch,
+      };
+      if (assignment.waypoints.length > 1) {
+        multi.push({ ...item, pixelOffset: MULTI_LABEL_OFFSET });
+      } else {
+        single.push({ ...item, pixelOffset: SINGLE_LABEL_OFFSET });
+      }
+    }
+    return { multiLabels: multi, singleLabels: single };
+  }, [assignments, vehicleMap]);
+
+  const visibleMulti = useVisibleLabels(
+    "pending-dispatch-multi-labels",
+    multiLabels,
+    viewport,
+    settledZoom
+  );
+  const visibleSingle = useVisibleLabels(
+    "pending-dispatch-single-labels",
+    singleLabels,
+    viewport,
+    settledZoom
+  );
+
   // ── Render layers ─────────────────────────────────────────────────
   const layers = useMemo(() => {
     if (assignments.length === 0) return [];
@@ -282,6 +331,7 @@ export default memo(function PendingDispatch({
           });
         }
         nameLabels.push({
+          id: assignment.vehicleId,
           position: positions[0],
           text: assignment.vehicleName,
         });
@@ -289,6 +339,7 @@ export default memo(function PendingDispatch({
         const key = `${assignment.waypoints[0].position[0].toFixed(6)},${assignment.waypoints[0].position[1].toFixed(6)}`;
         singleMarkers.push({
           key,
+          vehicleId: assignment.vehicleId,
           position: positions[0],
           label: assignment.vehicleName,
           index: 1,
@@ -354,18 +405,19 @@ export default memo(function PendingDispatch({
     }
 
     // Multi-stop vehicle name labels
-    if (nameLabels.length > 0) {
+    const visibleNameLabels = nameLabels.filter((label) => visibleMulti.has(label.id));
+    if (visibleNameLabels.length > 0) {
       result.push(
         new TextLayer<NameLabel>({
-          ...mapLabelProps(12),
+          ...mapLabelProps(LABEL_SIZE),
           id: "pending-dispatch-multi-labels",
-          data: nameLabels,
+          data: visibleNameLabels,
           getPosition: (d) => d.position,
           getText: (d) => d.text,
           getColor: labelRgba,
           getTextAnchor: "middle",
           getAlignmentBaseline: "bottom",
-          getPixelOffset: [0, -14],
+          getPixelOffset: MULTI_LABEL_OFFSET,
           pickable: false,
         })
       );
@@ -410,22 +462,22 @@ export default memo(function PendingDispatch({
       );
       result.push(
         new TextLayer<MarkerDatum>({
-          ...mapLabelProps(12),
+          ...mapLabelProps(LABEL_SIZE),
           id: "pending-dispatch-single-labels",
-          data: singleMarkers,
+          data: singleMarkers.filter((marker) => visibleSingle.has(marker.vehicleId ?? "")),
           getPosition: (d) => d.position,
           getText: (d) => d.label,
           getColor: labelRgba,
           getTextAnchor: "middle",
           getAlignmentBaseline: "bottom",
-          getPixelOffset: [0, -10],
+          getPixelOffset: SINGLE_LABEL_OFFSET,
           pickable: false,
         })
       );
     }
 
     return result;
-  }, [assignments, vehicleMap, hoverKey, dragKey, editable]);
+  }, [assignments, vehicleMap, hoverKey, dragKey, editable, visibleMulti, visibleSingle]);
 
   useRegisterLayers("pending-dispatch", layers);
 

@@ -1,14 +1,22 @@
 import { useMemo } from "react";
 import { PolygonLayer, TextLayer } from "@deck.gl/layers";
 import type { GeoFence, GeoFenceType } from "@moveet/shared-types";
+import { useMapContext } from "@/components/Map/hooks";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
+import { useSettledZoom } from "../hooks/useSettledZoom";
 import { resolveMapColor } from "@/lib/mapColor";
-import { mapLabelProps } from "@/lib/mapLabels";
+import { LABEL_PRIORITY, mapLabelProps, useVisibleLabels, type LabelItem } from "@/lib/mapLabels";
 
 type RGBA = [number, number, number, number];
 
 /** Fade in/out duration in milliseconds, matching SpeedLimitSigns. */
 const FADE_DURATION_MS = 500;
+
+/** Label size, shared between the TextLayer and the declutter pass. */
+const LABEL_SIZE = 11;
+
+/** A fence the operator selected outranks the rest of the fence names. */
+const SELECTED_LABEL_BOOST = 5;
 
 // restricted = off-limits (danger); delivery/monitoring are both
 // permitted-access zone types, so they share the "ok" hue.
@@ -78,6 +86,26 @@ export default function GeofenceLayer({
   onSelectFence,
   selectable = true,
 }: GeofenceLayerProps) {
+  const { viewport, getZoom } = useMapContext();
+  const { settledZoom } = useSettledZoom(getZoom());
+
+  // Fence names compete with every other map label, not just each other: a
+  // zone name that buries a route's distance readout is the wrong trade.
+  const labelItems = useMemo<LabelItem[]>(
+    () =>
+      fences.map((fence) => ({
+        id: fence.id,
+        position: centroid(fence.polygon),
+        text: fence.name,
+        size: LABEL_SIZE,
+        priority:
+          LABEL_PRIORITY.geofence + (fence.id === selectedFenceId ? SELECTED_LABEL_BOOST : 0),
+      })),
+    [fences, selectedFenceId]
+  );
+
+  const visibleLabels = useVisibleLabels("geofence-labels", labelItems, viewport, settledZoom);
+
   const layers = useMemo(() => {
     if (fences.length === 0) return [];
 
@@ -119,9 +147,9 @@ export default function GeofenceLayer({
         },
       }),
       new TextLayer<GeoFence>({
-        ...mapLabelProps(11),
+        ...mapLabelProps(LABEL_SIZE),
         id: "geofence-labels",
-        data: fences,
+        data: fences.filter((fence) => visibleLabels.has(fence.id)),
         getPosition: (d: GeoFence) => centroid(d.polygon),
         getText: (d: GeoFence) => d.name,
         getColor: (d: GeoFence) => getStrokeRgba(d),
@@ -136,7 +164,7 @@ export default function GeofenceLayer({
         },
       }),
     ];
-  }, [fences, selectedFenceId, onSelectFence, selectable]);
+  }, [fences, selectedFenceId, onSelectFence, selectable, visibleLabels]);
 
   useRegisterLayers("geofences", layers);
 

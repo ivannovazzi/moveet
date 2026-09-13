@@ -12,8 +12,12 @@ const { iconAtlas, iconMapping } = createSpeedLimitIconAtlas();
 
 const collisionFilter = new CollisionFilterExtension();
 
-/** Zoom level below which speed limit signs are hidden */
-const MIN_ZOOM = 7;
+/**
+ * Zoom level below which speed limit signs are hidden. Signs are street-level
+ * detail: at city zoom they out-shouted everything on the map, including the
+ * POIs and vehicles an operator is actually watching.
+ */
+const MIN_ZOOM = 14;
 
 /**
  * Collision spacing multiplier — how much larger the collision hitbox is
@@ -30,7 +34,7 @@ const FADE_DURATION_MS = 500;
  * Quantization + debouncing lives in {@link useSettledZoom}.
  */
 
-/** Collision priority — sits between POI craft (3) and office (5). */
+/** Collision priority — between the POI worship (4) and education (5) groups. */
 const SPEED_LIMIT_PRIORITY = 4;
 
 interface SpeedLimitSignsProps {
@@ -64,14 +68,14 @@ export default function SpeedLimitSigns({ visible }: SpeedLimitSignsProps) {
         },
         getPosition: (d) => [d.coordinates[1], d.coordinates[0]],
         getIcon: (d) => speedToIconKey(d.speed),
-        getSize: 28,
+        getSize: 22,
         getColor: () => [255, 255, 255, alpha],
         iconAtlas,
         iconMapping,
         pickable: false,
         sizeUnits: "pixels",
-        sizeMinPixels: 14,
-        sizeMaxPixels: 32,
+        sizeMinPixels: 16,
+        sizeMaxPixels: 28,
         transitions: {
           getColor: {
             duration: FADE_DURATION_MS,

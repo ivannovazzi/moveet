@@ -1,28 +1,10 @@
-import type { POI } from "@/types";
+import { GROUP_META, type PoiGroup } from "./categories";
 
-export function isBusStop(poi: POI) {
-  return poi.type === "bus_stop";
-}
-
-export function isNotBusStop(poi: POI) {
-  return !isBusStop(poi);
-}
-
-export function getFillByType(type: string): string {
-  if (type === "shop") {
-    return "var(--color-poi-shop)";
-  }
-  if (type === "leisure") {
-    return "var(--color-poi-leisure)";
-  }
-  if (type === "craft") {
-    return "var(--color-poi-craft)";
-  }
-  if (type === "office") {
-    return "var(--color-poi-office)";
-  }
-  if (type === "bus_stop") {
-    return "var(--color-poi-bus)";
-  }
-  return "var(--color-poi-default)";
+/**
+ * Fill token for a POI group, used by the HTML marker for the selected POI.
+ * The deck.gl icon atlas reads the same token, so the selected marker and the
+ * carpet of GPU-drawn discs can never drift apart.
+ */
+export function getFillForGroup(group: PoiGroup): string {
+  return GROUP_META[group].token;
 }
