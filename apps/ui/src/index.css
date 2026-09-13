@@ -245,33 +245,49 @@
    a pointer-events-none ::after on the backdrop rather than another element in
    the tree — it must never intercept a click meant for the tool.
 
+   The pseudo-element always exists and carries the transition, so entering and
+   leaving a mode both animate (a rule that only exists while in a mode has
+   nothing to fade from). `--mode-frame-color` carries the tone, and it is in
+   the transition too, so switching straight from one mode to another of a
+   different tone crossfades rather than cutting.
+
    z-index 5 puts it over the (unlayered) deck canvas but under every HUD piece
    (search bar, zoom, legends, dock — all z-10 and up), so the frame never
-   paints on top of a control. Browse is excluded by the selector: no mode, no
-   frame. */
-.map-backdrop[data-mode]:not([data-mode="browse"])::after {
+   paints on top of a control. */
+/* Registered so the tone swap actually interpolates — an unregistered custom
+   property is a discrete value and would cut rather than crossfade. */
+@property --mode-frame-color {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: transparent;
+}
+
+.map-backdrop::after {
   content: "";
   position: absolute;
   inset: 0;
   z-index: 5;
   pointer-events: none;
+  opacity: 0;
+  --mode-frame-color: var(--color-accent);
+  box-shadow:
+    inset 0 0 0 2px color-mix(in oklch, var(--mode-frame-color) 70%, transparent),
+    inset 0 0 96px color-mix(in oklch, var(--color-map-edge) 30%, transparent);
+  transition:
+    opacity 200ms ease-out,
+    --mode-frame-color 200ms ease-out;
+}
+
+.map-backdrop[data-mode]:not([data-mode="browse"])::after {
   opacity: 1;
-  box-shadow:
-    inset 0 0 0 2px color-mix(in oklch, var(--color-accent) 70%, transparent),
-    inset 0 0 96px color-mix(in oklch, black 30%, transparent);
-  transition: opacity 200ms ease-out;
 }
 
-.map-backdrop[data-mode][data-mode-tone="warn"]::after {
-  box-shadow:
-    inset 0 0 0 2px color-mix(in oklch, var(--color-status-warn) 70%, transparent),
-    inset 0 0 96px color-mix(in oklch, black 30%, transparent);
+.map-backdrop[data-mode-tone="warn"]::after {
+  --mode-frame-color: var(--color-status-warn);
 }
 
-@starting-style {
-  .map-backdrop[data-mode]:not([data-mode="browse"])::after {
-    opacity: 0;
-  }
+.map-backdrop[data-mode-tone="ok"]::after {
+  --mode-frame-color: var(--color-status-ok);
 }
 
 @utility surface-accent {

@@ -12,7 +12,11 @@ import type { InteractionModeKind } from "@/hooks/useInteractionMode";
  * its own state machine, and browse is the idle "grab" the map hover/drag
  * feedback in DeckGLMap's getCursor keys off.
  */
-export function cursorForMode(kind: InteractionModeKind, dispatchState?: DispatchState): string {
+/** Every cursor a mode can ask for. `default` and `grab` are the idle pair
+ *  DeckGLMap's resolveCursor lets hover/drag feedback through. */
+export type MapCursor = "crosshair" | "default" | "grab" | "grabbing" | "wait" | "pointer";
+
+export function cursorForMode(kind: InteractionModeKind, dispatchState?: DispatchState): MapCursor {
   switch (kind) {
     case "draw-geofence":
     case "draw-heatzone":
@@ -21,8 +25,15 @@ export function cursorForMode(kind: InteractionModeKind, dispatchState?: Dispatc
     case "edit-heatzone":
       return "default";
     case "dispatch":
-      return cursorForDispatchState(dispatchState);
+      // CURSOR_BY_STATE only holds members of MapCursor; it can't say so in its
+      // own type without importing back through this module.
+      return cursorForDispatchState(dispatchState) as MapCursor;
     case "browse":
+      return "grab";
+    default:
+      // A new member of the union has to decide what a click means here — the
+      // compiler says so rather than the mode silently inheriting "grab".
+      kind satisfies never;
       return "grab";
   }
 }

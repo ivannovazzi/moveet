@@ -9,8 +9,8 @@ import VisibilityRail from "./Map/VisibilityRail";
 import SearchBar from "./SearchBar";
 import Zoom from "./Zoom/";
 import CreateZoneDialog from "./Map/Geofence/CreateZoneDialog";
-import HeatzoneInspector from "./Map/HeatzoneInspector";
 import { useHeatzoneEditorContext } from "./data/HeatzoneEditorContext";
+import { useHeatzones } from "./hooks/useHeatzones";
 import { useHeatzoneAutoReveal } from "./hooks/useHeatzoneAutoReveal";
 import type { Fleet, Modifiers } from "./types";
 import type { BoundingBox } from "@moveet/shared-types";
@@ -82,6 +82,24 @@ export default function App() {
 
   // ─── Manual heat zones ──────────────────────────────────────────
   const heatzoneEditor = useHeatzoneEditorContext();
+  const heatzones = useHeatzones();
+
+  // The selected zone's intensity feeds the mode rail's inline slider (the
+  // floating HeatzoneInspector that used to own it is gone). null whenever no
+  // zone is selected, which is what hides the control.
+  const selectedZoneIntensity = useMemo(() => {
+    const id = heatzoneEditor.selectedId;
+    if (!id) return null;
+    return heatzones.find((z) => z.properties.id === id)?.properties.intensity ?? null;
+  }, [heatzones, heatzoneEditor.selectedId]);
+
+  const setSelectedZoneIntensity = useCallback(
+    (intensity: number) => {
+      const id = heatzoneEditor.selectedId;
+      if (id) heatzoneEditor.setIntensity(id, intensity);
+    },
+    [heatzoneEditor]
+  );
 
   const derivedMode = useMemo<InteractionMode | null>(() => {
     if (jobDraft.active) return { kind: "place-job" };
@@ -365,6 +383,8 @@ export default function App() {
         onDelete: heatzoneEditor.selectedId
           ? () => void heatzoneEditor.removeSelected()
           : undefined,
+        intensity: selectedZoneIntensity,
+        onIntensityChange: setSelectedZoneIntensity,
       },
     }),
     [
@@ -390,6 +410,8 @@ export default function App() {
       stopZoneDraw,
       deselectZone,
       heatzoneEditor,
+      selectedZoneIntensity,
+      setSelectedZoneIntensity,
     ]
   );
   const modeDescriptor = useMemo(
@@ -740,7 +762,6 @@ export default function App() {
                 onSubmit={geofences.onCreateZone}
                 onClose={geofences.closePendingPolygon}
               />
-              <HeatzoneInspector />
             </div>
           </ErrorBoundary>
         </div>

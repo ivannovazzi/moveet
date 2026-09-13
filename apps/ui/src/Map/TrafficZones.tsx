@@ -381,6 +381,7 @@ export default function Heatzones({ visible }: { visible: boolean }) {
       intensity: z.properties.intensity,
       selected: z.properties.id === editor.selectedId,
     }));
+    const [fillR, fillG, fillB] = resolveMapColor(DENSITY_TOKEN);
     const selected = data.filter((d) => d.selected);
     const glow =
       selected.length > 0
@@ -405,10 +406,7 @@ export default function Heatzones({ visible }: { visible: boolean }) {
         id: "traffic-zones",
         data,
         getPolygon: (d) => d.polygon,
-        getFillColor: (d) => {
-          const [r, g, b] = resolveMapColor(DENSITY_TOKEN);
-          return [r, g, b, heatzoneFillAlpha(d.intensity)];
-        },
+        getFillColor: (d) => [fillR, fillG, fillB, heatzoneFillAlpha(d.intensity)],
         getLineColor: (d) => (d.selected ? SELECTED_LINE_RGBA : DENSITY_LINE_RGBA),
         getLineWidth: (d) => (d.selected ? 3 : 1),
         lineWidthUnits: "pixels",
@@ -450,6 +448,25 @@ export default function Heatzones({ visible }: { visible: boolean }) {
             }),
           ]
         : [];
+    // Below three points there is no area to close — the "closing" edge would
+    // just retrace the single segment already drawn.
+    const closing =
+      drawPoints.length >= 3
+        ? [
+            new PathLayer<{ path: Position[] }, PathStyleExtensionProps<{ path: Position[] }>>({
+              id: "heatzone-draw-closing",
+              data: [{ path: [drawPoints[drawPoints.length - 1], drawPoints[0]] }],
+              getPath: (d) => d.path,
+              getColor: resolveMapColor(LABEL_TOKEN, 180),
+              getWidth: 1.5,
+              widthUnits: "pixels",
+              getDashArray: CLOSING_DASH,
+              dashJustified: true,
+              extensions: [dashStyle],
+              pickable: false,
+            }),
+          ]
+        : [];
     return [
       ...fill,
       new PathLayer<{ path: Position[] }>({
@@ -463,18 +480,7 @@ export default function Heatzones({ visible }: { visible: boolean }) {
         jointRounded: true,
         pickable: false,
       }),
-      new PathLayer<{ path: Position[] }, PathStyleExtensionProps<{ path: Position[] }>>({
-        id: "heatzone-draw-closing",
-        data: [{ path: [drawPoints[drawPoints.length - 1], drawPoints[0]] }],
-        getPath: (d) => d.path,
-        getColor: resolveMapColor(LABEL_TOKEN, 180),
-        getWidth: 1.5,
-        widthUnits: "pixels",
-        getDashArray: CLOSING_DASH,
-        dashJustified: true,
-        extensions: [dashStyle],
-        pickable: false,
-      }),
+      ...closing,
     ];
   }, [drawPoints]);
   useRegisterLayers("heatzone-draw", drawLayers);

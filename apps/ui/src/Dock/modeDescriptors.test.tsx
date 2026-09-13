@@ -21,7 +21,13 @@ function ctx(overrides: Partial<ModeContext> = {}): ModeContext {
     },
     geofence: { vertexCount: 0, onCancel: vi.fn(), onConfirm: vi.fn(), onUndo: vi.fn() },
     job: { stage: "pickup", onCancel: vi.fn(), onBack: vi.fn() },
-    heatzone: { onStopDraw: vi.fn(), onDeselect: vi.fn(), onDelete: vi.fn() },
+    heatzone: {
+      onStopDraw: vi.fn(),
+      onDeselect: vi.fn(),
+      onDelete: vi.fn(),
+      intensity: 0.5,
+      onIntensityChange: vi.fn(),
+    },
     ...overrides,
   };
 }
@@ -174,11 +180,45 @@ describe("describeMode", () => {
       expect(describeKind({ kind: "edit-heatzone", id: "hz-1" })?.locksPan).toBe(true);
     });
 
+    it("hands the rail an inline intensity control while a zone is selected", () => {
+      const d = describeKind({ kind: "edit-heatzone", id: "hz-1" });
+      expect(d?.control).toBeDefined();
+      // Delete zone and Done stay exactly where they were.
+      expect(d?.actions?.map((a) => a.label)).toEqual(["Delete zone"]);
+      expect(d?.exitLabel).toBe("Done");
+    });
+
+    it("offers no control when there is no selected zone to read an intensity from", () => {
+      const d = describeKind(
+        { kind: "edit-heatzone", id: "hz-1" },
+        ctx({
+          heatzone: {
+            onStopDraw: vi.fn(),
+            onDeselect: vi.fn(),
+            intensity: null,
+            onIntensityChange: vi.fn(),
+          },
+        })
+      );
+      expect(d?.control).toBeUndefined();
+    });
+
+    it("gives drawing no inline control — there is no zone to tune yet", () => {
+      expect(describeKind({ kind: "draw-heatzone" })?.control).toBeUndefined();
+    });
+
     it("leaves drawing through the editor's own stop, so Escape and Done agree", () => {
       const onStopDraw = vi.fn();
       const d = describeKind(
         { kind: "draw-heatzone" },
-        ctx({ heatzone: { onStopDraw, onDeselect: vi.fn() } })
+        ctx({
+          heatzone: {
+            onStopDraw,
+            onDeselect: vi.fn(),
+            intensity: null,
+            onIntensityChange: vi.fn(),
+          },
+        })
       );
 
       d?.exit();

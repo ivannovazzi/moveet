@@ -238,15 +238,17 @@ describe("Heatzones lasso draw", () => {
 });
 
 describe("Heatzones lasso preview shape", () => {
-  it("omits the fill until the stroke has three points", () => {
+  it("draws only the stroke until the lasso has three points", () => {
     editor = makeEditor({ mode: "draw", isDrawing: true });
     render(<Heatzones visible />);
     act(() => {
       down(10, 10);
       move(20, 20);
     });
+    // Two points enclose no area: neither the fill nor the closing edge earns
+    // its place yet (the closing edge would retrace the only segment drawn).
     const preview = registeredLayers.get("heatzone-draw")! as { props: { id: string } }[];
-    expect(preview.map((l) => l.props.id)).toEqual(["heatzone-draw", "heatzone-draw-closing"]);
+    expect(preview.map((l) => l.props.id)).toEqual(["heatzone-draw"]);
   });
 
   it("closes the dashed edge from the last point back to the first", () => {

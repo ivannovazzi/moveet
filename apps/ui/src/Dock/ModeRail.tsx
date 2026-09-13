@@ -25,7 +25,7 @@ export interface ModeRailProps {
  * primary button is live.
  */
 export default function ModeRail({ descriptor }: ModeRailProps) {
-  const { label, icon, tone, status, actions, primary, exit, exitLabel, busy, locksPan } =
+  const { label, icon, tone, status, control, actions, primary, exit, exitLabel, busy, locksPan } =
     descriptor;
   const toneText = toneTextClass(tone);
 
@@ -51,6 +51,10 @@ export default function ModeRail({ descriptor }: ModeRailProps) {
           {status}
         </span>
       )}
+
+      {/* The mode's inline control (heat-zone intensity), right after the
+          readout it belongs to and before any key. */}
+      {control}
 
       {/* Now the only thing in the rail that isn't a key or a count — and it
           earns it: with no hint text left, this is what says panning is off. */}

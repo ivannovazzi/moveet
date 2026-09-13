@@ -5,6 +5,7 @@ import type { InteractionMode, InteractionModeKind } from "@/hooks/useInteractio
 import type { JobDraftStage } from "@/hooks/useJobDraft";
 import { MIN_GEOFENCE_VERTICES } from "@/lib/geofenceHints";
 import type { StatusTone } from "./DockPanelKit";
+import ZoneIntensityControl from "./ZoneIntensityControl";
 
 /** A mode's Enter action, rendered as the mode rail's primary button. */
 export interface ModeAction {
@@ -31,6 +32,14 @@ export interface ModeDescriptor {
   tone: StatusTone;
   /** Short live readout ("4 points", "2 vehicles · 3 stops"), rendered mono. */
   status: string | null;
+  /**
+   * An inline control the mode needs *while* it runs — the heat zone's
+   * intensity slider. It sits in the rail between the readout and the side
+   * actions, because the alternative is a floating panel duplicating the rail's
+   * own keys (which is exactly what HeatzoneInspector became). Keep it to one
+   * small control; anything bigger wants a panel.
+   */
+  control?: ReactNode;
   /** Bound to Enter and to the rail's filled button. */
   primary?: ModeAction;
   /**
@@ -93,6 +102,10 @@ export interface ModeContext {
     onDeselect: () => void;
     /** Deletes the zone being edited. Undefined while drawing a new one. */
     onDelete?: () => void;
+    /** The selected zone's intensity (0–1), or null when none is selected. */
+    intensity: number | null;
+    /** Debounced by the editor — safe to call on every drag step. */
+    onIntensityChange: (intensity: number) => void;
   };
 }
 
@@ -241,13 +254,19 @@ function describeHeatzoneDraw(ctx: ModeContext["heatzone"]): ModeDescriptor {
   };
 }
 
-function describeHeatzoneEdit(ctx: ModeContext["heatzone"]): ModeDescriptor {
+function describeHeatzoneEdit(ctx: ModeContext["heatzone"], zoneId: string): ModeDescriptor {
   return {
     kind: "edit-heatzone",
     label: "Edit zone",
     icon: <HeatZone />,
     tone: "warn",
     status: null,
+    // Keyed on the zone so selecting a different one re-initialises the
+    // slider's local value instead of carrying the previous zone's.
+    control:
+      ctx.intensity === null ? undefined : (
+        <ZoneIntensityControl key={zoneId} value={ctx.intensity} onChange={ctx.onIntensityChange} />
+      ),
     // Editing a zone is also where you decide it should not exist.
     actions: ctx.onDelete ? [{ label: "Delete zone", run: ctx.onDelete, enabled: true }] : [],
     primary: { label: "Done", run: ctx.onDeselect, enabled: true },
@@ -273,7 +292,7 @@ export function describeMode(mode: InteractionMode, ctx: ModeContext): ModeDescr
     case "draw-heatzone":
       return describeHeatzoneDraw(ctx.heatzone);
     case "edit-heatzone":
-      return describeHeatzoneEdit(ctx.heatzone);
+      return describeHeatzoneEdit(ctx.heatzone, mode.id);
   }
 }
 

@@ -20,6 +20,7 @@ import { webgl2Adapter } from "@luma.gl/webgl";
 import { PathLayer } from "@deck.gl/layers";
 import type { Position, RoadNetwork } from "@/types";
 import { useResizeObserver } from "@/hooks/useResizeObserver";
+import { resolveCursor, type DeckCursorState } from "../resolveCursor";
 import { useDeckViewState } from "../hooks/useDeckViewState";
 import { useDeckLayerManager, DeckLayersContext } from "../hooks/useDeckLayers";
 import { DeckMapContextProvider } from "../providers/MapContextProvider";
@@ -310,19 +311,12 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
   );
 
   // Cursor feedback: `cursor` is an explicit mode override (dispatch-flow
-  // crosshairs, geofence-draw crosshair, etc.) and always wins when set to
-  // anything but the idle default. Otherwise reflect deck.gl's own
-  // hover/drag state so pickable objects (vehicles, POIs, …) show a pointer
-  // and panning shows a grabbing hand.
-  const getCursor = useCallback(
-    ({ isDragging, isHovering }: { isDragging: boolean; isHovering: boolean }) => {
-      if (cursor !== "grab") return cursor;
-      if (isDragging) return "grabbing";
-      if (isHovering) return "pointer";
-      return cursor;
-    },
-    [cursor]
-  );
+  // crosshairs, geofence-draw crosshair, …) and always wins. An *idle* cursor
+  // — "grab" while browsing, "default" while editing a heat zone with pan
+  // locked — yields to deck.gl's own hover/drag state instead, so pickable
+  // objects still show a pointer. See resolveCursor: the idle set is why the
+  // edit-heatzone arrow doesn't kill hover feedback.
+  const getCursor = useCallback((state: DeckCursorState) => resolveCursor(cursor, state), [cursor]);
 
   // Keyboard shortcuts, active while the map container has focus (click it
   // first, or Tab to it): +/- mirror the on-screen zoom buttons. Escape is NOT
