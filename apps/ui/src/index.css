@@ -82,28 +82,19 @@
   --text-title: 0.9375rem; /* 15px */
   --text-title--line-height: 1.25rem;
 
-  /* The dock row's own offset off the map floor (`bottom-3`). One outer
-     margin, 12px, shared by every edge-anchored surface: the dock row, the
-     lamps, the inspector, the legend stack and the visibility rail. */
-  --spacing-dock-row: 0.75rem;
-  /* The dock bar's own height (`DockSurface`'s `h-[54px]`). */
-  --spacing-dock-bar: 3.375rem;
-  /* The shelf directly above the dock row (`bottom-above-dock`): the row's own
-     offset + its bar height + 12px of air = 78px, built from the two tokens above so
-     a change to the dock's own geometry can't quietly drift out of step with
-     this. The dock's two wings use the full width of that band, so anything
-     else anchored to the bottom of the map — the zoom cluster, legends —
-     stands on this shelf instead of underneath them. */
-  --spacing-above-dock: calc(var(--spacing-dock-row) + var(--spacing-dock-bar) + 0.75rem);
+  /* There are no layout tokens here any more. The shell used to carry eight —
+     `--spacing-dock-row`, `--spacing-dock-bar` and `--spacing-above-dock` for
+     the dock's shelf, `--spacing-row-2` for the baseline below the search bar,
+     `--visibility-rail-band` and `--legend-stack-clearance` for the band the
+     legends had to leave the rail, `--spacing-beside-rail` for the zoom
+     cluster's offset, and `--spacing-lamps-top` to centre the lamps on the
+     search bar. Every one of them was a clearance one surface promised to
+     leave another, and non-overlap held only while all eight agreed.
 
-  /* Baseline for anything that starts below the search bar used to be a
-     token (`--spacing-row-2`), alongside one clearance token per surface:
-     `--visibility-rail-band` for the rail's height, `--legend-stack-clearance`
-     for the band the legends had to leave it, `--spacing-beside-rail` for the
-     zoom cluster's offset and `--spacing-lamps-top` to centre the lamps on the
-     search bar. All five are gone: the shell is a grid now (see
-     `shell/ShellGrid.tsx`), so those clearances are track sizes rather than
-     numbers that had to be kept in agreement by hand. */
+     The shell is a grid now (see `shell/ShellGrid.tsx`), so those clearances
+     are track sizes: computed, not declared, and correct by construction. The
+     one number left is the 12px outer margin and gap, which lives on the grid
+     itself as `p-3 gap-3`. */
 
   /* Motion scale — registers the `duration-fast|normal|slow` Tailwind
      transition-duration utilities (Tailwind v4 reads the
