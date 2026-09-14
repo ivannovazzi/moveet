@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { PanelHeaderRow } from "@/Dock/DockPanelKit";
+import { presenceClass, usePresence } from "../usePresence";
 import { useConsoleSize } from "./useConsoleSize";
 
 /**
@@ -53,8 +54,14 @@ export default function Console({
   children,
 }: ConsoleProps) {
   const { width, dragging, startDrag, resetWidth } = useConsoleSize();
+  // Held on screen while it fades, like every other shell surface (see
+  // `usePresence`). It keeps its width for those 150ms rather than animating it
+  // away: a width transition would resize the deck.gl drawing buffer on every
+  // frame of the close, which is the one thing an 8000-vehicle map cannot
+  // afford to do for free.
+  const state = usePresence(open);
 
-  if (!open) return null;
+  if (state === "closed") return null;
 
   return (
     <aside
@@ -67,13 +74,11 @@ export default function Console({
       // this is the working surface, not an aside to one.
       role="region"
       aria-label={title}
+      data-state={state}
       style={{ width }}
       className={cn(
         "relative flex h-full shrink-0 flex-col border-l border-border bg-card",
-        // No width transition, deliberately. Animating it would resize the
-        // deck.gl drawing buffer on every frame of the open, which is the one
-        // thing an 8000-vehicle map cannot afford to do for free.
-        "animate-fade-in-fast"
+        presenceClass(state, "right")
       )}
     >
       <button
