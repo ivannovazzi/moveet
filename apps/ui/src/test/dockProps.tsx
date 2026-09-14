@@ -1,5 +1,10 @@
 import { vi } from "vitest";
-import type { DockProps } from "@/Dock/Dock";
+import { render } from "@testing-library/react";
+import Dock, { type DockProps } from "@/Dock/Dock";
+import ConsoleSections, { type ConsoleSectionsProps } from "@/shell/Console/ConsoleSections";
+import { buildDockBadges } from "@/Dock/dockBadges";
+import { useDockNavigation, type DockNavigation } from "@/hooks/useDockNavigation";
+import type { DockTabId } from "@/Dock/dockSections";
 import type { DispatchFlow } from "@/hooks/useDispatchFlow";
 import type { JobsPanelProps } from "@/Controls/JobsPanel";
 import { DispatchState } from "@/hooks/useDispatchState";
@@ -37,13 +42,15 @@ export function passthroughGuard(): ModeGuard {
 }
 
 /**
- * Props for rendering the real `Dock` in a test, minus `navigation` (supplied
- * by a harness calling `useDockNavigation`, the way `App` does). Shared by the
- * panel-switching suites so a new dock prop lands in one place.
+ * The dock row and the console are two halves of one surface: the keys open a
+ * section, the console shows it. Nothing that opens a panel can be tested
+ * against either half alone, so this is the prop set for both, minus the three
+ * things `App` derives (`navigation`, `badges`, `onSelectTab`).
  */
-export function createDockProps(
-  overrides: Partial<Omit<DockProps, "navigation">> = {}
-): Omit<DockProps, "navigation"> {
+export type DockShellProps = Omit<DockProps, "navigation" | "badges"> &
+  Omit<ConsoleSectionsProps, "navigation" | "badges" | "onSelectTab">;
+
+export function createDockProps(overrides: Partial<DockShellProps> = {}): DockShellProps {
   return {
     adapter: createAdapterState(),
     connected: true,
@@ -56,7 +63,6 @@ export function createDockProps(
     modeDescriptor: null,
     guard: passthroughGuard(),
     onStartMode: vi.fn(),
-    onEnterDispatch: vi.fn(),
 
     replayStatus: { mode: "live" },
     onPauseReplay: async () => {},
@@ -136,4 +142,55 @@ export function createDockProps(
     advanced: { maxSpeedRef: { current: 60 } },
     ...overrides,
   };
+}
+
+/**
+ * Render the dock row and its console together, wired the way `App` wires them:
+ * one `useDockNavigation`, one set of badges, and a tab handler both halves go
+ * through. Suites that press a section key and then assert on what opened need
+ * both halves on screen, and a harness is the only place that pairing should be
+ * spelled out.
+ */
+export function DockShell({
+  props,
+  navigation: external,
+  onSelectTab,
+}: {
+  props: DockShellProps;
+  /**
+   * Share navigation with something else on screen (the command palette drives
+   * the very same state). Omitted, the harness owns it, as `App` does.
+   */
+  navigation?: DockNavigation;
+  /** Override the tab handler — `App` wraps it for Fleet's Dispatch tab. */
+  onSelectTab?: (tab: DockTabId) => void;
+}) {
+  const own = useDockNavigation();
+  const navigation = external ?? own;
+  const badges = buildDockBadges({
+    dispatch: props.dispatch,
+    breachedJobs: props.jobs.counts.breached,
+    openIncidents: props.incidents.incidents.length,
+    faults: props.faults.faults,
+    isRecording: props.isRecording,
+  });
+  return (
+    <>
+      <Dock {...props} navigation={navigation} badges={badges} />
+      <ConsoleSections
+        {...props}
+        navigation={navigation}
+        badges={badges}
+        onSelectTab={onSelectTab ?? navigation.selectTab}
+      />
+    </>
+  );
+}
+
+/** `DockShell` with the default prop set, for the common case. */
+export function renderDockShell(
+  overrides: Partial<DockShellProps> = {},
+  onSelectTab?: (tab: DockTabId) => void
+) {
+  return render(<DockShell props={createDockProps(overrides)} onSelectTab={onSelectTab} />);
 }

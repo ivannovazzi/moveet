@@ -41,17 +41,13 @@ vi.mock("@/Controls/Adapter/adapterClient", () => ({
 }));
 
 // Imported after the mocks so the hoisted factories are in place.
-import Dock, { type DockProps } from "./Dock";
-import { useDockNavigation } from "@/hooks/useDockNavigation";
-import { createDockProps, passthroughGuard } from "@/test/dockProps";
+import { passthroughGuard, renderDockShell, type DockShellProps } from "@/test/dockProps";
 import { DOCK_SECTIONS, rollUpBadge, type DockBadges } from "./dockSections";
+import { CONSOLE_MIN_WIDTH } from "@/shell/Console/useConsoleSize";
 
-function renderDock(overrides: Partial<Omit<DockProps, "navigation">> = {}) {
-  function Harness() {
-    const navigation = useDockNavigation();
-    return <Dock {...createDockProps(overrides)} navigation={navigation} />;
-  }
-  return render(<Harness />);
+// The keys and the console they open are one surface — see `DockShell`.
+function renderDock(overrides: Partial<DockShellProps> = {}) {
+  return renderDockShell(overrides);
 }
 
 const pill = (name: string) => screen.getByRole("button", { name });
@@ -274,9 +270,13 @@ describe("dock section row", () => {
     const panel = await screen.findByRole("region", { name: "Monitor" });
 
     // One width for every section, wide enough for the longest header: the
-    // title, five tabs, a badge and the close button. At 460px "Faults" clipped
+    // At 460px "Faults" clipped
     // to "Fau" the moment the Incidents badge appeared.
-    expect(panel.className).toContain("w-[520px]");
+    // Width is the operator's now, not the section's: the console is dragged
+    // to taste and remembered (see `useConsoleSize`). What the suite can still
+    // pin is that it opens wide enough for the widest header — Monitor's, with
+    // a title, five tabs, a badge and a close button.
+    expect(Number.parseInt(panel.style.width, 10)).toBeGreaterThanOrEqual(CONSOLE_MIN_WIDTH);
     expect(
       within(panel)
         .getAllByRole("tab")

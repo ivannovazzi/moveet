@@ -51,7 +51,7 @@ vi.mock("@/Controls/Adapter/adapterClient", () => ({
 import Dock from "@/Dock/Dock";
 import { DispatchState } from "@/hooks/useDispatchState";
 import { useDockNavigation } from "@/hooks/useDockNavigation";
-import { createDockProps } from "@/test/dockProps";
+import { createDockProps, DockShell } from "@/test/dockProps";
 import { createModifiers, createStartOptions } from "@/test/mocks/types";
 import CommandPalette from "./CommandPalette";
 import { buildCommands, type CommandDeps } from "./commands";
@@ -92,7 +92,7 @@ function Harness() {
   const nav = useDockNavigation();
   return (
     <>
-      <Dock navigation={nav} {...createDockProps()} />
+      <DockShell props={createDockProps()} navigation={nav} />
       <CommandPalette
         vehicles={[]}
         roads={[]}

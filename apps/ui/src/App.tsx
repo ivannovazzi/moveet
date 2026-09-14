@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import client from "./utils/client";
 import Dock from "./Dock/Dock";
 import Inspector from "./Inspector/Inspector";
@@ -7,6 +7,9 @@ import MapView from "./Map/Map";
 import VisibilityRail from "./Map/VisibilityRail";
 import SearchBar from "./SearchBar";
 import ShellGrid from "./shell/ShellGrid";
+import ConsoleSections from "./shell/Console/ConsoleSections";
+import { buildDockBadges } from "./Dock/dockBadges";
+import type { DockTabId } from "./Dock/dockSections";
 import Region from "./shell/Region";
 import LegendStack from "./Map/LegendStack";
 import Zoom from "./Zoom/";
@@ -554,6 +557,52 @@ export default function App() {
     ]
   );
 
+  // ─── Section badges and tab selection ───────────────────────────
+  // The dock's four keys and the console's tab bar are two ways into the same
+  // sections, so the counts on them are built once here (see `dockBadges`)
+  // rather than twice from two copies of the rules.
+  const badges = useMemo(
+    () =>
+      buildDockBadges({
+        dispatch,
+        breachedJobs: jobs.counts.breached,
+        openIncidents: incidents.incidents.length,
+        faults,
+        isRecording: recording.isRecording,
+      }),
+    [dispatch, jobs.counts.breached, incidents.incidents.length, faults, recording.isRecording]
+  );
+
+  // Selecting a Fleet tab is also a mode decision: Dispatch enters dispatch
+  // mode (through the guard), and stepping off it leaves. A half-placed job is
+  // deliberately NOT cancelled by leaving the Jobs tab — the mode rail reports
+  // it and owns Escape, so it can no longer become invisible.
+  const onSelectTab = useCallback(
+    (next: DockTabId) => {
+      if (dockNavigation.expanded === "fleet") {
+        if (next === "dispatch") {
+          enterDispatchGuarded();
+          return;
+        }
+        if (dispatch.dispatchMode) handleDone();
+      }
+      dockNavigation.selectTab(next);
+    },
+    [dockNavigation, dispatch.dispatchMode, enterDispatchGuarded, handleDone]
+  );
+
+  // Dispatch started elsewhere (the launcher, D, the palette): light the tab
+  // that owns it so the console never contradicts the mode rail.
+  useEffect(() => {
+    if (
+      dispatch.dispatchMode &&
+      dockNavigation.expanded === "fleet" &&
+      dockNavigation.tab !== "dispatch"
+    ) {
+      dockNavigation.selectTab("dispatch");
+    }
+  }, [dispatch.dispatchMode, dockNavigation]);
+
   return (
     // Panels several levels down (the heat-zone tab, the geofence tab, the job
     // board) start map modes; the provider gives them the same guarded entry
@@ -720,15 +769,12 @@ export default function App() {
                 bottom={
                   <Dock
                     navigation={dockNavigation}
-                    adapter={adapter}
                     status={status}
                     options={options}
                     connected={connected}
                     modeDescriptor={modeDescriptor}
                     guard={guard}
                     onStartMode={startMode}
-                    onEnterDispatch={enterDispatchGuarded}
-                    onExitDispatch={handleDone}
                     isRecording={recording.isRecording}
                     onStartRecording={recording.startRecording}
                     onStopRecording={recording.stopRecording}
@@ -738,69 +784,7 @@ export default function App() {
                     onStopReplay={replay.stopReplay}
                     onSeekReplay={replay.seekReplay}
                     onSetReplaySpeed={replay.setReplaySpeed}
-                    vehicles={vehicles}
-                    filter={filters.filter}
-                    onFilterChange={onFilterChange}
-                    selectedId={filters.selected}
-                    onSelectVehicle={onSelectVehicle}
-                    onHoverVehicle={onHoverVehicle}
-                    onUnhoverVehicle={onUnhoverVehicle}
-                    maxSpeed={maxSpeedRef.current}
-                    vehicleFleetMap={vehicleFleetMap}
-                    fleets={fleets}
-                    onCreateFleet={createFleet}
-                    onDeleteFleet={deleteFleet}
-                    onAssignVehicle={assignVehicle}
-                    onUnassignVehicle={unassignVehicle}
-                    fleetsError={fleetsError}
-                    dispatch={dispatch}
-                    jobs={{
-                      jobs: jobs.jobs,
-                      counts: jobs.counts,
-                      // Starting a placement goes through the guard like every other
-                      // way into a mode; cancelling and the rest are the draft's own.
-                      draft: { ...jobDraft, start: startJobGuarded },
-                      onCancelJob: jobs.cancelJob,
-                      onDeleteJob: jobs.deleteJob,
-                      onAssignJob: jobs.assignJob,
-                      vehicles,
-                      jobByVehicleId: jobs.jobByVehicleId,
-                      error: jobs.error,
-                    }}
-                    incidents={{
-                      incidents: incidents.incidents,
-                      createRandom: incidents.createRandom,
-                      remove: incidents.remove,
-                      error: incidents.error,
-                    }}
-                    faults={{
-                      faults,
-                      vehicles,
-                      selectedVehicleId: filters.selected,
-                    }}
-                    geofences={{
-                      fences: geofences.fences,
-                      onFenceToggle: geofences.onFenceToggle,
-                      onFenceDelete: geofences.onFenceDelete,
-                      alerts: geofences.alerts,
-                      drawingActive: geofences.drawingActive,
-                      vertexCount: geofences.drawingVertexCount,
-                      onStartDrawing: startGeofenceDrawingGuarded,
-                      onCancelDrawing: geofences.onDrawCancel,
-                      onConfirmDrawing: geofences.onConfirmDraw,
-                    }}
-                    analytics={{
-                      summary: analytics.summary,
-                      fleetHistory: analytics.fleetHistory,
-                      summaryHistory: analytics.summaryHistory,
-                    }}
-                    recordings={{
-                      recordings: recording.recordings,
-                      replayStatus: replay.replayStatus,
-                      onStartReplay: replay.startReplay,
-                      onRefreshRecordings: recording.refreshRecordings,
-                    }}
-                    advanced={{ maxSpeedRef }}
+                    badges={badges}
                   />
                 }
               />
@@ -810,6 +794,83 @@ export default function App() {
                 onClose={geofences.closePendingPolygon}
               />
             </div>
+          </ErrorBoundary>
+
+          {/* Everything that is read or configured rather than pointed at. It
+            takes layout space beside the map instead of floating over it, which
+            is what makes an overlap with anything else structurally impossible
+            (see `shell/Console`). */}
+          <ErrorBoundary fallback={<SectionErrorFallback section="Console" />}>
+            <ConsoleSections
+              navigation={dockNavigation}
+              badges={badges}
+              onSelectTab={onSelectTab}
+              replayStatus={replay.replayStatus}
+              adapter={adapter}
+              vehicles={vehicles}
+              filter={filters.filter}
+              onFilterChange={onFilterChange}
+              selectedId={filters.selected}
+              onSelectVehicle={onSelectVehicle}
+              onHoverVehicle={onHoverVehicle}
+              onUnhoverVehicle={onUnhoverVehicle}
+              maxSpeed={maxSpeedRef.current}
+              vehicleFleetMap={vehicleFleetMap}
+              fleets={fleets}
+              onCreateFleet={createFleet}
+              onDeleteFleet={deleteFleet}
+              onAssignVehicle={assignVehicle}
+              onUnassignVehicle={unassignVehicle}
+              fleetsError={fleetsError}
+              dispatch={dispatch}
+              jobs={{
+                jobs: jobs.jobs,
+                counts: jobs.counts,
+                // Starting a placement goes through the guard like every other
+                // way into a mode; cancelling and the rest are the draft's own.
+                draft: { ...jobDraft, start: startJobGuarded },
+                onCancelJob: jobs.cancelJob,
+                onDeleteJob: jobs.deleteJob,
+                onAssignJob: jobs.assignJob,
+                vehicles,
+                jobByVehicleId: jobs.jobByVehicleId,
+                error: jobs.error,
+              }}
+              incidents={{
+                incidents: incidents.incidents,
+                createRandom: incidents.createRandom,
+                remove: incidents.remove,
+                error: incidents.error,
+              }}
+              faults={{
+                faults,
+                vehicles,
+                selectedVehicleId: filters.selected,
+              }}
+              geofences={{
+                fences: geofences.fences,
+                onFenceToggle: geofences.onFenceToggle,
+                onFenceDelete: geofences.onFenceDelete,
+                alerts: geofences.alerts,
+                drawingActive: geofences.drawingActive,
+                vertexCount: geofences.drawingVertexCount,
+                onStartDrawing: startGeofenceDrawingGuarded,
+                onCancelDrawing: geofences.onDrawCancel,
+                onConfirmDrawing: geofences.onConfirmDraw,
+              }}
+              analytics={{
+                summary: analytics.summary,
+                fleetHistory: analytics.fleetHistory,
+                summaryHistory: analytics.summaryHistory,
+              }}
+              recordings={{
+                recordings: recording.recordings,
+                replayStatus: replay.replayStatus,
+                onStartReplay: replay.startReplay,
+                onRefreshRecordings: recording.refreshRecordings,
+              }}
+              advanced={{ maxSpeedRef }}
+            />
           </ErrorBoundary>
         </div>
         {/* Below the map container, so it takes real layout space instead of

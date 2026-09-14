@@ -32,7 +32,7 @@ vi.mock("@/Controls/Adapter/adapterClient", () => ({
 // Imported after the mocks so the hoisted factories are in place.
 import Dock from "./Dock";
 import { useDockNavigation } from "@/hooks/useDockNavigation";
-import { createDockProps, passthroughGuard } from "@/test/dockProps";
+import { createDockProps, DockShell, passthroughGuard, renderDockShell } from "@/test/dockProps";
 import type { ModeDescriptor } from "./modeDescriptors";
 import type { ModeGuard } from "@/hooks/useModeGuard";
 import type { ReplayStatus } from "@/types";
@@ -90,22 +90,13 @@ function renderDock(
     onStartMode?: (kind: string) => void;
   } = {}
 ) {
-  function Harness() {
-    const navigation = useDockNavigation();
-    return (
-      <Dock
-        {...createDockProps({
-          modeDescriptor: props.modeDescriptor ?? null,
-          guard: props.guard ?? passthroughGuard(),
-          replayStatus: props.replayStatus ?? { mode: "live" },
-          ...(props.isRecording !== undefined ? { isRecording: props.isRecording } : {}),
-          ...(props.onStartMode ? { onStartMode: props.onStartMode } : {}),
-        })}
-        navigation={navigation}
-      />
-    );
-  }
-  return render(<Harness />);
+  return renderDockShell({
+    modeDescriptor: props.modeDescriptor ?? null,
+    guard: props.guard ?? passthroughGuard(),
+    replayStatus: props.replayStatus ?? { mode: "live" },
+    ...(props.isRecording !== undefined ? { isRecording: props.isRecording } : {}),
+    ...(props.onStartMode ? { onStartMode: props.onStartMode } : {}),
+  });
 }
 
 const deck = () => document.querySelector('[data-dock="deck"]') as HTMLElement;
@@ -173,8 +164,7 @@ describe("dock deck", () => {
 
     it("cannot start anything while the simulator is unreachable", () => {
       function Harness() {
-        const navigation = useDockNavigation();
-        return <Dock {...createDockProps({ connected: false })} navigation={navigation} />;
+        return <DockShell props={createDockProps({ connected: false })} />;
       }
       render(<Harness />);
 

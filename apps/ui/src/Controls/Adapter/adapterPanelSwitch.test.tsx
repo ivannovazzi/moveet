@@ -60,15 +60,14 @@ vi.mock("./adapterClient", () => ({
 // Imported after the mocks so the hoisted factories are in place.
 import Dock, { type DockProps } from "@/Dock/Dock";
 import { useDockNavigation } from "@/hooks/useDockNavigation";
-import { createDockProps } from "@/test/dockProps";
+import { createDockProps, DockShell, type DockShellProps } from "@/test/dockProps";
 
 /**
  * Drawer state lives in App now (so Escape can route through the one keyboard
  * dispatcher), so supply it the same way App does.
  */
-function DockHarness(props: Omit<DockProps, "navigation">) {
-  const navigation = useDockNavigation();
-  return <Dock {...props} navigation={navigation} />;
+function DockHarness(props: DockShellProps) {
+  return <DockShell props={props} />;
 }
 
 /**
@@ -152,7 +151,7 @@ describe("adapter panel <-> other panel switching", () => {
     );
   });
 
-  it("still closes the adapter panel on a genuine outside click", async () => {
+  it("stays open when something outside it is clicked", async () => {
     const user = userEvent.setup();
     render(
       <div>
@@ -164,8 +163,10 @@ describe("adapter panel <-> other panel switching", () => {
     await openAdapterPanel(user);
     await user.click(screen.getByRole("button", { name: "outside" }));
 
-    await waitFor(() =>
-      expect(screen.queryByRole("region", { name: "Settings" })).not.toBeInTheDocument()
-    );
+    // The panel used to float over the map and close on any outside click,
+    // which is right for a popover. The console is docked: it holds space of
+    // its own, so a click on the map is a click on the map — not a dismissal.
+    // Closing it is the close button, its section key, or Escape.
+    expect(screen.getByRole("region", { name: "Settings" })).toBeInTheDocument();
   });
 });
