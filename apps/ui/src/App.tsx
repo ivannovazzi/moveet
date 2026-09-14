@@ -774,7 +774,7 @@ export default function App() {
                     className="flex flex-col justify-between gap-3"
                   >
                     <LegendStack />
-                    <div className="pointer-events-auto flex items-end gap-2">
+                    <div className="pointer-events-auto flex shrink-0 flex-col items-start gap-2">
                       {/* Layer visibility and the vehicle-type filters — see
                           VisibilityRail. Between them they replaced the
                           Settings › Visibility tab and the bottom-left type
