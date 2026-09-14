@@ -59,12 +59,12 @@ export interface VisibilityRailProps {
  * the flow moved every key below them down ~17px the moment one appeared — the
  * operator clicked Trails and the key they were aiming at next had moved.
  *
- * Bottom-left, stacked directly above the `Zoom` cluster (8px gap) and
- * growing *upward*. Legends grow *downward* from under the search bar (see
- * `LegendStack`, whose max-height reserves this band plus the zoom cluster
- * below it), so however many overlays are lit the two columns run out of room
- * before they can overlap — which a vertically-centred rail did not: at a
- * 1000px window the traffic legend landed on top of it.
+ * It is the bottom of the shell's left column, beside the `Zoom` cluster (8px
+ * gap); the legend stack is the top of the same column and grows down (see
+ * `LegendStack`). Sharing one column is what keeps them apart: they divide a
+ * track between them rather than each reserving a band of the map the other
+ * promised not to enter — which is how a vertically-centred rail ended up under
+ * the traffic legend at a 1000px window.
  */
 export default function VisibilityRail({
   modifiers,
@@ -88,7 +88,7 @@ export default function VisibilityRail({
     <div
       role="group"
       aria-label="Layer visibility"
-      className="absolute left-3 bottom-above-dock z-10 flex animate-fade-up flex-col gap-0.5 rounded-lg border border-border surface-glass glass-frost p-1 shadow-elevated"
+      className="flex animate-fade-up flex-col gap-0.5 rounded-lg border border-border surface-glass glass-frost p-1 shadow-elevated"
     >
       {VISIBILITY_LAYERS.map(({ key, label, icon }) => {
         // Density and Jobs are optional modifiers (absent = off), so coerce.

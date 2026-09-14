@@ -137,13 +137,11 @@ export default function Inspector({ vehicle, poi, fleet, job, onClose }: Inspect
       role="region"
       aria-label="Inspector"
       className={cn(
-        // Row two of the shell, the same baseline the legend stack and the
-        // start hint use: `--spacing-row-2` clears the search bar and, with it,
-        // the lamps centred on that row — so an open inspector never covers the
-        // run's health lamps (the bug this replaces). Capped above the dock
-        // shelf the same way it was capped above the viewport edge.
-        "absolute right-3 top-[var(--spacing-row-2)] z-40 flex w-80 max-w-[calc(100vw-2rem)] flex-col origin-top-right",
-        "max-h-[calc(100vh-var(--spacing-row-2)-var(--spacing-above-dock))]",
+        // The right track of the shell grid's middle row (see `ShellGrid`).
+        // That row is what is left of the map once the search band and the
+        // dock have taken theirs, so clearing both is the grid's job now
+        // rather than two clearance tokens subtracted from the viewport here.
+        "flex max-h-full w-80 max-w-full flex-col origin-top-right",
         "overflow-hidden rounded-[10px] border border-border surface-glass-strong glass-frost-strong shadow-floating",
         "animate-scale-in"
       )}

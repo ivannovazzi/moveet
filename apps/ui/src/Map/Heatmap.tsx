@@ -3,7 +3,7 @@ import type { Vehicle } from "@/types";
 import HeatLayer, { heatColorRange } from "@/components/Map/components/HeatLayer";
 import { Flame } from "@/components/Icons";
 import ScaleLegend from "./ScaleLegend";
-import { renderInSlot, type LegendSlot } from "./LegendStack";
+import { renderInSlot, useLegendSlot, type LegendSlot } from "./LegendStack";
 
 interface HeatmapProps {
   vehicles: Vehicle[];
@@ -12,6 +12,7 @@ interface HeatmapProps {
 }
 
 export default function Heatmap({ vehicles, legendSlot }: HeatmapProps) {
+  const slot = useLegendSlot();
   // Memoize the position array so HeatLayer's layer-building useMemo (keyed on
   // `data`) isn't busted every render, which would rebuild the deck.gl
   // HeatmapLayer and discard its aggregation each frame.
@@ -25,7 +26,7 @@ export default function Heatmap({ vehicles, legendSlot }: HeatmapProps) {
     <>
       <HeatLayer data={data} />
       {renderInSlot(
-        legendSlot,
+        legendSlot ?? slot,
         "heat",
         <ScaleLegend
           testId="heat-legend"

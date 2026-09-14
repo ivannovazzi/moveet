@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useMemo } from "react";
 import type { PickingInfo } from "@deck.gl/core";
 import type {
   DispatchAssignment,
@@ -40,7 +40,6 @@ import POIMarker from "./POI/POI";
 import GeofenceLayer from "./Geofence/GeofenceLayer";
 import GeofenceDrawTool from "./Geofence/GeofenceDrawTool";
 import { ViewportBboxReporter } from "./ViewportBboxReporter";
-import LegendStack from "./LegendStack";
 
 // Stable fallback for optional callbacks — inline `() => {}` literals would
 // hand child layers a new prop identity on every render.
@@ -157,20 +156,11 @@ export default function Map({
   // One cursor table, keyed by the interaction mode (see modeCursor.ts).
   const cursor = cursorForMode(modeKind, dispatchState);
 
-  /**
-   * The legend column. Overlays have to stay inside `DeckGLMap` (that is where
-   * they register their layers), so they portal their legends into this one
-   * element instead — see `LegendStack`. The element only exists after the
-   * first commit, hence the state flag: it re-renders the tree once, and the
-   * overlays then find a live slot (they render inline until they do).
-   */
-  const legendSlotRef = useRef<HTMLDivElement | null>(null);
-  const [legendSlotReady, setLegendSlotReady] = useState(false);
-  const attachLegendSlot = useCallback((el: HTMLDivElement | null) => {
-    legendSlotRef.current = el;
-    setLegendSlotReady(el !== null);
-  }, []);
-  const legendSlot = legendSlotReady ? legendSlotRef : undefined;
+  // The legend column is no longer mounted here. It is the top half of the
+  // shell's left region (see `ShellGrid`), and the overlays — which have to
+  // stay inside `DeckGLMap`, since that is where they register their layers —
+  // find it through the module store in `LegendStack` rather than a ref
+  // threaded down the whole map tree.
 
   // Native deck.gl tooltip for GL-picked layers (currently just vehicles —
   // POIs/incidents render their own styled HTML markers instead). Hover is
@@ -212,7 +202,6 @@ export default function Map({
 
   return (
     <>
-      <LegendStack ref={attachLegendSlot} />
       <Suspense fallback={null}>
         <DeckGLMap
           data={network}
@@ -262,29 +251,23 @@ export default function Map({
                 vehicleFleetMap={vehicleFleetMap}
                 hiddenFleetIds={hiddenFleetIds}
                 hiddenVehicleTypes={hiddenVehicleTypes}
-                legendSlot={legendSlot}
               />
             </Suspense>
           )}
           {modifiers.showTrafficOverlay && (
             <Suspense fallback={null}>
-              <TrafficOverlay visible={true} legendSlot={legendSlot} />
+              <TrafficOverlay visible={true} />
             </Suspense>
           )}
           {modifiers.showHeatmap && (
             <Suspense fallback={null}>
-              <Heatmap vehicles={vehicles} legendSlot={legendSlot} />
+              <Heatmap vehicles={vehicles} />
             </Suspense>
           )}
           {/* The fleets legend is the one legend that is operated, not only
             read; it stacks last and re-enables pointer events on itself. */}
           {fleets.length > 0 && onToggleFleet && (
-            <FleetLegend
-              fleets={fleets}
-              hiddenFleetIds={hiddenFleetIds}
-              onToggle={onToggleFleet}
-              legendSlot={legendSlot}
-            />
+            <FleetLegend fleets={fleets} hiddenFleetIds={hiddenFleetIds} onToggle={onToggleFleet} />
           )}
           <Direction selected={filters.selected} hovered={filters.hovered} />
           {modifiers.showBreadcrumbs && (
