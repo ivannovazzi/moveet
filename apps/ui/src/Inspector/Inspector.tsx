@@ -20,9 +20,12 @@ import type { DeviceFaultInfo } from "@/types";
  * the console, and what is left here is the content.
  *
  * Selection is passed in via props (App owns the selection state). Unlike every
- * other section this one is allowed to render empty: the selection can be
- * cleared while the console is open, and an empty view is a truer answer than
- * a surface that vanishes out from under the operator.
+ * other section this one is allowed to render empty — the selection can be
+ * cleared while the console is open, and a surface that vanished out from under
+ * the operator would read as a bug. Empty means *empty*: the console's header
+ * already says "Inspect" with nothing after it, which is the whole message. A
+ * line of copy explaining where selections come from pushed the panel's own
+ * layout around for something the operator learns once.
  *
  * Four sections for a vehicle: identity fields, live telemetry sparklines,
  * turn-by-turn steps with route progress, and an event timeline.
@@ -134,12 +137,6 @@ export default function Inspector({ vehicle, poi, fleet, job }: InspectorProps) 
 
   return (
     <div role="region" aria-label="Inspector" className="flex min-h-0 flex-1 flex-col">
-      {!vehicle && !poi && (
-        <p className="px-[15px] py-6 text-center text-label text-muted-foreground">
-          Nothing selected. Pick a vehicle on the map, in the fleet list, or from search.
-        </p>
-      )}
-
       {vehicle && (
         <div className="flex min-h-0 flex-1 flex-col">
           {/* Identity stays pinned; the analysis sections below it scroll. */}

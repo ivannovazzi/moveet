@@ -42,12 +42,14 @@ describe("what the inspector no longer owns", () => {
 });
 
 describe("Inspector", () => {
-  it("says so when nothing is selected, rather than disappearing", () => {
+  it("stays mounted but renders nothing when the selection is cleared", () => {
     // The one section allowed to render empty. A surface that vanished out from
     // under the operator when they cleared a selection would read as a bug, and
-    // the console has no other view to fall back to.
+    // the console has no other view to fall back to — but empty means empty.
+    // The console's header already says "Inspect" with nothing after it.
     render(<Inspector />);
-    expect(screen.getByText(/nothing selected/i)).toBeInTheDocument();
+    const panel = screen.getByRole("region", { name: "Inspector" });
+    expect(panel).toBeEmptyDOMElement();
   });
 
   it("renders vehicle details when a vehicle is selected", () => {
