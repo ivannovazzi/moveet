@@ -28,15 +28,15 @@ const KEY_CLASS = cn(
  * anyone who prefers a discrete step.
  *
  * Styled as rail keys (34px, `rounded-md`, muted icon) in the same glass box as
- * the visibility rail it sits beside, so the bottom of the left column reads as
- * one instrument rather than two components that happen to be adjacent: the
- * rail says what the map draws, the cluster says where the camera is looking.
- * Side by side rather than stacked, so the column is no taller than the rail.
+ * the visibility rail directly above it, and stacked the same way — so the left
+ * edge is one 44px column of keys on one left edge, rather than two clusters
+ * that happen to be near each other. The rail says what the map draws; the
+ * cluster says where the camera is looking.
  *
- * Where that column ends is the grid's business, not this file's: the cluster
- * used to carry `bottom-above-dock` and `left-beside-rail`, two tokens that
- * encoded the dock's height and the rail's width and went stale the moment
- * either changed (see `shell/ShellGrid.tsx`).
+ * It used to sit *beside* the rail, offset by `left-beside-rail` — a token
+ * holding the rail's own width, so the cluster moved only if someone remembered
+ * to move it. Where the column sits and where it ends are the grid's business
+ * now (see `shell/ShellGrid.tsx`).
  */
 export default function Zoom() {
   const { zoomIn, zoomOut, setBounds } = useMapControls();
@@ -62,7 +62,7 @@ export default function Zoom() {
     <div
       role="group"
       aria-label="Map controls"
-      className="flex animate-fade-up gap-0.5 rounded-lg border border-border surface-glass glass-frost p-1 shadow-elevated"
+      className="flex animate-fade-up flex-col gap-0.5 rounded-lg border border-border surface-glass glass-frost p-1 shadow-elevated"
     >
       <button
         type="button"

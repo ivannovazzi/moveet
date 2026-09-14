@@ -59,12 +59,14 @@ export interface VisibilityRailProps {
  * the flow moved every key below them down ~17px the moment one appeared — the
  * operator clicked Trails and the key they were aiming at next had moved.
  *
- * It is the bottom of the shell's left column, beside the `Zoom` cluster (8px
- * gap); the legend stack is the top of the same column and grows down (see
- * `LegendStack`). Sharing one column is what keeps them apart: they divide a
- * track between them rather than each reserving a band of the map the other
- * promised not to enter — which is how a vertically-centred rail ended up under
- * the traffic legend at a 1000px window.
+ * It is the bottom of the shell's left column, directly above the `Zoom`
+ * cluster (8px gap) and in the same 44px width, so the left edge reads as one
+ * column of keys rather than several clusters near each other. The legend stack
+ * is the top of the same column and grows down (see `LegendStack`). Sharing one
+ * column is what keeps them apart: they divide a track between them rather than
+ * each reserving a band of the map the other promised not to enter — which is
+ * how a vertically-centred rail ended up under the traffic legend at a 1000px
+ * window.
  */
 export default function VisibilityRail({
   modifiers,
