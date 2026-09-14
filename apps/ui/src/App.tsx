@@ -58,7 +58,7 @@ import CommandPalette, { buildCommands } from "./components/CommandPalette";
 import StatusLeds from "./Dock/StatusLeds";
 import { useAdapterConfig } from "./Controls/Adapter/useAdapterConfig";
 import { FEED_HEALTH_TONE, feedHealth } from "./Dock/FeedsSection";
-import SessionTimeline, { useSessionEventCapture } from "./components/SessionTimeline";
+import { useSessionEventCapture } from "./components/SessionEvents";
 import LoadingOverlay from "./components/LoadingOverlay";
 import StartHint from "./components/StartHint";
 import { useVersionCheck } from "./hooks/useVersionCheck";
@@ -839,6 +839,11 @@ export default function App() {
               badges={badges}
               onSelectTab={onSelectTab}
               inspector={inspectorTarget}
+              events={{
+                replayStatus: replay.replayStatus,
+                onSeek: replay.seekReplay,
+                onSelectVehicle: onSelectVehicleFromList,
+              }}
               replayStatus={replay.replayStatus}
               adapter={adapter}
               vehicles={vehicles}
@@ -907,14 +912,6 @@ export default function App() {
             />
           </ErrorBoundary>
         </div>
-        {/* Below the map container, so it takes real layout space instead of
-          covering the canvas or crowding the dock (both of which are absolutely
-          positioned inside that container). */}
-        <SessionTimeline
-          replayStatus={replay.replayStatus}
-          onSeek={replay.seekReplay}
-          onSelectVehicle={onSelectVehicleFromList}
-        />
         {/* Keyboard-first surface over the same entities and dock actions.
           These are the very handlers the SearchBar and the fleet list use, so
           selecting from here flies the camera and opens the console's Inspect

@@ -17,7 +17,13 @@ import { CarIcon, ChartIcon, GaugeIcon, InspectIcon, RecordCircleIcon } from "@/
 export type DockSectionId = "fleet" | "monitor" | "session" | "settings" | "inspect";
 
 export type FleetTabId = "list" | "groups" | "dispatch" | "jobs";
-export type MonitorTabId = "incidents" | "analytics" | "geofences" | "heatzones" | "faults";
+export type MonitorTabId =
+  | "incidents"
+  | "events"
+  | "analytics"
+  | "geofences"
+  | "heatzones"
+  | "faults";
 export type SessionTabId = "recordings" | "scenarios";
 export type SettingsTabId = "source" | "sinks" | "realism" | "advanced";
 export type InspectTabId = "detail";
@@ -56,6 +62,7 @@ export const DOCK_SECTIONS: DockSection[] = [
     icon: <ChartIcon />,
     tabs: [
       { id: "incidents", label: "Incidents" },
+      { id: "events", label: "Events" },
       { id: "analytics", label: "Analytics" },
       { id: "geofences", label: "Geofences" },
       { id: "heatzones", label: "Heat zones" },
