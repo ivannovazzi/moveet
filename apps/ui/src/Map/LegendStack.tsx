@@ -31,8 +31,10 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
   type Ref,
   type RefObject,
@@ -41,6 +43,56 @@ import { createPortal } from "react-dom";
 
 /** The stack element an overlay portals its legend into, once mounted. */
 export type LegendSlot = RefObject<HTMLElement | null>;
+
+/**
+ * Where the column currently is, as a module store.
+ *
+ * The column used to be mounted by `Map` and handed down to the overlays as a
+ * ref prop, which is why `FleetLegend` — a sibling of `Map`, not a child of it
+ * — could never reach it and had to position itself. Now the shell owns the
+ * column (it is the top half of the left region, see `ShellGrid`) and the
+ * overlays are several levels down inside `DeckGLMap`, so a prop would have to
+ * be threaded through the whole map tree to reach them.
+ *
+ * A plain store instead, the same shape as `mapInsets`: whoever mounts the
+ * column publishes it, and anything with a legend subscribes. No provider, no
+ * threading, and nothing has to know who its parent is.
+ */
+let legendHost: HTMLElement | null = null;
+const hostListeners = new Set<() => void>();
+
+function subscribeHost(listener: () => void): () => void {
+  hostListeners.add(listener);
+  return () => {
+    hostListeners.delete(listener);
+  };
+}
+
+/** Test seam: the column element as the store currently has it. */
+export function getLegendHost(): HTMLElement | null {
+  return legendHost;
+}
+
+/** Publish the column element (or `null` as it unmounts). */
+export function setLegendHost(el: HTMLElement | null): void {
+  if (legendHost === el) return;
+  legendHost = el;
+  for (const listener of hostListeners) listener();
+}
+
+/**
+ * The live column, as the ref-shaped slot `renderInSlot` takes. `null` until
+ * the column has mounted, and on the server, which is the cue to render the
+ * legend where it stands instead.
+ */
+export function useLegendSlot(): LegendSlot {
+  const host = useSyncExternalStore(
+    subscribeHost,
+    () => legendHost,
+    () => null
+  );
+  return useMemo(() => ({ current: host }), [host]);
+}
 
 /**
  * Reading order of the column, top to bottom.
@@ -98,6 +150,7 @@ export default function LegendStack({ children, ref }: LegendStackProps) {
   const attach = useCallback(
     (el: HTMLDivElement | null) => {
       columnRef.current = el;
+      setLegendHost(el);
       if (typeof ref === "function") ref(el);
       else if (ref) ref.current = el;
     },
@@ -126,24 +179,17 @@ export default function LegendStack({ children, ref }: LegendStackProps) {
       role="group"
       aria-label="Map legends"
       className={[
-        // Height budget, measured rather than guessed:
-        //   74px    --spacing-row-2, the search bar + its gap (the stack's
-        //           own top offset)
-        //   78px    --spacing-above-dock, the dock shelf
-        //   402px   --legend-stack-clearance (the bottom-left column's band,
-        //           the visibility rail's height by definition) — see
-        //           index.css for the breakdown. The map-controls cluster sits
-        //           beside the rail, not above it, so it adds no height.
-        // Percentage, not vh: the stack is positioned against the map pane
-        // (`map-backdrop`), which is shorter than the viewport by the header.
-        // The `max()` floor matters on a short pane: at 608px the subtraction
-        // goes negative and a bare calc would clamp the column to nothing,
-        // hiding every legend rather than scrolling them.
-        "max-h-[max(140px,calc(100%-var(--spacing-row-2)-var(--spacing-above-dock)-var(--legend-stack-clearance)))]",
+        // No height budget any more. The stack is the top half of the shell's
+        // left column (see `ShellGrid`), so the search band above it and the
+        // dock below it are grid tracks rather than three clearance tokens
+        // this had to subtract by hand, and the visibility rail it shares the
+        // column with takes its own half. `min-h-0` is what lets the inner
+        // scroller shrink inside that half.
+        "flex min-h-0 w-[164px] flex-col",
         // Click-through, always: this box covers a tall strip of the map even
         // when it holds one short legend, and the map underneath has to stay
         // draggable.
-        "pointer-events-none absolute left-3 top-[var(--spacing-row-2)] z-10 flex w-[164px] flex-col",
+        "pointer-events-none",
       ].join(" ")}
     >
       <div

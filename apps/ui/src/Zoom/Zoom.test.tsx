@@ -71,12 +71,17 @@ describe("Zoom (map controls cluster)", () => {
     expect(names).toEqual(["Fit network", "Zoom in", "Zoom out"]);
   });
 
-  it("stands on the dock shelf beside the visibility rail", () => {
+  it("does not place itself — the shell's left column does", () => {
     renderCluster();
 
+    // It used to carry `bottom-above-dock` and `left-beside-rail`: two tokens
+    // that encoded the dock's height and the rail's width, and went stale the
+    // moment either changed. It is now the bottom of the shell's left column
+    // (see `ShellGrid`), beside the rail in a flex row.
     const cluster = screen.getByRole("group", { name: "Map controls" });
-    expect(cluster.className).toContain("bottom-above-dock");
-    expect(cluster.className).toContain("left-beside-rail");
+    expect(cluster.className).not.toContain("absolute");
+    expect(cluster.className).not.toContain("bottom-above-dock");
+    expect(cluster.className).not.toContain("left-beside-rail");
   });
 
   it("carries each key's shortcut in its tooltip", () => {

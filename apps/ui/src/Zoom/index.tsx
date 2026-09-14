@@ -27,17 +27,16 @@ const KEY_CLASS = cn(
  * it is why the cluster exists; the zoom pair rides along for touch and for
  * anyone who prefers a discrete step.
  *
- * Styled as rail keys (34px, `rounded-md`, muted icon) in the same glass box,
- * so bottom-left reads as one instrument rather than two components that happen
- * to be adjacent: the rail says what the map draws, the cluster says where the
- * camera is looking.
+ * Styled as rail keys (34px, `rounded-md`, muted icon) in the same glass box as
+ * the visibility rail it sits beside, so the bottom of the left column reads as
+ * one instrument rather than two components that happen to be adjacent: the
+ * rail says what the map draws, the cluster says where the camera is looking.
+ * Side by side rather than stacked, so the column is no taller than the rail.
  *
- * Bottom-left, standing on the dock shelf beside the visibility rail (the
- * section panel owns the bottom-right above the dock's right wing). Side by
- * side rather than stacked, so the left column is no taller than the rail and
- * the legend stack's clearance (`--visibility-rail-band`) still holds on a
- * short window. `--spacing-beside-rail` is the rail's inset + width + gap
- * (index.css).
+ * Where that column ends is the grid's business, not this file's: the cluster
+ * used to carry `bottom-above-dock` and `left-beside-rail`, two tokens that
+ * encoded the dock's height and the rail's width and went stale the moment
+ * either changed (see `shell/ShellGrid.tsx`).
  */
 export default function Zoom() {
   const { zoomIn, zoomOut, setBounds } = useMapControls();
@@ -63,7 +62,7 @@ export default function Zoom() {
     <div
       role="group"
       aria-label="Map controls"
-      className="absolute bottom-above-dock left-beside-rail z-10 flex animate-fade-up gap-0.5 rounded-lg border border-border surface-glass glass-frost p-1 shadow-elevated"
+      className="flex animate-fade-up gap-0.5 rounded-lg border border-border surface-glass glass-frost p-1 shadow-elevated"
     >
       <button
         type="button"

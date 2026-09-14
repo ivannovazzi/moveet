@@ -32,14 +32,19 @@ describe("the corner the Inspector claims", () => {
     expect(getInsets().right).toBe(344);
   });
 
-  it("sits on the shared 12px margin and the row-two baseline", () => {
+  it("does not place itself — the shell grid's right track does", () => {
     render(<Inspector vehicle={createVehicle({ id: "v1" })} onClose={vi.fn()} />);
     const panel = screen.getByRole("region", { name: "Inspector" });
-    expect(panel.className).toContain("right-3");
-    expect(panel.className).toContain("top-[var(--spacing-row-2)]");
-    // The lamps are centred on the search bar inside row one, so clearing the
-    // row clears them too — no separate below-the-lamps offset any more.
-    expect(panel.className).not.toContain("spacing-below-leds");
+    // Clearing the search band above and the dock below is the grid's job now
+    // (see `ShellGrid`). A panel that reintroduced an offset of its own would
+    // be placed twice and drift from whatever the grid actually left it.
+    expect(panel.className).not.toContain("absolute");
+    expect(panel.className).not.toContain("right-3");
+    expect(panel.className).not.toContain("--spacing-row-2");
+    expect(panel.className).not.toContain("--spacing-above-dock");
+    // It still caps itself to the height the track hands it, so a long
+    // telemetry list scrolls rather than running past the dock.
+    expect(panel.className).toContain("max-h-full");
   });
 
   it("gives the corner back when the selection is cleared, and when it unmounts", () => {

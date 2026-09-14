@@ -126,12 +126,14 @@ describe("VisibilityRail", () => {
     expect(setter).toHaveBeenCalledWith(false);
   });
 
-  it("stands on the dock shelf rather than floating at mid-height", () => {
+  it("does not place itself — the shell's left column does", () => {
     renderRail();
     const rail = screen.getByRole("group", { name: "Layer visibility" });
-    // Legends grow down from the search bar, the rail grows up from the dock
-    // shelf it shares with the zoom cluster beside it.
-    expect(rail.className).toContain("bottom-above-dock");
+    // `bottom-above-dock` encoded the dock's height as a constant here. The
+    // dock is a grid track now, so the floor the rail stands on is measured
+    // rather than declared (see `ShellGrid`).
+    expect(rail.className).not.toContain("absolute");
+    expect(rail.className).not.toContain("bottom-above-dock");
     expect(rail.className).not.toContain("top-1/2");
     expect(rail.className).not.toContain("-translate-y-1/2");
   });

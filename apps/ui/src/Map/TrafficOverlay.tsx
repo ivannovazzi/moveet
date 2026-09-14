@@ -8,7 +8,7 @@ import { resolveMapColor } from "@/lib/mapColor";
 import { CASING_TOKEN } from "@/lib/mapLabels";
 import type { TrafficEdge } from "@/types";
 import ScaleLegend, { type LegendColor } from "./ScaleLegend";
-import { renderInSlot, type LegendSlot } from "./LegendStack";
+import { renderInSlot, useLegendSlot, type LegendSlot } from "./LegendStack";
 
 type RGBA = [number, number, number, number];
 
@@ -201,6 +201,7 @@ interface TrafficOverlayProps {
 }
 
 export default function TrafficOverlay({ visible, legendSlot }: TrafficOverlayProps) {
+  const slot = useLegendSlot();
   const { edges } = useTraffic();
 
   const segments = useMemo(() => buildTrafficSegments(edges), [edges]);
@@ -252,7 +253,7 @@ export default function TrafficOverlay({ visible, legendSlot }: TrafficOverlayPr
   if (!visible) return null;
 
   return renderInSlot(
-    legendSlot,
+    legendSlot ?? slot,
     "traffic",
     <ScaleLegend
       testId="traffic-legend"

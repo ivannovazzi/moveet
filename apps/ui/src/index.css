@@ -96,38 +96,14 @@
      stands on this shelf instead of underneath them. */
   --spacing-above-dock: calc(var(--spacing-dock-row) + var(--spacing-dock-bar) + 0.75rem);
 
-  /* Height of the visibility rail, which stands on the dock shelf at the
-     bottom-left and grows upward: 11 keys x 34px = 374, plus 10 x 2px gaps =
-     20, plus 8px of panel padding = 402. Fixed: everything a key has to say
-     beyond lit/unlit (trail length, Density's threshold, the type key's hidden
-     count) rides as a corner badge on the key, so no state makes the rail
-     taller. The map-controls cluster stands on the same shelf to the rail's
-     right (see `Zoom`), so it adds width to the column, not height. */
-  --visibility-rail-band: 25.125rem;
-
-  /* Where the map-controls cluster starts: the rail's 12px inset + its 44px
-     width (34px keys + 2 x 4px padding + 2 x 1px border) + an 8px gap. */
-  --spacing-beside-rail: 4rem;
-
-  /* Band at the bottom-left the legend stack must keep clear. The stack
-     (top-left, growing down) subtracts this from its max-height, so the two
-     columns run out of room before they can overlap — the collision that used
-     to put the traffic legend on top of the rail at a 1000px window. It is the
-     rail's height by definition; the indirection is so the stack reads as
-     "clearance" rather than reaching into the rail's own measurement. */
-  --legend-stack-clearance: var(--visibility-rail-band);
-
-  /* Top of the lamp cluster (`StatusLeds`, top-right). The lamps are 32px
-     tall and share row one with the 50px-tall search bar, so they are centred
-     on it rather than hung off the same top edge: 12px outer margin +
-     (50 - 32) / 2 = 21px. */
-  --spacing-lamps-top: 1.3125rem;
-
-  /* Baseline for row two — anything that starts below the search bar: the
-     legend stack, the start hint, the inspector. The 12px outer margin + the
-     search bar's own 50px height + 12px of air = 74px. Row one (search, lamps)
-     and row two share this one number, so the two bands can't drift apart. */
-  --spacing-row-2: 4.625rem;
+  /* Baseline for anything that starts below the search bar used to be a
+     token (`--spacing-row-2`), alongside one clearance token per surface:
+     `--visibility-rail-band` for the rail's height, `--legend-stack-clearance`
+     for the band the legends had to leave it, `--spacing-beside-rail` for the
+     zoom cluster's offset and `--spacing-lamps-top` to centre the lamps on the
+     search bar. All five are gone: the shell is a grid now (see
+     `shell/ShellGrid.tsx`), so those clearances are track sizes rather than
+     numbers that had to be kept in agreement by hand. */
 
   /* Motion scale — registers the `duration-fast|normal|slow` Tailwind
      transition-duration utilities (Tailwind v4 reads the

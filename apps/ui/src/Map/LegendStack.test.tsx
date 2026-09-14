@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { createRef } from "react";
-import LegendStack, { LEGEND_ORDER, renderInSlot } from "./LegendStack";
+import LegendStack, { getLegendHost, LEGEND_ORDER, renderInSlot } from "./LegendStack";
 
 describe("LegendStack", () => {
   it("is one labelled column", () => {
@@ -29,25 +29,30 @@ describe("LegendStack", () => {
     ]);
   });
 
-  it("reserves the rail's band so the two columns can never meet", () => {
+  it("carries no height budget of its own — it shares the left column", () => {
     render(<LegendStack />);
     const stack = screen.getByRole("group", { name: "Map legends" });
-    expect(stack.className).toContain("var(--legend-stack-clearance)");
-    // Percentage of the map pane, not of the viewport: the pane is shorter.
-    expect(stack.className).toContain("calc(100%-");
-    // …with a floor, or a short pane clamps the budget to zero and hides every
-    // legend instead of scrolling them.
-    expect(stack.className).toContain("max(140px,");
+    // It used to subtract three clearance tokens from the pane height by hand
+    // so it could never reach the visibility rail below it. Both are now halves
+    // of one flex column in the shell's left track (see `ShellGrid`), so the
+    // rail's band is space the stack never had rather than space it gives back.
+    expect(stack.className).not.toContain("absolute");
+    expect(stack.className).not.toContain("--legend-stack-clearance");
+    expect(stack.className).not.toContain("--spacing-row-2");
+    expect(stack.className).not.toContain("--spacing-above-dock");
+    // `min-h-0` is what lets the inner scroller shrink inside that half.
+    expect(stack.className).toContain("min-h-0");
   });
 
-  it("starts on the shared row-two baseline, not a hand-picked offset", () => {
-    render(<LegendStack />);
+  it("publishes itself as the portal host for every legend-producing overlay", () => {
+    const { unmount } = render(<LegendStack />);
     const stack = screen.getByRole("group", { name: "Map legends" });
-    // One token for every surface that starts below the search bar (the stack,
-    // the start hint, the inspector), and the same token in the height budget.
-    expect(stack.className).toContain("top-[var(--spacing-row-2)]");
-    expect(stack.className).toContain("left-3");
-    expect(stack.className).toContain("var(--spacing-row-2)-var(--spacing-above-dock)");
+    // The overlays live inside DeckGLMap and the column lives in the shell, so
+    // they find each other through the module store rather than a ref threaded
+    // down the map tree.
+    expect(getLegendHost()).toBe(stack.firstElementChild);
+    unmount();
+    expect(getLegendHost()).toBeNull();
   });
 
   it("keeps the column click-through until it actually has to scroll", () => {

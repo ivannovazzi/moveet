@@ -49,7 +49,10 @@ import type AdvancedTuningTab from "./AdvancedTuningTab";
  * the empty map either side of the docks still pans.
  */
 const ROW_CLASS = cn(
-  "pointer-events-none absolute inset-x-3 bottom-3 z-50 grid items-end gap-2",
+  // The shell grid's bottom row (see `ShellGrid`) gives it the 12px outer
+  // margin and, more to the point, reserves its height — so everything in the
+  // row above clears the dock without being told how tall it is.
+  "pointer-events-none relative grid items-end gap-2",
   "grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]",
   "translate-y-3.5 opacity-0 transition-[opacity,transform] duration-700 ease-emphasized",
   "[[data-ready]_&]:translate-y-0 [[data-ready]_&]:opacity-100"

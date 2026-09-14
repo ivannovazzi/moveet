@@ -2,7 +2,7 @@ import { useRef } from "react";
 import { cn } from "@/lib/utils";
 import { CarIcon } from "@/components/Icons";
 import type { Fleet } from "@/types";
-import { renderInSlot, type LegendSlot } from "./LegendStack";
+import { renderInSlot, useLegendSlot, type LegendSlot } from "./LegendStack";
 
 interface FleetLegendProps {
   fleets: Fleet[];
@@ -23,6 +23,7 @@ export default function FleetLegend({
   onToggle,
   legendSlot,
 }: FleetLegendProps) {
+  const slot = useLegendSlot();
   // Stagger the entrance only on the first paint. The legend re-renders as
   // fleet vehicle counts tick; replaying the fade-up each time would flicker.
   const mountedRef = useRef(false);
@@ -32,7 +33,7 @@ export default function FleetLegend({
   if (fleets.length === 0) return null;
 
   return renderInSlot(
-    legendSlot,
+    legendSlot ?? slot,
     "fleets",
     <div
       data-testid="fleet-legend"

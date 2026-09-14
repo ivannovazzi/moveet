@@ -82,14 +82,18 @@ describe("the section wing's place on the row", () => {
     expect(wingColumn().className).not.toContain("justify-start");
   });
 
-  it("stands on the shell's one 12px outer margin", () => {
+  it("takes its outer margin from the shell grid, not from its own insets", () => {
     renderDock();
-    // The row, the lamps, the inspector, the legend stack and the rail all sit
-    // 12px off their edge, so the section panel's own FLOAT_MARGIN (12) lands
-    // its right edge exactly on the wing's.
+    // The one 12px margin now lives on the grid that holds every edge-anchored
+    // surface (see `ShellGrid`), so the row is in flow inside the bottom track
+    // rather than pinned to the map with insets of its own.
     const row = wingColumn().parentElement as HTMLElement;
-    expect(row.className).toContain("inset-x-3");
-    expect(row.className).toContain("bottom-3");
+    expect(row.className).not.toContain("absolute");
+    expect(row.className).not.toContain("inset-x-3");
+    expect(row.className).not.toContain("bottom-3");
+    // The three-column template is the part that is still the row's own: it is
+    // what holds the deck on the viewport's centre line.
+    expect(row.className).toContain("grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]");
   });
 
   it("keeps the same four keys in the same order whatever the deck is doing", () => {

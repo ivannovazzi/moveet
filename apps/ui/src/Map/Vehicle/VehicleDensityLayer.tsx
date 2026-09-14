@@ -7,7 +7,7 @@ import { LayersIcon } from "@/components/Icons";
 import { useMapContext } from "@/components/Map/hooks";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 import ScaleLegend from "../ScaleLegend";
-import { renderInSlot, type LegendSlot } from "../LegendStack";
+import { renderInSlot, useLegendSlot, type LegendSlot } from "../LegendStack";
 import { densityColorRange, hexRadiusMetersForZoom, shouldAggregate } from "./densityView";
 
 export const DENSITY_LAYER_ID = "vehicle-density";
@@ -72,6 +72,7 @@ export default function VehicleDensityLayer({
   hiddenVehicleTypes,
   legendSlot,
 }: VehicleDensityLayerProps) {
+  const slot = useLegendSlot();
   const { viewState } = useMapContext();
   const zoom = viewState?.zoom ?? 0;
   const [sample, setSample] = useState<Sample>(EMPTY_SAMPLE);
@@ -163,7 +164,7 @@ export default function VehicleDensityLayer({
   if (!drawing) return null;
 
   return renderInSlot(
-    legendSlot,
+    legendSlot ?? slot,
     "density",
     <ScaleLegend
       testId="density-legend"

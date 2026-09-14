@@ -203,8 +203,13 @@ export default function SearchBar({
     <div
       ref={containerRef}
       className={cn(
-        "pointer-events-auto absolute left-1/2 top-3 z-50 flex w-[min(640px,calc(100%-72px))]",
-        "-translate-x-1/2 flex-col overflow-hidden border border-border surface-glass glass-frost shadow-floating",
+        // Placed by the shell grid's top-centre track (see `ShellGrid`), which
+        // is what holds it on the viewport's centre line and what keeps the
+        // health lamps off it on a narrow window. Width is its own: 640px is
+        // the most a single-line query wants, and the track shrinks it below
+        // that before the lamps give up their corner.
+        "pointer-events-auto flex w-[640px] max-w-full",
+        "flex-col overflow-hidden border border-border surface-glass glass-frost shadow-floating",
         "rounded-lg"
       )}
       role="combobox"

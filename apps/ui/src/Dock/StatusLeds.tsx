@@ -37,7 +37,9 @@ export default function StatusLeds({ leds, className }: StatusLedsProps) {
   return (
     <DockSurface
       className={cn(
-        "absolute right-3 top-[var(--spacing-lamps-top)] z-30 h-auto gap-0 rounded-[10px] p-1",
+        // Placed by the shell grid's top-right track, centred on the search
+        // band rather than hung off the top edge (see `ShellGrid`).
+        "h-auto gap-0 rounded-[10px] p-1",
         "pointer-events-none opacity-0 transition-opacity duration-700 ease-emphasized",
         "[[data-ready]_&]:opacity-100",
         className
