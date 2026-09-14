@@ -70,6 +70,7 @@ export interface ConsoleSectionsProps {
   faults: ComponentProps<typeof MonitorPanel>["faults"];
   geofences: ComponentProps<typeof GeofencePanel>;
   analytics: ComponentProps<typeof AnalyticsPanel>;
+  events: ComponentProps<typeof MonitorPanel>["events"];
 
   // Session / Settings
   recordings: ComponentProps<typeof RecordReplay>;
@@ -115,6 +116,7 @@ export default function ConsoleSections({
   faults,
   geofences,
   analytics,
+  events,
   recordings,
   advanced,
   adapter,
@@ -157,6 +159,7 @@ export default function ConsoleSections({
             analytics={analytics}
             geofences={geofences}
             faults={faults}
+            events={events}
           />
         );
       case "session":
@@ -190,6 +193,7 @@ export default function ConsoleSections({
     faults,
     geofences,
     analytics,
+    events,
     recordings,
     advanced,
     adapter,

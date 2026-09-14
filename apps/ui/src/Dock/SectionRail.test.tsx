@@ -138,12 +138,19 @@ describe("dock section row", () => {
 
     // The key stays a key — it lights up rather than becoming something else.
     expect(pill("Monitor")).toHaveAttribute("aria-expanded", "true");
-    expect(tabNames()).toEqual(["Incidents", "Analytics", "Geofences", "Heat zones", "Faults"]);
+    expect(tabNames()).toEqual([
+      "Incidents",
+      "Events",
+      "Analytics",
+      "Geofences",
+      "Heat zones",
+      "Faults",
+    ]);
 
     // …and the views live in the panel, not in the bar: the wing is always the
     // four keys, whatever is open.
     const panel = screen.getByRole("region", { name: "Monitor" });
-    expect(within(panel).getAllByRole("tab")).toHaveLength(5);
+    expect(within(panel).getAllByRole("tab")).toHaveLength(6);
     const wing = document.querySelector('[data-dock="sections"]') as HTMLElement;
     expect(within(wing).getAllByRole("button")).toHaveLength(4);
     expect(within(wing).queryAllByRole("tab")).toHaveLength(0);
@@ -262,7 +269,7 @@ describe("dock section row", () => {
     expect(expanded("Session")).toBe(false);
   });
 
-  it("gives Monitor's five views room to spell themselves out", async () => {
+  it("gives Monitor's six views room to spell themselves out", async () => {
     const user = userEvent.setup();
     renderDock();
 
@@ -281,7 +288,7 @@ describe("dock section row", () => {
       within(panel)
         .getAllByRole("tab")
         .map((t) => t.textContent)
-    ).toEqual(["Incidents", "Analytics", "Geofences", "Heat zones", "Faults"]);
+    ).toEqual(["Incidents", "Events", "Analytics", "Geofences", "Heat zones", "Faults"]);
     // Tabs never shrink or wrap — a clipped tab is worse than a tight strip.
     for (const tab of within(panel).getAllByRole("tab")) {
       expect(tab.className).toContain("shrink-0");

@@ -1,5 +1,5 @@
-export { default } from "./SessionTimeline";
-export type { SessionTimelineProps } from "./SessionTimeline";
+export { default as EventsPanel } from "./EventsPanel";
+export type { EventsPanelProps } from "./EventsPanel";
 export { useSessionEventCapture } from "./useSessionEventCapture";
 export {
   sessionEventStore,

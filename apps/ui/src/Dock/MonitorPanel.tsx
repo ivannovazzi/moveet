@@ -4,6 +4,7 @@ import AnalyticsPanel from "@/Controls/AnalyticsPanel";
 import GeofencePanel from "@/Controls/GeofencePanel";
 import HeatzonePanel from "@/Controls/HeatzonePanel";
 import FaultsPanel from "@/Controls/FaultsPanel";
+import { EventsPanel } from "@/components/SessionEvents";
 import { SuppressPanelHeader } from "@/Controls/PanelPrimitives";
 import { PanelScroll } from "./DockPanelKit";
 import type { MonitorTabId } from "./dockSections";
@@ -14,11 +15,14 @@ export interface MonitorPanelProps {
   analytics: ComponentProps<typeof AnalyticsPanel>;
   geofences: ComponentProps<typeof GeofencePanel>;
   faults: ComponentProps<typeof FaultsPanel>;
+  /** What happened this session — the log that replaced the timeline strip. */
+  events: ComponentProps<typeof EventsPanel>;
 }
 
 /**
  * Contents of the Monitor panel — everything here is something you *watch*:
- * live incidents, fleet analytics, geofences, heat zones, device faults. Each
+ * live incidents, the session's event log, fleet analytics, geofences, heat
+ * zones, device faults. Each
  * leaf also carries the controls that produce what it watches, because the
  * thing observed and the knob that causes it belong side by side.
  *
@@ -33,11 +37,13 @@ export default function MonitorPanel({
   analytics,
   geofences,
   faults,
+  events,
 }: MonitorPanelProps) {
   return (
     <PanelScroll>
       <SuppressPanelHeader>
         {tab === "incidents" && <Incidents {...incidents} />}
+        {tab === "events" && <EventsPanel {...events} />}
         {tab === "analytics" && <AnalyticsPanel {...analytics} />}
         {tab === "geofences" && <GeofencePanel {...geofences} />}
         {tab === "heatzones" && <HeatzonePanel />}
