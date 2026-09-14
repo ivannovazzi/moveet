@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import ShellGrid from "./ShellGrid";
 import Region from "./Region";
+import { getInsets, resetInsets } from "@/components/Map/mapInsets";
 
 /**
  * jsdom has no layout engine, so none of this can measure pixels. What it can
@@ -90,5 +91,67 @@ describe("Region", () => {
     const region = screen.getByText("inspector");
     expect(region.className).toContain("justify-self-end");
     expect(region.className).toContain("self-stretch");
+  });
+});
+
+/**
+ * What the camera is told the chrome is covering.
+ *
+ * jsdom reports every rect as zero, so these stub the three boxes the
+ * measurement reads — the grid and its two bands — and check what it concludes.
+ * The point of measuring at all is that a taller search band or a dock that
+ * grows a row moves the number on its own; the constants this replaced
+ * (`SEARCH_BAND = 74`, `DOCK_BAND = 78`) had to be edited by hand to follow.
+ */
+describe("the bands the shell reports to the camera", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetInsets();
+  });
+
+  /** A 1000px-tall map pane: search band 12..62, dock row 690..756. */
+  function stubBands({ topBottom = 62, bottomTop = 690 } = {}) {
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: Element
+    ) {
+      const row = (this as HTMLElement).dataset?.shellRow;
+      const box =
+        row === "top"
+          ? { top: 12, bottom: topBottom }
+          : row === "bottom"
+            ? { top: bottomTop, bottom: 768 }
+            : { top: 0, bottom: 768 };
+      return { ...box, left: 0, right: 1024, width: 1024, height: box.bottom - box.top } as DOMRect;
+    });
+  }
+
+  it("claims each band from the viewport edge to the far side of its row", () => {
+    stubBands();
+    render(<ShellGrid topCenter={<Region>search</Region>} bottom={<div>dock</div>} />);
+
+    // Top: the row ends 62px down, plus the 12px gap it holds open below it.
+    expect(getInsets().top).toBe(74);
+    // Bottom: the row starts 690px down a 768px pane, plus the same gap.
+    expect(getInsets().bottom).toBe(90);
+    // Nothing on the sides: the console takes layout space rather than covering
+    // the canvas, and the middle row's instruments are narrow and click-through.
+    expect(getInsets().left).toBe(0);
+    expect(getInsets().right).toBe(0);
+  });
+
+  it("follows a band that changes height instead of holding a constant", () => {
+    // A mode banner taller than the search bar — the case the old constant got
+    // wrong, silently, until someone noticed the camera aiming low.
+    stubBands({ topBottom: 96 });
+    render(<ShellGrid topCenter={<Region>banner</Region>} bottom={<div>dock</div>} />);
+    expect(getInsets().top).toBe(108);
+  });
+
+  it("gives both bands back when the shell unmounts", () => {
+    stubBands();
+    const { unmount } = render(<ShellGrid bottom={<div>dock</div>} />);
+    expect(getInsets().top).toBeGreaterThan(0);
+    unmount();
+    expect(getInsets()).toEqual({ top: 0, right: 0, bottom: 0, left: 0 });
   });
 });

@@ -11,7 +11,6 @@ import DockDeck, { dockActivity } from "./DockDeck";
 import TempoPanel from "./TempoPanel";
 import SectionRail from "./SectionRail";
 import { PanelHeaderRow } from "./DockPanelKit";
-import { DOCK_BAND, SEARCH_BAND, useReportInset } from "@/components/Map/mapInsets";
 import type { DockBadges } from "./dockSections";
 import type { ModeDescriptor } from "./modeDescriptors";
 
@@ -117,12 +116,6 @@ export default function Dock({
   const { tempoOpen, toggleTempo, close } = navigation;
   const { launcherOpen, setLauncherOpen } = navigation;
   const { clock, setSpeedMultiplier } = useClock();
-
-  // The two bands of map the app's permanent chrome always sits on: the dock
-  // shelf along the bottom and the search bar's slot along the top. Reported so
-  // the camera aims at the map between them rather than at the raw viewport
-  // centre, which is a third of a panel's height below where you can see.
-  useReportInset("dock-chrome", { top: SEARCH_BAND, bottom: DOCK_BAND });
 
   // The deck is the tempo panel's positioning origin.
   const mainRef = useRef<HTMLDivElement>(null);

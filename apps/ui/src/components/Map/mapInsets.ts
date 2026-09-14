@@ -3,11 +3,16 @@ import { useEffect } from "react";
 /**
  * What the map's chrome is currently covering, in CSS pixels per viewport edge.
  *
- * The deck.gl canvas fills the whole window; everything else — the dock row,
- * the search bar, the inspector, an open section panel — floats on top of it.
- * A camera move that centres its target on the *raw* viewport therefore lands
- * it underneath whichever of those happens to be open: select a vehicle with
- * the Fleet panel up and the camera puts it neatly behind the panel.
+ * Most of the app no longer covers the map at all: the console holds its own
+ * space beside the canvas (see `shell/Console`), so the canvas *is* the visible
+ * map on that side. What is left on top of it is the shell's two permanent
+ * bands — the search row and the dock row — and a camera move that centres its
+ * target on the raw viewport lands it a third of a band too low.
+ *
+ * Those bands are measured from the rows themselves (`ShellGrid` reports them),
+ * not mirrored here as constants. They used to be: `SEARCH_BAND = 74` and
+ * `DOCK_BAND = 78`, with a comment asking whoever changed `index.css` to change
+ * them too.
  *
  * This is the register of who is covering what. Each contributor reports its
  * own band under a key while it is on screen and drops the key when it leaves;
@@ -28,21 +33,6 @@ export interface MapInsets {
 }
 
 export const NO_INSETS: MapInsets = { top: 0, right: 0, bottom: 0, left: 0 };
-
-/**
- * Chrome that is always there, reported by `Dock` (see `Dock.tsx`).
- *
- * These mirror `index.css`: `DOCK_BAND` is `--spacing-above-dock`, i.e.
- * `--spacing-dock-row` (12px) + `--spacing-dock-bar` (54px) + 12px = 78px, and
- * `SEARCH_BAND` is `--spacing-row-2`, i.e. the 12px outer margin + the search
- * bar's own 50px height + 12px of air = 74px.
- * They are numbers here rather than a `getComputedStyle` read because
- * `--spacing-above-dock` is a `calc()` expression: custom properties come back
- * from the cascade unresolved, so parsing one buys nothing but a parser. If the
- * tokens in `index.css` move, move these with them.
- */
-export const DOCK_BAND = 78;
-export const SEARCH_BAND = 74;
 
 /**
  * Below this much visible width or height the insets are doing more harm than
