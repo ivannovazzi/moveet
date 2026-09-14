@@ -25,7 +25,7 @@
   "dependencies": {
     "@deck.gl/aggregation-layers": "^9.3.10",
     "@deck.gl/core": "^9.3.10",
-    "@deck.gl/extensions": "^9.3.10",
+    "@deck.gl/extensions": "^9.4.0",
     "@deck.gl/layers": "^9.3.10",
     "@deck.gl/react": "^9.3.10",
     "@deck.gl/widgets": "^9.3.10",
