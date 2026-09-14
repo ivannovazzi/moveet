@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CloseIcon, Play } from "@/components/Icons";
+import { presenceClass, usePresence } from "@/shell/usePresence";
 
 export interface StartHintProps {
   /** The simulation's `running` flag (from the sim status feed). */
@@ -52,17 +53,23 @@ export default function StartHint({ running, ready, onStart, className }: StartH
   }, [onStart]);
 
   const visible = ready && !running && !hasRun && !dismissed;
-  if (!visible) return null;
+  // Dismissing it is the one interaction it has; popping out of existence on
+  // the click would be a poor answer to it. Same motion as every other shell
+  // surface (see `usePresence`).
+  const state = usePresence(visible);
+  if (state === "closed") return null;
 
   return (
     <div
       role="status"
       aria-label="Simulation paused"
+      data-state={state}
       className={cn(
         // Placed by the shell grid's middle-centre track, which already starts
         // below the search band (see `ShellGrid`).
         "flex max-w-full items-center gap-3 rounded-md border border-border px-3 py-2",
-        "surface-glass glass-frost shadow-elevated animate-fade-up",
+        "surface-glass glass-frost shadow-elevated",
+        presenceClass(state),
         className
       )}
     >

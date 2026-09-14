@@ -32,7 +32,7 @@ const ROW_CLASS = cn(
   // row above clears the dock without being told how tall it is.
   "pointer-events-none relative grid items-end gap-2",
   "grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]",
-  "translate-y-3.5 opacity-0 transition-[opacity,transform] duration-700 ease-emphasized",
+  "translate-y-3.5 opacity-0 transition-[opacity,translate] duration-700 ease-emphasized",
   "[[data-ready]_&]:translate-y-0 [[data-ready]_&]:opacity-100"
 );
 

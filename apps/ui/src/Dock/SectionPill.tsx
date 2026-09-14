@@ -62,7 +62,7 @@ const SectionPill = forwardRef<HTMLButtonElement, SectionPillProps>(function Sec
       <span
         aria-hidden
         className={cn(
-          "absolute inset-x-[9px] bottom-[3px] h-[2px] rounded-full transition-[opacity,transform] duration-normal ease-emphasized",
+          "absolute inset-x-[9px] bottom-[3px] h-[2px] rounded-full transition-[opacity,scale] duration-normal ease-emphasized",
           active
             ? "bg-accent opacity-100 shadow-[0_0_8px_var(--color-accent)]"
             : "scale-x-50 bg-accent opacity-0"

@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { presenceClass, usePresence, type PresenceEdge } from "./usePresence";
 
 /**
  * One surface's cell in the shell grid.
@@ -15,12 +16,29 @@ import { cn } from "@/lib/utils";
  *    non-overlap stops being a convention between hand-tuned clearance tokens
  *    and becomes a property of the layout.
  *
+ * It is also where the shell's motion lives. Pass `open` instead of rendering
+ * the region conditionally and it animates both ways: in from its own edge,
+ * out on opacity alone (see `usePresence` for why those are different
+ * gestures). Surfaces used to be unmounted on the frame they closed, so every
+ * close was a pop.
+ *
  * `interactive={false}` is for a surface that deliberately stays click-through
  * (the legend column covers a tall strip of map it must not steal drags from)
  * and manages `pointer-events` on its own inner parts.
  */
 export interface RegionProps {
   children: React.ReactNode;
+  /**
+   * Whether the surface is up. Omit for one that is always there (the dock, the
+   * left column); pass it for one that comes and goes, and the region holds the
+   * surface on screen long enough to animate away.
+   */
+  open?: boolean;
+  /**
+   * Which edge the surface arrives from, as 8px of travel. Defaults to the
+   * block axis, which is right for the top and bottom bands.
+   */
+  edge?: PresenceEdge;
   /** Where the region sits along the track's inline axis. */
   justify?: "start" | "center" | "end" | "stretch";
   /** Where it sits along the block axis. */
@@ -46,18 +64,27 @@ const ALIGN = {
 
 export default function Region({
   children,
+  open,
+  edge = "top",
   justify = "start",
   align = "start",
   interactive = true,
   className,
 }: RegionProps) {
+  const managed = open !== undefined;
+  const state = usePresence(open ?? true);
+
+  if (managed && state === "closed") return null;
+
   return (
     <div
+      data-state={managed ? state : undefined}
       className={cn(
         "min-h-0 min-w-0",
         interactive ? "pointer-events-auto" : "pointer-events-none",
         JUSTIFY[justify],
         ALIGN[align],
+        managed && presenceClass(state, edge),
         className
       )}
     >

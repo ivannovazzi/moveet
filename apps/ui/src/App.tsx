@@ -717,18 +717,16 @@ export default function App() {
                    bar (mode clicks and search-driven selection would
                    conflict). */
                 topCenter={
-                  !mapLoading && interaction.mode.kind === "browse" ? (
-                    <Region justify="center">
-                      <SearchBar
-                        selectedItem={selectedItem}
-                        onDestinationClick={onDestinationClick}
-                        onItemSelect={onSelectItemFromList}
-                        onItemUnselect={() => setSelectedItem(null)}
-                        vehicles={vehicles}
-                        onSelectVehicle={onSelectVehicleFromList}
-                      />
-                    </Region>
-                  ) : null
+                  <Region open={!mapLoading && interaction.mode.kind === "browse"} justify="center">
+                    <SearchBar
+                      selectedItem={selectedItem}
+                      onDestinationClick={onDestinationClick}
+                      onItemSelect={onSelectItemFromList}
+                      onItemUnselect={() => setSelectedItem(null)}
+                      vehicles={vehicles}
+                      onSelectVehicle={onSelectVehicleFromList}
+                    />
+                  </Region>
                 }
                 /* Health lamps live in the corner, away from anything pressed,
                    centred on the search band rather than hung off the top
