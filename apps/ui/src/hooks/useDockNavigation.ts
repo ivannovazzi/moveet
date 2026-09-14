@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { defaultTab, sectionHasTab, type DockSectionId, type DockTabId } from "@/Dock/dockSections";
 
 /**
@@ -45,8 +45,39 @@ export interface DockNavigation {
   panelOpen: boolean;
 }
 
+/**
+ * Which section the console was showing when the tab was last closed.
+ *
+ * The console is a docked surface, not a popover, so it comes back the way it
+ * was left — the same reason its width is remembered (see `useConsoleSize`).
+ * The *tab* within the section is deliberately not persisted: it is remembered
+ * for the session, but a new session should land on the section's first view
+ * rather than on whatever was open when the browser was closed.
+ */
+const SECTION_KEY = "moveet.console.section";
+
+const SECTION_IDS: DockSectionId[] = ["fleet", "monitor", "session", "settings"];
+
+function readStoredSection(): DockSectionId | null {
+  try {
+    const raw = window.localStorage.getItem(SECTION_KEY);
+    return SECTION_IDS.find((id) => id === raw) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredSection(section: DockSectionId | null): void {
+  try {
+    if (section) window.localStorage.setItem(SECTION_KEY, section);
+    else window.localStorage.removeItem(SECTION_KEY);
+  } catch {
+    // A preference that cannot be saved is not worth failing a click over.
+  }
+}
+
 export function useDockNavigation(): DockNavigation {
-  const [expanded, setExpanded] = useState<DockSectionId | null>(null);
+  const [expanded, setExpanded] = useState<DockSectionId | null>(readStoredSection);
   const [tempoOpen, setTempoOpen] = useState(false);
   const [launcherOpen, setLauncher] = useState(false);
   // Remembered per section so coming back to Monitor lands where you left it.
@@ -112,6 +143,10 @@ export function useDockNavigation(): DockNavigation {
   const toggleLauncher = useCallback(() => {
     setLauncherOpen(!launcherRef.current);
   }, [setLauncherOpen]);
+
+  useEffect(() => {
+    writeStoredSection(expanded);
+  }, [expanded]);
 
   const isExpanded = useCallback((section: DockSectionId) => expanded === section, [expanded]);
 
