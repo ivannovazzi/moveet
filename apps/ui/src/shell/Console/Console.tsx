@@ -60,7 +60,7 @@ export default function Console({
     <aside
       data-console=""
       // The section keys own `aria-controls` against this id.
-      id="dock-section-panel"
+      id="console-panel"
       // Named for what it is showing, not for the furniture: "Monitor" is what
       // the operator asked for and what a screen reader should announce on
       // entering it. `region` rather than `aside`'s implicit `complementary` —

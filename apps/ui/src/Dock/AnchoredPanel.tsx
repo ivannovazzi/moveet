@@ -1,8 +1,7 @@
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { clearInset, setInset, type MapInsets } from "@/components/Map/mapInsets";
 import DockSurface from "./DockSurface";
-import { useAnchorOffset, type AnchorAlign } from "./dockRowLayout";
+import { useAnchorOffset } from "./dockRowLayout";
 
 export interface AnchoredPanelProps {
   open: boolean;
@@ -24,28 +23,10 @@ export interface AnchoredPanelProps {
    * outside-click check since its buttons already own open/close.
    */
   originRef: React.RefObject<HTMLElement | null>;
-  /**
-   * Also exempt from the outside-click check — the bar whose buttons opened
-   * this panel, when it isn't the origin.
-   */
-  ignoreRef?: React.RefObject<HTMLElement | null>;
   /** Tailwind width class. One width per surface — never per view. */
   width: string;
-  /**
-   * Which edge holds still: the anchor button's (default) or the origin bar's
-   * right edge. See `AnchorAlign`.
-   */
-  align?: AnchorAlign;
-  /** Re-measure when this changes (the open section and its lit view). */
+  /** Re-measure when this changes. */
   positionKey: string;
-  /**
-   * Report the band of map this panel covers under this key while it is open,
-   * so camera moves aim around it (see `mapInsets`). Panels that cover a corner
-   * worth steering clear of opt in; a small transient one (Tempo) does not.
-   */
-  insetKey?: string;
-  /** A `mapInsets` contributor (the inspector) this panel is placed clear of. */
-  avoidInsetKey?: string;
   onClose: () => void;
   children: React.ReactNode;
 }
@@ -54,12 +35,17 @@ export interface AnchoredPanelProps {
 const ANCHOR_INSET = 10;
 
 /**
- * Every panel in the dock is this component: same glass, same blur, same edge,
- * anchored to the button that opened it with a short accent pointer running
- * back down to it. That pointer is the dock's signature — it makes the
- * relationship between a lit key and the surface it produced literal, instead
- * of leaving a panel floating in the middle of the screen with no parent (which
- * is what the single centred 384px panel used to do).
+ * The dock's one floating surface: the Tempo popover. Same glass, same blur,
+ * same edge as the bar it belongs to, anchored to the button that opened it
+ * with a short accent pointer running back down to it — so the relationship
+ * between a lit key and the surface it produced stays literal.
+ *
+ * The four section panels used to be this component too, and that is what made
+ * it complicated: aligned to the bar's right edge instead of to a key, pushed
+ * sideways by an open inspector, and reporting the band of map it covered back
+ * to `mapInsets` so the camera could aim around it. They are the console now
+ * (see `shell/Console`), which holds its own space — so all of that went with
+ * them, and what is left is a popover.
  *
  * IMPORTANT: mount it *beside* the bar it belongs to, never inside it. An
  * ancestor with `backdrop-filter` (every dock bar has one) becomes a backdrop
@@ -74,12 +60,8 @@ export default function AnchoredPanel({
   header,
   anchorRef,
   originRef,
-  ignoreRef,
   width,
-  align = "anchor",
   positionKey,
-  insetKey,
-  avoidInsetKey,
   onClose,
   children,
   ...rest
@@ -89,51 +71,7 @@ export default function AnchoredPanel({
     active: open,
     key: `${positionKey}:${width}`,
     inset: ANCHOR_INSET,
-    align,
-    avoidInsetKey,
   });
-
-  // What this panel covers, measured rather than assumed: it is positioned at
-  // run time (`useAnchorOffset` clamps it inside the viewport) and its height is
-  // its contents'. The right band is everything from the panel's left edge to
-  // the viewport's right edge; the bottom band is everything below its top edge,
-  // which already includes the gap down to the dock it stands on.
-  // `offset` and `positionKey` are in the dependency list as re-measure
-  // triggers rather than as values read in here: the panel is placed by
-  // `useAnchorOffset`, so its box is only final once those have settled.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: re-measure triggers, see above.
-  useEffect(() => {
-    if (!insetKey) return;
-    if (!open) {
-      clearInset(insetKey);
-      return;
-    }
-    const measure = () => {
-      const element = panelRef.current;
-      if (!element) return;
-      const rect = element.getBoundingClientRect();
-      if (!rect.width || !rect.height) return;
-      // The right band only. The panel also covers a slab above the dock, but
-      // claiming that as a bottom band would leave no visible height at all
-      // (the panel is most of the viewport tall), and the map to the left of
-      // it is exactly where the camera should aim.
-      const insets: Partial<MapInsets> = {
-        right: Math.max(0, window.innerWidth - rect.left),
-      };
-      setInset(insetKey, insets);
-    };
-    measure();
-    const onResize = () => measure();
-    window.addEventListener("resize", onResize);
-    const observer =
-      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => measure());
-    if (panelRef.current) observer?.observe(panelRef.current);
-    return () => {
-      observer?.disconnect();
-      window.removeEventListener("resize", onResize);
-      clearInset(insetKey);
-    };
-  }, [insetKey, open, offset, positionKey]);
 
   useEffect(() => {
     if (!open) return;
@@ -141,12 +79,11 @@ export default function AnchoredPanel({
       const target = e.target as Node;
       if (panelRef.current?.contains(target)) return;
       if (originRef.current?.contains(target)) return;
-      if (ignoreRef?.current?.contains(target)) return;
       onClose();
     };
     document.addEventListener("mousedown", onPointerDown);
     return () => document.removeEventListener("mousedown", onPointerDown);
-  }, [open, onClose, originRef, ignoreRef]);
+  }, [open, onClose, originRef]);
 
   return (
     <div

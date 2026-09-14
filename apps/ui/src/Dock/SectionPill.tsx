@@ -30,7 +30,7 @@ const SectionPill = forwardRef<HTMLButtonElement, SectionPillProps>(function Sec
       ref={ref}
       type="button"
       aria-expanded={active}
-      aria-controls="dock-section-panel"
+      aria-controls="console-panel"
       aria-label={section.label}
       title={
         active
