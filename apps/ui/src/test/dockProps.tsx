@@ -140,6 +140,9 @@ export function createDockProps(overrides: Partial<DockShellProps> = {}): DockSh
       onRefreshRecordings: () => {},
     },
     advanced: { maxSpeedRef: { current: 60 } },
+    // Nothing selected: the Inspect view's empty state, which is the state it
+    // is in for most of a run.
+    inspector: {},
     ...overrides,
   };
 }

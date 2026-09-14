@@ -22,6 +22,8 @@ import type GeofencePanel from "@/Controls/GeofencePanel";
 import type AnalyticsPanel from "@/Controls/AnalyticsPanel";
 import type RecordReplay from "@/Controls/RecordReplay";
 import type { useAdapterConfig } from "@/Controls/Adapter/useAdapterConfig";
+import Inspector, { inspectorTitle } from "@/Inspector/Inspector";
+import type { Fleet as FleetType, JobDTO, POI } from "@/types";
 import Console from "./Console";
 
 /**
@@ -74,6 +76,18 @@ export interface ConsoleSectionsProps {
   advanced: ComponentProps<typeof AdvancedTuningTab>;
   adapter: ReturnType<typeof useAdapterConfig>;
   replayStatus: ReplayStatus;
+
+  /**
+   * What the map has selected. Its own section (see `INSPECT_SECTION`), and the
+   * only one allowed to render empty — the selection can be cleared while the
+   * console is open.
+   */
+  inspector: {
+    vehicle?: Vehicle;
+    poi?: POI;
+    fleet?: FleetType;
+    job?: JobDTO;
+  };
 }
 
 export default function ConsoleSections({
@@ -104,6 +118,7 @@ export default function ConsoleSections({
   recordings,
   advanced,
   adapter,
+  inspector,
 }: ConsoleSectionsProps) {
   const { expanded, tab, close } = navigation;
   const section = expanded ? dockSection(expanded) : null;
@@ -148,6 +163,8 @@ export default function ConsoleSections({
         return <SessionPanel tab={tab as SessionTabId} recordings={recordings} />;
       case "settings":
         return <SettingsPanel tab={tab as SettingsTabId} advanced={advanced} feeds={{ adapter }} />;
+      case "inspect":
+        return <Inspector {...inspector} />;
     }
   }, [
     section,
@@ -176,12 +193,20 @@ export default function ConsoleSections({
     recordings,
     advanced,
     adapter,
+    inspector,
   ]);
 
   return (
     <Console
       open={section !== null && tab !== null}
-      title={section?.label ?? ""}
+      // Inspect is named after what is selected, not after itself: "Nairobi
+      // Van 12" is the answer to why the view is open, and the section's own
+      // label is only the fallback for an empty selection.
+      title={
+        section?.id === "inspect"
+          ? inspectorTitle(inspector.vehicle, inspector.poi)
+          : (section?.label ?? "")
+      }
       icon={section?.icon}
       bodyKey={`${expanded ?? "none"}:${tab ?? "none"}`}
       tabs={

@@ -109,7 +109,11 @@ export default function Console({
       <div
         key={bodyKey}
         data-console-body=""
-        className="flex min-h-0 flex-1 animate-fade-in-fast flex-col overflow-y-auto overscroll-contain [scrollbar-width:thin]"
+        // `overflow-hidden`, like the panel surface these views used to live
+        // on: each one owns its own scrolling (the vehicle list virtualizes,
+        // the inspector pins an identity block above a scroller), and an outer
+        // scroller would give several of them a second scrollbar.
+        className="flex min-h-0 flex-1 animate-fade-in-fast flex-col overflow-hidden"
       >
         {children}
       </div>

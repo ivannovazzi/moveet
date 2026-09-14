@@ -2,69 +2,52 @@ import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { Profiler } from "react";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import Inspector from "./Inspector";
+import Inspector, { inspectorTitle } from "./Inspector";
 import { createVehicle, createVehicleDTO, createPOI } from "@/test/mocks/types";
 import type { Fleet } from "@/types";
 import { vehicleStore } from "@/hooks/vehicleStore";
 import { vehicleEventStore } from "./vehicleEventStore";
 import { TELEMETRY_SAMPLE_MS } from "./telemetry";
-import { getInsets, resetInsets } from "@/components/Map/mapInsets";
+import { getInsets } from "@/components/Map/mapInsets";
 
 beforeEach(() => vehicleEventStore.clear());
 
-describe("the corner the Inspector claims", () => {
-  afterEach(() => resetInsets());
-
-  /**
-   * The camera used to fly the selected vehicle to the raw viewport centre and,
-   * with the inspector up, to a spot the inspector was sitting on. It now
-   * reports its own band so `useDeckViewState` can aim around it.
-   */
-  it("reports its band down the right edge while it is showing something", () => {
-    const { rerender } = render(<Inspector onClose={vi.fn()} />);
-    expect(getInsets().right).toBe(0);
-
-    rerender(<Inspector vehicle={createVehicle({ id: "v1" })} onClose={vi.fn()} />);
-    // Its own width (320) + its right offset (12) + 12px of air.
-    expect(getInsets().right).toBe(344);
-
-    rerender(<Inspector poi={createPOI({ id: "p1" })} onClose={vi.fn()} />);
-    expect(getInsets().right).toBe(344);
+/**
+ * The inspector is a console section now (see `shell/Console`), not a floating
+ * aside at the map's right edge. It has no frame, no header and no close
+ * button of its own — the console owns all three — and it no longer reports a
+ * band to `mapInsets`, because a docked surface covers no map to aim around.
+ */
+describe("what the inspector no longer owns", () => {
+  it("claims no band of the map", () => {
+    render(<Inspector vehicle={createVehicle({ id: "v1" })} />);
+    expect(getInsets()).toEqual({ top: 0, right: 0, bottom: 0, left: 0 });
   });
 
-  it("does not place itself — the shell grid's right track does", () => {
-    render(<Inspector vehicle={createVehicle({ id: "v1" })} onClose={vi.fn()} />);
+  it("brings no frame or placement of its own", () => {
+    render(<Inspector vehicle={createVehicle({ id: "v1" })} />);
     const panel = screen.getByRole("region", { name: "Inspector" });
-    // Clearing the search band above and the dock below is the grid's job now
-    // (see `ShellGrid`). A panel that reintroduced an offset of its own would
-    // be placed twice and drift from whatever the grid actually left it.
     expect(panel.className).not.toContain("absolute");
-    expect(panel.className).not.toContain("right-3");
-    expect(panel.className).not.toContain("--spacing-row-2");
-    expect(panel.className).not.toContain("--spacing-above-dock");
-    // It still caps itself to the height the track hands it, so a long
-    // telemetry list scrolls rather than running past the dock.
-    expect(panel.className).toContain("max-h-full");
+    expect(panel.className).not.toContain("border");
+    expect(panel.className).not.toContain("shadow");
   });
 
-  it("gives the corner back when the selection is cleared, and when it unmounts", () => {
-    const { rerender, unmount } = render(
-      <Inspector vehicle={createVehicle({ id: "v1" })} onClose={vi.fn()} />
-    );
-    rerender(<Inspector onClose={vi.fn()} />);
-    expect(getInsets().right).toBe(0);
-
-    rerender(<Inspector vehicle={createVehicle({ id: "v1" })} onClose={vi.fn()} />);
-    expect(getInsets().right).toBe(344);
-    unmount();
-    expect(getInsets().right).toBe(0);
+  it("titles itself after what is selected, for the console's header", () => {
+    expect(inspectorTitle(createVehicle({ name: "Van 12" }))).toBe("Van 12");
+    expect(inspectorTitle(undefined, createPOI({ name: "Depot" }))).toBe("Depot");
+    expect(inspectorTitle(undefined, createPOI({ name: null }))).toBe("Point of interest");
+    // The section's own label is the fallback, and only for an empty selection.
+    expect(inspectorTitle()).toBe("Inspect");
   });
 });
 
 describe("Inspector", () => {
-  it("renders nothing when neither a vehicle nor a POI is selected", () => {
-    const { container } = render(<Inspector onClose={vi.fn()} />);
-    expect(container).toBeEmptyDOMElement();
+  it("says so when nothing is selected, rather than disappearing", () => {
+    // The one section allowed to render empty. A surface that vanished out from
+    // under the operator when they cleared a selection would read as a bug, and
+    // the console has no other view to fall back to.
+    render(<Inspector />);
+    expect(screen.getByText(/nothing selected/i)).toBeInTheDocument();
   });
 
   it("renders vehicle details when a vehicle is selected", () => {
@@ -76,10 +59,10 @@ describe("Inspector", () => {
           speed: 42,
           heading: 90,
         })}
-        onClose={vi.fn()}
       />
     );
-    expect(screen.getByText("Test Vehicle 1")).toBeInTheDocument();
+    // The name is the console header's now (see `inspectorTitle`); the view
+    // itself is the detail under it.
     expect(screen.getByText("v1")).toBeInTheDocument();
     expect(screen.getByText(/42 km\/h/)).toBeInTheDocument();
     expect(screen.getByText(/90°/)).toBeInTheDocument();
@@ -87,7 +70,7 @@ describe("Inspector", () => {
   });
 
   it("shows Idle status for a stopped vehicle", () => {
-    render(<Inspector vehicle={createVehicle({ speed: 0 })} onClose={vi.fn()} />);
+    render(<Inspector vehicle={createVehicle({ speed: 0 })} />);
     expect(screen.getByText("Idle")).toBeInTheDocument();
   });
 
@@ -99,41 +82,29 @@ describe("Inspector", () => {
       source: "local",
       vehicleIds: ["v1"],
     };
-    render(<Inspector vehicle={createVehicle({ id: "v1" })} fleet={fleet} onClose={vi.fn()} />);
+    render(<Inspector vehicle={createVehicle({ id: "v1" })} fleet={fleet} />);
     expect(screen.getByText("North Fleet")).toBeInTheDocument();
   });
 
   it("renders POI details, falling back gracefully when the name is null", () => {
-    render(
-      <Inspector
-        poi={createPOI({ id: "poi1", name: null, type: "restaurant" })}
-        onClose={vi.fn()}
-      />
-    );
-    expect(screen.getByText("Point of interest")).toBeInTheDocument();
+    render(<Inspector poi={createPOI({ id: "poi1", name: null, type: "restaurant" })} />);
     expect(screen.getByText("restaurant")).toBeInTheDocument();
     expect(screen.getByText("poi1")).toBeInTheDocument();
-  });
-
-  it("calls onClose when the close button is clicked", async () => {
-    const onClose = vi.fn();
-    render(<Inspector vehicle={createVehicle()} onClose={onClose} />);
-    await userEvent.click(screen.getByRole("button", { name: /close/i }));
-    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   // Escape-to-close is not the inspector's own listener any more: it is the
   // `clear-selection` branch of the app's single keyboard dispatcher, covered
   // by useInteractionMode.test.ts.
   it("does not install its own Escape listener", async () => {
-    const onClose = vi.fn();
-    render(<Inspector vehicle={createVehicle()} onClose={onClose} />);
+    render(<Inspector vehicle={createVehicle()} />);
     await userEvent.keyboard("{Escape}");
-    expect(onClose).not.toHaveBeenCalled();
+    // Nothing here to fire: closing is the console's, and clearing the
+    // selection is the app's one keyboard dispatcher.
+    expect(screen.getByRole("region", { name: "Inspector" })).toBeInTheDocument();
   });
 
   it("renders the telemetry, directions and events sections for a vehicle", () => {
-    render(<Inspector vehicle={createVehicle({ id: "v1" })} onClose={vi.fn()} />);
+    render(<Inspector vehicle={createVehicle({ id: "v1" })} />);
     expect(screen.getByText("Telemetry")).toBeInTheDocument();
     expect(screen.getByText("Directions")).toBeInTheDocument();
     expect(screen.getByText("Events")).toBeInTheDocument();
@@ -156,13 +127,13 @@ describe("Inspector", () => {
       at: Date.now(),
       label: "Route completed",
     });
-    render(<Inspector vehicle={createVehicle({ id: "v1" })} onClose={vi.fn()} />);
+    render(<Inspector vehicle={createVehicle({ id: "v1" })} />);
     expect(screen.getByText("Rerouted around incident")).toBeInTheDocument();
     expect(screen.queryByText("Route completed")).not.toBeInTheDocument();
   });
 
   it("shows only the POI section for a POI selection", () => {
-    render(<Inspector poi={createPOI()} onClose={vi.fn()} />);
+    render(<Inspector poi={createPOI()} />);
     expect(screen.queryByText("Telemetry")).not.toBeInTheDocument();
     expect(screen.queryByText("Events")).not.toBeInTheDocument();
   });
@@ -182,7 +153,7 @@ describe("Inspector hot-path isolation", () => {
     const onRender = vi.fn();
     render(
       <Profiler id="inspector" onRender={onRender}>
-        <Inspector vehicle={createVehicle({ id: "v1" })} onClose={vi.fn()} />
+        <Inspector vehicle={createVehicle({ id: "v1" })} />
       </Profiler>
     );
 

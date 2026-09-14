@@ -1,23 +1,28 @@
 import { cn } from "@/lib/utils";
 import type { Fleet, JobDTO, POI, Position, Vehicle } from "@/types";
-import { CloseIcon } from "@/components/Icons";
 import { invertLatLng } from "@/utils/coordinates";
-import { Eyebrow, Hairline, PanelHead, StatusDot, Tag, mono } from "@/Dock/DockPanelKit";
+import { Eyebrow, StatusDot, Tag, mono } from "@/Dock/DockPanelKit";
 import VehicleDirections from "./VehicleDirections";
 import VehicleTelemetry from "./VehicleTelemetry";
 import VehicleEventTimeline from "./VehicleEventTimeline";
 import { useVehicleEventCapture } from "./useVehicleEventCapture";
 import { FAULT_KIND_LABEL } from "@/lib/faultPresets";
-import { useReportInset } from "@/components/Map/mapInsets";
 import type { DeviceFaultInfo } from "@/types";
 
 /**
- * On-demand right-side detail panel for the currently selected vehicle or POI.
- * Selection is passed in via props (App owns the selection state) — this panel
- * is a pure presenter that renders nothing when neither target is set. It
- * borrows the dock family's glass surface and tight-technical density
- * (monospace numerics, hairline rows, micro uppercase eyebrows) so it reads as
- * the same instrument as the dock panels.
+ * The console's Inspect view: whatever the map currently has selected.
+ *
+ * It used to be a floating aside at the map's right edge, with its own glass
+ * frame, its own header and its own close button — and its own claim on
+ * `mapInsets`, because a camera flying to the vehicle it was describing would
+ * otherwise put that vehicle behind it. It is a console section now (see
+ * `shell/Console`), so the frame, the header and the inset claim all belong to
+ * the console, and what is left here is the content.
+ *
+ * Selection is passed in via props (App owns the selection state). Unlike every
+ * other section this one is allowed to render empty: the selection can be
+ * cleared while the console is open, and an empty view is a truer answer than
+ * a surface that vanishes out from under the operator.
  *
  * Four sections for a vehicle: identity fields, live telemetry sparklines,
  * turn-by-turn steps with route progress, and an event timeline.
@@ -37,8 +42,6 @@ export interface InspectorProps {
   fleet?: Fleet;
   /** The live job this vehicle is carrying, if any (App resolves it from the board). */
   job?: JobDTO;
-  /** Close the inspector (clears selection upstream). */
-  onClose: () => void;
 }
 
 /** One key/value detail line: muted uppercase label left, mono-ish value right. */
@@ -109,64 +112,33 @@ function DeviceFaults({ faults, timestamp }: { faults?: DeviceFaultInfo; timesta
   );
 }
 
-export default function Inspector({ vehicle, poi, fleet, job, onClose }: InspectorProps) {
-  // App renders <Inspector/> unconditionally (it self-hides below), so this is
-  // the app-lifetime home for per-vehicle event capture — history exists for a
+/** The title the console's header shows for whatever is selected. */
+export function inspectorTitle(vehicle?: Vehicle, poi?: POI): string {
+  if (vehicle) return vehicle.name;
+  if (poi) return poi.name ?? "Point of interest";
+  return "Inspect";
+}
+
+export default function Inspector({ vehicle, poi, fleet, job }: InspectorProps) {
+  // Mounted for as long as the console's Inspect view is, so this is the
+  // app-lifetime home for per-vehicle event capture — history exists for a
   // vehicle selected long after the events happened.
   useVehicleEventCapture();
 
-  // The inspector owns the top-right corner while it is up: its `w-80` (320px)
-  // plus its own `right-3` (12px) plus 12px of air. Reported so flying to the
-  // vehicle it is describing doesn't put that vehicle behind it. Called before
-  // the early return below, so it is unconditional (and clears on close).
-  useReportInset("inspector", vehicle || poi ? { right: 320 + 12 + 12 } : null);
-
-  // Escape is deliberately NOT handled here. The inspector is driven by the
+  // Escape is deliberately NOT handled here. The view is driven by the
   // selection, and Escape-to-clear-selection is one branch of the app's single
   // keyboard dispatcher (useInteractionKeyboard) — a listener here would also
   // fire on the press that exits dispatch or cancels a geofence draw.
 
-  if (!vehicle && !poi) return null;
-
   const moving = vehicle ? vehicle.speed > 0 : false;
-  const eyebrow = vehicle ? "Vehicle" : "Location";
-  const title = vehicle ? vehicle.name : (poi?.name ?? "Point of interest");
 
   return (
-    <aside
-      role="region"
-      aria-label="Inspector"
-      className={cn(
-        // The right track of the shell grid's middle row (see `ShellGrid`).
-        // That row is what is left of the map once the search band and the
-        // dock have taken theirs, so clearing both is the grid's job now
-        // rather than two clearance tokens subtracted from the viewport here.
-        "flex max-h-full w-80 max-w-full flex-col origin-top-right",
-        "overflow-hidden rounded-[10px] border border-border surface-glass-strong glass-frost-strong shadow-floating",
-        "animate-scale-in"
+    <div role="region" aria-label="Inspector" className="flex min-h-0 flex-1 flex-col">
+      {!vehicle && !poi && (
+        <p className="px-[15px] py-6 text-center text-label text-muted-foreground">
+          Nothing selected. Pick a vehicle on the map, in the fleet list, or from search.
+        </p>
       )}
-    >
-      <PanelHead
-        eyebrow={eyebrow}
-        title={title}
-        right={
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close inspector"
-            title="Close"
-            className={cn(
-              "flex size-6 shrink-0 items-center justify-center rounded-md border border-transparent",
-              "text-muted-foreground transition-colors duration-fast ease-standard",
-              "hover:border-border hover:bg-accent hover:text-foreground",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
-            )}
-          >
-            <CloseIcon className="size-4" />
-          </button>
-        }
-      />
-      <Hairline />
 
       {vehicle && (
         <div className="flex min-h-0 flex-1 flex-col">
@@ -227,6 +199,6 @@ export default function Inspector({ vehicle, poi, fleet, job, onClose }: Inspect
           </Field>
         </div>
       )}
-    </aside>
+    </div>
   );
 }

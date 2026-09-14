@@ -36,6 +36,11 @@ export default function SectionTabs({
   onSelectTab,
   className,
 }: SectionTabsProps) {
+  // A section with one view has nothing to switch between, and a lone tab that
+  // is always selected reads as a button that does nothing. Inspect is the only
+  // one; it takes its name from the console's own header instead.
+  if (section.tabs.length < 2) return null;
+
   return (
     <div
       className={cn(
