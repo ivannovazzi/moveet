@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/utils/client", async () => {
@@ -92,7 +92,7 @@ describe("the Inspect section", () => {
     expect(screen.getByRole("region", { name: "Depot" })).toBeInTheDocument();
   });
 
-  it("stays open, and says so, when the selection is cleared", async () => {
+  it("stays open when the selection is cleared", async () => {
     const user = userEvent.setup();
     const { rerender } = renderWithInspect({
       inspector: { vehicle: createVehicle({ id: "v1", name: "Van 12" }) },
@@ -107,8 +107,9 @@ describe("the Inspect section", () => {
     rerender(<div />);
     renderWithInspect({ inspector: {} });
     await open(user);
-    expect(screen.getByRole("region", { name: "Inspect" })).toBeInTheDocument();
-    expect(screen.getByText(/nothing selected/i)).toBeInTheDocument();
+    // Named for the section, with an empty body: the header is the message.
+    const panel = screen.getByRole("region", { name: "Inspect" });
+    expect(within(panel).getByRole("region", { name: "Inspector" })).toBeEmptyDOMElement();
   });
 
   it("closes from the console's own header, like any other section", async () => {
