@@ -34,12 +34,6 @@ export interface DockSection {
   label: string;
   icon: ReactNode;
   tabs: DockTab[];
-  /**
-   * Width of the panel this section opens. Per-section, because one 384px box
-   * for every panel is what forced the vehicle list into a fixed-height hack
-   * and squeezed the analytics charts.
-   */
-  panelWidth: string;
 }
 
 export const DOCK_SECTIONS: DockSection[] = [
@@ -53,7 +47,6 @@ export const DOCK_SECTIONS: DockSection[] = [
       { id: "dispatch", label: "Dispatch" },
       { id: "jobs", label: "Jobs" },
     ],
-    panelWidth: "w-[420px]",
   },
   {
     id: "monitor",
@@ -66,8 +59,6 @@ export const DOCK_SECTIONS: DockSection[] = [
       { id: "heatzones", label: "Heat zones" },
       { id: "faults", label: "Faults" },
     ],
-    // Analytics carries charts; they were the worst served by the old shared box.
-    panelWidth: "w-[480px]",
   },
   {
     id: "session",
@@ -77,7 +68,6 @@ export const DOCK_SECTIONS: DockSection[] = [
       { id: "recordings", label: "Recordings" },
       { id: "scenarios", label: "Scenarios" },
     ],
-    panelWidth: "w-[400px]",
   },
   {
     id: "settings",
@@ -91,7 +81,6 @@ export const DOCK_SECTIONS: DockSection[] = [
       { id: "realism", label: "Realism" },
       { id: "advanced", label: "Advanced" },
     ],
-    panelWidth: "w-[380px]",
   },
 ];
 

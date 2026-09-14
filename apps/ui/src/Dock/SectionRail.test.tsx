@@ -248,7 +248,7 @@ describe("dock section row", () => {
     await user.click(pill("Session"));
 
     const panel = await screen.findByRole("region", { name: "Session" });
-    expect(panel).toHaveAttribute("id", "dock-section-panel");
+    expect(panel).toHaveAttribute("id", "console-panel");
     // The eyebrow that used to repeat the lit view ("SESSION › RECORDINGS") is
     // gone: the header names the section once and the tab strip says the rest.
     expect(panel).not.toHaveTextContent("›");
