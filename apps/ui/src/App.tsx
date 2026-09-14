@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import client from "./utils/client";
 import Dock from "./Dock/Dock";
-import Inspector from "./Inspector/Inspector";
 import useTracking from "./Controls/useTracking";
 import MapView from "./Map/Map";
 import VisibilityRail from "./Map/VisibilityRail";
@@ -19,7 +18,7 @@ import { useHeatzones } from "./hooks/useHeatzones";
 import { useHeatzoneAutoReveal } from "./hooks/useHeatzoneAutoReveal";
 import type { Fleet, Modifiers } from "./types";
 import type { BoundingBox } from "@moveet/shared-types";
-import type { POI } from "./types";
+import type { POI, Road } from "./types";
 import { isRoad } from "./utils/typeGuards";
 import { useVehicles } from "./hooks/useVehicles";
 import { useFleets } from "./hooks/useFleets";
@@ -251,9 +250,51 @@ export default function App() {
     onJobPlacementClick: jobDraft.handleMapClick,
   });
 
+  // ─── Revealing what was selected ────────────────────────────────
+  // Selecting something is a request to look at it, so it opens the console on
+  // the Inspect view — but only when the operator asked for it in words: from
+  // the fleet list, from search, from the palette.
+  //
+  // A click on the *map* deliberately does not open the console. It would take
+  // 420px of map away on every click, including the ones that were only meant
+  // to pick a dispatch target; so a map click switches the view when the
+  // console is already open and otherwise leaves the screen alone.
+  const revealInspector = useCallback(() => dockNavigation.open("inspect"), [dockNavigation]);
+  const revealInspectorIfOpen = useCallback(() => {
+    if (dockNavigation.expanded !== null) dockNavigation.open("inspect");
+  }, [dockNavigation]);
+
+  const onSelectVehicleFromList = useCallback(
+    (id: string) => {
+      onSelectVehicle(id);
+      revealInspector();
+    },
+    [onSelectVehicle, revealInspector]
+  );
+  const onSelectVehicleFromMap = useCallback(
+    (id: string) => {
+      onSelectVehicle(id);
+      revealInspectorIfOpen();
+    },
+    [onSelectVehicle, revealInspectorIfOpen]
+  );
+  const onSelectItemFromList = useCallback(
+    (item: Road | POI | null) => {
+      setSelectedItem(item);
+      if (item) revealInspector();
+    },
+    [setSelectedItem, revealInspector]
+  );
+
   // Stable so the POI IconLayer's onClick-keyed useMemo isn't rebuilt each render
   // (which would discard deck.gl's in-flight enter/color transitions).
-  const onPOIClick = useCallback((poi: POI) => setSelectedItem(poi), [setSelectedItem]);
+  const onPOIClick = useCallback(
+    (poi: POI) => {
+      setSelectedItem(poi);
+      revealInspectorIfOpen();
+    },
+    [setSelectedItem, revealInspectorIfOpen]
+  );
 
   // Canvas hover on a vehicle mirrors the sidebar list's onMouseEnter/Leave pair.
   const onHoverMapVehicle = useCallback(
@@ -296,10 +337,15 @@ export default function App() {
     [filters.selected, vehicles]
   );
   const selectedPoi = selectedItem && !isRoad(selectedItem) ? selectedItem : undefined;
-  const closeInspector = useCallback(() => {
-    onUnselectVehicle();
-    setSelectedItem(null);
-  }, [onUnselectVehicle, setSelectedItem]);
+  const inspectorTarget = useMemo(
+    () => ({
+      vehicle: selectedVehicle,
+      poi: selectedPoi ?? undefined,
+      fleet: selectedVehicle ? vehicleFleetMap.get(selectedVehicle.id) : undefined,
+      job: selectedVehicle ? jobs.jobByVehicleId.get(selectedVehicle.id) : undefined,
+    }),
+    [selectedVehicle, selectedPoi, vehicleFleetMap, jobs.jobByVehicleId]
+  );
 
   // ─── First-run start affordance ─────────────────────────────────
   // The sim boots paused; StartHint owns its own (one-shot) visibility, this
@@ -635,7 +681,7 @@ export default function App() {
                 filters={filters}
                 modifiers={modifiers}
                 selectedItem={selectedItem}
-                onClick={onSelectVehicle}
+                onClick={onSelectVehicleFromMap}
                 onMapClick={onMapClick}
                 onMapContextClick={onMapContextClick}
                 onPOIClick={onPOIClick}
@@ -676,10 +722,10 @@ export default function App() {
                       <SearchBar
                         selectedItem={selectedItem}
                         onDestinationClick={onDestinationClick}
-                        onItemSelect={(item) => setSelectedItem(item)}
+                        onItemSelect={onSelectItemFromList}
                         onItemUnselect={() => setSelectedItem(null)}
                         vehicles={vehicles}
-                        onSelectVehicle={onSelectVehicle}
+                        onSelectVehicle={onSelectVehicleFromList}
                       />
                     </Region>
                   ) : null
@@ -753,19 +799,6 @@ export default function App() {
                     />
                   </Region>
                 }
-                right={
-                  <Region justify="end" align="stretch" className="flex flex-col items-end">
-                    <Inspector
-                      vehicle={selectedVehicle}
-                      poi={selectedPoi ?? undefined}
-                      fleet={selectedVehicle ? vehicleFleetMap.get(selectedVehicle.id) : undefined}
-                      job={
-                        selectedVehicle ? jobs.jobByVehicleId.get(selectedVehicle.id) : undefined
-                      }
-                      onClose={closeInspector}
-                    />
-                  </Region>
-                }
                 bottom={
                   <Dock
                     navigation={dockNavigation}
@@ -805,13 +838,14 @@ export default function App() {
               navigation={dockNavigation}
               badges={badges}
               onSelectTab={onSelectTab}
+              inspector={inspectorTarget}
               replayStatus={replay.replayStatus}
               adapter={adapter}
               vehicles={vehicles}
               filter={filters.filter}
               onFilterChange={onFilterChange}
               selectedId={filters.selected}
-              onSelectVehicle={onSelectVehicle}
+              onSelectVehicle={onSelectVehicleFromList}
               onHoverVehicle={onHoverVehicle}
               onUnhoverVehicle={onUnhoverVehicle}
               maxSpeed={maxSpeedRef.current}
@@ -879,19 +913,19 @@ export default function App() {
         <SessionTimeline
           replayStatus={replay.replayStatus}
           onSeek={replay.seekReplay}
-          onSelectVehicle={onSelectVehicle}
+          onSelectVehicle={onSelectVehicleFromList}
         />
         {/* Keyboard-first surface over the same entities and dock actions.
-          `setSelectedItem` / `onSelectVehicle` are the very handlers the
-          SearchBar and vehicle list use, so selecting from here flies the
-          camera and opens the Inspector exactly as clicking would. */}
+          These are the very handlers the SearchBar and the fleet list use, so
+          selecting from here flies the camera and opens the console's Inspect
+          view exactly as picking it from a list would. */}
         <CommandPalette
           vehicles={vehicles}
           roads={roads}
           pois={pois}
           actions={paletteActions}
-          onSelectVehicle={onSelectVehicle}
-          onSelectItem={setSelectedItem}
+          onSelectVehicle={onSelectVehicleFromList}
+          onSelectItem={onSelectItemFromList}
         />
         <ContextMenu position={contextMenuXY} onClose={closeContextMenu}>
           <MapContextMenu

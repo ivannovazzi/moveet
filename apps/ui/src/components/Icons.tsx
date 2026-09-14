@@ -40,6 +40,7 @@ import {
   Ambulance as AmbulanceBase,
   Bike as BikeBase,
   Funnel as FunnelBase,
+  Crosshair as CrosshairBase,
   Maximize as MaximizeBase,
   type LucideIcon,
   type LucideProps,
@@ -102,3 +103,4 @@ export const AmbulanceIcon = aliasIcon(AmbulanceBase);
 export const MotorcycleIcon = aliasIcon(BikeBase);
 export const FilterIcon = aliasIcon(FunnelBase);
 export const FitIcon = aliasIcon(MaximizeBase);
+export const InspectIcon = aliasIcon(CrosshairBase);
