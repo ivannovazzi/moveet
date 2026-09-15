@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.1.1](https://github.com/ivannovazzi/moveet/compare/v0.1.0...v0.1.1) (2026-09-15)
+
+
+### Features
+
+* add useTrailLength hook for managing breadcrumb trail capacity with localStorage ([b5a220f](https://github.com/ivannovazzi/moveet/commit/b5a220f88b708130f0d3f7a08ceb914679065b05))
+* add VehicleTypeKey component with vehicle type filtering functionality ([b5a220f](https://github.com/ivannovazzi/moveet/commit/b5a220f88b708130f0d3f7a08ceb914679065b05))
+* create VisibilityRail component to manage layer visibility and vehicle type filters ([b5a220f](https://github.com/ivannovazzi/moveet/commit/b5a220f88b708130f0d3f7a08ceb914679065b05))
+* implement visibilityLayers module to define map visibility layers ([b5a220f](https://github.com/ivannovazzi/moveet/commit/b5a220f88b708130f0d3f7a08ceb914679065b05))
+* landmark A* heuristic, session timeline, analytics bucketing ([#231](https://github.com/ivannovazzi/moveet/issues/231)) ([2c2520b](https://github.com/ivannovazzi/moveet/commit/2c2520b5aa327143fa34c7afe3c32ab2fff9a7f2))
+* **simulator:** check API specs against the code in CI ([#283](https://github.com/ivannovazzi/moveet/issues/283)) ([58c96ed](https://github.com/ivannovazzi/moveet/commit/58c96ed27a4bc3364f5cdbd4d20a03216508399f))
+* **simulator:** device-level fault injection ([#237](https://github.com/ivannovazzi/moveet/issues/237)) ([6e7b2f9](https://github.com/ivannovazzi/moveet/commit/6e7b2f980fada81fd2b562e373e797fbb001856e))
+* **simulator:** record geofence crossings so replay keeps them ([#282](https://github.com/ivannovazzi/moveet/issues/282)) ([426eaee](https://github.com/ivannovazzi/moveet/commit/426eaeefb12fbdee4ef68edfd4d37693fe27e2b7))
+* **simulator:** scenario-as-code with assertions, graded headlessly ([#251](https://github.com/ivannovazzi/moveet/issues/251)) ([aa3e0d7](https://github.com/ivannovazzi/moveet/commit/aa3e0d74f091f27e2eb95fe36c84055ad196f3dd))
+* trip/job dispatch lifecycle model ([#235](https://github.com/ivannovazzi/moveet/issues/235)) ([0af0639](https://github.com/ivannovazzi/moveet/commit/0af0639c68254688e16c1a1f71c7bc4412192f78))
+* **ui:** a shell grid, so chrome can no longer overlap ([c776f74](https://github.com/ivannovazzi/moveet/commit/c776f746a7e001358dd6876daabdd5287de62969))
+* **ui:** align the dock, search and map furniture into one shell ([#293](https://github.com/ivannovazzi/moveet/issues/293)) ([95c8669](https://github.com/ivannovazzi/moveet/commit/95c86693ac460ada38ba93c551e648964e1159b3))
+* **ui:** coherent map layer rendering, labels, modes and legends ([#292](https://github.com/ivannovazzi/moveet/issues/292)) ([af78bb2](https://github.com/ivannovazzi/moveet/commit/af78bb295a689874ef2e2c5d0027ed7546a3915a))
+* **ui:** let the camera lean back ([#306](https://github.com/ivannovazzi/moveet/issues/306)) ([8dc2472](https://github.com/ivannovazzi/moveet/commit/8dc2472956e26d1bdea482629cde77ab699c42af))
+* **ui:** lift the map ground out of near-black (fleetsim-all-7gtf) ([#241](https://github.com/ivannovazzi/moveet/issues/241)) ([dca481c](https://github.com/ivannovazzi/moveet/commit/dca481c8d7e48679a0659cb1f651a2d21b03b681))
+* **ui:** migrate the vehicle list to react-window 2 ([#288](https://github.com/ivannovazzi/moveet/issues/288)) ([3040605](https://github.com/ivannovazzi/moveet/commit/30406050f9ca161c2d9419e2c2d534166003c171))
+* **ui:** one motion rule, and surfaces that animate away ([288f815](https://github.com/ivannovazzi/moveet/commit/288f815c365601f6bf8890d3bf3b51915287522a))
+* **ui:** per-segment traffic overlay and a clearer selected route ([#291](https://github.com/ivannovazzi/moveet/issues/291)) ([a51163d](https://github.com/ivannovazzi/moveet/commit/a51163d897ba54bb48242ff75f3ed10b35a68fe3))
+* **ui:** state-adaptive dock, unified map-mode model, dynamic sections ([#240](https://github.com/ivannovazzi/moveet/issues/240)) ([b5a220f](https://github.com/ivannovazzi/moveet/commit/b5a220f88b708130f0d3f7a08ceb914679065b05))
+* **ui:** the config panels become a docked console ([b5847cb](https://github.com/ivannovazzi/moveet/commit/b5847cbe3dc6846dc9d59e52c37fa4718e88d46a))
+* **ui:** the inspector becomes the console's Inspect view ([a2ea88a](https://github.com/ivannovazzi/moveet/commit/a2ea88a821b1b3616726f2c1c50263aa129807de))
+* **ui:** the left edge becomes one column of keys ([ba4a224](https://github.com/ivannovazzi/moveet/commit/ba4a2247de2513068093cd9b5c33ea9ee06f3532))
+* **ui:** the session timeline becomes a log in Monitor ([cdc96c3](https://github.com/ivannovazzi/moveet/commit/cdc96c3b61dffc0d87c08253c42a6fdc5e85fba5))
+* **ui:** unified interaction modes, one Escape dispatcher, shared ModeBanner (fleetsim-all-biut) ([#238](https://github.com/ivannovazzi/moveet/issues/238)) ([d009599](https://github.com/ivannovazzi/moveet/commit/d009599b2d8c58cdcf344d9d92b702b65ce9fe41))
+* wire jobs + device faults into the UI, and fix the job lifecycle they ride on ([#239](https://github.com/ivannovazzi/moveet/issues/239)) ([0c706ff](https://github.com/ivannovazzi/moveet/commit/0c706ff35b0a1318c38ed28b3ac5e424de84badf))
+
+
+### Bug Fixes
+
+* dispatch on true positions, bucketed analytics fetch, landmarks env through zod ([#242](https://github.com/ivannovazzi/moveet/issues/242)) ([dda06a8](https://github.com/ivannovazzi/moveet/commit/dda06a862a72e1ba17bcb0c3cc284b1438176b9b))
+* **simulator:** close the ephemeral-port race in supertest route tests ([#284](https://github.com/ivannovazzi/moveet/issues/284)) ([60de5cf](https://github.com/ivannovazzi/moveet/commit/60de5cf84b510424a2873fa9ca635884164c431b))
+* **ui:** centre the map on the network, not on Nairobi ([#305](https://github.com/ivannovazzi/moveet/issues/305)) ([9412f55](https://github.com/ivannovazzi/moveet/commit/9412f556aa300e0c46ad45b408fbbe2dce140ccb))
+* **ui:** the empty Inspect view renders nothing at all ([bb77fef](https://github.com/ivannovazzi/moveet/commit/bb77fefc4c8f3820034a7feebe886032f9539f9b))
+
 ## [0.1.0](https://github.com/ivannovazzi/moveet/compare/v0.0.10...v0.1.0) (2026-07-25)
 
 
