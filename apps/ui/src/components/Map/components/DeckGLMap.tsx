@@ -332,6 +332,8 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
         controls.zoomIn();
       } else if (evt.key === "-" || evt.key === "_") {
         controls.zoomOut();
+      } else if (evt.key === "t" || evt.key === "T") {
+        controls.toggleTilt();
       }
     };
 
@@ -340,8 +342,10 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
   }, [containerRef, controls]);
 
   // Controller config lives on the view (single source of truth — do not also
-  // pass `controller` to <DeckGL>): the map is strictly 2D so rotation is
-  // disabled. Scroll-zoom tracks the wheel directly (no `smooth` interpolation)
+  // pass `controller` to <DeckGL>). Rotation is on: a modifier-drag (or a
+  // right-drag, or two fingers) leans the camera back, and the view state's
+  // `maxPitch` stops it at the horizon. Scroll-zoom tracks the wheel directly
+  // (no `smooth` interpolation)
   // and inertia is off, so pan/zoom respond immediately instead of gliding —
   // the smoothed variant read as laggy/floaty.
   const MAP_VIEW = useMemo(
@@ -349,8 +353,8 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
       new MapView({
         id: "main",
         controller: {
-          dragRotate: false,
-          touchRotate: false,
+          dragRotate: true,
+          touchRotate: true,
           scrollZoom: { smooth: false },
           inertia: 0,
           // Disabled while a drawing tool is engaged so a press-drag draws

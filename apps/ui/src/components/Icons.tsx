@@ -42,6 +42,7 @@ import {
   Funnel as FunnelBase,
   Crosshair as CrosshairBase,
   Maximize as MaximizeBase,
+  Rotate3d as Rotate3dBase,
   type LucideIcon,
   type LucideProps,
 } from "lucide-react";
@@ -103,4 +104,5 @@ export const AmbulanceIcon = aliasIcon(AmbulanceBase);
 export const MotorcycleIcon = aliasIcon(BikeBase);
 export const FilterIcon = aliasIcon(FunnelBase);
 export const FitIcon = aliasIcon(MaximizeBase);
+export const TiltIcon = aliasIcon(Rotate3dBase);
 export const InspectIcon = aliasIcon(CrosshairBase);

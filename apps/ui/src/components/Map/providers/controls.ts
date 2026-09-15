@@ -8,6 +8,9 @@ export let controlsRef: MapControlsContextValue = {
   getZoom: () => 0,
   setBounds: () => {},
   focusOn: () => {},
+  setPitch: () => {},
+  getPitch: () => 0,
+  toggleTilt: () => {},
 };
 
 export function setMapControlsRef(ref: typeof controlsRef) {

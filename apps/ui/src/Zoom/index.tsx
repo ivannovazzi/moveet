@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo } from "react";
-import { FitIcon, ZoomIn, ZoomOut } from "@/components/Icons";
+import { FitIcon, TiltIcon, ZoomIn, ZoomOut } from "@/components/Icons";
 import { useMapControls } from "@/components/Map/hooks";
 import { useNetworkContext } from "@/data/useData";
 import { cn } from "@/lib/utils";
@@ -18,7 +18,7 @@ const KEY_CLASS = cn(
 );
 
 /**
- * The map-controls cluster: fit, zoom in, zoom out.
+ * The map-controls cluster: fit, tilt, zoom in, zoom out.
  *
  * Two zoom keys alone read as an orphan on a wheel/trackpad map — they are the
  * one thing the operator never needs a button for. What *isn't* reachable by
@@ -39,7 +39,7 @@ const KEY_CLASS = cn(
  * now (see `shell/ShellGrid.tsx`).
  */
 export default function Zoom() {
-  const { zoomIn, zoomOut, setBounds } = useMapControls();
+  const { zoomIn, zoomOut, setBounds, toggleTilt } = useMapControls();
   // `useNetwork` (App) owns the fetch; this reads the same context so mounting
   // the cluster does not start a second `/network` request.
   const { network } = useNetworkContext();
@@ -73,6 +73,21 @@ export default function Zoom() {
         className={KEY_CLASS}
       >
         <FitIcon />
+      </button>
+      {/* A toggle, not a stepper: the tilt is a way of looking at the map, and
+          one press always returns to flat — including from a pitch a drag
+          left behind. It carries no pressed state because the drag can change
+          the pitch without the cluster hearing about it; a key that sometimes
+          lied about which way it was pointing would be worse than one that
+          just toggles. */}
+      <button
+        type="button"
+        onClick={toggleTilt}
+        aria-label="Tilt map"
+        title="Tilt map (T)"
+        className={KEY_CLASS}
+      >
+        <TiltIcon />
       </button>
       <button
         type="button"
