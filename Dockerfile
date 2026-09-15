@@ -29,7 +29,22 @@ COPY apps/simulator/package.json apps/simulator/
 COPY apps/adapter/package.json apps/adapter/
 COPY apps/ui/package.json apps/ui/
 COPY apps/network/package.json apps/network/
-RUN npm ci
+# Install scripts are skipped, and the one that matters is run on its own.
+#
+# better-sqlite3 13.x ships a binding.gyp with no install script, so plain
+# `npm ci` runs an implicit `node-gyp rebuild` — which needs Python and a C++
+# toolchain that alpine does not have, and fails the whole install. It is also
+# pointless: the package bundles prebuilt binaries for linuxmusl-x64 and
+# linuxmusl-arm64, and its loader (lib/binding.js) falls back to them when no
+# build/Release addon exists. (12.x fetched a prebuild in its install script
+# instead, which is why 0.1.0's images built and 0.1.1's did not.)
+#
+# The other scripts npm would run are not needed here: protobufjs only prints
+# a version-scheme warning and fsevents is macOS-only. esbuild's postinstall
+# validates the platform binary the bundle step depends on, so it is rebuilt
+# explicitly rather than trusted to the optional-dependency install alone.
+RUN npm ci --ignore-scripts \
+ && npm rebuild esbuild
 
 # ── source: full workspace with the clean Linux node_modules ────────────────
 FROM deps AS source

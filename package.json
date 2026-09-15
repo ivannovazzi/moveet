@@ -50,8 +50,5 @@
       "biome check --write --no-errors-on-unmatched"
     ]
   },
-  "overrides": {
-    "flatted": "3.4.2"
-  },
   "packageManager": "npm@11.12.0"
 }
