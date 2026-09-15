@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { WebMercatorViewport, FlyToInterpolator } from "@deck.gl/core";
 import type { MapViewState } from "@deck.gl/core";
 import type { RoadNetwork, Position } from "@/types";
+import { networkBounds } from "@/utils/coordinates";
 import type { PanToOptions, DeckViewStateControls } from "../providers/types";
 import { fitPadding, getInsets, visibleCentre } from "../mapInsets";
 
@@ -49,15 +50,29 @@ function centreForTarget(
 ): { longitude: number; latitude: number } {
   const centre = visibleCentre(width, height, getInsets());
   if (!centre) return { longitude: lng, latitude: lat };
-  const vp = new WebMercatorViewport({ width, height, longitude: lng, latitude: lat, zoom });
+  const vp = new WebMercatorViewport({
+    width,
+    height,
+    longitude: lng,
+    latitude: lat,
+    zoom,
+  });
   const panned = vp.panByPosition([lng, lat], centre);
   if (panned.longitude == null || panned.latitude == null) return { longitude: lng, latitude: lat };
   return { longitude: panned.longitude, latitude: panned.latitude };
 }
 
+/**
+ * The camera before a network has been loaded. It carries no city: the centre
+ * comes from the network's own bounds, so hardcoding one here would pin the map
+ * to whichever city happened to ship first (it was Nairobi) and show a frame of
+ * it every time the simulator serves a different one. Null island is a
+ * deliberate placeholder — `fitted` stays false until the first fit lands and
+ * the canvas is hidden until then, so this view state is never seen.
+ */
 const DEFAULT_VIEW_STATE: MapViewState = {
-  longitude: 36.82,
-  latitude: -1.29,
+  longitude: 0,
+  latitude: 0,
   zoom: DEFAULT_ZOOM,
   pitch: 0,
   bearing: 0,
@@ -75,7 +90,12 @@ interface UseDeckViewStateOptions {
 
 export function useDeckViewState({ data, width, height }: UseDeckViewStateOptions) {
   const [viewState, setViewState] = useState<MapViewState>(DEFAULT_VIEW_STATE);
-  const initializedRef = useRef(false);
+  const [fitted, setFitted] = useState(false);
+  // The bounds the camera was last fitted to, as a comparable key. A resize
+  // must not re-fit (it would throw away the user's pan/zoom on every dock
+  // toggle), but a *different* network must — the simulator can be pointed at
+  // another city, and the old centre is then in the wrong hemisphere.
+  const fittedBoundsRef = useRef<string | null>(null);
 
   // Live view-state ref so stable callbacks (getZoom) can read the current
   // value without re-creating on every pan/zoom.
@@ -84,33 +104,23 @@ export function useDeckViewState({ data, width, height }: UseDeckViewStateOption
     viewStateRef.current = viewState;
   }, [viewState]);
 
-  // Fit to data bounds on first load
+  // Centre on the network the simulator actually served — on load, and again
+  // whenever its bounds change.
   useEffect(() => {
-    if (!data || !data.features.length || !width || !height || initializedRef.current) return;
+    if (!data || !width || !height) return;
 
-    // Compute GeoJSON bounding box manually
-    let west = Infinity,
-      south = Infinity,
-      east = -Infinity,
-      north = -Infinity;
-    for (const feature of data.features) {
-      for (const [lng, lat] of feature.geometry.coordinates) {
-        if (lng < west) west = lng;
-        if (lng > east) east = lng;
-        if (lat < south) south = lat;
-        if (lat > north) north = lat;
-      }
-    }
+    // null for an empty network or one with no valid coordinates: nothing to
+    // aim at, so leave the camera (and `fitted`) alone rather than flying to
+    // an infinite box.
+    const bounds = networkBounds(data);
+    if (!bounds) return;
 
-    // Guard against degenerate bounds (no valid coordinates)
-    if (!isFinite(west) || !isFinite(south) || !isFinite(east) || !isFinite(north)) return;
+    const key = bounds.flat().join(",");
+    if (fittedBoundsRef.current === key) return;
 
     const vp = new WebMercatorViewport({ width, height });
-    const fitted = vp.fitBounds(
-      [
-        [west, south],
-        [east, north],
-      ],
+    const fit = vp.fitBounds(
+      bounds,
       // The first fit is the whole network, so it keeps plain padding: the
       // chrome's bands would squeeze the city into whatever strip is left.
       { padding: FIT_PADDING }
@@ -118,14 +128,15 @@ export function useDeckViewState({ data, width, height }: UseDeckViewStateOption
 
     setViewState((prev) => ({
       ...prev,
-      longitude: fitted.longitude,
-      latitude: fitted.latitude,
-      zoom: fitted.zoom,
+      longitude: fit.longitude,
+      latitude: fit.latitude,
+      zoom: fit.zoom,
       // Floor the zoom-out at (fit − margin) so the network always roughly
       // fills the viewport and you can't zoom out into empty space around it.
-      minZoom: fitted.zoom - MIN_ZOOM_MARGIN,
+      minZoom: fit.zoom - MIN_ZOOM_MARGIN,
     }));
-    initializedRef.current = true;
+    fittedBoundsRef.current = key;
+    setFitted(true);
   }, [data, width, height]);
 
   const onViewStateChange = useCallback(
@@ -179,7 +190,7 @@ export function useDeckViewState({ data, width, height }: UseDeckViewStateOption
       if (!width || !height) return;
       const [[x0, y0], [x1, y1]] = bounds;
       const vp = new WebMercatorViewport({ width, height });
-      const fitted = vp.fitBounds(
+      const fit = vp.fitBounds(
         [
           [x0, y0],
           [x1, y1],
@@ -190,9 +201,9 @@ export function useDeckViewState({ data, width, height }: UseDeckViewStateOption
       );
       setViewState((prev) => ({
         ...prev,
-        longitude: fitted.longitude,
-        latitude: fitted.latitude,
-        zoom: fitted.zoom,
+        longitude: fit.longitude,
+        latitude: fit.latitude,
+        zoom: fit.zoom,
       }));
     },
     [width, height]
@@ -221,5 +232,5 @@ export function useDeckViewState({ data, width, height }: UseDeckViewStateOption
     focusOn,
   };
 
-  return { viewState, onViewStateChange, controls };
+  return { viewState, onViewStateChange, controls, fitted };
 }

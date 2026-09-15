@@ -218,7 +218,7 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
     console.error("deck.gl error:", error, layer ?? "(deck-level)");
     if (!layer) setMapError(error);
   }, []);
-  const { viewState, onViewStateChange, controls } = useDeckViewState({
+  const { viewState, onViewStateChange, controls, fitted } = useDeckViewState({
     data,
     width: size.width,
     height: size.height,
@@ -392,7 +392,20 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
               onContextMenu={handleContextMenu}
               tabIndex={0}
             >
-              <div ref={deckContainerRef} style={{ width: "100%", height: "100%" }}>
+              {/* Hidden until the camera has been fitted to the network's
+                  bounds: the placeholder view state points at null island, and
+                  a frame of open ocean (or of the previous city) before the fit
+                  lands reads as the map having loaded the wrong place. The
+                  canvas still mounts, so deck warms its WebGL context and
+                  builds its layers during the wait. */}
+              <div
+                ref={deckContainerRef}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  opacity: fitted ? 1 : 0,
+                }}
+              >
                 {size.width > 0 && size.height > 0 && (
                   <DeckGL
                     views={MAP_VIEW}

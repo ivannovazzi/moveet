@@ -82,6 +82,69 @@ describe("useDeckViewState zoom controls", () => {
   });
 });
 
+/** A second network, in another hemisphere — Manhattan-ish. */
+const OTHER_NETWORK: RoadNetwork = {
+  type: "FeatureCollection",
+  features: [
+    {
+      type: "Feature",
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [-74.02, 40.7],
+          [-73.91, 40.88],
+        ],
+      },
+      properties: {},
+    },
+  ],
+};
+
+describe("centring on the loaded network", () => {
+  it("carries no city until a network arrives", () => {
+    const { result } = setup();
+    expect(result.current.viewState.longitude).toBe(0);
+    expect(result.current.viewState.latitude).toBe(0);
+    expect(result.current.fitted).toBe(false);
+  });
+
+  it("centres on the network's bounds once it loads", () => {
+    const { result } = renderHook(() =>
+      useDeckViewState({ data: NETWORK, width: 800, height: 600 })
+    );
+
+    expect(result.current.viewState.longitude).toBeCloseTo(36.8, 1);
+    expect(result.current.viewState.latitude).toBeCloseTo(-1.25, 1);
+    expect(result.current.fitted).toBe(true);
+  });
+
+  it("re-centres when the simulator serves a different network", () => {
+    const { result, rerender } = renderHook(
+      ({ data }: { data: RoadNetwork }) => useDeckViewState({ data, width: 800, height: 600 }),
+      { initialProps: { data: NETWORK } }
+    );
+    expect(result.current.viewState.longitude!).toBeGreaterThan(0);
+
+    rerender({ data: OTHER_NETWORK });
+
+    expect(result.current.viewState.longitude).toBeCloseTo(-73.965, 1);
+    expect(result.current.viewState.latitude).toBeCloseTo(40.79, 1);
+  });
+
+  it("keeps the user's camera across a resize of the same network", () => {
+    const { result, rerender } = renderHook(
+      ({ width }: { width: number }) => useDeckViewState({ data: NETWORK, width, height: 600 }),
+      { initialProps: { width: 800 } }
+    );
+    act(() => result.current.controls.zoomIn());
+    const zoomed = result.current.viewState.zoom;
+
+    rerender({ width: 640 });
+
+    expect(result.current.viewState.zoom).toBe(zoomed);
+  });
+});
+
 describe("flying to a target the chrome is covering", () => {
   afterEach(() => resetInsets());
 
