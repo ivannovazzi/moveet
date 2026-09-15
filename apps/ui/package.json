@@ -28,7 +28,7 @@
     "@deck.gl/extensions": "^9.3.10",
     "@deck.gl/layers": "^9.3.10",
     "@deck.gl/react": "^9.3.10",
-    "@deck.gl/widgets": "^9.3.10",
+    "@deck.gl/widgets": "^9.4.0",
     "@luma.gl/core": "^9.3.6",
     "@luma.gl/webgl": "^9.3.6",
     "@moveet/shared-types": "*",
