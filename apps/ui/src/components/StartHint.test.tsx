@@ -60,9 +60,19 @@ describe("StartHint", () => {
   it("can be dismissed permanently", async () => {
     const user = userEvent.setup();
     const { container } = render(<StartHint running={false} ready onStart={noop} />);
+    // Let the entrance settle before dismissing. Without this the test takes
+    // whichever path the mount's rAF happened to reach: still `entering` (the
+    // hint closes on the spot) or already `open` (it animates away over 150ms).
+    // CI drew the slow one; pinning it here means this always covers that path.
+    await waitFor(() => expect(screen.getByRole("status")).toHaveAttribute("data-state", "open"));
 
     await user.click(screen.getByRole("button", { name: "Dismiss" }));
 
-    expect(container).toBeEmptyDOMElement();
+    // Waited for, not asserted on the spot: the hint animates away rather than
+    // popping, so it is still mounted in its `closing` state for the exit's
+    // 150ms. It vanishes instantly only when the dismissal beats the entrance's
+    // rAF, which is a race the assertion should not be built on — it held
+    // locally and lost on CI.
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
   });
 });
