@@ -6,7 +6,7 @@
 asyncapi: 3.0.0
 info:
   title: Moveet Simulator WebSocket API
-  version: 0.1.0 # x-release-please-version
+  version: 0.1.1 # x-release-please-version
   description: |-
     Real-time WebSocket surface of the Moveet vehicle fleet simulator.
 
