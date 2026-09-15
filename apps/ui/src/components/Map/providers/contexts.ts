@@ -29,4 +29,7 @@ export const MapControlsContext = createContext<MapControlsContextValue>({
   getZoom: () => 0,
   setBounds: () => {},
   focusOn: () => {},
+  setPitch: () => {},
+  getPitch: () => 0,
+  toggleTilt: () => {},
 });

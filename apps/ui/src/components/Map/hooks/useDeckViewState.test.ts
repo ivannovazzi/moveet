@@ -145,6 +145,55 @@ describe("centring on the loaded network", () => {
   });
 });
 
+describe("tilting the camera", () => {
+  it("opens flat, and leans back when the tilt is toggled", () => {
+    const { result } = setup();
+    expect(result.current.viewState.pitch).toBe(0);
+
+    act(() => result.current.controls.toggleTilt());
+
+    expect(result.current.viewState.pitch).toBe(45);
+    expect(result.current.viewState.transitionInterpolator).toBeTruthy();
+  });
+
+  it("returns to flat on the next toggle", () => {
+    const { result } = setup();
+    act(() => result.current.controls.toggleTilt());
+    act(() => result.current.controls.toggleTilt());
+
+    expect(result.current.viewState.pitch).toBe(0);
+  });
+
+  it("returns to flat from a pitch a drag left behind", () => {
+    const { result } = setup();
+    // A rotate drag reports its own view state — the toggle reads that, not a
+    // remembered flag, so one press still flattens the map.
+    act(() =>
+      result.current.onViewStateChange({
+        viewState: { ...result.current.viewState, pitch: 17 },
+      })
+    );
+    act(() => result.current.controls.toggleTilt());
+
+    expect(result.current.viewState.pitch).toBe(0);
+  });
+
+  it("clamps an explicit pitch to the horizon the drag also stops at", () => {
+    const { result } = setup();
+
+    act(() => result.current.controls.setPitch(89));
+    expect(result.current.viewState.pitch).toBe(60);
+
+    act(() => result.current.controls.setPitch(-10));
+    expect(result.current.viewState.pitch).toBe(0);
+  });
+
+  it("caps what a rotate drag can reach", () => {
+    const { result } = setup();
+    expect(result.current.viewState.maxPitch).toBe(60);
+  });
+});
+
 describe("flying to a target the chrome is covering", () => {
   afterEach(() => resetInsets());
 

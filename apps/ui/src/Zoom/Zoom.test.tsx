@@ -34,6 +34,9 @@ const controls = {
   getZoom: vi.fn(() => 12),
   setBounds: vi.fn(),
   focusOn: vi.fn(),
+  setPitch: vi.fn(),
+  getPitch: vi.fn(() => 0),
+  toggleTilt: vi.fn(),
 };
 
 const previousControls = controlsRef;
@@ -60,7 +63,7 @@ afterEach(() => {
 const key = (name: string) => screen.getByRole("button", { name });
 
 describe("Zoom (map controls cluster)", () => {
-  it("is one cluster of three keys: fit, in, out", () => {
+  it("is one cluster of four keys: fit, tilt, in, out", () => {
     renderCluster();
 
     const cluster = screen.getByRole("group", { name: "Map controls" });
@@ -68,7 +71,7 @@ describe("Zoom (map controls cluster)", () => {
       b.getAttribute("aria-label")
     );
 
-    expect(names).toEqual(["Fit network", "Zoom in", "Zoom out"]);
+    expect(names).toEqual(["Fit network", "Tilt map", "Zoom in", "Zoom out"]);
   });
 
   it("does not place itself — the shell's left column does", () => {
@@ -97,6 +100,7 @@ describe("Zoom (map controls cluster)", () => {
     renderCluster();
 
     expect(key("Fit network")).toHaveAttribute("title", "Fit network (0)");
+    expect(key("Tilt map")).toHaveAttribute("title", "Tilt map (T)");
     expect(key("Zoom in")).toHaveAttribute("title", "Zoom in (+)");
     expect(key("Zoom out")).toHaveAttribute("title", "Zoom out (−)");
   });
@@ -109,6 +113,14 @@ describe("Zoom (map controls cluster)", () => {
 
     expect(controls.zoomIn).toHaveBeenCalledOnce();
     expect(controls.zoomOut).toHaveBeenCalledOnce();
+  });
+
+  it("leans the camera back, and flat again, from the tilt key", () => {
+    renderCluster();
+
+    fireEvent.click(key("Tilt map"));
+
+    expect(controls.toggleTilt).toHaveBeenCalledOnce();
   });
 
   it("fits the camera to the whole network's bounds", () => {

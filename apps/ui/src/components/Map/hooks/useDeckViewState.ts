@@ -29,6 +29,17 @@ const MIN_ZOOM_MARGIN = 1;
 const FIT_PADDING = 40;
 
 /**
+ * How far the camera may lean back (degrees). deck.gl's own ceiling is 60; past
+ * roughly that the horizon enters the frame and the road network stretches into
+ * a haze of near-parallel lines, which costs a lot of geometry to draw and says
+ * nothing about where the vehicles are.
+ */
+const MAX_PITCH = 60;
+
+/** The pitch the tilt key and the `t` shortcut lean to from flat. */
+const TILT_PITCH = 45;
+
+/**
  * The camera centre that puts [lng, lat] in the middle of the part of the map
  * the chrome is *not* covering (see `mapInsets`).
  *
@@ -80,6 +91,9 @@ const DEFAULT_VIEW_STATE: MapViewState = {
   // its fitted bounds (see the fit-to-bounds effect).
   minZoom: 8,
   maxZoom: 20,
+  // The controller clamps a rotate drag to this, so a gesture cannot lean past
+  // the horizon even though it is free to lean.
+  maxPitch: MAX_PITCH,
 };
 
 interface UseDeckViewStateOptions {
@@ -185,6 +199,31 @@ export function useDeckViewState({ data, width, height }: UseDeckViewStateOption
 
   const getZoom = useCallback(() => viewStateRef.current.zoom ?? DEFAULT_ZOOM, []);
 
+  /**
+   * Lean the camera to an absolute pitch, clamped to what the drag gesture is
+   * allowed to reach so the key and the drag cannot disagree about the ceiling.
+   */
+  const setPitch = useCallback((pitch: number) => {
+    setViewState((prev) => ({
+      ...prev,
+      pitch: Math.min(Math.max(pitch, 0), MAX_PITCH),
+      transitionDuration: 200,
+      transitionInterpolator: new FlyToInterpolator(),
+    }));
+  }, []);
+
+  const getPitch = useCallback(() => viewStateRef.current.pitch ?? 0, []);
+
+  /**
+   * The tilt key and the `t` shortcut: flat ⇄ leaning. A toggle rather than a
+   * stepper because the tilt is a way of *looking* at the map (flyovers,
+   * stacked interchanges) rather than a value to dial in — and any pitch a drag
+   * left behind counts as "leaning", so one press always gets you back to flat.
+   */
+  const toggleTilt = useCallback(() => {
+    setPitch(getPitch() > 0 ? 0 : TILT_PITCH);
+  }, [setPitch, getPitch]);
+
   const setBounds = useCallback(
     (bounds: [Position, Position]) => {
       if (!width || !height) return;
@@ -230,6 +269,9 @@ export function useDeckViewState({ data, width, height }: UseDeckViewStateOption
     getZoom,
     setBounds,
     focusOn,
+    setPitch,
+    getPitch,
+    toggleTilt,
   };
 
   return { viewState, onViewStateChange, controls, fitted };

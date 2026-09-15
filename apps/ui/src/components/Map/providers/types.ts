@@ -24,6 +24,12 @@ export interface MapControlsContextValue {
   getZoom: () => number;
   setBounds: (bounds: [Position, Position]) => void;
   focusOn: (lng: number, lat: number, zoom: number, options: PanToOptions) => void;
+  /** Lean the camera to an absolute pitch in degrees (clamped to the max pitch). */
+  setPitch: (pitch: number) => void;
+  /** Current pitch in degrees — 0 while the map is flat. */
+  getPitch: () => number;
+  /** Flat ⇄ leaning, for the cluster's tilt key and the `t` shortcut. */
+  toggleTilt: () => void;
 }
 
 export interface OverlayContextValue {
