@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/ivannovazzi/moveet/compare/v0.1.1...v0.1.2) (2026-09-15)
+
+
+### Bug Fixes
+
+* publish images again: drop the stale flatted override, skip node-gyp in Docker ([#308](https://github.com/ivannovazzi/moveet/issues/308)) ([baa8cc4](https://github.com/ivannovazzi/moveet/commit/baa8cc4e7679237dbb56f5cd8c5604fdfe1a3f08))
+
 ## [0.1.1](https://github.com/ivannovazzi/moveet/compare/v0.1.0...v0.1.1) (2026-09-15)
 
 
