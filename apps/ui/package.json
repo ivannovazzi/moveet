@@ -29,7 +29,7 @@
     "@deck.gl/layers": "^9.3.10",
     "@deck.gl/react": "^9.3.10",
     "@deck.gl/widgets": "^9.3.10",
-    "@luma.gl/core": "^9.3.6",
+    "@luma.gl/core": "^9.4.1",
     "@luma.gl/webgl": "^9.3.6",
     "@moveet/shared-types": "*",
     "@tailwindcss/vite": "^4.3.3",
