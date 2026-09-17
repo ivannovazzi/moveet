@@ -309,6 +309,40 @@ const envObjectSchema = z.object({
 
   /** Optional profile JSON file (from `GET /speed-profiles/export`) merged in at startup. */
   SPEED_PROFILE_SEED_FILE: z.string().default(""),
+
+  // ─── Weather (modules/weather) ─────────────────────────────────────
+
+  /**
+   * Poll Open-Meteo for live weather at the network's location and apply a
+   * global speed factor to routing cost, `estimateTo`, and vehicle movement.
+   * Opt-in (default false): with this off, `WeatherManager` still exists (so
+   * the manual-override API and WS channel work for scenarios/tests) but never
+   * calls `fetch`, and the factor stays 1 (byte-for-byte unchanged routing).
+   */
+  WEATHER_ENABLED: z
+    .enum(["true", "false", "1", "0", ""])
+    .default("false")
+    .transform((v) => v === "true" || v === "1"),
+
+  /** How often (ms) to poll Open-Meteo for a new reading. */
+  WEATHER_POLL_INTERVAL_MS: z.coerce.number().int().min(1000).default(600_000),
+
+  /** Timeout (ms) for a single Open-Meteo request; the last value is kept on abort/failure. */
+  WEATHER_FETCH_TIMEOUT_MS: z.coerce.number().int().min(1).default(5000),
+
+  /**
+   * Latitude/longitude to poll. Optional overrides — when unset, `index.ts`
+   * uses the loaded network's bounding-box centre instead (resolved there,
+   * not in this schema, since it depends on the built graph).
+   */
+  WEATHER_LAT: z.preprocess(
+    (v) => (v === "" || v === undefined ? undefined : v),
+    z.coerce.number().min(-90).max(90).optional()
+  ),
+  WEATHER_LON: z.preprocess(
+    (v) => (v === "" || v === undefined ? undefined : v),
+    z.coerce.number().min(-180).max(180).optional()
+  ),
 });
 
 export const envSchema = envObjectSchema
@@ -391,6 +425,11 @@ function buildConfig(env: EnvConfig) {
     speedProfileMaxSpeedRatio: env.SPEED_PROFILE_MAX_SPEED_RATIO,
     speedProfilePublishIntervalMs: env.SPEED_PROFILE_PUBLISH_INTERVAL_MS,
     speedProfileSeedFile: env.SPEED_PROFILE_SEED_FILE,
+    weatherEnabled: env.WEATHER_ENABLED,
+    weatherPollIntervalMs: env.WEATHER_POLL_INTERVAL_MS,
+    weatherFetchTimeoutMs: env.WEATHER_FETCH_TIMEOUT_MS,
+    weatherLat: env.WEATHER_LAT,
+    weatherLon: env.WEATHER_LON,
   } as const;
 }
 

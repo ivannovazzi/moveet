@@ -67,6 +67,7 @@ function createMockContext(withStateStore = false): RouteContext {
       start: vi.fn().mockReturnValue("job-123"),
       getStatus: vi.fn().mockReturnValue({ state: "idle" }),
     } as unknown as RouteContext["generationManager"],
+    weatherManager: {} as RouteContext["weatherManager"],
   };
 
   if (withStateStore) {

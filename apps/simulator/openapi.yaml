@@ -48,6 +48,8 @@ tags:
     description: Simulation state persistence — save, restore, snapshots
   - name: Speed Profiles
     description: Learned per-edge speed profiles by time bucket (only when SPEED_PROFILES_ENABLED)
+  - name: Weather
+    description: Global weather speed factor — live Open-Meteo reading or a manual override
 
 paths:
   # ─── Simulation ──────────────────────────────────────────────────────
@@ -2543,6 +2545,65 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  # ─── Weather ────────────────────────────────────────────────────────
+  /weather:
+    get:
+      operationId: getWeather
+      summary: Get the current weather state
+      description: >
+        The global routing/movement speed factor currently in effect — a
+        manual override if one is set, otherwise the live Open-Meteo reading
+        (or the clear/1.0 default when WEATHER_ENABLED is false or before the
+        first poll).
+      tags: [Weather]
+      responses:
+        "200":
+          description: Current weather state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeatherDTO"
+    post:
+      operationId: setWeatherOverride
+      summary: Set a manual weather override
+      description: >
+        Pins the condition and/or speed factor routing/movement use, ignoring
+        the live reading, until DELETE /weather clears it. For scenarios and
+        tests. Providing only `condition` uses that condition's canonical
+        factor.
+      tags: [Weather]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WeatherOverrideRequest"
+      responses:
+        "200":
+          description: Override applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeatherDTO"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+    delete:
+      operationId: clearWeatherOverride
+      summary: Clear the manual weather override
+      description: Reverts to the live reading (or the clear/1.0 default when disabled).
+      tags: [Weather]
+      responses:
+        "200":
+          description: Override cleared; current (live) weather state returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeatherDTO"
+
 components:
   schemas:
     # ─── Core types ──────────────────────────────────────────────────
@@ -3173,6 +3234,43 @@ components:
           minimum: 0
           maximum: 1
 
+    # ─── Weather ──────────────────────────────────────────────────────
+    WeatherCondition:
+      type: string
+      enum: [clear, light_rain, rain, snow, ice, fog, wind]
+
+    WeatherDTO:
+      type: object
+      required: [condition, speedFactor, source, observedAt]
+      properties:
+        condition:
+          $ref: "#/components/schemas/WeatherCondition"
+        speedFactor:
+          type: number
+          description: Global routing/movement speed multiplier, (0, 1]; 1 = no effect.
+          exclusiveMinimum: true
+          minimum: 0
+          maximum: 1
+        source:
+          type: string
+          enum: [live, override]
+        observedAt:
+          type: number
+          nullable: true
+          description: Epoch ms of the underlying live reading, or null before the first poll.
+
+    WeatherOverrideRequest:
+      type: object
+      description: At least one of `condition`/`factor` must be provided.
+      properties:
+        condition:
+          $ref: "#/components/schemas/WeatherCondition"
+        factor:
+          type: number
+          exclusiveMinimum: true
+          minimum: 0
+          maximum: 1
+
     # ─── Recording & Replay ──────────────────────────────────────────
     RecordingHeader:
       type: object
@@ -3753,7 +3851,7 @@ components:
                 properties:
                   type:
                     type: string
-                    enum: [spawn_vehicles, create_incident, dispatch, set_traffic_profile, clear_incidents, set_options]
+                    enum: [spawn_vehicles, create_incident, dispatch, set_traffic_profile, clear_incidents, set_options, create_job, set_weather]
 
     ScenarioSummary:
       type: object

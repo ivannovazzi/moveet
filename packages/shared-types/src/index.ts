@@ -337,6 +337,26 @@ export interface IncidentDTO {
   position: Position;
 }
 
+// ─── Weather (fleetsim-all-1ajn.5) ───────────────────────────────────
+
+/**
+ * Dominant weather condition driving the global routing/movement speed
+ * factor. `wind` is reported only when no precipitation/fog condition applies
+ * but wind alone is strong enough to matter (see `modules/weather/conditions`
+ * in the simulator).
+ */
+export type WeatherCondition = "clear" | "light_rain" | "rain" | "snow" | "ice" | "fog" | "wind";
+
+export interface WeatherDTO {
+  condition: WeatherCondition;
+  /** Global routing/movement speed multiplier, `(0, 1]`; 1 = no effect. */
+  speedFactor: number;
+  /** "override": set via `POST /weather`. "live": from the Open-Meteo poll (or the default, clear/1, before the first poll / when disabled). */
+  source: "live" | "override";
+  /** Epoch ms of the underlying live reading, or null before the first poll. Unaffected by an override. */
+  observedAt: number | null;
+}
+
 // ─── Analytics ────────────────────────────────────────────────────
 
 export interface VehicleStats {

@@ -10,6 +10,7 @@ import type { GeoFenceManager } from "../modules/GeoFenceManager";
 import type { ScenarioManager } from "../modules/scenario";
 import type { StateStore } from "../modules/StateStore";
 import type { GenerationManager } from "../modules/GenerationManager";
+import type { WeatherManager } from "../modules/weather/WeatherManager";
 import type { VehicleDTO, RecordingMetadata } from "../types";
 import type {
   GeneratedRecording,
@@ -39,6 +40,8 @@ export interface EventWiringContext {
   generationManager: GenerationManager;
   /** Optional — only present when PERSISTENCE_ENABLED=true */
   stateStore?: StateStore;
+  /** Optional so existing wiring/tests are unaffected; index.ts always provides it in production. */
+  weatherManager?: WeatherManager;
 }
 
 /**
@@ -72,6 +75,7 @@ export function wireEvents(ctx: EventWiringContext): {
     scenarioManager,
     generationManager,
     stateStore,
+    weatherManager,
   } = ctx;
 
   // ─── Vehicle updates (batched by the broadcaster) ───────────────────
@@ -139,6 +143,13 @@ export function wireEvents(ctx: EventWiringContext): {
   // Device fault config changed (a runtime edit through /faults) — push it so an
   // operator UI does not have to poll to learn which faults are armed.
   vehicleManager.faults.on("faults:config", (data) => broadcaster.broadcast("faults:config", data));
+  // Weather changed (live poll, or a manual override set/cleared) — see
+  // fleetsim-all-1ajn.5. Applying the factor to the network happens in
+  // index.ts (same pattern as incidents, whose network-facing wiring also
+  // lives outside eventWiring); this only broadcasts/records it, mirroring
+  // "heatzones" and "incident:created" above.
+  weatherManager?.on("weather:changed", (data) => broadcaster.broadcast("weather", data));
+  weatherManager?.on("weather:changed", (data) => recordingManager.recordEvent("weather", data));
 
   // ─── Traffic congestion snapshot + geofence checks every 2 seconds ──
   const trafficBroadcastInterval = setInterval(() => {

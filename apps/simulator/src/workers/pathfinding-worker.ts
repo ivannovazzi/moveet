@@ -10,6 +10,8 @@
  *   Response: { type: 'result',    id: number, route: { edgeIds: string[], distance: number } | null }
  *   Table:    { type: 'speedProfile', indices: Int32Array, speeds: Float32Array }  (no response;
  *             replaces the learned-speed table used by every later request, see applySpeedOverrides)
+ *   Weather:  { type: 'weather', factor: number }  (no response; replaces the global weather speed
+ *             factor used by every later request, see applyWeatherFactor — fleetsim-all-1ajn.5)
  *
  * This worker no longer hand-duplicates the A* cost function, the binary heap or
  * the OSM-tag parsers: it imports them from the same canonical modules the
@@ -45,6 +47,7 @@ import {
   computeBaseTravelTime,
   applyDynamicCost,
   clampLearnedSpeed,
+  clampWeatherFactor,
   landmarkLowerBoundCost,
   mergeNodeControl,
   nodeDelayHours,
@@ -198,6 +201,13 @@ let _turnBans = new Map<string, Set<string>>();
 let _driveSide: DriveSide = DEFAULT_DRIVE_SIDE;
 /** Learned speed profile ratio, or null when profiles are disabled (set by buildGraph). */
 let _speedProfileRatio: number | null = null;
+/**
+ * Global weather speed factor (fleetsim-all-1ajn.5), `(0, 1]`, 1 = no effect —
+ * mirrors `PathfindingEngine.weatherFactor`. Set by a `weather` message
+ * ({@link applyWeatherFactor}), persists across requests like the learned-speed
+ * table (unlike incidents, which arrive per request).
+ */
+let _weatherFactor = 1;
 
 // Coordinate snapping to deduplicate near-identical intersection nodes
 const COORD_SNAP_EPSILON = 1e-7;
@@ -573,9 +583,9 @@ function dynamicEdgeCost(
   if (edge.smoothnessFactor === 0) return -1;
 
   // Static base cost and the node-control delay were both precomputed at
-  // graph-build time; only the dynamic incident term is derived here in
-  // the hot relaxation loop.
-  return applyDynamicCost(edge.baseTravelTime, incidentFactor, edge.nodeDelayH);
+  // graph-build time; only the dynamic incident/weather terms are derived
+  // here in the hot relaxation loop.
+  return applyDynamicCost(edge.baseTravelTime, incidentFactor, edge.nodeDelayH, _weatherFactor);
 }
 
 /**
@@ -756,6 +766,18 @@ function applySpeedOverrides(
   entry.overridden = Int32Array.from(applied);
 }
 
+/**
+ * Replaces the global weather speed factor — mirrors
+ * `PathfindingEngine.setWeatherFactor`: clamped to `(0, 1]` so it can only
+ * ever slow the network down, never speed it up (see the admissibility note
+ * in `pathfinding/cost.ts`). Unlike {@link applySpeedOverrides} this needs no
+ * per-edge bookkeeping since it is a single global multiplier read directly by
+ * {@link dynamicEdgeCost}.
+ */
+function applyWeatherFactor(factor: number): void {
+  _weatherFactor = clampWeatherFactor(factor);
+}
+
 // ---------------------------------------------------------------------------
 // Worker bootstrap
 // ---------------------------------------------------------------------------
@@ -782,9 +804,14 @@ if (parentPort) {
       restrictedHighways?: string[];
       indices?: Int32Array;
       speeds?: Float32Array;
+      factor?: number;
     }) => {
       if (msg.type === "speedProfile") {
         applySpeedOverrides(nodes, { indices: msg.indices!, speeds: msg.speeds! });
+        return;
+      }
+      if (msg.type === "weather") {
+        applyWeatherFactor(msg.factor ?? 1);
         return;
       }
       if (msg.type === "findRoute") {
@@ -813,6 +840,7 @@ export {
   buildGraph,
   findRoute,
   applySpeedOverrides,
+  applyWeatherFactor,
   calculateDistance,
   computeBaseTravelTime,
   applyDynamicCost,

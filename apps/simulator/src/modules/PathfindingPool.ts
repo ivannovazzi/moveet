@@ -237,6 +237,20 @@ export class PathfindingPool {
   }
 
   /**
+   * Sends the global weather speed factor to every worker (fleetsim-all-1ajn.5).
+   * Persists like the learned-speed table above (not per-request like
+   * incidents): weather changes rarely (poll interval, or a manual override)
+   * and applies to every edge, so every request after this uses it until
+   * replaced. `RoadNetwork` replays the last factor when the pool is lazily
+   * created after weather is already set.
+   */
+  public setWeatherFactor(factor: number): void {
+    for (const worker of this.workers) {
+      worker.postMessage({ type: "weather", factor });
+    }
+  }
+
+  /**
    * Number of requests currently awaiting a worker result.
    * Exposed for observability and shutdown draining.
    */

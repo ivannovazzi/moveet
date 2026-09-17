@@ -49,6 +49,7 @@ function createMockContext(): RouteContext {
     simulationController: {} as RouteContext["simulationController"],
     scenarioManager: {} as RouteContext["scenarioManager"],
     generationManager: {} as RouteContext["generationManager"],
+    weatherManager: {} as RouteContext["weatherManager"],
   };
 }
 

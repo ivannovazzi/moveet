@@ -102,6 +102,13 @@ export class RoadNetwork extends EventEmitter {
   private speedProfileRatio: number | null;
   /** Last applied learned-speed table, replayed to the pool when it starts. */
   private speedOverrides: SpeedOverrideTable | null = null;
+  /**
+   * Last set global weather speed factor (fleetsim-all-1ajn.5), replayed to the
+   * pool when it lazily starts — same reason `speedOverrides` is: weather may
+   * already be non-default by the time the first async route request creates
+   * the pool.
+   */
+  private weatherFactor = 1;
   /** Called before every route request so a profile can follow the sim clock. */
   private routeRequestHook: (() => void) | null = null;
 
@@ -359,6 +366,25 @@ export class RoadNetwork extends EventEmitter {
     this.pathfinding.clearIncidentEdges();
   }
 
+  /**
+   * Sets the global weather speed factor (clamped to `(0, 1]`) on the
+   * main-thread engine and every pool worker, and remembers it so a
+   * lazily-created pool starts in sync. Read by routing cost
+   * ({@link findRoute}/{@link findRouteAsync}), {@link RouteManager.estimateTo}
+   * and {@link RouteManager.updateSpeed} via {@link getWeatherFactor}, so ETAs
+   * and simulated movement stay consistent with each other.
+   */
+  public setWeatherFactor(factor: number): void {
+    this.pathfinding.setWeatherFactor(factor);
+    this.weatherFactor = this.pathfinding.getWeatherFactor();
+    this.pathfindingPool?.setWeatherFactor(this.weatherFactor);
+  }
+
+  /** Current global weather speed factor (1 = no effect / disabled). */
+  public getWeatherFactor(): number {
+    return this.pathfinding.getWeatherFactor();
+  }
+
   /** Return hit/miss statistics for the route cache. */
   public routeCacheStats(): CacheStats {
     return this.pathfinding.routeCacheStats();
@@ -407,6 +433,7 @@ export class RoadNetwork extends EventEmitter {
         speedProfileRatio: this.speedProfileRatio,
       });
       if (this.speedOverrides) this.pathfindingPool.setSpeedOverrides(this.speedOverrides);
+      if (this.weatherFactor !== 1) this.pathfindingPool.setWeatherFactor(this.weatherFactor);
     }
 
     // Turn restrictions are NOT sent per request: each worker resolves them

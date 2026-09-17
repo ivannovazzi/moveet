@@ -98,6 +98,36 @@ describe("envSchema / parseEnv", () => {
     expect(() => parseEnv(validEnv({ SPEED_PROFILE_MIN_SAMPLES: "0" }))).toThrow();
   });
 
+  it("parses weather settings, disabled by default with no lat/lon override", () => {
+    const d = parseEnv({});
+    expect(d.WEATHER_ENABLED).toBe(false);
+    expect(d.WEATHER_POLL_INTERVAL_MS).toBe(600_000);
+    expect(d.WEATHER_FETCH_TIMEOUT_MS).toBe(5000);
+    expect(d.WEATHER_LAT).toBeUndefined();
+    expect(d.WEATHER_LON).toBeUndefined();
+
+    const c = parseEnv(
+      validEnv({
+        WEATHER_ENABLED: "true",
+        WEATHER_POLL_INTERVAL_MS: "120000",
+        WEATHER_FETCH_TIMEOUT_MS: "2000",
+        WEATHER_LAT: "-1.29",
+        WEATHER_LON: "36.82",
+      })
+    );
+    expect(c.WEATHER_ENABLED).toBe(true);
+    expect(c.WEATHER_POLL_INTERVAL_MS).toBe(120_000);
+    expect(c.WEATHER_FETCH_TIMEOUT_MS).toBe(2000);
+    expect(c.WEATHER_LAT).toBe(-1.29);
+    expect(c.WEATHER_LON).toBe(36.82);
+  });
+
+  it("rejects invalid weather settings", () => {
+    expect(() => parseEnv(validEnv({ WEATHER_POLL_INTERVAL_MS: "10" }))).toThrow(); // below 1000ms floor
+    expect(() => parseEnv(validEnv({ WEATHER_LAT: "500" }))).toThrow(); // out of [-90, 90]
+    expect(() => parseEnv(validEnv({ WEATHER_LON: "-500" }))).toThrow(); // out of [-180, 180]
+  });
+
   it("applies defaults when env vars are missing", () => {
     const cfg = parseEnv({});
     expect(cfg.PORT).toBe(5010);

@@ -6,6 +6,7 @@ import type { VehicleManager } from "../modules/VehicleManager";
 import type { WebSocketBroadcaster } from "../modules/WebSocketBroadcaster";
 import type { PersistenceManager } from "../modules/PersistenceManager";
 import type { RecordingManager } from "../modules/RecordingManager";
+import type { WeatherManager } from "../modules/weather/WeatherManager";
 import logger from "../utils/logger";
 
 /** Maximum time to wait for in-flight work (adapter sync, pathfinding) to settle. */
@@ -26,6 +27,7 @@ export interface GracefulShutdownContext {
   flushRecordingBatch?: () => void;
   recordingManager?: RecordingManager;
   persistenceManager?: PersistenceManager;
+  weatherManager?: WeatherManager;
 }
 
 /**
@@ -45,6 +47,7 @@ export function registerGracefulShutdown(ctx: GracefulShutdownContext): void {
     flushRecordingBatch,
     recordingManager,
     persistenceManager,
+    weatherManager,
   } = ctx;
 
   // Re-entrancy latch: shutdown is now a multi-second async sequence, so a
@@ -63,6 +66,7 @@ export function registerGracefulShutdown(ctx: GracefulShutdownContext): void {
     broadcaster.stop();
     clearInterval(trafficBroadcastInterval);
     clearInterval(analyticsBroadcastInterval);
+    weatherManager?.stop();
     logger.info("WebSocket broadcaster stopped");
 
     // Drain the recording pipeline before the process exits: stop the periodic

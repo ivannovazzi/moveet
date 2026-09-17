@@ -10,6 +10,7 @@ import {
   setTrafficProfileActionSchema,
   clearIncidentsActionSchema,
   setOptionsActionSchema,
+  setWeatherActionSchema,
   type Scenario,
 } from "../modules/scenario/types";
 
@@ -583,6 +584,49 @@ describe("setOptionsActionSchema", () => {
   });
 });
 
+// ─── Action: set_weather (fleetsim-all-1ajn.5) ──────────────────────
+
+describe("setWeatherActionSchema", () => {
+  it("accepts a condition only", () => {
+    expect(
+      setWeatherActionSchema.safeParse({ type: "set_weather", condition: "rain" }).success
+    ).toBe(true);
+  });
+
+  it("accepts a factor only", () => {
+    expect(setWeatherActionSchema.safeParse({ type: "set_weather", factor: 0.5 }).success).toBe(
+      true
+    );
+  });
+
+  it("accepts both condition and factor", () => {
+    expect(
+      setWeatherActionSchema.safeParse({ type: "set_weather", condition: "fog", factor: 0.8 })
+        .success
+    ).toBe(true);
+  });
+
+  it("rejects an unknown condition", () => {
+    expect(
+      setWeatherActionSchema.safeParse({ type: "set_weather", condition: "hurricane" }).success
+    ).toBe(false);
+  });
+
+  it("rejects a factor outside (0, 1]", () => {
+    expect(setWeatherActionSchema.safeParse({ type: "set_weather", factor: 0 }).success).toBe(
+      false
+    );
+    expect(setWeatherActionSchema.safeParse({ type: "set_weather", factor: 1.2 }).success).toBe(
+      false
+    );
+  });
+
+  it("scenarioEventSchema rejects a set_weather action with neither condition nor factor", () => {
+    const result = scenarioEventSchema.safeParse({ at: 0, action: { type: "set_weather" } });
+    expect(result.success).toBe(false);
+  });
+});
+
 // ─── Discriminated union (scenarioActionSchema) ─────────────────────
 
 describe("scenarioActionSchema", () => {
@@ -614,6 +658,7 @@ describe("scenarioActionSchema", () => {
       { type: "set_traffic_profile", name: "peak", timeRanges: [] },
       { type: "clear_incidents" },
       { type: "set_options", options: { minSpeed: 10 } },
+      { type: "set_weather", condition: "rain" },
     ];
 
     for (const action of actions) {

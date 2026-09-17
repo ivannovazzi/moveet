@@ -7,6 +7,8 @@ import {
   computeNodeDelayS,
   nodeDelayHours,
   mergeNodeControl,
+  clampWeatherFactor,
+  MIN_WEATHER_FACTOR,
   type NodeControl,
 } from "../../modules/pathfinding/cost";
 import { PathNodeHeap } from "../../modules/pathfinding/heap";
@@ -60,6 +62,43 @@ describe("pathfinding/cost (shared module)", () => {
 
   it("ignores an incident factor of exactly 1 (no slowdown)", () => {
     expect(sharedDynamic(0.02, 1, 0)).toBe(0.02);
+  });
+
+  // ─── Weather (fleetsim-all-1ajn.5) ────────────────────────────────
+
+  it("applyDynamicCost divides by a weather factor < 1 when no incident applies", () => {
+    const base = 0.02;
+    expect(sharedDynamic(base, undefined, 0, 0.5)).toBeCloseTo(base / 0.5, 12);
+  });
+
+  it("ignores a weather factor of exactly 1 or undefined", () => {
+    expect(sharedDynamic(0.02, undefined, 0, 1)).toBe(0.02);
+    expect(sharedDynamic(0.02, undefined, 0, undefined)).toBe(0.02);
+  });
+
+  it("composes weather and incident factors multiplicatively", () => {
+    const base = 0.02;
+    // incident 0.5 x weather 0.8 = combined 0.4
+    expect(sharedDynamic(base, 0.5, 0, 0.8)).toBeCloseTo(base / (0.5 * 0.8), 12);
+  });
+
+  it("still adds the node delay on top of a weather-scaled travel time", () => {
+    const base = 0.02;
+    const delayH = 10 / 3600;
+    expect(sharedDynamic(base, undefined, delayH, 0.5)).toBeCloseTo(base / 0.5 + delayH, 12);
+  });
+
+  it("clampWeatherFactor keeps the factor in (0, 1]", () => {
+    expect(clampWeatherFactor(1)).toBe(1);
+    expect(clampWeatherFactor(0.7)).toBe(0.7);
+    // Never a discount: anything >= 1 (or non-finite) collapses to 1 (no effect).
+    expect(clampWeatherFactor(1.5)).toBe(1);
+    expect(clampWeatherFactor(Infinity)).toBe(1);
+    expect(clampWeatherFactor(NaN)).toBe(1);
+    // Never at/below 0 (would price an edge at infinity): floored.
+    expect(clampWeatherFactor(0)).toBe(MIN_WEATHER_FACTOR);
+    expect(clampWeatherFactor(-1)).toBe(MIN_WEATHER_FACTOR);
+    expect(clampWeatherFactor(0.01)).toBe(MIN_WEATHER_FACTOR);
   });
 });
 

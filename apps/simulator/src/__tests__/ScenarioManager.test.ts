@@ -4,6 +4,7 @@ import type { Scenario } from "../modules/scenario/types";
 import type { VehicleManager } from "../modules/VehicleManager";
 import type { IncidentManager } from "../modules/IncidentManager";
 import type { SimulationController } from "../modules/SimulationController";
+import type { WeatherManager } from "../modules/weather/WeatherManager";
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
@@ -640,6 +641,42 @@ describe("ScenarioManager", () => {
         maxSpeed: 100,
         minSpeed: 20,
       });
+    });
+
+    it("should call weatherManager.setOverride for set_weather", () => {
+      const weatherManager = { setOverride: vi.fn() } as unknown as WeatherManager;
+      const withWeather = new ScenarioManager(
+        mocks.vehicleManager,
+        mocks.incidentManager,
+        mocks.simulationController,
+        undefined,
+        weatherManager
+      );
+      withWeather.loadScenario(
+        makeScenario({
+          duration: 10,
+          events: [makeEvent(0, { type: "set_weather", condition: "snow", factor: 0.4 })],
+        })
+      );
+      withWeather.start();
+      vi.advanceTimersByTime(0);
+
+      expect(weatherManager.setOverride).toHaveBeenCalledWith({ condition: "snow", factor: 0.4 });
+    });
+
+    it("should throw when set_weather runs without a wired WeatherManager", () => {
+      manager.loadScenario(
+        makeScenario({
+          duration: 10,
+          events: [makeEvent(0, { type: "set_weather", factor: 0.5 })],
+        })
+      );
+      manager.start();
+      const errors: unknown[] = [];
+      manager.on("scenario:event-error", (e) => errors.push(e));
+      vi.advanceTimersByTime(0);
+
+      expect(errors).toHaveLength(1);
     });
   });
 

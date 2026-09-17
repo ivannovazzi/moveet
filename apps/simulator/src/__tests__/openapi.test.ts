@@ -244,6 +244,9 @@ describe("OpenAPI specification", () => {
         "GeoFenceType",
         "GeoFence",
         "CreateGeoFenceRequest",
+        "WeatherCondition",
+        "WeatherDTO",
+        "WeatherOverrideRequest",
       ];
 
       for (const name of expected) {

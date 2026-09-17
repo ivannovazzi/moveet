@@ -34,10 +34,12 @@ import {
   createStateRoutes,
   createMetricsRoutes,
   createSpeedProfileRoutes,
+  createWeatherRoutes,
 } from "./routes";
 import { SPEED_PROFILE_IMPORT_LIMIT, SPEED_PROFILE_IMPORT_PATH } from "./routes/speedProfiles";
 import { SpeedProfileManager } from "./modules/speedprofiles/SpeedProfileManager";
 import type { SpeedProfileFile } from "./modules/speedprofiles/SpeedProfileStore";
+import { WeatherManager } from "./modules/weather/WeatherManager";
 import { createGeofenceRoutes } from "./routes/geofences";
 import type { RouteContext } from "./routes";
 import { metricsMiddleware } from "./middleware/metrics";
@@ -77,13 +79,36 @@ const recordingManager = new RecordingManager();
 const generationManager = new GenerationManager();
 const geoFenceManager = new GeoFenceManager();
 const jobManager = new JobManager(vehicleManager);
+
+// ─── Weather (fleetsim-all-1ajn.5) ───────────────────────────────────
+
+// Always constructed (state + manual override work regardless), but its live
+// poll only runs when WEATHER_ENABLED — see WeatherManager's doc comment.
+// Location defaults to the loaded network's bounding-box centre; WEATHER_LAT/
+// WEATHER_LON override either coordinate independently.
+const weatherBbox = network.getBoundingBox();
+const weatherManager = new WeatherManager({
+  enabled: config.weatherEnabled,
+  pollIntervalMs: config.weatherPollIntervalMs,
+  fetchTimeoutMs: config.weatherFetchTimeoutMs,
+  lat: config.weatherLat ?? (weatherBbox.minLat + weatherBbox.maxLat) / 2,
+  lon: config.weatherLon ?? (weatherBbox.minLon + weatherBbox.maxLon) / 2,
+});
+// Apply every live/override change to routing cost, estimateTo and movement
+// (all read RoadNetwork.getWeatherFactor — see RoadNetwork.setWeatherFactor).
+weatherManager.on("weather:changed", (state: { speedFactor: number }) => {
+  network.setWeatherFactor(state.speedFactor);
+});
+weatherManager.start(); // no-op (no fetch) unless WEATHER_ENABLED
+
 // After jobManager: scenarios can create jobs (`create_job` events), so the
 // scenario layer needs the dispatch module it drives.
 const scenarioManager = new ScenarioManager(
   vehicleManager,
   incidentManager,
   simulationController,
-  jobManager
+  jobManager,
+  weatherManager
 );
 
 // ─── Learned speed profiles (optional) ──────────────────────────────
@@ -152,6 +177,7 @@ const ctx: RouteContext = {
   scenarioManager,
   generationManager,
   stateStore,
+  weatherManager,
 };
 
 // ─── Health endpoint ─────────────────────────────────────────────────
@@ -191,6 +217,7 @@ if (persistenceManager) {
 if (speedProfiles) {
   app.use(createSpeedProfileRoutes(speedProfiles));
 }
+app.use(createWeatherRoutes(ctx));
 
 // ─── API documentation ──────────────────────────────────────────────
 
@@ -257,6 +284,7 @@ async function main() {
     flushRecordingBatch,
     recordingManager,
     persistenceManager,
+    weatherManager,
   });
 }
 

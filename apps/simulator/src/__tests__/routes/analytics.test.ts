@@ -57,6 +57,7 @@ function createMockContext(opts: { withStateStore?: boolean } = {}): RouteContex
     scenarioManager: {} as RouteContext["scenarioManager"],
 
     generationManager: {} as RouteContext["generationManager"],
+    weatherManager: {} as RouteContext["weatherManager"],
   };
 }
 

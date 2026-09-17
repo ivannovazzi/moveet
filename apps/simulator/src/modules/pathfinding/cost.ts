@@ -237,11 +237,23 @@ export function computeBaseTravelTime(edge: EdgeStatics, flow: number): number {
 export function applyDynamicCost(
   baseTravelTime: number,
   incidentFactor: number | undefined,
-  nodeDelayH: number
+  nodeDelayH: number,
+  weatherFactor?: number
 ): number {
   let travelTime = baseTravelTime;
-  if (incidentFactor !== undefined && incidentFactor < 1) {
-    travelTime = travelTime / incidentFactor;
+  let factor = incidentFactor ?? 1;
+  // Weather composes multiplicatively with the incident factor (both are
+  // independent "how much slower is this edge" terms), unlike heat
+  // zone/congestion in RouteManager.updateSpeed, which take the MIN because
+  // they both derive from the SAME time-of-day demand curve and would
+  // otherwise double-count it. Incidents and weather have no such shared
+  // source, so multiplying is the correct composition. See
+  // fleetsim-all-1ajn.5.
+  if (weatherFactor !== undefined && weatherFactor < 1) {
+    factor *= weatherFactor;
+  }
+  if (factor < 1) {
+    travelTime = travelTime / factor;
   }
   if (nodeDelayH > 0) {
     travelTime += nodeDelayH;
@@ -309,4 +321,30 @@ export function landmarkLowerBoundCost(
   if (maxRatio === null) return baseTravelTime;
   const fastest = distance / (freeFlowSpeed * maxRatio);
   return fastest < baseTravelTime ? fastest : baseTravelTime;
+}
+
+// ─── Weather (fleetsim-all-1ajn.5) ─────────────────────────────────────
+//
+// A single GLOBAL speed factor (not per-edge, unlike incidents) representing
+// the network-wide weather condition — see `modules/weather/`. It composes
+// with the incident factor multiplicatively in `applyDynamicCost` above.
+//
+// Admissibility: unlike learned speeds, weather can only ever SLOW a route
+// down — `clampWeatherFactor` enforces `(0, 1]` so it is never a discount.
+// That means it needs none of the learned-speed machinery (no landmark
+// rebuild, no per-edge lower bound): the ALT/haversine heuristic is built
+// from the static base cost and `maxNetworkSpeed`, neither of which the
+// weather factor touches, so it stays a valid (if now looser) lower bound
+// for every edge cost regardless of what the live factor is. The floor
+// (`MIN_WEATHER_FACTOR`, well above 0) exists only so a bad reading or a
+// careless manual override cannot price every edge at or near infinity.
+
+/** Floor for a weather speed factor — see the module note above. */
+export const MIN_WEATHER_FACTOR = 0.1;
+
+/** Clamps a weather speed factor to `(0, 1]`, defaulting a non-finite input to 1 (no effect). */
+export function clampWeatherFactor(factor: number): number {
+  if (!Number.isFinite(factor)) return 1;
+  if (factor >= 1) return 1;
+  return factor < MIN_WEATHER_FACTOR ? MIN_WEATHER_FACTOR : factor;
 }

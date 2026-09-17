@@ -6,6 +6,7 @@ import {
   optionsSchema,
   trafficProfileSchema,
   waypointRequestSchema,
+  weatherConditionEnum,
 } from "../../middleware/schemas";
 
 // ─── Timeline event actions ─────────────────────────────────────────
@@ -53,6 +54,19 @@ export const setOptionsActionSchema = z.object({
 });
 
 /**
+ * Pins the global weather speed factor for the rest of the scenario (or until
+ * a later `set_weather`/API call). No `.refine()` here (unlike the API's
+ * `weatherOverrideSchema`) — a `discriminatedUnion` member must stay a plain
+ * `ZodObject`; the "at least one of condition/factor" check is instead part of
+ * `scenarioEventSchema`'s refine below, alongside `create_incident`'s.
+ */
+export const setWeatherActionSchema = z.object({
+  type: z.literal("set_weather"),
+  condition: weatherConditionEnum.optional(),
+  factor: z.number().gt(0).lte(1).optional(),
+});
+
+/**
  * Creates a job (pickup + dropoff) through the real `JobManager`, so a scenario
  * can exercise the dispatch lifecycle the assertions are written against
  * ("every job completed", "p95 ETA to pickup under N seconds").
@@ -77,6 +91,7 @@ export const scenarioActionSchema = z.discriminatedUnion("type", [
   clearIncidentsActionSchema,
   setOptionsActionSchema,
   createJobActionSchema,
+  setWeatherActionSchema,
 ]);
 
 // ─── Timeline event ─────────────────────────────────────────────────
@@ -93,6 +108,16 @@ export const scenarioEventSchema = z
     },
     {
       message: "At least one of 'edgeIds' or 'position' must be provided",
+      path: ["action"],
+    }
+  )
+  .refine(
+    (event) => {
+      if (event.action.type !== "set_weather") return true;
+      return event.action.condition !== undefined || event.action.factor !== undefined;
+    },
+    {
+      message: "Provide 'condition' and/or 'factor'",
       path: ["action"],
     }
   );
@@ -197,6 +222,7 @@ export type SetTrafficProfileAction = z.infer<typeof setTrafficProfileActionSche
 export type ClearIncidentsAction = z.infer<typeof clearIncidentsActionSchema>;
 export type SetOptionsAction = z.infer<typeof setOptionsActionSchema>;
 export type CreateJobAction = z.infer<typeof createJobActionSchema>;
+export type SetWeatherAction = z.infer<typeof setWeatherActionSchema>;
 export type ScenarioAction = z.infer<typeof scenarioActionSchema>;
 export type ScenarioEvent = z.infer<typeof scenarioEventSchema>;
 export type ScenarioAssertion = z.infer<typeof scenarioAssertionSchema>;

@@ -4,6 +4,7 @@ import { FleetManager } from "../modules/FleetManager";
 import { IncidentManager } from "../modules/IncidentManager";
 import { JobManager } from "../modules/JobManager";
 import { SimulationController } from "../modules/SimulationController";
+import { WeatherManager } from "../modules/weather/WeatherManager";
 import { ScenarioManager } from "../modules/scenario/ScenarioManager";
 import { evaluateAssertions } from "../modules/scenario/assertions";
 import type { AssertionResult, ScenarioMetrics } from "../modules/scenario/assertions";
@@ -179,11 +180,26 @@ export class ScenarioRunner {
       const incidentManager = new IncidentManager(clock);
       const simulationController = new SimulationController(vehicleManager, incidentManager);
       jobManager = new JobManager(vehicleManager);
+      // Never polls (enabled: false — a headless run must stay offline and
+      // deterministic); exists only so a scenario's `set_weather` events have
+      // something to apply the override to, feeding routing/movement via the
+      // same `RoadNetwork.setWeatherFactor` hook index.ts uses live.
+      const weatherManager = new WeatherManager({
+        enabled: false,
+        pollIntervalMs: 0,
+        fetchTimeoutMs: 0,
+        lat: 0,
+        lon: 0,
+      });
+      weatherManager.on("weather:changed", (state: { speedFactor: number }) => {
+        roadNetwork!.setWeatherFactor(state.speedFactor);
+      });
       const scenarioManager = new ScenarioManager(
         vehicleManager,
         incidentManager,
         simulationController,
-        jobManager
+        jobManager,
+        weatherManager
       );
 
       const eventErrors: ScenarioEventError[] = [];

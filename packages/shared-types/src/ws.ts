@@ -21,6 +21,7 @@ import type {
   SubscribeFilter,
   BoundingBox,
   DeviceFaultConfig,
+  WeatherDTO,
 } from "./index";
 
 // ─── UI/producer-shared payload shapes ──────────────────────────────
@@ -238,6 +239,8 @@ export interface WsMessageMap {
   "scenario:stopped": ScenarioEventPayload;
   /** Device fault-injection configuration changed (startup or runtime edit). */
   "faults:config": DeviceFaultConfig;
+  /** The global weather speed factor changed (live poll, or a manual override set/cleared). */
+  weather: WeatherDTO;
 }
 
 /** Every data-carrying WS message type. */
@@ -296,6 +299,7 @@ const DATA_MESSAGE_TYPES: ReadonlySet<string> = new Set<WsDataMessageType>([
   "scenario:completed",
   "scenario:stopped",
   "faults:config",
+  "weather",
 ]);
 
 /**

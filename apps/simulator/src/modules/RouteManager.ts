@@ -578,7 +578,16 @@ export class RouteManager extends EventEmitter {
     // clamping applyTimeOfDay used — three couplings that silently produce
     // wrong numbers the moment any of them drifts.
     const environmentFactor = Math.min(speedFactor, congestion);
-    const effectiveMax = Math.min(profile.maxSpeed, adjustedEdgeMaxSpeed) * environmentFactor;
+
+    // Weather (fleetsim-all-1ajn.5) is a genuinely independent physical effect
+    // — unlike heat zones and congestion it shares no demand curve with
+    // anything else in this method — so it composes by MULTIPLYING rather than
+    // MIN-ing with `environmentFactor`. That's the same composition
+    // `applyDynamicCost` uses for weather x incidents in the routing cost, so a
+    // route's ETA and how fast the vehicle actually drives it agree.
+    const weatherFactor = this.network.getWeatherFactor();
+    const effectiveMax =
+      Math.min(profile.maxSpeed, adjustedEdgeMaxSpeed) * environmentFactor * weatherFactor;
 
     if (!vehicle.targetSpeed || rng() < deltaMs / 5000) {
       const variation = 1 + (rng() * 2 - 1) * options.speedVariation;
@@ -678,11 +687,20 @@ export class RouteManager extends EventEmitter {
     // An edge with a learned speed in the active profile (speedprofiles/) is
     // priced at that speed instead of free-flow — the (clamped) value the route
     // search itself charged — still capped by the vehicle profile.
+    //
+    // The global weather factor (fleetsim-all-1ajn.5) scales the resulting
+    // speed down, exactly like `applyDynamicCost` scales travel TIME down by
+    // the same factor for routing cost (dividing time by a factor < 1 is
+    // equivalent to multiplying speed by it) — so this ETA and the route the
+    // search actually costed agree. Node delay is NOT scaled by weather (a red
+    // light's expected wait doesn't get longer in the rain the way a moving
+    // edge's travel time does), matching the routing cost side.
+    const weatherFactor = this.network.getWeatherFactor();
     let hours = 0;
     let previous: (typeof route.edges)[number] | null = null;
     for (const edge of route.edges) {
       const edgeSpeed = this.network.learnedSpeedKmh(edge) ?? edge.freeFlowSpeed ?? edge.maxSpeed;
-      const speed = Math.min(profile.maxSpeed, edgeSpeed);
+      const speed = Math.min(profile.maxSpeed, edgeSpeed) * weatherFactor;
       hours += edge.distance / Math.max(speed, 1) + (edge.nodeDelayH ?? 0);
       if (previous) hours += this.network.turnCostHours(previous, edge);
       previous = edge;

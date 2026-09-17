@@ -125,6 +125,7 @@ function makeHarness(opts: {
     isPositionInHeatZone: () => inHeatZone,
     getConnectedEdges: () => [nextEdge],
     getFallbackEdge: () => nextEdge,
+    getWeatherFactor: () => 1,
     // `zones: null` models a network that cannot answer an intensity query at
     // all (test doubles, future transports) — the legacy flat-penalty path.
     ...(zones === null

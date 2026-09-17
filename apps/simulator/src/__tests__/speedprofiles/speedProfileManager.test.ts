@@ -86,6 +86,25 @@ describe("SpeedProfileManager", () => {
     expect(ids(route())).toEqual(straight);
   });
 
+  // fleetsim-all-1ajn.5: observations must be normalised to clear-weather speed
+  // when recorded, or a rainy-day observation would bake the weather slowdown
+  // into the learned speed and then get slowed down AGAIN when the live
+  // weather factor is applied on top at route/ETA time.
+  it("normalises an observation by the weather factor in effect when recorded", () => {
+    const { network, manager, edge } = setup();
+    const slow = edge(west, centre);
+
+    network.setWeatherFactor(0.5);
+    // Observed running speed is 2 km/h while it's raining (factor 0.5): the
+    // clear-weather speed the profile should learn is 2 / 0.5 = 4 km/h, not
+    // the raw 2 (which would double-count the weather slowdown once routing
+    // re-applies the live factor on top of the learned speed).
+    for (let i = 0; i < 3; i++) manager.observe(slow, 2, MONDAY_8 + i * 1000, "sim");
+    manager.publish();
+
+    expect(network.learnedSpeedKmh(slow)).toBeCloseTo(4, 5);
+  });
+
   it("falls back to the static cost until a bucket has enough samples", () => {
     const { network, manager, edge, route } = setup();
     const slow = edge(west, centre);

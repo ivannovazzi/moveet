@@ -61,6 +61,7 @@ export type SpeedProfileNetwork = Pick<
   | "setSpeedOverrides"
   | "setRouteRequestHook"
   | "findNearestNode"
+  | "getWeatherFactor"
 >;
 
 export interface SpeedProfileStats {
@@ -119,12 +120,35 @@ export class SpeedProfileManager {
    * Records one running-speed observation. Returns false when the source is
    * disabled, the edge is not a graph edge (e.g. a synthetic U-turn) or the
    * speed is unusable.
+   *
+   * NORMALISED to clear-weather speed before storing (fleetsim-all-1ajn.5):
+   * divided by the weather factor in effect right now. Without this, an
+   * observation recorded while it's raining already contains the weather
+   * slowdown, and routing/estimateTo would then apply the (live) weather
+   * factor AGAIN on top of the learned speed — double-counting it every time
+   * the bucket that got rained on is active. Dividing it back out here makes
+   * the stored speed represent what the edge runs at in clear weather, so
+   * `applyDynamicCost`/`RouteManager` can keep applying the weather factor
+   * uniformly to every edge (learned or static) exactly once.
+   *
+   * This uses the CURRENT weather factor, not the factor AT `atMs`: the `sim`
+   * source calls this essentially in real time (no weather history), so the
+   * two coincide for it; for the `adapter` source (fixes may arrive batched
+   * or after the fact) this is an approximation — there is no weather history
+   * to look up instead. Good enough given weather changes far slower than the
+   * poll interval; a real history would need timestamped weather to fix.
    */
   observe(edge: Edge, speedKmh: number, atMs: number, source: SpeedSource): boolean {
     if (!this.sources.has(source)) return false;
     const index = this.network.edgeIndexOf(edge);
     if (index < 0) return false;
-    const ok = this.store.record(index, bucketOfTime(this.settings.layout, atMs), speedKmh);
+    const weatherFactor = this.network.getWeatherFactor();
+    const clearWeatherSpeed = weatherFactor > 0 ? speedKmh / weatherFactor : speedKmh;
+    const ok = this.store.record(
+      index,
+      bucketOfTime(this.settings.layout, atMs),
+      clearWeatherSpeed
+    );
     if (ok) this.pending = true;
     return ok;
   }

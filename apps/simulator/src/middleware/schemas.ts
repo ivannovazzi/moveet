@@ -106,6 +106,27 @@ export const incidentAtPositionSchema = z.object({
   type: incidentTypeEnum,
 });
 
+// ─── Weather (fleetsim-all-1ajn.5) ──────────────────────────────────
+
+export const weatherConditionEnum = z.enum(
+  ["clear", "light_rain", "rain", "snow", "ice", "fog", "wind"],
+  { message: "condition must be one of: clear, light_rain, rain, snow, ice, fog, wind" }
+);
+
+export const weatherOverrideSchema = z
+  .object({
+    condition: weatherConditionEnum.optional(),
+    // (0, 1]: never a discount, never zero/negative (see clampWeatherFactor).
+    factor: z
+      .number()
+      .gt(0, "factor must be greater than 0")
+      .lte(1, "factor must be at most 1 (weather never speeds routing up)")
+      .optional(),
+  })
+  .refine((data) => data.condition !== undefined || data.factor !== undefined, {
+    message: "Provide 'condition' and/or 'factor'",
+  });
+
 // ─── Replay ─────────────────────────────────────────────────────────
 
 export const replayStartSchema = z.object({

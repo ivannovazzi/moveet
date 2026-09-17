@@ -21,7 +21,7 @@
 import type { Node, Edge, Route } from "../../types";
 import * as utils from "../../utils/helpers";
 import { LRUCache, type CacheStats } from "../../utils/LRUCache";
-import { applyDynamicCost, clampLearnedSpeed } from "../pathfinding/cost";
+import { applyDynamicCost, clampLearnedSpeed, clampWeatherFactor } from "../pathfinding/cost";
 import type { SpeedOverrideTable } from "../speedprofiles/SpeedProfileStore";
 import { EdgeSearchScratch } from "../pathfinding/search";
 import {
@@ -82,6 +82,16 @@ export class PathfindingEngine {
   // Incident-based edge cost penalties: edge ID → speedFactor (lowest wins; 0 = blocked)
   private incidentEdges: Map<string, number> = new Map();
   private cachedIncidentFingerprint: string | null = null;
+
+  /**
+   * Global weather speed factor (fleetsim-all-1ajn.5), `(0, 1]`, 1 = no effect.
+   * Unlike incidents this is network-wide rather than per-edge — see
+   * `modules/weather/`. Composes with the incident factor multiplicatively in
+   * {@link dynamicEdgeCost} (via `applyDynamicCost`), and never needs landmark
+   * rebuilding: it only ever raises cost, so the static-cost heuristic stays a
+   * valid lower bound (see the module note in `pathfinding/cost.ts`).
+   */
+  private weatherFactor = 1;
 
   // A* route cache — avoids recomputing identical start→end routes
   private routeCache: LRUCache<Route>;
@@ -349,13 +359,20 @@ export class PathfindingEngine {
   }
 
   /**
-   * Everything besides start/end that changes a route: incidents and the active
-   * learned-speed table. Used in route-cache keys; identical to
-   * {@link incidentFingerprint} until a profile table is applied.
+   * Everything besides start/end that changes a route: incidents, the active
+   * learned-speed table, and the weather factor. Used in route-cache keys;
+   * identical to {@link incidentFingerprint} until a profile table is applied
+   * or a non-default weather factor is set.
    */
   public costFingerprint(): string {
     const incidents = this.incidentFingerprint();
-    return this.profileVersion === 0 ? incidents : `${incidents}#p${this.profileVersion}`;
+    let fp = this.profileVersion === 0 ? incidents : `${incidents}#p${this.profileVersion}`;
+    // Quantised to 2 decimal places: enough resolution to distinguish every
+    // condition this composes with (weather factors are looked up from a
+    // handful of discrete condition buckets, see `modules/weather/conditions`),
+    // without fragmenting the route cache over noise in a live reading.
+    if (this.weatherFactor !== 1) fp += `#w${this.weatherFactor.toFixed(2)}`;
+    return fp;
   }
 
   /** {@link calculateHeuristic}, memoized per node for the current search. */
@@ -387,10 +404,15 @@ export class PathfindingEngine {
     if (edge.smoothnessFactor === 0) return -1;
 
     // Static base cost was precomputed at graph-build time; only the dynamic
-    // incident/signal terms are applied here in the hot relaxation loop.
+    // incident/signal/weather terms are applied here in the hot relaxation loop.
     // (Mirrored into a typed array by searchIndex to skip the string-keyed Map.)
     const baseTravelTime = this.searchBaseCost[index];
-    return applyDynamicCost(baseTravelTime, incidentFactor, edge.nodeDelayH ?? 0);
+    return applyDynamicCost(
+      baseTravelTime,
+      incidentFactor,
+      edge.nodeDelayH ?? 0,
+      this.weatherFactor
+    );
   }
 
   /**
@@ -453,6 +475,20 @@ export class PathfindingEngine {
   public clearIncidentEdges(): void {
     this.incidentEdges.clear();
     this.cachedIncidentFingerprint = null;
+  }
+
+  /** Current weather speed factor (1 = no effect). See the field's doc comment. */
+  public getWeatherFactor(): number {
+    return this.weatherFactor;
+  }
+
+  /**
+   * Sets the global weather speed factor, clamped to `(0, 1]` — see
+   * {@link clampWeatherFactor}. Cache invalidation is via the fingerprint key
+   * ({@link costFingerprint}), exactly like incidents/profile version.
+   */
+  public setWeatherFactor(factor: number): void {
+    this.weatherFactor = clampWeatherFactor(factor);
   }
 
   /**

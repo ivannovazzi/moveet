@@ -8,6 +8,7 @@ import type { SimulationController } from "../modules/SimulationController";
 import type { ScenarioManager } from "../modules/scenario";
 import type { StateStore } from "../modules/StateStore";
 import type { GenerationManager } from "../modules/GenerationManager";
+import type { WeatherManager } from "../modules/weather/WeatherManager";
 
 /**
  * Shared context passed to each route module.
@@ -26,4 +27,6 @@ export interface RouteContext {
   generationManager: GenerationManager;
   /** Optional — only present when PERSISTENCE_ENABLED=true */
   stateStore?: StateStore;
+  /** Always present — see `routes/weather.ts`. Only its live poll is gated by WEATHER_ENABLED. */
+  weatherManager: WeatherManager;
 }

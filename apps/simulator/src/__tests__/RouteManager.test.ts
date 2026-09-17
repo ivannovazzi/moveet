@@ -173,6 +173,34 @@ describe("RouteManager", () => {
 
       expect(vehicle.speed).toBeGreaterThanOrEqual(15);
     });
+
+    it("applies the weather factor as an extra cap so movement matches the routing ETA (fleetsim-all-1ajn.5)", () => {
+      const vehicle = firstVehicle();
+      vehicle.currentEdge = { ...vehicle.currentEdge, maxSpeed: 50, freeFlowSpeed: 40 };
+      vehicle.speed = 200;
+      vehicle.targetSpeed = 200;
+      traffic.leave(vehicle.currentEdge.id);
+      traffic.leave(vehicle.currentEdge.id);
+      vi.spyOn(network, "getWeatherFactor").mockReturnValue(0.5);
+
+      routeManager.updateSpeed(vehicle, 1000, { ...DEFAULT_OPTIONS, minSpeed: 1 });
+
+      expect(vehicle.speed).toBeLessThanOrEqual(20); // 40 x 0.5
+    });
+
+    it("leaves movement unaffected when the weather factor is 1 (no effect / disabled)", () => {
+      const vehicle = firstVehicle();
+      vehicle.currentEdge = { ...vehicle.currentEdge, maxSpeed: 50, freeFlowSpeed: 25 };
+      vehicle.speed = 200;
+      vehicle.targetSpeed = 200;
+      traffic.leave(vehicle.currentEdge.id);
+      traffic.leave(vehicle.currentEdge.id);
+      vi.spyOn(network, "getWeatherFactor").mockReturnValue(1);
+
+      routeManager.updateSpeed(vehicle, 1000, { ...DEFAULT_OPTIONS, minSpeed: 1 });
+
+      expect(vehicle.speed).toBeLessThanOrEqual(25);
+    });
   });
 
   // ─── updateVehicle ────────────────────────────────────────────────
@@ -381,6 +409,36 @@ describe("RouteManager", () => {
       expect(turnSpy).toHaveBeenCalledTimes(2);
       expect(turnSpy).toHaveBeenCalledWith(route[0], route[1]);
       expect(est!.etaSeconds).toBeCloseTo(expectedSeconds, 6);
+    });
+
+    it("applies the current weather factor to edge speed, like routing cost (fleetsim-all-1ajn.5)", async () => {
+      const vehicle = firstVehicle();
+      const base = vehicle.currentEdge;
+      const edge = { ...base, distance: 1, maxSpeed: 50, freeFlowSpeed: 30, nodeDelayH: undefined };
+      vi.spyOn(network, "findRouteAsync").mockResolvedValue({ edges: [edge], distance: 1 });
+      vi.spyOn(network, "getWeatherFactor").mockReturnValue(0.5);
+
+      const est = await routeManager.estimateTo(vehicle.id, [45.5029, -73.5661]);
+
+      const profileMax = getProfile(vehicle.type).maxSpeed;
+      // Dividing travel time by the weather factor is equivalent to
+      // multiplying speed by it — matches applyDynamicCost in pathfinding/cost.ts.
+      const expected = (1 / (Math.min(30, profileMax) * 0.5)) * 3600;
+      expect(est!.etaSeconds).toBeCloseTo(expected, 6);
+    });
+
+    it("does NOT scale node delay by the weather factor", async () => {
+      const vehicle = firstVehicle();
+      const base = vehicle.currentEdge;
+      const edge = { ...base, distance: 1, maxSpeed: 50, freeFlowSpeed: 30, nodeDelayH: 25 / 3600 };
+      vi.spyOn(network, "findRouteAsync").mockResolvedValue({ edges: [edge], distance: 1 });
+      vi.spyOn(network, "getWeatherFactor").mockReturnValue(0.5);
+
+      const est = await routeManager.estimateTo(vehicle.id, [45.5029, -73.5661]);
+
+      const profileMax = getProfile(vehicle.type).maxSpeed;
+      const expected = (1 / (Math.min(30, profileMax) * 0.5) + 25 / 3600) * 3600;
+      expect(est!.etaSeconds).toBeCloseTo(expected, 6);
     });
   });
 
