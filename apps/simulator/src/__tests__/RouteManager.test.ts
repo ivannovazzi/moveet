@@ -284,8 +284,17 @@ describe("RouteManager", () => {
     it("prices each edge at min(profile max, edge free-flow speed), like movement", async () => {
       const vehicle = firstVehicle();
       const base = vehicle.currentEdge;
-      const slow = { ...base, distance: 1, maxSpeed: 50, freeFlowSpeed: 30 };
-      const fast = { ...base, distance: 2, maxSpeed: 110, freeFlowSpeed: 99 };
+      // Explicitly zero nodeDelayH: `base` is a real fixture edge, which may
+      // carry a precomputed node-control delay that would otherwise leak
+      // through the spread and pollute this speed/distance-only assertion.
+      const slow = { ...base, distance: 1, maxSpeed: 50, freeFlowSpeed: 30, nodeDelayH: undefined };
+      const fast = {
+        ...base,
+        distance: 2,
+        maxSpeed: 110,
+        freeFlowSpeed: 99,
+        nodeDelayH: undefined,
+      };
       vi.spyOn(network, "findRouteAsync").mockResolvedValue({ edges: [slow, fast], distance: 3 });
 
       const est = await routeManager.estimateTo(vehicle.id, [45.5029, -73.5661]);
@@ -300,8 +309,15 @@ describe("RouteManager", () => {
     it("adds each edge's precomputed node-control delay on top of travel time", async () => {
       const vehicle = firstVehicle();
       const base = vehicle.currentEdge;
-      // One plain edge, one edge ending at a signalized/stopped node.
-      const plain = { ...base, distance: 1, maxSpeed: 50, freeFlowSpeed: 30 };
+      // One plain edge (nodeDelayH explicitly zeroed — `base` is a real fixture
+      // edge and may carry one of its own), one ending at a signalized/stopped node.
+      const plain = {
+        ...base,
+        distance: 1,
+        maxSpeed: 50,
+        freeFlowSpeed: 30,
+        nodeDelayH: undefined,
+      };
       const controlled = {
         ...base,
         distance: 1,
