@@ -101,8 +101,15 @@ jobs:
       # Gate on high: highs are within scope of our threat model (e.g. ws powers
       # the simulator WebSocket server). Keep the tree clean of high and critical
       # advisories; resolve new ones via npm audit fix or a safe dependency bump.
+      #
+      # Runs through scripts/audit-allowlist.mjs rather than `npm audit` directly.
+      # `npm audit` is all-or-nothing, so accepting a single unreachable finding
+      # would otherwise mean lowering --audit-level and losing the gate for
+      # everything else. The wrapper keeps the gate exactly as strict for every
+      # advisory not named in its list, accepts a listed one only through the
+      # dependency path recorded with it, and fails if an entry goes stale.
       - name: Audit (root + all workspaces)
-        run: npm audit --audit-level=high
+        run: npm run audit
 
   # ─── docker-compose smoke E2E ────────────────────────────────────────
   # Opt-in, SEPARATE job: boots the whole stack with docker compose and

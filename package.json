@@ -20,6 +20,7 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "lint": "biome lint .",
+    "audit": "node scripts/audit-allowlist.mjs",
     "lint:fix": "biome lint --write .",
     "format": "biome format --write .",
     "format:check": "biome format .",
