@@ -267,6 +267,14 @@ export interface Edge {
   lanes?: number; // OSM lanes count (default 1)
   capacity?: number; // lanes × 1800 veh/hour (HCM standard)
   smoothnessFactor?: number; // 0.3–1.0 speed multiplier from OSM smoothness tag
+  /**
+   * Precomputed expected-value delay (hours) for arriving at `end` via this
+   * edge — traffic signal / stop / give-way / crossing / level crossing /
+   * point traffic-calming. Additive, non-negative, and applied on top of the
+   * edge's base travel time (see `pathfinding/cost.ts` `applyDynamicCost`).
+   * Undefined means no control on `end` (equivalent to 0).
+   */
+  nodeDelayH?: number;
 }
 
 export interface Route {

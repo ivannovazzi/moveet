@@ -7,6 +7,7 @@
  */
 
 import type { HighwayType } from "../../types";
+import type { NodeControl } from "../pathfinding/cost";
 
 /** A polyline of [lon, lat] coordinate pairs, as stored in the source GeoJSON. */
 export type Street = [number, number][];
@@ -298,3 +299,42 @@ export const VALID_HIGHWAYS = new Set<string>([
   "unclassified",
   "living_street",
 ]);
+
+/**
+ * Parses an OSM Point feature's tags into zero or more {@link NodeControl}
+ * descriptors. A single point can carry more than one (a compound
+ * `highway=traffic_signals;crossing` value, or a railway level crossing that
+ * is also tagged `highway=crossing`); the caller merges these — and any others
+ * that snap to the same graph node — with {@link mergeNodeControl}.
+ *
+ * `traffic_calming=no` is explicit "no calming feature here" and is skipped,
+ * matching the OSM convention for that value.
+ */
+export function parseNodeControls(props: Record<string, unknown>): NodeControl[] {
+  const controls: NodeControl[] = [];
+  const highwayValues = String(props.highway ?? "")
+    .split(";")
+    .map((v) => v.trim())
+    .filter(Boolean);
+
+  if (highwayValues.includes("traffic_signals")) {
+    const rawDirection = props["traffic_signals:direction"];
+    const direction =
+      rawDirection === "forward" || rawDirection === "backward" ? rawDirection : "both";
+    controls.push({ kind: "traffic_signals", direction });
+  }
+  if (highwayValues.includes("stop")) controls.push({ kind: "stop" });
+  if (highwayValues.includes("give_way")) controls.push({ kind: "give_way" });
+  if (highwayValues.includes("crossing")) {
+    const crossing = props.crossing;
+    controls.push({ kind: "crossing", subtype: crossing ? String(crossing) : undefined });
+  }
+  if (props.railway === "level_crossing") controls.push({ kind: "level_crossing" });
+
+  const calming = props.traffic_calming;
+  if (calming && calming !== "no") {
+    controls.push({ kind: "traffic_calming", subtype: String(calming) });
+  }
+
+  return controls;
+}

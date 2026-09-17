@@ -44,6 +44,15 @@ export function buildFilterArgs(opts: FilterOptions): string[] {
     // Traffic infrastructure nodes
     "n/highway=traffic_signals",
     "n/highway=bus_stop",
+    "n/highway=stop",
+    "n/highway=give_way",
+    "n/highway=crossing",
+    "n/railway=level_crossing",
+    // Traffic calming: any value, on nodes (a point feature, e.g. a single
+    // bump) or ways (a tagged segment, e.g. a chicane run the length of a
+    // street) — see fleetsim-all-1ajn.2.
+    "n/traffic_calming",
+    "w/traffic_calming",
     // Turn restriction relations
     "r/type=restriction",
     "-o",

@@ -276,13 +276,13 @@ describe("the landmark bound never overestimates the true A* cost", () => {
           const route = network.findRoute(nodeOf(network, startId), nodeOf(network, endId));
           if (!route) continue;
 
-          // The true cost A* minimises: base cost plus the dynamic signal term.
+          // The true cost A* minimises: base cost plus the dynamic node-control term.
           let trueCost = 0;
           for (const edge of route.edges) {
             trueCost += applyDynamicCost(
               built.edgeBaseCost.get(edge.id)!,
               undefined,
-              edge.end.trafficSignal === true
+              edge.nodeDelayH ?? 0
             );
           }
 

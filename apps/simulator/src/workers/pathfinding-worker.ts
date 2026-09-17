@@ -37,7 +37,14 @@
 import { parentPort, workerData } from "worker_threads";
 import fs from "fs";
 import type { FeatureCollection, LineString } from "geojson";
-import { computeBaseTravelTime, applyDynamicCost } from "../modules/pathfinding/cost";
+import {
+  computeBaseTravelTime,
+  applyDynamicCost,
+  mergeNodeControl,
+  nodeDelayHours,
+  TRAFFIC_CALMING_MAX_SPEED_KMH,
+  type NodeControl,
+} from "../modules/pathfinding/cost";
 import { PathNodeHeap } from "../modules/pathfinding/heap";
 import {
   AltHeuristic,
@@ -51,6 +58,7 @@ import {
   parseSmoothness,
   resolveMaxSpeed,
   parseOneway,
+  parseNodeControls,
   DEFAULT_FREE_FLOW_FACTORS,
   VALID_HIGHWAYS,
 } from "../modules/roadnetwork/types";
@@ -101,6 +109,8 @@ interface WorkerEdge {
   smoothnessFactor: number;
   /** Precomputed static base travel time (hours); set after the graph is built. */
   baseTravelTime: number;
+  /** Precomputed node-control delay (hours) for arriving via this edge; 0 when none. */
+  nodeDelayH: number;
 }
 
 interface WorkerNode {
@@ -216,6 +226,13 @@ function buildGraph(
     const lanes = isNaN(rawLanes) || rawLanes < 1 ? 1 : rawLanes;
     const capacity = lanes * 1800; // HCM: 1800 veh/hour per lane
 
+    // A way-level traffic_calming tag caps the free-flow speed for the whole
+    // segment (mirrors GraphBuilder.ts — see cost.ts for why this is a speed
+    // cap rather than a node delay).
+    const wayCalming = feature.properties?.traffic_calming;
+    const calmingSpeedCap =
+      wayCalming && wayCalming !== "no" ? TRAFFIC_CALMING_MAX_SPEED_KMH : Infinity;
+
     for (let i = 0; i < coords.length - 1; i++) {
       const [lon1, lat1] = coords[i];
       const [lon2, lat2] = coords[i + 1];
@@ -237,13 +254,14 @@ function buildGraph(
           endNodeId: id2,
           distance,
           maxSpeed: forwardSpeed,
-          freeFlowSpeed: forwardSpeed * freeFlowFactor,
+          freeFlowSpeed: Math.min(forwardSpeed * freeFlowFactor, calmingSpeedCap),
           surface,
           highway,
           lanes,
           capacity,
           smoothnessFactor,
           baseTravelTime: 0, // filled in after the graph is fully built
+          nodeDelayH: 0, // filled in after node controls are collected
         });
       }
 
@@ -256,13 +274,14 @@ function buildGraph(
           endNodeId: id1,
           distance,
           maxSpeed: backwardSpeed,
-          freeFlowSpeed: backwardSpeed * freeFlowFactor,
+          freeFlowSpeed: Math.min(backwardSpeed * freeFlowFactor, calmingSpeedCap),
           surface,
           highway,
           lanes,
           capacity,
           smoothnessFactor,
           baseTravelTime: 0, // filled in after the graph is fully built
+          nodeDelayH: 0, // filled in after node controls are collected
         });
       }
     }
@@ -282,23 +301,36 @@ function buildGraph(
   }
   _maxNetworkSpeed = maxSpeed > 0 ? maxSpeed : 110;
 
-  // Second pass: mark traffic signal nodes
+  // Second pass: mark traffic signal nodes and collect node controls (stop,
+  // give-way, crossings, level crossings, point traffic-calming) — mirrors
+  // GraphBuilder.ts's third pass so both sides derive identical delays.
+  const nodeControls = new Map<string, NodeControl>();
   for (const feature of data.features) {
     if (feature.geometry.type !== "Point") continue;
     const props = feature.properties ?? {};
-    if (props.highway !== "traffic_signals") continue;
+    const controls = parseNodeControls(props);
+    if (controls.length === 0) continue;
+
     const [lon, lat] = (feature.geometry as { type: "Point"; coordinates: number[] }).coordinates;
-    // Find nearest node by linear scan
-    let nearest: WorkerNode | null = null;
-    let minDist = Infinity;
-    for (const node of nodes.values()) {
-      const d = calculateDistance([lat, lon], [node.lat, node.lon]);
-      if (d < minDist) {
-        minDist = d;
-        nearest = node;
-      }
+    const nearest = findControlNode(nodes, lat, lon);
+    if (!nearest) continue;
+
+    for (const control of controls) {
+      if (control.kind === "traffic_signals") nearest.trafficSignal = true;
+      nodeControls.set(nearest.id, mergeNodeControl(nodeControls.get(nearest.id), control));
     }
-    if (nearest) nearest.trafficSignal = true;
+  }
+
+  // Third pass: precompute each edge's node-control delay now that every
+  // node's control (if any) is known. Depends on the APPROACH edge's own
+  // highway class, so it lives on the edge rather than the node (see cost.ts).
+  for (const node of nodes.values()) {
+    for (const edge of node.edges) {
+      edge.nodeDelayH = nodeDelayHours(
+        nodeControls.get(edge.endNodeId),
+        edge.highway as HighwayType
+      );
+    }
   }
 
   // ALT landmark preprocessing over the static base costs (see
@@ -306,6 +338,31 @@ function buildGraph(
   _alt = buildWorkerLandmarks(nodes, landmarkCount);
 
   return nodes;
+}
+
+/**
+ * Resolves a Point feature's coordinate to a graph node — mirrors
+ * `GraphBuilder.findControlNode`: an exact snapped-key lookup handles the vast
+ * majority of control points in O(1) (they share a coordinate with a way
+ * vertex), falling back to a linear scan only when that misses.
+ */
+function findControlNode(
+  nodes: Map<string, WorkerNode>,
+  lat: number,
+  lon: number
+): WorkerNode | null {
+  const exact = nodes.get(makeNodeKey(lat, lon));
+  if (exact) return exact;
+  let nearest: WorkerNode | null = null;
+  let minDist = Infinity;
+  for (const node of nodes.values()) {
+    const d = calculateDistance([lat, lon], [node.lat, node.lon]);
+    if (d < minDist) {
+      minDist = d;
+      nearest = node;
+    }
+  }
+  return nearest;
 }
 
 /**
@@ -465,14 +522,10 @@ function findRoute(
       // Skip impassable roads (smoothnessFactor === 0)
       if (edge.smoothnessFactor === 0) continue;
 
-      // Static base cost was precomputed at graph-build time; only the dynamic
-      // incident/signal terms are applied here in the hot relaxation loop.
-      const endNode = nodes.get(edge.endNodeId);
-      const travelTime = applyDynamicCost(
-        edge.baseTravelTime,
-        incidentFactor,
-        endNode?.trafficSignal === true
-      );
+      // Static base cost and the node-control delay were both precomputed at
+      // graph-build time; only the dynamic incident term is derived here in
+      // the hot relaxation loop.
+      const travelTime = applyDynamicCost(edge.baseTravelTime, incidentFactor, edge.nodeDelayH);
       const tentativeCost = current.gScore + travelTime;
       const existingCost = gScore.get(edge.endNodeId);
 

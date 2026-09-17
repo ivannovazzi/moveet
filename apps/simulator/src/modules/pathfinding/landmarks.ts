@@ -37,7 +37,9 @@
  * only INCREASE an edge's cost or delete the edge:
  *   - incident factor: `applyDynamicCost` divides only when `factor < 1`, so the
  *     cost never shrinks; `factor === 0` is a closure and the edge is skipped.
- *   - traffic-signal delay: `+ SIGNAL_DELAY_H`, never negative.
+ *   - node-control delay: `+ edge.nodeDelayH` (signal/stop/give-way/crossing/
+ *     level-crossing/traffic-calming), always >= 0 (see `pathfinding/cost.ts`
+ *     `nodeDelayHours`).
  *   - turn restrictions / `restrictedHighways`: delete transitions or edges.
  * Deleting edges and raising costs can only raise the true shortest-path cost,
  * so a bound computed on the base metric remains a valid lower bound. There is

@@ -628,11 +628,17 @@ export class RouteManager extends EventEmitter {
 
     // Each edge at the speed the movement model caps it at: the edge's free-flow
     // speed, limited by the profile's top speed. Independent of `vehicle.speed`,
-    // so an idle candidate still gets a finite ETA.
+    // so an idle candidate still gets a finite ETA. Plus each edge's precomputed
+    // node-control delay (signal/stop/give-way/crossing/level-crossing/traffic-
+    // calming at the edge's end) — the same term `applyDynamicCost` adds during
+    // pathfinding, so `best_eta` candidate comparisons and the route search
+    // agree on what a stop/signal costs. `updateSpeed` below has no stopping
+    // logic of its own (it only slows for turns/following distance/heat zones/
+    // congestion), so there is nothing to double-count against.
     let hours = 0;
     for (const edge of route.edges) {
       const speed = Math.min(profile.maxSpeed, edge.freeFlowSpeed ?? edge.maxSpeed);
-      hours += edge.distance / Math.max(speed, 1);
+      hours += edge.distance / Math.max(speed, 1) + (edge.nodeDelayH ?? 0);
     }
     return {
       etaSeconds: hours * 3600,

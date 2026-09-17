@@ -296,6 +296,32 @@ describe("RouteManager", () => {
       expect(est!.etaSeconds).toBeCloseTo(expected, 6);
       expect(est!.distanceKm).toBe(3);
     });
+
+    it("adds each edge's precomputed node-control delay on top of travel time", async () => {
+      const vehicle = firstVehicle();
+      const base = vehicle.currentEdge;
+      // One plain edge, one edge ending at a signalized/stopped node.
+      const plain = { ...base, distance: 1, maxSpeed: 50, freeFlowSpeed: 30 };
+      const controlled = {
+        ...base,
+        distance: 1,
+        maxSpeed: 50,
+        freeFlowSpeed: 30,
+        nodeDelayH: 25 / 3600,
+      };
+      vi.spyOn(network, "findRouteAsync").mockResolvedValue({
+        edges: [plain, controlled],
+        distance: 2,
+      });
+
+      const est = await routeManager.estimateTo(vehicle.id, [45.5029, -73.5661]);
+
+      const profileMax = getProfile(vehicle.type).maxSpeed;
+      const travelHours = (1 / Math.min(30, profileMax)) * 2;
+      const expectedSeconds = (travelHours + 25 / 3600) * 3600;
+      expect(est).not.toBeNull();
+      expect(est!.etaSeconds).toBeCloseTo(expectedSeconds, 6);
+    });
   });
 
   // ─── Incident rerouting ───────────────────────────────────────────

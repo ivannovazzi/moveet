@@ -173,11 +173,7 @@ export class PathfindingEngine {
         // Static base cost was precomputed at graph-build time; only the dynamic
         // incident/signal terms are applied here in the hot relaxation loop.
         const baseTravelTime = this.edgeBaseCost.get(edge.id)!;
-        const travelTime = applyDynamicCost(
-          baseTravelTime,
-          incidentFactor,
-          edge.end.trafficSignal === true
-        );
+        const travelTime = applyDynamicCost(baseTravelTime, incidentFactor, edge.nodeDelayH ?? 0);
         const tentativeCost = current.gScore + travelTime;
         const existingCost = gScore.get(edge.end.id);
 

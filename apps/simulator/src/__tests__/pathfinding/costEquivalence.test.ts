@@ -4,7 +4,10 @@ import { RoadNetwork } from "../../modules/RoadNetwork";
 import {
   computeBaseTravelTime as sharedBase,
   applyDynamicCost as sharedDynamic,
-  SIGNAL_DELAY_H,
+  computeNodeDelayS,
+  nodeDelayHours,
+  mergeNodeControl,
+  type NodeControl,
 } from "../../modules/pathfinding/cost";
 import { PathNodeHeap } from "../../modules/pathfinding/heap";
 import {
@@ -46,16 +49,130 @@ describe("pathfinding/cost (shared module)", () => {
     expect(sharedBase(baseEdge, flow)).toBeCloseTo((1 / 60) * 1.15, 12);
   });
 
-  it("applyDynamicCost divides by incident factor < 1 and adds signal delay", () => {
+  it("applyDynamicCost divides by incident factor < 1 and adds the node delay", () => {
     const base = 0.02;
-    expect(sharedDynamic(base, undefined, false)).toBe(base);
-    expect(sharedDynamic(base, 0.5, false)).toBeCloseTo(base / 0.5, 12);
-    expect(sharedDynamic(base, undefined, true)).toBeCloseTo(base + SIGNAL_DELAY_H, 12);
-    expect(sharedDynamic(base, 0.5, true)).toBeCloseTo(base / 0.5 + SIGNAL_DELAY_H, 12);
+    const delayH = 15 / 3600;
+    expect(sharedDynamic(base, undefined, 0)).toBe(base);
+    expect(sharedDynamic(base, 0.5, 0)).toBeCloseTo(base / 0.5, 12);
+    expect(sharedDynamic(base, undefined, delayH)).toBeCloseTo(base + delayH, 12);
+    expect(sharedDynamic(base, 0.5, delayH)).toBeCloseTo(base / 0.5 + delayH, 12);
   });
 
   it("ignores an incident factor of exactly 1 (no slowdown)", () => {
-    expect(sharedDynamic(0.02, 1, false)).toBe(0.02);
+    expect(sharedDynamic(0.02, 1, 0)).toBe(0.02);
+  });
+});
+
+// ─── Typed node-control delays (fleetsim-all-1ajn.2) ──────────────────
+
+describe("computeNodeDelayS", () => {
+  it("gives a signalized major-road approach less delay than a minor one", () => {
+    const control: NodeControl = { kind: "traffic_signals", direction: "both" };
+    const major = computeNodeDelayS(control, "primary");
+    const minor = computeNodeDelayS(control, "residential");
+    expect(major).toBeGreaterThan(0);
+    expect(major).toBeLessThan(minor);
+  });
+
+  it("halves the signal delay when traffic_signals:direction is one-directional", () => {
+    const both = computeNodeDelayS({ kind: "traffic_signals", direction: "both" }, "primary");
+    const forward = computeNodeDelayS({ kind: "traffic_signals", direction: "forward" }, "primary");
+    expect(forward).toBeCloseTo(both / 2, 12);
+  });
+
+  it("gives a mandatory stop a fixed delay regardless of approach class", () => {
+    const major = computeNodeDelayS({ kind: "stop" }, "primary");
+    const minor = computeNodeDelayS({ kind: "stop" }, "residential");
+    expect(major).toBe(minor);
+    expect(major).toBeGreaterThan(0);
+  });
+
+  it("gives give-way a smaller delay than a full stop", () => {
+    expect(computeNodeDelayS({ kind: "give_way" }, "residential")).toBeLessThan(
+      computeNodeDelayS({ kind: "stop" }, "residential")
+    );
+  });
+
+  it("scales crossing delay by crossing subtype: signal > marked > unmarked", () => {
+    const signal = computeNodeDelayS({ kind: "crossing", subtype: "traffic_signals" }, "primary");
+    const marked = computeNodeDelayS({ kind: "crossing", subtype: "marked" }, "primary");
+    const unmarked = computeNodeDelayS({ kind: "crossing", subtype: "unmarked" }, "primary");
+    expect(signal).toBeGreaterThan(marked);
+    expect(marked).toBeGreaterThan(unmarked);
+    expect(unmarked).toBeGreaterThan(0);
+  });
+
+  it("treats zebra/uncontrolled/unspecified crossings like marked", () => {
+    const marked = computeNodeDelayS({ kind: "crossing", subtype: "marked" }, "primary");
+    expect(computeNodeDelayS({ kind: "crossing", subtype: "zebra" }, "primary")).toBe(marked);
+    expect(computeNodeDelayS({ kind: "crossing", subtype: "uncontrolled" }, "primary")).toBe(
+      marked
+    );
+    expect(computeNodeDelayS({ kind: "crossing" }, "primary")).toBe(marked);
+  });
+
+  it("gives a railway level crossing a small positive expected delay", () => {
+    expect(computeNodeDelayS({ kind: "level_crossing" }, "primary")).toBeGreaterThan(0);
+  });
+
+  it("gives point traffic-calming a small positive delay, varying by subtype", () => {
+    const table = computeNodeDelayS({ kind: "traffic_calming", subtype: "table" }, "residential");
+    const rumble = computeNodeDelayS(
+      { kind: "traffic_calming", subtype: "rumble_strip" },
+      "residential"
+    );
+    expect(table).toBeGreaterThan(0);
+    expect(rumble).toBeGreaterThan(0);
+    expect(table).toBeGreaterThan(rumble);
+  });
+
+  it("never produces a negative delay", () => {
+    const kinds: NodeControl[] = [
+      { kind: "traffic_signals", direction: "both" },
+      { kind: "stop" },
+      { kind: "give_way" },
+      { kind: "crossing", subtype: "unmarked" },
+      { kind: "level_crossing" },
+      { kind: "traffic_calming", subtype: "bump" },
+    ];
+    for (const control of kinds) {
+      expect(computeNodeDelayS(control, "residential")).toBeGreaterThanOrEqual(0);
+    }
+  });
+});
+
+describe("nodeDelayHours", () => {
+  it("returns 0 for an undefined control", () => {
+    expect(nodeDelayHours(undefined, "primary")).toBe(0);
+  });
+
+  it("converts computeNodeDelayS's seconds to hours", () => {
+    const control: NodeControl = { kind: "stop" };
+    expect(nodeDelayHours(control, "residential")).toBeCloseTo(
+      computeNodeDelayS(control, "residential") / 3600,
+      12
+    );
+  });
+});
+
+describe("mergeNodeControl", () => {
+  it("keeps the incoming control when nothing exists yet", () => {
+    const incoming: NodeControl = { kind: "stop" };
+    expect(mergeNodeControl(undefined, incoming)).toBe(incoming);
+  });
+
+  it("prefers a level crossing over a traffic signal at the same node", () => {
+    const signal: NodeControl = { kind: "traffic_signals", direction: "both" };
+    const crossing: NodeControl = { kind: "level_crossing" };
+    expect(mergeNodeControl(signal, crossing)).toBe(crossing);
+    expect(mergeNodeControl(crossing, signal)).toBe(crossing);
+  });
+
+  it("prefers a stop over a give-way", () => {
+    const stop: NodeControl = { kind: "stop" };
+    const giveWay: NodeControl = { kind: "give_way" };
+    expect(mergeNodeControl(giveWay, stop)).toBe(stop);
+    expect(mergeNodeControl(stop, giveWay)).toBe(stop);
   });
 });
 
@@ -107,11 +224,13 @@ describe("worker inline cost stays in lockstep with the shared module", () => {
     }
   });
 
-  it("applyDynamicCost matches across incident/signal combinations", () => {
+  it("applyDynamicCost matches across incident/node-delay combinations", () => {
     for (const base of [0.005, 0.02, 0.5]) {
       for (const factor of [undefined, 0.2, 0.5, 1] as const) {
-        for (const signal of [false, true]) {
-          expect(workerDynamic(base, factor, signal)).toBe(sharedDynamic(base, factor, signal));
+        for (const nodeDelayH of [0, 15 / 3600, 25 / 3600]) {
+          expect(workerDynamic(base, factor, nodeDelayH)).toBe(
+            sharedDynamic(base, factor, nodeDelayH)
+          );
         }
       }
     }

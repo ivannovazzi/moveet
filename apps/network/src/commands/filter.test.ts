@@ -65,6 +65,26 @@ describe("filter", () => {
       expect(args).toContain("n/highway=bus_stop");
     });
 
+    it("includes node filters for stop/give-way/crossing/level-crossing controls (fleetsim-all-1ajn.2)", () => {
+      const args = buildFilterArgs({
+        input: "/cache/region.osm.pbf",
+        output: "/cache/region-roads.osm.pbf",
+      });
+      expect(args).toContain("n/highway=stop");
+      expect(args).toContain("n/highway=give_way");
+      expect(args).toContain("n/highway=crossing");
+      expect(args).toContain("n/railway=level_crossing");
+    });
+
+    it("includes node and way filters for traffic_calming (any value)", () => {
+      const args = buildFilterArgs({
+        input: "/cache/region.osm.pbf",
+        output: "/cache/region-roads.osm.pbf",
+      });
+      expect(args).toContain("n/traffic_calming");
+      expect(args).toContain("w/traffic_calming");
+    });
+
     it("includes relation filter for turn restrictions", () => {
       const args = buildFilterArgs({
         input: "/cache/region.osm.pbf",

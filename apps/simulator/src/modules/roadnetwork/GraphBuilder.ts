@@ -15,7 +15,13 @@ import crypto from "crypto";
 import type { Feature, FeatureCollection, LineString } from "geojson";
 import type { Node, Edge, POI, HighwayType } from "../../types";
 import * as utils from "../../utils/helpers";
-import { computeBaseTravelTime } from "../pathfinding/cost";
+import {
+  computeBaseTravelTime,
+  mergeNodeControl,
+  nodeDelayHours,
+  TRAFFIC_CALMING_MAX_SPEED_KMH,
+  type NodeControl,
+} from "../pathfinding/cost";
 import {
   type AltIndexed,
   type LandmarkIndex,
@@ -30,6 +36,7 @@ import {
   parseSmoothness,
   resolveMaxSpeed,
   parseOneway,
+  parseNodeControls,
   DEFAULT_FREE_FLOW_FACTORS,
   VALID_HIGHWAYS,
 } from "./types";
@@ -93,6 +100,8 @@ export class GraphBuilder {
   private connectedEdges: Map<string, Edge[]> = new Map();
   private turnRestrictions: Map<string, Set<string>> = new Map();
   private turnRestrictionTypes: Map<string, "prohibitory" | "mandatory"> = new Map();
+  /** Merged node control (signal/stop/give-way/crossing/level-crossing/calming) by node id. */
+  private nodeControls: Map<string, NodeControl> = new Map();
 
   constructor(options?: GraphBuilderOptions) {
     this.landmarkCount = options?.landmarkCount ?? DEFAULT_LANDMARK_COUNT;
@@ -229,6 +238,14 @@ export class GraphBuilder {
         const forwardSpeed = forwardMaxSpeed * roundaboutFactor;
         const backwardSpeed = backwardMaxSpeed * roundaboutFactor;
 
+        // A way-level traffic_calming tag (chicane/choker/bump run the length
+        // of the segment, unlike a point feature at a single node) caps the
+        // free-flow speed instead of adding a node delay — see `nodeControls`
+        // below for the point-feature case.
+        const wayCalming = feature.properties?.traffic_calming;
+        const calmingSpeedCap =
+          wayCalming && wayCalming !== "no" ? TRAFFIC_CALMING_MAX_SPEED_KMH : Infinity;
+
         // Skip access-restricted roads (private estates, gated communities)
         const accessTag = feature.properties?.access;
         const motorVehicleTag = feature.properties?.motor_vehicle;
@@ -289,7 +306,7 @@ export class GraphBuilder {
               name: streetName,
               highway,
               maxSpeed: forwardSpeed,
-              freeFlowSpeed: forwardSpeed * freeFlowFactor,
+              freeFlowSpeed: Math.min(forwardSpeed * freeFlowFactor, calmingSpeedCap),
               surface,
               oneway: effectiveOneway === "forward",
               lanes,
@@ -312,7 +329,7 @@ export class GraphBuilder {
               name: streetName,
               highway,
               maxSpeed: backwardSpeed,
-              freeFlowSpeed: backwardSpeed * freeFlowFactor,
+              freeFlowSpeed: Math.min(backwardSpeed * freeFlowFactor, calmingSpeedCap),
               surface,
               oneway: effectiveOneway === "reverse",
               lanes,
@@ -361,16 +378,45 @@ export class GraphBuilder {
       this.turnRestrictions.get(key)!.add(toWayId);
     });
 
-    // Third pass: mark traffic signal nodes
+    // Third pass: mark traffic signal nodes and collect node controls (stop,
+    // give-way, crossings, level crossings, point traffic-calming). A node can
+    // pick up controls from more than one point feature (or a single feature
+    // with a compound `highway=a;b` value); `mergeNodeControl` keeps the
+    // highest-priority one per node.
     data.features.forEach((feature) => {
-      if (feature.geometry?.type === "Point") {
-        const props = feature.properties ?? {};
-        if (props.highway !== "traffic_signals") return;
-        const [lon, lat] = feature.geometry.coordinates as [number, number];
-        const nearest = this.findNearestNodeDuringBuild([lat, lon]);
-        if (nearest) nearest.trafficSignal = true;
+      if (feature.geometry?.type !== "Point") return;
+      const props = feature.properties ?? {};
+      const controls = parseNodeControls(props);
+      if (controls.length === 0) return;
+
+      const [lon, lat] = feature.geometry.coordinates as [number, number];
+      const nearest = this.findControlNode(lat, lon);
+      if (!nearest) return;
+
+      for (const control of controls) {
+        if (control.kind === "traffic_signals") nearest.trafficSignal = true;
+        this.nodeControls.set(
+          nearest.id,
+          mergeNodeControl(this.nodeControls.get(nearest.id), control)
+        );
       }
     });
+  }
+
+  /**
+   * Resolves a Point feature's coordinate to a graph node. Point features
+   * tagged on a node shared with a way (the common case for signals/stops/
+   * crossings/etc.) round-trip through osmium at IDENTICAL precision to that
+   * way vertex, so an exact snapped-key lookup resolves almost every one in
+   * O(1); only a genuinely unmatched coordinate falls back to the O(nodes)
+   * scan `findNearestNodeDuringBuild` uses. With ~28k control points on the
+   * Nairobi extract, that fallback path alone would be too slow to take for
+   * every point.
+   */
+  private findControlNode(lat: number, lon: number): Node | null {
+    const exact = this.nodes.get(this.makeNodeKey(lat, lon));
+    if (exact) return exact;
+    return this.findNearestNodeDuringBuild([lat, lon]);
   }
 
   /**
@@ -389,6 +435,13 @@ export class GraphBuilder {
         edge.id,
         edge.end.connections.filter((e) => e.end.id !== edge.start.id)
       );
+      // Precomputed node-control delay for arriving at `edge.end` via THIS
+      // edge (depends on the approach's own highway class, see cost.ts). Kept
+      // out of `edgeBaseCost`/the landmark tables and applied dynamically in
+      // the A* loop instead (see `applyDynamicCost`) — same reasoning as the
+      // old flat signal delay it replaces.
+      const delay = nodeDelayHours(this.nodeControls.get(edge.end.id), edge.highway);
+      if (delay > 0) edge.nodeDelayH = delay;
     }
   }
 
