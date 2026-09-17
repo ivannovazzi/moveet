@@ -55,11 +55,16 @@ import { useNetwork } from "./hooks/useNetwork";
 import { useRoads } from "./hooks/useRoads";
 import { useDataReady, useOptionsContext, usePOIContext } from "./data/useData";
 import CommandPalette, { buildCommands } from "./components/CommandPalette";
+import { Pause, Play, Rss, Wifi, WifiOff } from "lucide-react";
 import StatusLeds from "./Dock/StatusLeds";
 import { useAdapterConfig } from "./Controls/Adapter/useAdapterConfig";
 import { FEED_HEALTH_TONE, feedHealth } from "./Dock/FeedsSection";
 import { useWeather } from "./hooks/useWeather";
-import { WEATHER_CONDITION_LABEL } from "./lib/weatherLabels";
+import {
+  WEATHER_CONDITION_ICON,
+  WEATHER_CONDITION_LABEL,
+  WEATHER_UNKNOWN_ICON,
+} from "./lib/weatherLabels";
 import { useSessionEventCapture } from "./components/SessionEvents";
 import LoadingOverlay from "./components/LoadingOverlay";
 import StartHint from "./components/StartHint";
@@ -743,29 +748,38 @@ export default function App() {
                       leds={[
                         {
                           key: "ws",
-                          label: "WS",
+                          // Wifi/WifiOff rather than one icon recoloured: a
+                          // severed socket is the state an operator must not be
+                          // able to miss, so it changes shape as well as tone.
+                          icon: connected ? Wifi : WifiOff,
                           tone: connected ? "ok" : "idle",
                           title: connected ? "Live socket connected" : "Live socket disconnected",
                         },
                         {
                           key: "sim",
-                          label: "SIM",
+                          icon: status.running ? Play : Pause,
                           tone: status.running ? "ok" : "idle",
                           title: status.running ? "Simulation running" : "Simulation paused",
                         },
                         {
                           key: "feed",
-                          label: "FEED",
+                          // Rss, not Antenna: at 14px the antenna glyph's thin
+                          // diagonals collapse into a scribble, and its arcs
+                          // read as a second wifi lamp next to the socket one.
+                          icon: Rss,
                           tone: FEED_HEALTH_TONE[feedHealth(adapter.health)],
                           title: `Adapter feeds: ${feedHealth(adapter.health).toLowerCase()}`,
                         },
                         {
                           key: "wx",
-                          label: "WX",
-                          // Amber whenever weather is costing the fleet speed:
-                          // it is the one ETA input that moves under routes
+                          // The actual condition, not a generic cloud: weather
+                          // is the one ETA input that moves under routes
                           // already assigned, so when every ETA on screen
-                          // shifts at once, this lamp is the explanation.
+                          // shifts at once, this lamp is the explanation — and
+                          // it should say which weather did it.
+                          icon: weather
+                            ? WEATHER_CONDITION_ICON[weather.condition]
+                            : WEATHER_UNKNOWN_ICON,
                           tone: !weather ? "idle" : weather.speedFactor < 1 ? "warn" : "ok",
                           title: weather
                             ? `Weather: ${WEATHER_CONDITION_LABEL[weather.condition]} · ${
