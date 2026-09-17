@@ -33,6 +33,15 @@ export function osmium(args: string[], workdir: string): void {
   execFileSync("osmium", buildOsmiumArgs(args, workdir), { stdio: "inherit" });
 }
 
+/** Runs osmium like {@link osmium} but returns its stdout (e.g. `cat -f opl`). */
+export function osmiumOutput(args: string[], workdir: string): string {
+  return execFileSync("osmium", buildOsmiumArgs(args, workdir), {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "inherit"],
+    maxBuffer: 512 * 1024 * 1024,
+  });
+}
+
 export function checkOsmiumAvailable(): void {
   if (hasLocalOsmium()) return;
   throw new Error(

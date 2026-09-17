@@ -5,7 +5,7 @@ vi.mock("child_process", () => ({
 }));
 
 import { execFileSync } from "child_process";
-import { buildOsmiumArgs, osmium } from "./docker.js";
+import { buildOsmiumArgs, osmium, osmiumOutput } from "./docker.js";
 
 const mockExec = vi.mocked(execFileSync);
 
@@ -52,6 +52,18 @@ describe("osmium", () => {
       "osmium",
       ["export", "/w/in.osm.pbf", "-o", "/w/out.geojson"],
       { stdio: "inherit" }
+    );
+  });
+});
+
+describe("osmiumOutput", () => {
+  it("returns osmium's stdout as text", () => {
+    mockExec.mockReturnValue("r1 v1 T M\n" as never);
+    expect(osmiumOutput(["cat", "in.osm.pbf", "-f", "opl"], "/w")).toBe("r1 v1 T M\n");
+    expect(mockExec).toHaveBeenCalledWith(
+      "osmium",
+      ["cat", "/w/in.osm.pbf", "-f", "opl"],
+      expect.objectContaining({ encoding: "utf8" })
     );
   });
 });

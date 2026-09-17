@@ -26,6 +26,14 @@ describe("buildExportArgs", () => {
     expect(geomArg).toContain("point");
   });
 
+  it("adds the OSM id attribute, which turn restrictions reference", () => {
+    const args = buildExportArgs({
+      input: "/cache/region-roads.osm.pbf",
+      output: "/cache/network.geojson",
+    });
+    expect(args).toContain("--attributes=id");
+  });
+
   it("uses basename for input and output paths", () => {
     const args = buildExportArgs({
       input: "/long/path/to/input.osm.pbf",

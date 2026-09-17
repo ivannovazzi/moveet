@@ -119,6 +119,10 @@ After each download the file is verified against the MD5 checksum Geofabrik publ
 
 `motorway`, `motorway_link`, `trunk`, `trunk_link`, `primary`, `primary_link`, `secondary`, `secondary_link`, `tertiary`, `tertiary_link`, `unclassified`, `residential`, `living_street`, plus `junction=roundabout`.
 
+## Turn restrictions
+
+`osmium export` writes only geometries, so `type=restriction` relations would never reach the GeoJSON. The `export` step extracts them separately (`osmium tags-filter r/type=restriction` + `osmium cat -f opl`) and appends one Point feature per restriction at its via node, with the relation's tags plus `from`/`to` way ids. Ways are exported with their OSM id (`@id`) so the simulator can match them and ban the turn. Via-way restrictions and relations with more than one from/to way are skipped (the export logs the counts). Networks generated before this change carry no restrictions and still load; regenerate to pick them up.
+
 ## Pruning
 
 The `prune` step removes all features not connected to the largest component. Real-world city exports always include small disconnected fragments at bounding-box boundaries (e.g. Cairo had 1,130 components before pruning). Pruning runs automatically in the `prepare` pipeline before validation.
