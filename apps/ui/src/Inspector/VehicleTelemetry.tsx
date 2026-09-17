@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import { Sparkline, type SparkPoint } from "@/components/charts";
 import { cn } from "@/lib/utils";
-import { useDirectionContext } from "@/data/useData";
 import { Eyebrow, Hairline, mono } from "@/Dock/DockPanelKit";
+import { formatDuration } from "@/utils/duration";
 import { TELEMETRY_CAPACITY, TELEMETRY_SAMPLE_MS, useVehicleTelemetry } from "./telemetry";
 
 /**
@@ -19,17 +19,6 @@ export interface VehicleTelemetryProps {
 const WINDOW_SECONDS = Math.round((TELEMETRY_CAPACITY * TELEMETRY_SAMPLE_MS) / 1000);
 const SAMPLE_HZ = 1000 / TELEMETRY_SAMPLE_MS;
 
-/** ETA seconds → "45 s" / "12 min" / "1 h 5 min". */
-function formatEta(seconds: number | null): string {
-  if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) return "—";
-  if (seconds < 60) return `${Math.round(seconds)} s`;
-  const totalMinutes = Math.round(seconds / 60);
-  if (totalMinutes < 60) return `${totalMinutes} min`;
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return minutes ? `${hours} h ${minutes} min` : `${hours} h`;
-}
-
 function Row({ label, chart, value }: { label: string; chart: React.ReactNode; value: string }) {
   return (
     <div className="flex items-center gap-3 px-[15px] py-[5px]">
@@ -43,9 +32,7 @@ function Row({ label, chart, value }: { label: string; chart: React.ReactNode; v
 }
 
 export default function VehicleTelemetry({ vehicleId }: VehicleTelemetryProps) {
-  const { directions } = useDirectionContext();
-  const route = directions.get(vehicleId)?.route;
-  const samples = useVehicleTelemetry(vehicleId, route);
+  const samples = useVehicleTelemetry(vehicleId);
 
   const speedSeries = useMemo<SparkPoint[]>(() => samples.map((s) => s.speed), [samples]);
   const etaSeries = useMemo<SparkPoint[]>(() => samples.map((s) => s.eta), [samples]);
@@ -87,11 +74,11 @@ export default function VehicleTelemetry({ vehicleId }: VehicleTelemetryProps) {
             chart={
               <Sparkline
                 data={etaSeries}
-                label="Estimated time of arrival over the last minute"
+                label="Remaining time to destination over the last minute"
                 height={26}
               />
             }
-            value={formatEta(latest?.eta ?? null)}
+            value={formatDuration(latest?.eta)}
           />
         </div>
       )}

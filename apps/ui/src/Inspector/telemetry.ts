@@ -1,7 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { vehicleStore } from "@/hooks/vehicleStore";
-import type { Position, Route } from "@/types";
-import { findActiveEdgeIndex } from "@/utils/directionSteps";
 
 /**
  * Telemetry sampling for the inspector's sparklines.
@@ -25,7 +23,18 @@ export interface TelemetrySample {
   t: number;
   /** Reported speed in km/h. */
   speed: number;
-  /** Derived time-to-destination in seconds, or null when not derivable. */
+  /**
+   * Remaining time to destination in seconds as reported by the simulator, or
+   * null when the vehicle has no route.
+   *
+   * It used to be derived here as `remaining route distance / current speed`,
+   * which made the ETA sparkline a mirror image of the speed sparkline
+   * directly above it — the same reciprocal-of-speed bug the simulator's own
+   * ETA had. The simulator now prices the remaining route with the routing
+   * cost model (learned or free-flow edge speeds, node control delays, turn
+   * manoeuvres, weather) and sends it on every vehicle sample, so this is read
+   * rather than guessed.
+   */
   eta: number | null;
 }
 
@@ -46,46 +55,12 @@ export function pushSample(
 }
 
 /**
- * Live ETA in seconds: remaining route distance ÷ current speed.
- *
- * The simulator only computes an ETA when it *assigns* a route, so
- * `direction.eta` is a constant between route events and would draw a flat
- * line. This recomputes from data the client already holds (route edges +
- * the vehicle's current position and speed), so the series actually moves.
- * Returns null when there is no route, no speed, or the position can't be
- * matched to the route — a gap, never a fabricated value.
- */
-export function liveEtaSeconds(
-  route: Route | undefined,
-  position: Position | undefined,
-  speedKmh: number
-): number | null {
-  if (!route || route.edges.length === 0 || !position) return null;
-  if (!Number.isFinite(speedKmh) || speedKmh <= 0) return null;
-  const edgeIndex = findActiveEdgeIndex(route.edges, position);
-  if (edgeIndex < 0) return null;
-  let remainingKm = 0;
-  for (let i = edgeIndex; i < route.edges.length; i++) remainingKm += route.edges[i].distance;
-  return (remainingKm / speedKmh) * 3600;
-}
-
-/**
  * A bounded, 1 Hz rolling telemetry series for one vehicle, polled straight out
  * of `vehicleStore`. Resets when the selected vehicle changes; stops sampling
  * entirely when nothing is selected.
  */
-export function useVehicleTelemetry(
-  vehicleId: string | undefined,
-  route?: Route
-): TelemetrySample[] {
+export function useVehicleTelemetry(vehicleId: string | undefined): TelemetrySample[] {
   const [samples, setSamples] = useState<TelemetrySample[]>(EMPTY);
-
-  // The route can change mid-flight (reroute). Read it through a ref so a new
-  // route doesn't restart the sampler and drop the window.
-  const routeRef = useRef(route);
-  useEffect(() => {
-    routeRef.current = route;
-  }, [route]);
 
   useEffect(() => {
     if (!vehicleId) {
@@ -102,8 +77,8 @@ export function useVehicleTelemetry(
       buffer = pushSample(buffer, {
         t: Date.now(),
         speed: dto.speed,
-        // DTO positions are [lat, lng], the same axis order as edge coords.
-        eta: liveEtaSeconds(routeRef.current, dto.position, dto.speed),
+        // Absent for an unrouted vehicle: a gap in the series, not a zero.
+        eta: dto.etaSeconds ?? null,
       });
       setSamples(buffer);
     };

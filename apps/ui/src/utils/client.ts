@@ -37,6 +37,8 @@ class SimulationService {
   onHeatzones: ConnectionSegment["onHeatzones"];
   offHeatzones: ConnectionSegment["offHeatzones"];
   onDirection: ConnectionSegment["onDirection"];
+  onEta: ConnectionSegment["onEta"];
+  offEta: ConnectionSegment["offEta"];
   offDirection: ConnectionSegment["offDirection"];
   onReset: ConnectionSegment["onReset"];
   offReset: ConnectionSegment["offReset"];
@@ -149,6 +151,9 @@ class SimulationService {
   getTraffic: TelemetrySegment["getTraffic"];
   onTraffic: TelemetrySegment["onTraffic"];
   offTraffic: TelemetrySegment["offTraffic"];
+  getWeather: TelemetrySegment["getWeather"];
+  onWeather: TelemetrySegment["onWeather"];
+  offWeather: TelemetrySegment["offWeather"];
   onAnalytics: TelemetrySegment["onAnalytics"];
   offAnalytics: TelemetrySegment["offAnalytics"];
   getAnalyticsSummary: TelemetrySegment["getAnalyticsSummary"];
@@ -209,6 +214,8 @@ class SimulationService {
     this.onHeatzones = connection.onHeatzones;
     this.offHeatzones = connection.offHeatzones;
     this.onDirection = connection.onDirection;
+    this.onEta = connection.onEta;
+    this.offEta = connection.offEta;
     this.offDirection = connection.offDirection;
     this.onReset = connection.onReset;
     this.offReset = connection.offReset;
@@ -314,6 +321,9 @@ class SimulationService {
     this.getTraffic = telemetry.getTraffic;
     this.onTraffic = telemetry.onTraffic;
     this.offTraffic = telemetry.offTraffic;
+    this.getWeather = telemetry.getWeather;
+    this.onWeather = telemetry.onWeather;
+    this.offWeather = telemetry.offWeather;
     this.onAnalytics = telemetry.onAnalytics;
     this.offAnalytics = telemetry.offAnalytics;
     this.getAnalyticsSummary = telemetry.getAnalyticsSummary;

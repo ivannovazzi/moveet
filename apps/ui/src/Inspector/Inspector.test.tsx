@@ -105,13 +105,16 @@ describe("Inspector", () => {
     expect(screen.getByRole("region", { name: "Inspector" })).toBeInTheDocument();
   });
 
-  it("renders the telemetry, directions and events sections for a vehicle", () => {
+  it("renders the ETA, telemetry, directions and events sections for a vehicle", () => {
     render(<Inspector vehicle={createVehicle({ id: "v1" })} />);
+    expect(screen.getByText("ETA")).toBeInTheDocument();
     expect(screen.getByText("Telemetry")).toBeInTheDocument();
     expect(screen.getByText("Directions")).toBeInTheDocument();
     expect(screen.getByText("Events")).toBeInTheDocument();
-    // No route, no telemetry window yet, no events: three honest empty states.
+    // No route, no telemetry window yet, no events: four honest empty states,
+    // each phrased for its own section.
     expect(screen.getByText("Collecting telemetry…")).toBeInTheDocument();
+    expect(screen.getByText("No route assigned.")).toBeInTheDocument();
     expect(screen.getByText("No active route.")).toBeInTheDocument();
     expect(screen.getByText("No events recorded for this vehicle.")).toBeInTheDocument();
   });

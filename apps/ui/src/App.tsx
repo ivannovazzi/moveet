@@ -58,6 +58,8 @@ import CommandPalette, { buildCommands } from "./components/CommandPalette";
 import StatusLeds from "./Dock/StatusLeds";
 import { useAdapterConfig } from "./Controls/Adapter/useAdapterConfig";
 import { FEED_HEALTH_TONE, feedHealth } from "./Dock/FeedsSection";
+import { useWeather } from "./hooks/useWeather";
+import { WEATHER_CONDITION_LABEL } from "./lib/weatherLabels";
 import { useSessionEventCapture } from "./components/SessionEvents";
 import LoadingOverlay from "./components/LoadingOverlay";
 import StartHint from "./components/StartHint";
@@ -303,6 +305,10 @@ export default function App() {
   );
 
   // ─── WebSocket connection / simulation status ───────────────────
+  // The global speed factor behind every ETA on screen. Lives up here with
+  // the other run-health reads so the annunciator can show it.
+  const weather = useWeather();
+
   const { connected, status } = useSimulationConnection({
     setVehicles,
     onReset: resetSelection,
@@ -752,6 +758,22 @@ export default function App() {
                           label: "FEED",
                           tone: FEED_HEALTH_TONE[feedHealth(adapter.health)],
                           title: `Adapter feeds: ${feedHealth(adapter.health).toLowerCase()}`,
+                        },
+                        {
+                          key: "wx",
+                          label: "WX",
+                          // Amber whenever weather is costing the fleet speed:
+                          // it is the one ETA input that moves under routes
+                          // already assigned, so when every ETA on screen
+                          // shifts at once, this lamp is the explanation.
+                          tone: !weather ? "idle" : weather.speedFactor < 1 ? "warn" : "ok",
+                          title: weather
+                            ? `Weather: ${WEATHER_CONDITION_LABEL[weather.condition]} · ${
+                                weather.speedFactor < 1
+                                  ? `${Math.round((1 - weather.speedFactor) * 100)}% slower`
+                                  : "no effect on speed"
+                              }${weather.source === "override" ? " (manual override)" : ""}`
+                            : "Weather: unknown",
                         },
                       ]}
                     />

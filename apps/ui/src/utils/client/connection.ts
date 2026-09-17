@@ -5,6 +5,7 @@ import type {
   SimulationStatus,
   VehicleDTO,
   VehicleDirection as Direction,
+  VehicleEtaUpdate,
   Heatzone,
 } from "@/types";
 import type { ResetPayload } from "../wsTypes";
@@ -37,6 +38,8 @@ export class ConnectionSegment {
     this.offHeatzones = this.offHeatzones.bind(this);
     this.onDirection = this.onDirection.bind(this);
     this.offDirection = this.offDirection.bind(this);
+    this.onEta = this.onEta.bind(this);
+    this.offEta = this.offEta.bind(this);
     this.onReset = this.onReset.bind(this);
     this.offReset = this.offReset.bind(this);
   }
@@ -127,6 +130,19 @@ export class ConnectionSegment {
 
   offDirection(handler?: (direction: Direction) => void): void {
     this.deps.ws.off("direction", handler);
+  }
+
+  /**
+   * Routes repriced without changing — sent when the weather factor moves.
+   * Corrects the ETA and its breakdown on routes the client already holds,
+   * without resending the routes themselves.
+   */
+  onEta(handler: (updates: VehicleEtaUpdate[]) => void): void {
+    this.deps.ws.on("eta", handler);
+  }
+
+  offEta(handler?: (updates: VehicleEtaUpdate[]) => void): void {
+    this.deps.ws.off("eta", handler);
   }
 
   onReset(handler: (data: ResetPayload) => void): void {

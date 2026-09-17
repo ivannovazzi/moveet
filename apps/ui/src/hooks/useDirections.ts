@@ -1,5 +1,5 @@
 import { useDirectionContext } from "@/data/useData";
-import type { Route, VehicleDirection } from "@/types";
+import type { EtaBreakdown, Route, VehicleDirection, VehicleEtaUpdate } from "@/types";
 import client from "@/utils/client";
 import { useCallback, useEffect } from "react";
 
@@ -7,6 +7,12 @@ export interface DirectionState {
   route: Route;
   /** Estimated time of arrival in seconds, when the simulator provides it. */
   eta?: number;
+  /**
+   * How the route's ETA breaks down (driving / stops / turns, plus the weather
+   * factor and the learned-speed share it was priced with). Whole-route, fixed
+   * at assignment — the LIVE remainder rides the vehicle sample instead.
+   */
+  etaBreakdown?: EtaBreakdown;
   waypoints?: VehicleDirection["waypoints"];
   currentWaypointIndex?: number;
 }
@@ -15,6 +21,7 @@ function toState(direction: VehicleDirection): DirectionState {
   return {
     route: direction.route,
     eta: direction.eta,
+    etaBreakdown: direction.etaBreakdown,
     waypoints: direction.waypoints,
     currentWaypointIndex: direction.currentWaypointIndex,
   };
@@ -53,6 +60,27 @@ export function useDirections() {
       });
     };
 
+    // Routes repriced without changing (the weather factor moved). Patches the
+    // ETA figures in place: the routes are untouched, so replacing them would
+    // discard nothing but cost a full re-render of every step list.
+    const etaHandler = (updates: VehicleEtaUpdate[]) => {
+      setDirections((prev) => {
+        let changed = false;
+        const next = new Map(prev);
+        for (const update of updates) {
+          const existing = next.get(update.vehicleId);
+          if (!existing) continue;
+          next.set(update.vehicleId, {
+            ...existing,
+            eta: update.eta,
+            etaBreakdown: update.etaBreakdown,
+          });
+          changed = true;
+        }
+        return changed ? next : prev;
+      });
+    };
+
     const waypointHandler = (data: { vehicleId: string; waypointIndex: number }) => {
       setDirections((prev) => {
         const existing = prev.get(data.vehicleId);
@@ -81,6 +109,7 @@ export function useDirections() {
 
     client.onConnect(connectHandler);
     client.onDirection(directionHandler);
+    client.onEta(etaHandler);
     client.onWaypointReached(waypointHandler);
     client.onRouteCompleted(routeHandler);
     client.onReset(resetHandler);
@@ -88,6 +117,7 @@ export function useDirections() {
     return () => {
       client.offConnect(connectHandler);
       client.offDirection(directionHandler);
+      client.offEta(etaHandler);
       client.offWaypointReached(waypointHandler);
       client.offRouteCompleted(routeHandler);
       client.offReset(resetHandler);

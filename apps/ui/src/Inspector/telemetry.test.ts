@@ -1,36 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { vehicleStore } from "@/hooks/vehicleStore";
-import type { Edge, Node, Position, Route } from "@/types";
 import {
   TELEMETRY_CAPACITY,
   TELEMETRY_SAMPLE_MS,
-  liveEtaSeconds,
   pushSample,
   useVehicleTelemetry,
   type TelemetrySample,
 } from "./telemetry";
 import { createVehicleDTO } from "@/test/mocks/types";
-
-function node(coordinates: Position): Node {
-  return { id: `n${coordinates.join(",")}`, coordinates, connections: [] };
-}
-
-function edge(distance: number, start: Position, end: Position): Edge {
-  return {
-    id: `e${start.join()}-${end.join()}`,
-    streetId: "s1",
-    name: "Test St",
-    start: node(start),
-    end: node(end),
-    distance,
-    bearing: 0,
-    highway: "residential",
-    maxSpeed: 50,
-    surface: "asphalt",
-    oneway: false,
-  };
-}
 
 const sample = (speed: number): TelemetrySample => ({ t: speed, speed, eta: null });
 
@@ -54,28 +32,6 @@ describe("pushSample", () => {
     for (let i = 0; i < TELEMETRY_CAPACITY * 3; i++) buffer = pushSample(buffer, sample(i));
     expect(buffer).toHaveLength(TELEMETRY_CAPACITY);
     expect(buffer[0].speed).toBe(TELEMETRY_CAPACITY * 2);
-  });
-});
-
-describe("liveEtaSeconds", () => {
-  const route: Route = {
-    edges: [edge(1, [0, 0], [0, 2]), edge(2, [0, 10], [0, 12])],
-    distance: 3,
-  };
-
-  it("derives seconds from the remaining route distance and current speed", () => {
-    // Nearest edge is #0 (midpoint [0,1]) → 3 km remaining at 30 km/h = 360 s.
-    expect(liveEtaSeconds(route, [0, 1], 30)).toBeCloseTo(360, 5);
-    // Nearest edge is #1 (midpoint [0,11]) → 2 km remaining at 30 km/h = 240 s.
-    expect(liveEtaSeconds(route, [0, 11], 30)).toBeCloseTo(240, 5);
-  });
-
-  it("returns null rather than a fabricated value when it can't be derived", () => {
-    expect(liveEtaSeconds(undefined, [0, 1], 30)).toBeNull();
-    expect(liveEtaSeconds({ edges: [], distance: 0 }, [0, 1], 30)).toBeNull();
-    expect(liveEtaSeconds(route, undefined, 30)).toBeNull();
-    expect(liveEtaSeconds(route, [0, 1], 0)).toBeNull();
-    expect(liveEtaSeconds(route, [0, 1], Number.NaN)).toBeNull();
   });
 });
 
@@ -140,18 +96,26 @@ describe("useVehicleTelemetry", () => {
     expect(result.current).toEqual([]);
   });
 
-  it("records an ETA reading only while a route is known", () => {
-    vehicleStore.replace([createVehicleDTO({ id: "v1", speed: 30, position: [0, 1] as Position })]);
-    const route: Route = { edges: [edge(1, [0, 0], [0, 2])], distance: 1 };
-    const { result, rerender } = renderHook(({ r }) => useVehicleTelemetry("v1", r), {
-      initialProps: { r: undefined as Route | undefined },
-    });
-    expect(result.current[0].eta).toBeNull();
+  it("reads the ETA off the vehicle sample rather than deriving it", () => {
+    // The ETA is whatever the simulator reported. It is NOT re-derived from
+    // speed here: that made the ETA series a mirror of the speed series.
+    vehicleStore.replace([createVehicleDTO({ id: "v1", speed: 30, etaSeconds: 480 })]);
+    const { result } = renderHook(() => useVehicleTelemetry("v1"));
+    expect(result.current[0].eta).toBe(480);
 
-    rerender({ r: route });
-    act(() => vi.advanceTimersByTime(TELEMETRY_SAMPLE_MS));
-    // 1 km at 30 km/h = 120 s, and the window was not restarted by the route.
-    expect(result.current).toHaveLength(2);
-    expect(result.current[1].eta).toBeCloseTo(120, 5);
+    act(() => {
+      // Speed collapses, ETA barely moves — exactly what a model-priced ETA
+      // does when a vehicle slows for one turn.
+      vehicleStore.enqueue(createVehicleDTO({ id: "v1", speed: 4, etaSeconds: 476 }));
+      vi.advanceTimersByTime(TELEMETRY_SAMPLE_MS);
+    });
+    expect(result.current[1].speed).toBe(4);
+    expect(result.current[1].eta).toBe(476);
+  });
+
+  it("records a null ETA for an unrouted vehicle rather than a zero", () => {
+    vehicleStore.replace([createVehicleDTO({ id: "v1", speed: 30 })]);
+    const { result } = renderHook(() => useVehicleTelemetry("v1"));
+    expect(result.current[0].eta).toBeNull();
   });
 });

@@ -8,6 +8,7 @@ import type {
   Waypoint,
   TrafficProfile,
   VehicleType,
+  VehicleEtaUpdate,
 } from "../types";
 import { SimulationClock } from "./SimulationClock";
 import type { RoadNetwork } from "./RoadNetwork";
@@ -104,6 +105,14 @@ export class VehicleManager extends EventEmitter {
 
     // Wire clock hour to RouteManager for speed calculations
     this.routeManager.getClockHour = () => this.clock.getHour();
+
+    // Live remaining-route ETA on every emitted sample, from the route pricing
+    // RouteManager already caches. Both egress paths get it: the game loop's
+    // per-tick WebSocket sample and the polled `GET /vehicles` snapshot, so the
+    // two never disagree.
+    const etaProvider = (vehicle: Vehicle) => this.routeManager.etaSecondsFor(vehicle);
+    this.gameLoop.etaProvider = etaProvider;
+    this.registry.etaProvider = etaProvider;
 
     // Forward events from sub-managers to this facade
     this.routeManager.on("direction", (data) => {
@@ -374,6 +383,14 @@ export class VehicleManager extends EventEmitter {
     return out;
   }
 
+  /**
+   * Every routed vehicle's whole-route ETA and breakdown, repriced at the
+   * network's current state. See {@link RouteManager.getEtaUpdates}.
+   */
+  public getEtaUpdates(): VehicleEtaUpdate[] {
+    return this.routeManager.getEtaUpdates();
+  }
+
   public getDirections(): Direction[] {
     return this.routeManager.getDirections();
   }
@@ -469,7 +486,10 @@ export class VehicleManager extends EventEmitter {
    * something other than the game loop emitted a frame for it.
    */
   private reportedFix(vehicle: Vehicle): VehicleDTO {
-    const dto = serializeVehicle(vehicle);
+    // Carries the live ETA like a game-loop sample does: clients replace the
+    // whole DTO on each frame, so omitting it here would blank the vehicle's
+    // ETA until the next tick.
+    const dto = serializeVehicle(vehicle, undefined, this.routeManager.etaSecondsFor(vehicle));
     return this.faults.isActive() ? this.faults.view(dto, Date.now()) : dto;
   }
 

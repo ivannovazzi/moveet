@@ -4,7 +4,6 @@ import {
   interpolatePosition,
   calculateDistance,
   nonCircularRouteEdges,
-  estimateRouteDuration,
 } from "../utils/helpers";
 import type { Route, Edge, Node as RoadNode } from "../types";
 
@@ -189,47 +188,5 @@ describe("nonCircularRouteEdges", () => {
       expect(e.start.connections).toEqual([]);
       expect(e.end.connections).toEqual([]);
     }
-  });
-});
-
-// ─── estimateRouteDuration ──────────────────────────────────────────
-
-describe("estimateRouteDuration", () => {
-  it("returns 0 for an empty route", () => {
-    const route = makeRoute([]);
-    expect(estimateRouteDuration(route, 60)).toBe(0);
-  });
-
-  it("computes duration as sum(distance / speed) * 3600", () => {
-    // Edge with distance=60, speed=60 → 60/60 * 3600 = 3600 s
-    const edge = makeEdge(0, 0, 1, 1, 60);
-    const route = makeRoute([edge]);
-    const duration = estimateRouteDuration(route, 60);
-    expect(duration).toBeCloseTo(3600, 0);
-  });
-
-  it("divides by higher speed for shorter durations", () => {
-    const edge = makeEdge(0, 0, 1, 1, 60);
-    const route = makeRoute([edge]);
-    const slow = estimateRouteDuration(route, 30);
-    const fast = estimateRouteDuration(route, 60);
-    expect(slow).toBeGreaterThan(fast);
-    expect(slow).toBeCloseTo(fast * 2, 1);
-  });
-
-  it("uses speed=1 as default", () => {
-    const edge = makeEdge(0, 0, 1, 1, 10);
-    const route = makeRoute([edge]);
-    const withDefault = estimateRouteDuration(route);
-    const withOne = estimateRouteDuration(route, 1);
-    expect(withDefault).toBe(withOne);
-  });
-
-  it("accumulates multiple edges", () => {
-    const edges = [makeEdge(0, 0, 1, 1, 30), makeEdge(1, 1, 2, 2, 30)];
-    const route = makeRoute(edges);
-    const single = estimateRouteDuration(makeRoute([makeEdge(0, 0, 1, 1, 60)]), 60);
-    const multi = estimateRouteDuration(route, 60);
-    expect(multi).toBeCloseTo(single, 0); // 30+30 at 60 = 60 at 60
   });
 });

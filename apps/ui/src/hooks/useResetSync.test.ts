@@ -34,6 +34,8 @@ vi.mock("@/utils/client", () => ({
     onDirection: vi.fn((h: DirectionHandler) => {
       directionHandlers.push(h);
     }),
+    onEta: vi.fn(),
+    offEta: vi.fn(),
     onWaypointReached: vi.fn(),
     onRouteCompleted: vi.fn(),
     offConnect: vi.fn(),

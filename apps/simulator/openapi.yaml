@@ -2785,6 +2785,14 @@ components:
           description: Bearing in degrees (0-360)
         fleetId:
           type: string
+        etaSeconds:
+          type: number
+          description: >
+            Seconds until the vehicle reaches the end of its active route, as of
+            this sample. Absent when it has no route. Priced by the routing cost
+            model (learned or free-flow edge speeds capped by the vehicle
+            profile, node control delays, turn manoeuvres, weather), so it does
+            not swing with the vehicle's instantaneous speed.
 
     # ─── Simulation ──────────────────────────────────────────────────
     SimulationStatus:
@@ -2891,12 +2899,40 @@ components:
         eta:
           type: number
           description: Estimated time of arrival in seconds
+        etaBreakdown:
+          $ref: "#/components/schemas/EtaBreakdown"
         waypoints:
           type: array
           items:
             $ref: "#/components/schemas/Waypoint"
         currentWaypointIndex:
           type: number
+
+    EtaBreakdown:
+      type: object
+      description: >
+        Where a route's ETA seconds go. `drivingSeconds + nodeDelaySeconds +
+        turnSeconds` equals the ETA, so a client can render the split without
+        re-deriving anything.
+      required: [drivingSeconds, nodeDelaySeconds, turnSeconds, weatherFactor, learnedDistanceShare]
+      properties:
+        drivingSeconds:
+          type: number
+          description: Seconds moving along the route's edges.
+        nodeDelaySeconds:
+          type: number
+          description: Seconds waiting at node controls (signals, stops, give-ways, crossings).
+        turnSeconds:
+          type: number
+          description: Seconds charged for turn manoeuvres between consecutive edges.
+        weatherFactor:
+          type: number
+          description: Global weather speed multiplier (0, 1] the driving seconds were priced at.
+        learnedDistanceShare:
+          type: number
+          description: >
+            Fraction [0, 1] of route distance whose edges had a learned speed profile.
+            0 means the ETA rests entirely on OSM speed limits and free-flow factors.
 
     DirectionResult:
       type: object

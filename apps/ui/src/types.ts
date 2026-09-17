@@ -33,7 +33,11 @@ export type {
   // Moved from this file into shared-types (single cross-service source of truth).
   Heatzone,
   VehicleDirection,
+  VehicleEtaUpdate,
   TrafficEdge,
+  WeatherDTO,
+  WeatherCondition,
+  EtaBreakdown,
   RecordingFile,
   ScenarioEventPayload,
   // Shared REST response/request DTOs.

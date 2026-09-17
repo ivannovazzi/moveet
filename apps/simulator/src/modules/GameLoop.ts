@@ -29,6 +29,14 @@ export const FAILURE_LOG_SAMPLE_RATE = 100;
 export type UpdateVehicleFn = (vehicle: Vehicle, deltaMs: number) => void;
 
 /**
+ * Resolves a vehicle's live remaining-route ETA in seconds, or `undefined`
+ * when it has no route. Injected rather than imported so neither the registry
+ * nor the game loop takes a dependency on `RouteManager` (which already
+ * depends on the registry).
+ */
+export type EtaProvider = (vehicle: Vehicle) => number | undefined;
+
+/**
  * Manages the single game loop that ticks all active vehicles.
  * Emits: 'update' (VehicleDTO per vehicle per tick)
  */
@@ -51,6 +59,13 @@ export class GameLoop extends EventEmitter {
    * Optional analytics accumulator. When set, stats are updated each tick per vehicle.
    */
   public analyticsAccumulator: AnalyticsAccumulator | null = null;
+
+  /**
+   * Optional live-ETA source. When set, every emitted sample carries the
+   * vehicle's remaining-route ETA, which is what gives the UI a moving ETA
+   * without a second channel or a client-side guess.
+   */
+  public etaProvider: EtaProvider | null = null;
 
   constructor(
     private registry: VehicleRegistry,
@@ -132,7 +147,11 @@ export class GameLoop extends EventEmitter {
 
         this.emit(
           "update",
-          serializeVehicle(vehicle, this.fleetManager.getVehicleFleetId(vehicleId))
+          serializeVehicle(
+            vehicle,
+            this.fleetManager.getVehicleFleetId(vehicleId),
+            this.etaProvider?.(vehicle)
+          )
         );
         this.failureCounts.delete(vehicleId);
       } catch (error) {

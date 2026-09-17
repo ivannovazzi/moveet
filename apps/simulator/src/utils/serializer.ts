@@ -1,7 +1,19 @@
 import type { Vehicle, VehicleDTO, Route, Edge, Node } from "../types";
 
-export function serializeVehicle(vehicle: Vehicle, fleetId?: string): VehicleDTO {
-  return {
+/**
+ * Internal `Vehicle` -> wire `VehicleDTO`.
+ *
+ * `etaSeconds` is passed in rather than derived here because route pricing
+ * lives in `RouteManager` (see `modules/eta.ts`) and this module must stay a
+ * pure shape conversion with no module graph behind it. Callers that have no
+ * route context simply omit it, and the field is then absent from the wire.
+ */
+export function serializeVehicle(
+  vehicle: Vehicle,
+  fleetId?: string,
+  etaSeconds?: number
+): VehicleDTO {
+  const dto: VehicleDTO = {
     id: vehicle.id,
     name: vehicle.name,
     type: vehicle.type,
@@ -10,6 +22,8 @@ export function serializeVehicle(vehicle: Vehicle, fleetId?: string): VehicleDTO
     heading: vehicle.bearing,
     fleetId,
   };
+  if (etaSeconds !== undefined) dto.etaSeconds = etaSeconds;
+  return dto;
 }
 
 /**

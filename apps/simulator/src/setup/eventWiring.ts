@@ -150,6 +150,16 @@ export function wireEvents(ctx: EventWiringContext): {
   // "heatzones" and "incident:created" above.
   weatherManager?.on("weather:changed", (data) => broadcaster.broadcast("weather", data));
   weatherManager?.on("weather:changed", (data) => recordingManager.recordEvent("weather", data));
+  // The factor feeds route pricing, so every assigned route's ETA just moved.
+  // Push the corrected figures rather than re-sending the routes they belong
+  // to: the routes have not changed, and re-serialising every one of them to
+  // fix a number would cost orders of magnitude more bytes than the fix.
+  // Ordered after the network-facing wiring in index.ts, which is what
+  // reprices; the listener registered there runs first.
+  weatherManager?.on("weather:changed", () => {
+    const updates = vehicleManager.getEtaUpdates();
+    if (updates.length > 0) broadcaster.broadcast("eta", updates);
+  });
 
   // ─── Traffic congestion snapshot + geofence checks every 2 seconds ──
   const trafficBroadcastInterval = setInterval(() => {

@@ -39,7 +39,3 @@ export function calculateDistance(p1: [number, number], p2: [number, number]): n
 export function nonCircularRouteEdges(route: Route): Route {
   return serializeRoute(route);
 }
-
-export function estimateRouteDuration(route: Route, speed: number = 1): number {
-  return route.edges.reduce((acc, edge) => acc + edge.distance / speed, 0) * 3600;
-}

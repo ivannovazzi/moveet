@@ -65,6 +65,47 @@ export type DirectionReason =
   | "reroute";
 
 /**
+ * The composition of a route's ETA, in seconds, plus the two signals that say
+ * how much to trust it. Emitted alongside `eta` on the `direction` channel.
+ *
+ * `drivingSeconds + nodeDelaySeconds + turnSeconds` equals the ETA, so a client
+ * can render the split without re-deriving anything.
+ */
+export interface EtaBreakdown {
+  /** Seconds moving along the route's edges. */
+  drivingSeconds: number;
+  /** Seconds waiting at node controls: signals, stops, give-ways, crossings. */
+  nodeDelaySeconds: number;
+  /** Seconds charged for turn manoeuvres between consecutive edges. */
+  turnSeconds: number;
+  /** The global weather speed multiplier (0, 1] the driving seconds were priced at. */
+  weatherFactor: number;
+  /**
+   * Fraction [0, 1] of route distance whose edges had a learned speed profile.
+   * 0 means the ETA rests entirely on OSM speed limits and free-flow factors;
+   * 1 means it rests on observed traversals.
+   */
+  learnedDistanceShare: number;
+}
+
+/**
+ * A refreshed ETA for a vehicle whose route has NOT changed, broadcast on the
+ * `eta` channel.
+ *
+ * Exists because the `direction` event carries the whole route, and re-sending
+ * every route just to correct a number would be wasteful — but an ETA priced at
+ * one weather factor is wrong once that factor moves, and a UI that shows the
+ * composition would otherwise claim weather has no effect while the ETA it sits
+ * under has just grown. This carries the corrected figures alone.
+ */
+export interface VehicleEtaUpdate {
+  vehicleId: string;
+  /** Whole-route ETA in seconds, repriced at the current network state. */
+  eta: number;
+  etaBreakdown: EtaBreakdown;
+}
+
+/**
  * A vehicle's active route + ETA, broadcast on the `direction` channel and
  * carried in `ResetPayload.directions`. `eta` is optional because the
  * simulator's reset-time direction snapshot may omit it.
@@ -73,6 +114,12 @@ export interface VehicleDirection {
   vehicleId: string;
   route: Route;
   eta?: number;
+  /**
+   * Where the ETA's seconds go, so a client can explain the number rather than
+   * just print it. Optional: a reset-time snapshot or an older simulator may
+   * omit it.
+   */
+  etaBreakdown?: EtaBreakdown;
   waypoints?: Waypoint[];
   currentWaypointIndex?: number;
   /**
@@ -241,6 +288,12 @@ export interface WsMessageMap {
   "faults:config": DeviceFaultConfig;
   /** The global weather speed factor changed (live poll, or a manual override set/cleared). */
   weather: WeatherDTO;
+  /**
+   * Routes repriced without changing: every routed vehicle's corrected ETA and
+   * breakdown. Sent when the weather factor moves, so a client's ETA
+   * composition never contradicts the live ETA sitting above it.
+   */
+  eta: VehicleEtaUpdate[];
 }
 
 /** Every data-carrying WS message type. */
@@ -300,6 +353,7 @@ const DATA_MESSAGE_TYPES: ReadonlySet<string> = new Set<WsDataMessageType>([
   "scenario:stopped",
   "faults:config",
   "weather",
+  "eta",
 ]);
 
 /**

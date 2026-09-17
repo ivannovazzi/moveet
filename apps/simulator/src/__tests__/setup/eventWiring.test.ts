@@ -34,6 +34,8 @@ describe("wireEvents", () => {
   let recordingManager: ReturnType<typeof createMockRecordingManager>;
   let geoFenceManager: GeoFenceManager;
   let scenarioManager: EventEmitter;
+  let weatherManager: EventEmitter;
+  let getEtaUpdates: ReturnType<typeof vi.fn>;
   let result: ReturnType<typeof wireEvents>;
 
   beforeEach(() => {
@@ -46,11 +48,14 @@ describe("wireEvents", () => {
     recordingManager = createMockRecordingManager();
     geoFenceManager = new GeoFenceManager();
     scenarioManager = createMockEmitter();
+    weatherManager = createMockEmitter();
+    getEtaUpdates = vi.fn().mockReturnValue([]);
 
     const ctx: EventWiringContext = {
       network: network as unknown as EventWiringContext["network"],
       vehicleManager: Object.assign(vehicleManager, {
         getTrafficSnapshot: vi.fn().mockReturnValue({ edges: {} }),
+        getEtaUpdates,
         faults: createMockEmitter(),
       }) as unknown as EventWiringContext["vehicleManager"],
       fleetManager: fleetManager as unknown as EventWiringContext["fleetManager"],
@@ -65,6 +70,7 @@ describe("wireEvents", () => {
       geoFenceManager,
       scenarioManager: scenarioManager as unknown as EventWiringContext["scenarioManager"],
       generationManager: createMockEmitter() as unknown as EventWiringContext["generationManager"],
+      weatherManager: weatherManager as unknown as EventWiringContext["weatherManager"],
     };
 
     result = wireEvents(ctx);
@@ -74,6 +80,47 @@ describe("wireEvents", () => {
     clearInterval(result.trafficBroadcastInterval);
     clearInterval(result.analyticsBroadcastInterval);
     clearInterval(result.recordingBatchInterval);
+  });
+
+  // ─── Weather → repriced ETAs ────────────────────────────────────────
+
+  describe("weather changes", () => {
+    const WEATHER = { condition: "rain", speedFactor: 0.85, source: "live", observedAt: null };
+
+    it("broadcasts and records the weather state", () => {
+      weatherManager.emit("weather:changed", WEATHER);
+      expect(broadcaster.broadcast).toHaveBeenCalledWith("weather", WEATHER);
+      expect(recordingManager.recordEvent).toHaveBeenCalledWith("weather", WEATHER);
+    });
+
+    it("pushes every routed vehicle's repriced ETA, without resending routes", () => {
+      const updates = [
+        {
+          vehicleId: "v1",
+          eta: 900,
+          etaBreakdown: {
+            drivingSeconds: 800,
+            nodeDelaySeconds: 60,
+            turnSeconds: 40,
+            weatherFactor: 0.85,
+            learnedDistanceShare: 0,
+          },
+        },
+      ];
+      getEtaUpdates.mockReturnValue(updates);
+
+      weatherManager.emit("weather:changed", WEATHER);
+
+      expect(broadcaster.broadcast).toHaveBeenCalledWith("eta", updates);
+      // The routes did not change, so nothing goes out on the direction channel.
+      expect(broadcaster.broadcast).not.toHaveBeenCalledWith("direction", expect.anything());
+    });
+
+    it("sends nothing when no vehicle has a route", () => {
+      getEtaUpdates.mockReturnValue([]);
+      weatherManager.emit("weather:changed", WEATHER);
+      expect(broadcaster.broadcast).not.toHaveBeenCalledWith("eta", expect.anything());
+    });
   });
 
   it("should return a traffic broadcast interval", () => {

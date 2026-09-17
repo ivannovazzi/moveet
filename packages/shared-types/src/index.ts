@@ -23,6 +23,18 @@ export interface VehicleDTO {
   heading: number;
   fleetId?: string;
   /**
+   * Seconds until the vehicle reaches the end of its active route, as of this
+   * sample. Absent when it has no route.
+   *
+   * Priced by the routing cost model (learned or free-flow edge speeds capped
+   * by the vehicle profile, node control delays, turn manoeuvres, weather), NOT
+   * by `distance / speed`. It therefore does not swing with the vehicle's
+   * instantaneous speed: a turn slowdown costs the seconds it actually costs on
+   * the edge it happens on. The route-wide figure and its composition arrive
+   * once per route on the `direction` channel; this is the live remainder.
+   */
+  etaSeconds?: number;
+  /**
    * Device fix timestamp (epoch ms), as reported by the simulated device.
    * Present only for a vehicle whose device has a fault profile — a skewed
    * device clock is only observable if the sample carries its own timestamp.

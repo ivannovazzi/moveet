@@ -32,10 +32,16 @@ export type {
   DeviceFaultProfile,
   DeviceFaultConfig,
   DeviceFaultStatus,
+  EtaBreakdown,
+  VehicleEtaUpdate,
 } from "@moveet/shared-types";
 
 // Re-export ExportVehicle under its old name for backwards compatibility
 export type { ExportVehicle as DataVehicle } from "@moveet/shared-types";
+
+// `export type { ... } from` re-exports without binding locally, so the shared
+// types this file's own interfaces reference are imported separately.
+import type { EtaBreakdown } from "@moveet/shared-types";
 
 // ─── Simulator-specific types ───────────────────────────────────────
 
@@ -131,6 +137,8 @@ export interface Direction {
   vehicleId: string;
   route: Route;
   eta?: number;
+  /** Where the ETA's seconds go. See the shared `EtaBreakdown`. */
+  etaBreakdown?: EtaBreakdown;
   waypoints?: Waypoint[];
   currentWaypointIndex?: number;
 }

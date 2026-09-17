@@ -3,6 +3,7 @@ import type { Fleet, JobDTO, POI, Position, Vehicle } from "@/types";
 import { invertLatLng } from "@/utils/coordinates";
 import { Eyebrow, StatusDot, Tag, mono } from "@/Dock/DockPanelKit";
 import VehicleDirections from "./VehicleDirections";
+import VehicleEta from "./VehicleEta";
 import VehicleTelemetry from "./VehicleTelemetry";
 import VehicleEventTimeline from "./VehicleEventTimeline";
 import { useVehicleEventCapture } from "./useVehicleEventCapture";
@@ -27,8 +28,9 @@ import type { DeviceFaultInfo } from "@/types";
  * line of copy explaining where selections come from pushed the panel's own
  * layout around for something the operator learns once.
  *
- * Four sections for a vehicle: identity fields, live telemetry sparklines,
- * turn-by-turn steps with route progress, and an event timeline.
+ * Five sections for a vehicle: identity fields, the ETA and what it is made
+ * of, live telemetry sparklines, turn-by-turn steps with route progress, and
+ * an event timeline.
  *
  * Performance note: this component is *not* wired to the vehicle hot path. Its
  * `vehicle` prop comes from App's already-throttled (1 Hz) `useVehicles`
@@ -174,6 +176,9 @@ export default function Inspector({ vehicle, poi, fleet, job }: InspectorProps) 
           </div>
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
             <DeviceFaults faults={vehicle.faults} timestamp={vehicle.timestamp} />
+            {/* `etaSeconds` rides the vehicle sample, recomputed by the
+                simulator every tick from where the vehicle is on its route. */}
+            <VehicleEta vehicleId={vehicle.id} etaSeconds={vehicle.etaSeconds} />
             <VehicleTelemetry vehicleId={vehicle.id} />
             {/* Vehicle positions are [lng, lat] here; edge coords are [lat, lng].
                 Invert so the active-step lookup compares matching axes. */}

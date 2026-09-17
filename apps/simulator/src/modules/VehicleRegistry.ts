@@ -6,6 +6,7 @@ import { CircularBuffer } from "../utils/CircularBuffer";
 import { serializeVehicle } from "../utils/serializer";
 import type { FleetManager } from "./FleetManager";
 import { getProfile, distributeByWeight } from "../utils/vehicleProfiles";
+import type { EtaProvider } from "./GameLoop";
 
 /**
  * Manages vehicle state: add/remove/get/update vehicles, visited edges, and edge spatial index.
@@ -16,6 +17,12 @@ export class VehicleRegistry {
 
   // Edge -> vehicle spatial index for O(1) lookups
   private vehiclesByEdge: Map<string, Set<string>> = new Map();
+
+  /**
+   * Optional live-ETA source, so a polled `GET /vehicles` reports the same
+   * `etaSeconds` the WebSocket feed is streaming. See {@link EtaProvider}.
+   */
+  public etaProvider: EtaProvider | null = null;
 
   constructor(
     private network: RoadNetwork,
@@ -121,7 +128,7 @@ export class VehicleRegistry {
 
   getAllSerialized(): VehicleDTO[] {
     return Array.from(this.vehicles.values()).map((v) =>
-      serializeVehicle(v, this.fleetManager.getVehicleFleetId(v.id))
+      serializeVehicle(v, this.fleetManager.getVehicleFleetId(v.id), this.etaProvider?.(v))
     );
   }
 

@@ -1,8 +1,8 @@
 import type { ClientDeps } from "./types";
-import type { ApiResponse, ClockState, TrafficEdge } from "@/types";
+import type { ApiResponse, ClockState, TrafficEdge, WeatherDTO } from "@/types";
 import type { AnalyticsSnapshot, AnalyticsSummary, FleetAnalytics } from "@/hooks/analyticsStore";
 
-/** Simulation clock, traffic congestion, and analytics queries/streams. */
+/** Simulation clock, traffic congestion, weather, and analytics queries/streams. */
 export class TelemetrySegment {
   constructor(private deps: ClientDeps) {
     this.getClock = this.getClock.bind(this);
@@ -12,6 +12,9 @@ export class TelemetrySegment {
     this.getTraffic = this.getTraffic.bind(this);
     this.onTraffic = this.onTraffic.bind(this);
     this.offTraffic = this.offTraffic.bind(this);
+    this.getWeather = this.getWeather.bind(this);
+    this.onWeather = this.onWeather.bind(this);
+    this.offWeather = this.offWeather.bind(this);
     this.onAnalytics = this.onAnalytics.bind(this);
     this.offAnalytics = this.offAnalytics.bind(this);
     this.getAnalyticsSummary = this.getAnalyticsSummary.bind(this);
@@ -52,6 +55,24 @@ export class TelemetrySegment {
 
   offTraffic(handler?: (data: TrafficEdge[]) => void): void {
     this.deps.ws.off("traffic", handler);
+  }
+
+  // ─── Weather ──────────────────────────────────────────────────────
+  // The global speed factor behind every ETA on screen. Always available: the
+  // simulator constructs its WeatherManager unconditionally and reports a
+  // clear/1.0 state when polling is off, so the UI never has to branch on
+  // whether the feature is enabled.
+
+  async getWeather(): Promise<ApiResponse<WeatherDTO>> {
+    return this.deps.http.get<WeatherDTO>("/weather");
+  }
+
+  onWeather(handler: (data: WeatherDTO) => void): void {
+    this.deps.ws.on("weather", handler);
+  }
+
+  offWeather(handler?: (data: WeatherDTO) => void): void {
+    this.deps.ws.off("weather", handler);
   }
 
   // ─── Analytics ────────────────────────────────────────────────────

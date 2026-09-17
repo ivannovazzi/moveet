@@ -29,6 +29,7 @@ import {
   useDirectionHighlight,
 } from "@/hooks/directionHighlightStore";
 import { Eyebrow, Hairline, mono } from "@/Dock/DockPanelKit";
+import { formatDuration } from "@/utils/duration";
 
 /**
  * Turn-by-turn directions for the selected vehicle, rendered inside the
@@ -63,17 +64,6 @@ function formatDistance(km: number): string {
   if (km <= 0) return "";
   if (km < 1) return `${Math.round(km * 1000)} m`;
   return `${km.toFixed(1)} km`;
-}
-
-/** ETA seconds → "45 s" / "12 min" / "1 h 5 min". */
-function formatEta(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds <= 0) return "";
-  if (seconds < 60) return `${Math.round(seconds)} s`;
-  const totalMinutes = Math.round(seconds / 60);
-  if (totalMinutes < 60) return `${totalMinutes} min`;
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return minutes ? `${hours} h ${minutes} min` : `${hours} h`;
 }
 
 export default function VehicleDirections({ vehicleId, position }: VehicleDirectionsProps) {
@@ -113,7 +103,7 @@ export default function VehicleDirections({ vehicleId, position }: VehicleDirect
   const remaining = activeStep >= 0 ? remainingDistanceKm(steps, activeStep) : total;
   // Steps minus the terminal "arrive" pseudo-step, for a "turns left" readout.
   const turnCount = Math.max(0, steps.length - 1);
-  const eta = formatEta(direction.eta ?? 0);
+  const eta = formatDuration(direction.eta, "");
 
   // Progress is measured against the summed step distances (not `route.distance`)
   // so the bar and the "remaining" readout can never disagree.

@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { useDirections } from "./useDirections";
 import type { DirectionMap } from "@/data/context";
 import { DirectionContext } from "@/data/context";
-import type { Route, VehicleDirection } from "@/types";
+import type { EtaBreakdown, Route, VehicleDirection, VehicleEtaUpdate } from "@/types";
 import client from "@/utils/client";
 
 vi.mock("@/utils/client", () => ({
@@ -16,6 +16,8 @@ vi.mock("@/utils/client", () => ({
     onWaypointReached: vi.fn(),
     onRouteCompleted: vi.fn(),
     offDirection: vi.fn(),
+    onEta: vi.fn(),
+    offEta: vi.fn(),
     offConnect: vi.fn(),
     offReset: vi.fn(),
     offWaypointReached: vi.fn(),
@@ -207,5 +209,59 @@ describe("useDirections", () => {
 
     expect(result.current.size).toBe(0);
     expect(result.current.has("v1")).toBe(false);
+  });
+});
+
+describe("useDirections eta channel", () => {
+  const BREAKDOWN: EtaBreakdown = {
+    drivingSeconds: 800,
+    nodeDelaySeconds: 60,
+    turnSeconds: 40,
+    weatherFactor: 0.85,
+    learnedDistanceShare: 0.25,
+  };
+
+  /** Mounts the hook and returns the registered `eta` handler. */
+  async function mountWithDirections(directions: VehicleDirection[]) {
+    vi.mocked(client.getDirections).mockResolvedValue({ data: directions });
+    let handler: ((updates: VehicleEtaUpdate[]) => void) | undefined;
+    vi.mocked(client.onEta).mockImplementation((h) => {
+      handler = h;
+    });
+    const { result } = renderHook(() => useDirections(), { wrapper: createWrapper() });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    return { result, fire: (updates: VehicleEtaUpdate[]) => act(() => handler?.(updates)) };
+  }
+
+  it("patches the ETA and breakdown without touching the route", async () => {
+    const route = createRoute({ distance: 200 });
+    const { result, fire } = await mountWithDirections([{ vehicleId: "v1", route, eta: 60 }]);
+
+    fire([{ vehicleId: "v1", eta: 900, etaBreakdown: BREAKDOWN }]);
+
+    expect(result.current.get("v1")?.eta).toBe(900);
+    expect(result.current.get("v1")?.etaBreakdown).toEqual(BREAKDOWN);
+    // The route object is untouched, not re-created — the steps below it must
+    // not re-render just because a number moved.
+    expect(result.current.get("v1")?.route).toBe(route);
+  });
+
+  it("ignores an update for a vehicle it has no route for", async () => {
+    const { result, fire } = await mountWithDirections([
+      { vehicleId: "v1", route: createRoute(), eta: 60 },
+    ]);
+
+    fire([{ vehicleId: "ghost", eta: 900, etaBreakdown: BREAKDOWN }]);
+
+    expect(result.current.has("ghost")).toBe(false);
+    expect(result.current.get("v1")?.eta).toBe(60);
+  });
+
+  it("detaches the listener on unmount", () => {
+    const { unmount } = renderHook(() => useDirections(), { wrapper: createWrapper() });
+    unmount();
+    expect(client.offEta).toHaveBeenCalled();
   });
 });

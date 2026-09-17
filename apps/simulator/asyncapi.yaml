@@ -105,6 +105,8 @@ channels:
         $ref: "#/components/messages/faultsConfig"
       weather:
         $ref: "#/components/messages/weather"
+      eta:
+        $ref: "#/components/messages/eta"
       connect:
         $ref: "#/components/messages/connect"
       disconnect:
@@ -152,6 +154,7 @@ operations:
       - $ref: "#/components/messages/scenarioStopped"
       - $ref: "#/components/messages/faultsConfig"
       - $ref: "#/components/messages/weather"
+      - $ref: "#/components/messages/eta"
       - $ref: "#/components/messages/connect"
       - $ref: "#/components/messages/disconnect"
   sendClientCommands:
@@ -695,6 +698,34 @@ components:
             const: weather
           data:
             $ref: ./openapi.yaml#/components/schemas/WeatherDTO
+    eta:
+      name: eta
+      title: ETAs repriced
+      summary: >
+        Every routed vehicle's whole-route ETA and breakdown, repriced because the
+        weather factor moved. The routes themselves did not change and are not resent.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: eta
+          data:
+            type: array
+            items:
+              type: object
+              required: [vehicleId, eta, etaBreakdown]
+              properties:
+                vehicleId:
+                  type: string
+                eta:
+                  type: number
+                  description: Whole-route ETA in seconds at the current network state.
+                etaBreakdown:
+                  $ref: ./openapi.yaml#/components/schemas/EtaBreakdown
     connect:
       name: connect
       title: Connected
@@ -750,6 +781,8 @@ components:
         eta:
           type: number
           description: Seconds to destination.
+        etaBreakdown:
+          $ref: ./openapi.yaml#/components/schemas/EtaBreakdown
         waypoints:
           type: array
           items:
