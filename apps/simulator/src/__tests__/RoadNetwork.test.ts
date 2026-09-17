@@ -1022,7 +1022,7 @@ describe("RoadNetwork", () => {
       return tmpPath;
     }
 
-    it("should load one turn restriction entry from a restriction relation feature", () => {
+    it("should resolve a restriction relation feature to an edge-level turn ban", () => {
       const restrictionFeature = {
         type: "Feature",
         geometry: null,
@@ -1038,17 +1038,18 @@ describe("RoadNetwork", () => {
       const tmpPath = writeTmpNetwork([...baseFeatures, restrictionFeature]);
       try {
         const rn = new RoadNetwork(tmpPath);
-        const restrictions = rn.getTurnRestrictions();
-        expect(restrictions.size).toBe(1);
-        const key = `way-A|${nodeC}`;
-        expect(restrictions.has(key)).toBe(true);
-        expect(restrictions.get(key)!.has("way-B")).toBe(true);
+        const bans = rn.getTurnBans();
+        expect(bans.size).toBe(1);
+        // Arriving on way-A (A→C) may not continue onto way-B (C→B).
+        const nodeA = rn.findNearestNode([-1.28, 36.8]).id;
+        const nodeB = rn.findNearestNode([-1.29, 36.81]).id;
+        expect([...bans.get(`${nodeA}-${nodeC}`)!]).toEqual([`${nodeC}-${nodeB}`]);
       } finally {
         fs.unlinkSync(tmpPath);
       }
     });
 
-    it("should block route from A to B when no_right_turn restriction is active (A→C→B)", () => {
+    it("should not make the banned A→C→B turn directly (U-turns at the dead end D instead)", () => {
       const restrictionFeature = {
         type: "Feature",
         geometry: null,
@@ -1067,9 +1068,11 @@ describe("RoadNetwork", () => {
         const start = rn.findNearestNode([-1.28, 36.8]);
         const end = rn.findNearestNode([-1.29, 36.81]);
 
-        // With restriction, A→C→B is blocked; no other route exists → null
+        // A→C→B is banned. D is a dead end, where a U-turn is legal, so the only
+        // legal route is A→C→D, turn around, D→C→B.
         const route = rn.findRoute(start, end);
-        expect(route).toBeNull();
+        const nodeD = rn.findNearestNode([-1.28, 36.81]).id;
+        expect(route!.edges.map((e) => e.end.id)).toEqual([nodeC, nodeD, nodeC, end.id]);
       } finally {
         fs.unlinkSync(tmpPath);
       }
@@ -1123,9 +1126,11 @@ describe("RoadNetwork", () => {
         const start = rn.findNearestNode([-1.28, 36.8]);
         const end = rn.findNearestNode([-1.28, 36.81]);
 
-        // A→C→D is blocked (mandatory: only B allowed when coming from A via C)
+        // A→C→D is banned (mandatory: only B allowed when coming from A via C),
+        // so the route goes on to the dead end B, turns around, and comes back.
         const route = rn.findRoute(start, end);
-        expect(route).toBeNull();
+        const nodeB = rn.findNearestNode([-1.29, 36.81]).id;
+        expect(route!.edges.map((e) => e.end.id)).toEqual([nodeC, nodeB, nodeC, end.id]);
       } finally {
         fs.unlinkSync(tmpPath);
       }
@@ -1135,8 +1140,7 @@ describe("RoadNetwork", () => {
       const tmpPath = writeTmpNetwork(baseFeatures);
       try {
         const rn = new RoadNetwork(tmpPath);
-        const restrictions = rn.getTurnRestrictions();
-        expect(restrictions.size).toBe(0);
+        expect(rn.getTurnBans().size).toBe(0);
       } finally {
         fs.unlinkSync(tmpPath);
       }

@@ -18,6 +18,7 @@ import os from "os";
 import { DEFAULT_LANDMARK_COUNT } from "./pathfinding/landmarks";
 import type { PathfindingWorkerData } from "../workers/pathfinding-worker";
 import type { HighwayType } from "../types";
+import type { DriveSide } from "./pathfinding/turns";
 import logger from "../utils/logger";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -56,6 +57,8 @@ export interface PathfindingPoolOptions {
   landmarkCount?: number;
   /** Per-highway-class free-flow factors; must match the main-thread graph's. */
   freeFlowFactors?: Record<HighwayType, number>;
+  /** Drive side for turn penalties; must match the main-thread graph's. */
+  driveSide?: DriveSide;
 }
 
 export class PathfindingPool {
@@ -108,7 +111,13 @@ export class PathfindingPool {
       workerCandidates[workerCandidates.length - 1];
 
     const freeFlowFactors = typeof options === "number" ? undefined : options?.freeFlowFactors;
-    const workerData: PathfindingWorkerData = { geojsonPath, landmarkCount, freeFlowFactors };
+    const driveSide = typeof options === "number" ? undefined : options?.driveSide;
+    const workerData: PathfindingWorkerData = {
+      geojsonPath,
+      landmarkCount,
+      freeFlowFactors,
+      driveSide,
+    };
 
     for (let i = 0; i < size; i++) {
       const worker = new Worker(workerPath, { workerData });
@@ -160,9 +169,7 @@ export class PathfindingPool {
     startId: string,
     endId: string,
     incidentEdges?: Map<string, number>,
-    restrictedHighways?: string[],
-    turnRestrictions?: Record<string, string[]>,
-    turnRestrictionTypes?: Record<string, string>
+    restrictedHighways?: string[]
   ): Promise<PathfindingResult | null> {
     if (this.workers.length === 0) {
       return Promise.resolve(null);
@@ -206,12 +213,6 @@ export class PathfindingPool {
       }
       if (restrictedHighways && restrictedHighways.length > 0) {
         msg.restrictedHighways = restrictedHighways;
-      }
-      if (turnRestrictions) {
-        msg.turnRestrictions = turnRestrictions;
-      }
-      if (turnRestrictionTypes) {
-        msg.turnRestrictionTypes = turnRestrictionTypes;
       }
       worker.postMessage(msg);
     });

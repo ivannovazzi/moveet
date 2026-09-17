@@ -1,15 +1,12 @@
 import type { Route } from "../types";
 import { serializeRoute } from "./serializer";
+import { bearingDegrees } from "../modules/pathfinding/turns";
 
-export function calculateBearing(start: [number, number], end: [number, number]): number {
-  const [lat1, lon1] = start.map((x) => (x * Math.PI) / 180);
-  const [lat2, lon2] = end.map((x) => (x * Math.PI) / 180);
-
-  const y = Math.sin(lon2 - lon1) * Math.cos(lat2);
-  const x =
-    Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(lon2 - lon1);
-  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
-}
+/**
+ * Initial bearing in degrees [0, 360) from `start` to `end`. Lives in the shared
+ * turn model so the worker's edge bearings are computed by the same code.
+ */
+export const calculateBearing = bearingDegrees;
 
 export function interpolatePosition(
   start: [number, number],

@@ -53,6 +53,12 @@ describe("envSchema / parseEnv", () => {
     expect(() => parseEnv(validEnv({ FREE_FLOW_FACTORS: "residential=2" }))).toThrow();
   });
 
+  it("parses DRIVE_SIDE, defaulting to right-hand traffic", () => {
+    expect(parseEnv({}).DRIVE_SIDE).toBe("right");
+    expect(parseEnv(validEnv({ DRIVE_SIDE: "left" })).DRIVE_SIDE).toBe("left");
+    expect(() => parseEnv(validEnv({ DRIVE_SIDE: "middle" }))).toThrow();
+  });
+
   it("applies defaults when env vars are missing", () => {
     const cfg = parseEnv({});
     expect(cfg.PORT).toBe(5010);

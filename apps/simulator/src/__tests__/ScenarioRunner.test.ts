@@ -52,6 +52,10 @@ describe("ScenarioRunner", () => {
   it("runs a scenario's jobs to completion and passes its assertions", async () => {
     const report = await run(
       makeScenario({
+        // Headroom over the ~300s the trip takes: turn penalties route the
+        // dropoff leg around the fixture's diagonal (two extra turns), which is
+        // slightly longer to drive than the old shortest-time path.
+        duration: 400,
         events: [jobEvent(5)],
         assertions: [
           { type: "all_jobs_completed" },
@@ -72,8 +76,8 @@ describe("ScenarioRunner", () => {
     expect(report.metrics.jobs.etaToPickupSeconds).toHaveLength(1);
     expect(report.metrics.vehicles.count).toBe(2);
     expect(report.metrics.vehicles.totalDistanceKm).toBeGreaterThan(0);
-    expect(report.simSeconds).toBe(300);
-    expect(report.steps).toBe(300);
+    expect(report.simSeconds).toBe(400);
+    expect(report.steps).toBe(400);
   });
 
   it("fails the run when an assertion does not hold", async () => {

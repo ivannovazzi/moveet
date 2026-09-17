@@ -11,6 +11,7 @@ import { GraphBuilder, type SpeedLimitSign } from "./roadnetwork/GraphBuilder";
 import { SpatialIndex } from "./roadnetwork/SpatialIndex";
 import { PathfindingEngine } from "./roadnetwork/PathfindingEngine";
 import type { Road } from "./roadnetwork/types";
+import type { DriveSide } from "./pathfinding/turns";
 import EventEmitter from "events";
 
 /** Construction-time knobs for {@link RoadNetwork}. */
@@ -30,6 +31,11 @@ export interface RoadNetworkOptions {
    * (the parsed `FREE_FLOW_FACTORS`); threaded to the pool workers too.
    */
   freeFlowFactors?: Record<HighwayType, number>;
+  /**
+   * Drive side for turn penalties. Defaults to `config.driveSide` (the parsed
+   * `DRIVE_SIDE`); threaded to the pool workers too.
+   */
+  driveSide?: DriveSide;
 }
 
 /**
@@ -37,13 +43,13 @@ export interface RoadNetworkOptions {
  * review #6):
  *
  *  - {@link GraphBuilder}      builds the graph (nodes/edges/roads/connected
- *                              edges/base costs/turn restrictions/ALT landmark
+ *                              edges/base costs/turn bans/ALT landmark
  *                              tables) and eagerly derives the POI /
  *                              speed-limit / LineString-only collections from
  *                              the raw GeoJSON.
  *  - {@link SpatialIndex}      grid + sector indexes, nearest-node and random
  *                              node/edge/POI-node queries, bbox.
- *  - {@link PathfindingEngine} main-thread A*, incident costs and the LRU
+ *  - {@link PathfindingEngine} main-thread A*, incident + turn costs and the LRU
  *                              route cache, plus connected/fallback-edge lookups.
  *  - {@link PathfindingPool}   worker-thread A* pool (lazy-initialized).
  *
@@ -65,8 +71,6 @@ export class RoadNetwork extends EventEmitter {
 
   private spatial: SpatialIndex;
   private pathfinding: PathfindingEngine;
-  private turnRestrictions: Map<string, Set<string>>;
-  private turnRestrictionTypes: Map<string, "prohibitory" | "mandatory">;
 
   // Eagerly-derived, data-backed collections (the raw FeatureCollection is
   // released after build, so these are the source of truth at runtime).
@@ -87,12 +91,14 @@ export class RoadNetwork extends EventEmitter {
    */
   private landmarkCount: number;
   private freeFlowFactors: Record<HighwayType, number>;
+  private driveSide: DriveSide;
 
   constructor(geojsonPath: string, options?: RoadNetworkOptions) {
     super();
     this.geojsonPath = geojsonPath;
     this.landmarkCount = options?.landmarkCount ?? config.pathfindingLandmarks;
     this.freeFlowFactors = options?.freeFlowFactors ?? config.freeFlowFactors;
+    this.driveSide = options?.driveSide ?? config.driveSide;
 
     // Parse the raw GeoJSON into a local — NOT a field — so the only reference
     // is dropped when the constructor returns and the blob can be GC'd.
@@ -107,8 +113,6 @@ export class RoadNetwork extends EventEmitter {
     this.nodes = built.nodes;
     this.edges = built.edges;
     this.roads = built.roads;
-    this.turnRestrictions = built.turnRestrictions;
-    this.turnRestrictionTypes = built.turnRestrictionTypes;
     this.pois = built.pois;
     this.speedLimits = built.speedLimits;
     this.lineStringFeatures = built.lineStringFeatures;
@@ -120,8 +124,8 @@ export class RoadNetwork extends EventEmitter {
         edges: this.edges,
         edgeBaseCost: built.edgeBaseCost,
         connectedEdges: built.connectedEdges,
-        turnRestrictions: built.turnRestrictions,
-        turnRestrictionTypes: built.turnRestrictionTypes,
+        turnBans: built.turnBans,
+        driveSide: this.driveSide,
         maxNetworkSpeed: built.maxNetworkSpeed,
         landmarks: built.landmarks,
       },
@@ -254,9 +258,20 @@ export class RoadNetwork extends EventEmitter {
     return this.pathfinding.findRoute(start, end);
   }
 
-  /** Expose turn restrictions for testing. Returns a shallow copy of the map. */
-  public getTurnRestrictions(): Map<string, Set<string>> {
-    return new Map(this.turnRestrictions);
+  /**
+   * OSM turn restrictions resolved to edge level: arriving edge id -> ids of
+   * the edges that may not follow it. Returns a shallow copy of the map.
+   */
+  public getTurnBans(): Map<string, Set<string>> {
+    return new Map(this.pathfinding.bans);
+  }
+
+  /**
+   * Turn cost (hours) for driving from `from` onto the consecutive edge `to`,
+   * exactly as the route search charges it. Used to price route ETAs.
+   */
+  public turnCostHours(from: Edge, to: Edge): number {
+    return this.pathfinding.turnCostHours(from, to);
   }
 
   /** Clear all cached routes. */
@@ -317,26 +332,18 @@ export class RoadNetwork extends EventEmitter {
       this.pathfindingPool = new PathfindingPool(this.geojsonPath, {
         landmarkCount: this.landmarkCount,
         freeFlowFactors: this.freeFlowFactors,
+        driveSide: this.driveSide,
       });
     }
 
+    // Turn restrictions are NOT sent per request: each worker resolves them
+    // from the same GeoJSON at build time.
     const incidentEdges = this.pathfinding.incidents;
-    const restrictions =
-      this.turnRestrictions.size > 0
-        ? Object.fromEntries([...this.turnRestrictions.entries()].map(([k, v]) => [k, [...v]]))
-        : undefined;
-    const restrictionTypes =
-      this.turnRestrictions.size > 0
-        ? Object.fromEntries(this.turnRestrictionTypes.entries())
-        : undefined;
-
     const result = await this.pathfindingPool.findRoute(
       start.id,
       end.id,
       incidentEdges.size > 0 ? incidentEdges : undefined,
-      restrictedHighways,
-      restrictions,
-      restrictionTypes
+      restrictedHighways
     );
     if (!result) return null;
 

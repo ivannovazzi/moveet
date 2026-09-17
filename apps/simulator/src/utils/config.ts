@@ -232,6 +232,13 @@ const envObjectSchema = z.object({
         return z.NEVER;
       }
     }),
+
+  /**
+   * Which side of the road traffic drives on: `right` (default) or `left`.
+   * Turn penalties charge the far-side turn (left in right-hand traffic) extra
+   * for crossing oncoming traffic. Threaded to the graph and pathfinding workers.
+   */
+  DRIVE_SIDE: z.enum(["right", "left"]).default("right"),
 });
 
 export const envSchema = envObjectSchema
@@ -296,6 +303,7 @@ function buildConfig(env: EnvConfig) {
     faultSeed: env.FAULT_SEED,
     faultProfiles: env.FAULT_PROFILES,
     freeFlowFactors: env.FREE_FLOW_FACTORS,
+    driveSide: env.DRIVE_SIDE,
   } as const;
 }
 

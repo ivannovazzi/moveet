@@ -244,6 +244,12 @@ export interface Node {
   coordinates: Position;
   connections: Edge[];
   trafficSignal?: boolean; // true when OSM highway=traffic_signals node
+  /**
+   * Distinct neighbouring nodes (via inbound or outbound edges), stamped at
+   * graph build: 1 = dead end, 2 = a bend/continuation, >= 3 = intersection.
+   * Drives the turn model (`pathfinding/turns.ts`).
+   */
+  degree?: number;
 }
 
 export interface Edge {

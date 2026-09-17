@@ -1,13 +1,13 @@
 /**
  * Shared binary min-heaps used by the pathfinding code.
  *
- * - {@link PathNodeHeap} — the A* frontier, keyed on `fScore`. Extracted so the
- *   main-thread {@link RoadNetwork} A* and the
- *   {@link "../../workers/pathfinding-worker"} A* use the exact same heap
- *   implementation instead of two hand-synced copies that could drift.
+ * - {@link PathNodeHeap} — an object heap keyed on `fScore`. It was the A*
+ *   frontier until the searches became edge-based (fleetsim-all-1ajn.3); both
+ *   A* loops now use {@link NumericHeap} through `search.ts`.
  * - {@link NumericHeap} — a typed-array (int id, float key) heap used by the ALT
- *   landmark preprocessing Dijkstras, where node ids are dense integer indices
- *   and allocating one object per queue entry would dominate the runtime.
+ *   landmark preprocessing Dijkstras and by both A* searches (over dense edge
+ *   indices), where allocating one object per queue entry would dominate the
+ *   runtime.
  */
 
 export interface PathNode {

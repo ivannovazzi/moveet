@@ -338,6 +338,23 @@ describe("RouteManager", () => {
       expect(est).not.toBeNull();
       expect(est!.etaSeconds).toBeCloseTo(expectedSeconds, 6);
     });
+
+    it("adds the turn cost the route search charges between consecutive edges", async () => {
+      const vehicle = firstVehicle();
+      const base = vehicle.currentEdge;
+      const edge = { ...base, distance: 1, maxSpeed: 50, freeFlowSpeed: 30, nodeDelayH: undefined };
+      const route = [edge, { ...edge }, { ...edge }];
+      vi.spyOn(network, "findRouteAsync").mockResolvedValue({ edges: route, distance: 3 });
+      const turnSpy = vi.spyOn(network, "turnCostHours").mockReturnValue(7 / 3600);
+
+      const est = await routeManager.estimateTo(vehicle.id, [45.5029, -73.5661]);
+
+      const profileMax = getProfile(vehicle.type).maxSpeed;
+      const expectedSeconds = (3 / Math.min(30, profileMax)) * 3600 + 2 * 7;
+      expect(turnSpy).toHaveBeenCalledTimes(2);
+      expect(turnSpy).toHaveBeenCalledWith(route[0], route[1]);
+      expect(est!.etaSeconds).toBeCloseTo(expectedSeconds, 6);
+    });
   });
 
   // ─── Incident rerouting ───────────────────────────────────────────

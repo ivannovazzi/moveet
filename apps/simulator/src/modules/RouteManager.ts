@@ -635,10 +635,22 @@ export class RouteManager extends EventEmitter {
     // agree on what a stop/signal costs. `updateSpeed` below has no stopping
     // logic of its own (it only slows for turns/following distance/heat zones/
     // congestion), so there is nothing to double-count against.
+    //
+    // Plus the turn cost between consecutive edges, again exactly as the search
+    // charges it (pathfinding/turns.ts). This deliberately does NOT mirror
+    // `updateSpeed`'s turn slowdown: that one is a pure-geometry speed dip
+    // (any bearing change over TURN_THRESHOLD, drive-side agnostic) whose time
+    // loss depends on the vehicle's acceleration profile, while the turn
+    // penalty prices the manoeuvre (yielding, crossing oncoming traffic,
+    // U-turns) that the movement model does not simulate. Both share the 30°
+    // "straight on" threshold by default.
     let hours = 0;
+    let previous: (typeof route.edges)[number] | null = null;
     for (const edge of route.edges) {
       const speed = Math.min(profile.maxSpeed, edge.freeFlowSpeed ?? edge.maxSpeed);
       hours += edge.distance / Math.max(speed, 1) + (edge.nodeDelayH ?? 0);
+      if (previous) hours += this.network.turnCostHours(previous, edge);
+      previous = edge;
     }
     return {
       etaSeconds: hours * 3600,

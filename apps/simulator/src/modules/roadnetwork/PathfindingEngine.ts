@@ -1,7 +1,15 @@
 /**
  * Main-thread A* pathfinding over the built graph, including the dynamic
- * incident-cost terms, the LRU route cache, and the per-edge connected-edge /
- * fallback-edge lookups used by the movement hot path.
+ * incident-cost terms, turn penalties and turn bans, the LRU route cache, and
+ * the per-edge connected-edge / fallback-edge lookups used by the movement hot
+ * path.
+ *
+ * The search is EDGE-based: a state is "arrived at `edge.end` via `edge`", so
+ * the cost of the turn onto the next edge (and whether it is banned) is exact
+ * rather than depending on whichever predecessor happened to settle a node
+ * first. The heuristic is still a per-node bound (of `edge.end`), and the turn
+ * term is >= 0 and bans only delete transitions, so the ALT/haversine bound
+ * stays admissible and consistent.
  *
  * Extracted from RoadNetwork (architecture review #6). The static per-edge base
  * cost is precomputed at graph-build time (see GraphBuilder); this engine only
@@ -14,7 +22,14 @@ import type { Node, Edge, Route } from "../../types";
 import * as utils from "../../utils/helpers";
 import { LRUCache, type CacheStats } from "../../utils/LRUCache";
 import { applyDynamicCost } from "../pathfinding/cost";
-import { PathNodeHeap } from "../pathfinding/heap";
+import { EdgeSearchScratch } from "../pathfinding/search";
+import {
+  DEFAULT_DRIVE_SIDE,
+  isUTurnAllowed,
+  turnCostHours,
+  type DriveSide,
+  type TurnNodeContext,
+} from "../pathfinding/turns";
 import { AltHeuristic, type AltIndexed, type LandmarkIndex } from "../pathfinding/landmarks";
 
 export interface PathfindingEngineDeps {
@@ -22,19 +37,26 @@ export interface PathfindingEngineDeps {
   edges: Map<string, Edge>;
   edgeBaseCost: Map<string, number>;
   connectedEdges: Map<string, Edge[]>;
-  turnRestrictions: Map<string, Set<string>>;
-  turnRestrictionTypes: Map<string, "prohibitory" | "mandatory">;
+  /** Arriving edge id -> ids of edges that may not follow it (from GraphBuilder). */
+  turnBans: Map<string, Set<string>>;
   maxNetworkSpeed: number;
+  /** Drive side for turn penalties; defaults to right-hand traffic. */
+  driveSide?: DriveSide;
   /** ALT landmark tables from GraphBuilder; omit/null to use the haversine bound alone. */
   landmarks?: LandmarkIndex | null;
+}
+
+/** Dense per-graph index stamped on nodes and edges for the typed-array search state. */
+interface SearchIndexed {
+  searchIndex?: number;
 }
 
 export class PathfindingEngine {
   private readonly nodes: Map<string, Node>;
   private readonly edgeBaseCost: Map<string, number>;
   private readonly connectedEdges: Map<string, Edge[]>;
-  private readonly turnRestrictions: Map<string, Set<string>>;
-  private readonly turnRestrictionTypes: Map<string, "prohibitory" | "mandatory">;
+  private readonly turnBans: Map<string, Set<string>>;
+  private readonly driveSide: DriveSide;
   private readonly maxNetworkSpeed: number;
 
   /**
@@ -56,6 +78,12 @@ export class PathfindingEngine {
   // A* route cache — avoids recomputing identical start→end routes
   private routeCache: LRUCache<Route>;
 
+  /** Every searchable edge by `searchIndex`; built with the scratch on first search. */
+  private searchEdges: Edge[] = [];
+  /** `edgeBaseCost` by `searchIndex`. */
+  private searchBaseCost = new Float64Array(0);
+  private scratch: EdgeSearchScratch | null = null;
+
   // Lazily-built cache of synthetic "U-turn" fallback edges (one per real edge).
   private fallbackEdges: Map<string, Edge> = new Map();
 
@@ -63,8 +91,8 @@ export class PathfindingEngine {
     this.nodes = deps.nodes;
     this.edgeBaseCost = deps.edgeBaseCost;
     this.connectedEdges = deps.connectedEdges;
-    this.turnRestrictions = deps.turnRestrictions;
-    this.turnRestrictionTypes = deps.turnRestrictionTypes;
+    this.turnBans = deps.turnBans;
+    this.driveSide = deps.driveSide ?? DEFAULT_DRIVE_SIDE;
     this.maxNetworkSpeed = deps.maxNetworkSpeed;
     this.alt = deps.landmarks ? new AltHeuristic(deps.landmarks) : null;
 
@@ -114,82 +142,171 @@ export class PathfindingEngine {
     const cached = this.routeCache.get(cacheKey);
     if (cached) return { edges: [...cached.edges], distance: cached.distance };
 
-    const closedSet = new Set<string>();
-    const cameFrom = new Map<string, { prevId: string; edge: Edge }>();
-    const gScore = new Map<string, number>();
+    this.lastExpandedNodes = 0;
+    if (start.id === end.id) {
+      const empty: Route = { edges: [], distance: 0 };
+      this.routeCache.set(cacheKey, empty);
+      return { edges: [], distance: 0 };
+    }
 
-    // Shared binary min-heap for O(log n) extraction instead of O(n) linear scan
-    const heap = new PathNodeHeap();
+    // Typed-array state indexed by edge `searchIndex` (see pathfinding/search.ts).
+    const scratch = this.getScratch();
+    const search = scratch.begin();
+    const { g, gStamp, closedStamp, prev, heap } = scratch;
+    const edges = this.searchEdges;
 
     // Pin the ALT heuristic to this target. It stays inactive when landmarks are
     // disabled or when no landmark bounds this target, in which case the
     // heuristic degrades to exactly the previous haversine bound.
     this.altActive = this.alt ? this.alt.setTarget((end as Node & AltIndexed).altIndex) : false;
-    this.lastExpandedNodes = 0;
 
-    gScore.set(start.id, 0);
-    const initialH = this.calculateHeuristic(start, end);
-    heap.push({ id: start.id, gScore: 0, fScore: initialH });
+    // Seed with every usable edge out of the start node. There is no arriving
+    // edge yet, so no turn is charged.
+    for (const edge of start.connections) {
+      const i = (edge as Edge & SearchIndexed).searchIndex!;
+      const travelTime = this.dynamicEdgeCost(edge, i);
+      if (travelTime < 0) continue;
+      if (gStamp[i] === search && g[i] <= travelTime) continue;
+      gStamp[i] = search;
+      g[i] = travelTime;
+      prev[i] = -1;
+      heap.push(i, travelTime + this.cachedHeuristic(scratch, search, edge.end, end));
+    }
 
     while (heap.size > 0) {
       const current = heap.pop();
 
-      if (closedSet.has(current.id)) continue;
+      // Lazy deletion: a stale duplicate for an already-expanded edge. Any entry
+      // that survives this check carries the edge's current best g.
+      if (closedStamp[current] === search) continue;
       this.lastExpandedNodes++;
 
-      if (current.id === end.id) {
-        const route = this.reconstructPath(start.id, end.id, cameFrom);
+      const arrival = edges[current];
+      const node = arrival.end;
+      if (node.id === end.id) {
+        const route = this.reconstructPath(current, prev);
         this.routeCache.set(cacheKey, route);
-        return route;
+        return { edges: [...route.edges], distance: route.distance };
       }
 
-      closedSet.add(current.id);
-      const currentNode = this.nodes.get(current.id)!;
+      closedStamp[current] = search;
+      const gCurrent = g[current];
 
-      for (const edge of currentNode.connections) {
-        if (closedSet.has(edge.end.id)) continue;
+      const bans = this.turnBans.size > 0 ? this.turnBans.get(arrival.id) : undefined;
+      const turnNode: TurnNodeContext = {
+        degree: node.degree ?? node.connections.length,
+        signalized: node.trafficSignal === true,
+      };
+      const inTwoWay = !arrival.oneway;
 
-        // Check turn restrictions: if we arrived at current via a known edge,
-        // verify the turn onto `edge` is permitted
-        const arrivalEdge = cameFrom.get(current.id)?.edge;
-        if (arrivalEdge && this.turnRestrictions.size > 0) {
-          const key = `${arrivalEdge.streetId}|${current.id}`;
-          const restricted = this.turnRestrictions.get(key);
-          if (restricted) {
-            const typeKey = `${key}|type`;
-            const rtype = this.turnRestrictionTypes.get(typeKey);
-            if (rtype === "prohibitory" && restricted.has(edge.streetId)) continue;
-            if (rtype === "mandatory" && !restricted.has(edge.streetId)) continue;
-          }
-        }
+      for (const edge of node.connections) {
+        const j = (edge as Edge & SearchIndexed).searchIndex!;
+        if (closedStamp[j] === search) continue;
+        // OSM turn restriction resolved to this exact (arrival, edge) pair.
+        if (bans !== undefined && bans.has(edge.id)) continue;
+        const isUTurn = edge.end === arrival.start;
+        if (isUTurn && !isUTurnAllowed(turnNode.degree)) continue;
 
-        // Apply incident-based edge cost penalties
-        const incidentFactor = this.incidentEdges.get(edge.id);
-        if (incidentFactor !== undefined && incidentFactor === 0) continue; // closure — skip edge
+        const travelTime = this.dynamicEdgeCost(edge, j);
+        if (travelTime < 0) continue;
 
-        // Skip impassable roads (smoothnessFactor === 0)
-        if (edge.smoothnessFactor === 0) continue;
+        const tentativeCost =
+          gCurrent +
+          travelTime +
+          turnCostHours(arrival.bearing, edge.bearing, isUTurn, inTwoWay, turnNode, this.driveSide);
 
-        // Static base cost was precomputed at graph-build time; only the dynamic
-        // incident/signal terms are applied here in the hot relaxation loop.
-        const baseTravelTime = this.edgeBaseCost.get(edge.id)!;
-        const travelTime = applyDynamicCost(baseTravelTime, incidentFactor, edge.nodeDelayH ?? 0);
-        const tentativeCost = current.gScore + travelTime;
-        const existingCost = gScore.get(edge.end.id);
-
-        // Use === undefined (not falsy) so a legitimate gScore of 0 is not
-        // treated as unvisited; matches the worker-thread A* implementation.
-        if (existingCost === undefined || tentativeCost < existingCost) {
-          cameFrom.set(edge.end.id, { prevId: current.id, edge });
-          gScore.set(edge.end.id, tentativeCost);
-
-          const h = this.calculateHeuristic(edge.end, end);
-          const f = tentativeCost + h;
-          heap.push({ id: edge.end.id, gScore: tentativeCost, fScore: f });
+        // Strictly better only (ties keep the first-found predecessor); matches
+        // the worker-thread A* implementation.
+        if (gStamp[j] !== search || tentativeCost < g[j]) {
+          gStamp[j] = search;
+          g[j] = tentativeCost;
+          prev[j] = current;
+          heap.push(j, tentativeCost + this.cachedHeuristic(scratch, search, edge.end, end));
         }
       }
     }
     return null;
+  }
+
+  /**
+   * Lazily indexes every node and edge (insertion order — the worker assigns
+   * the same order from the same GeoJSON) and allocates the search scratch.
+   * Deferred to the first main-thread search because production routing mostly
+   * runs in the worker pool.
+   */
+  private getScratch(): EdgeSearchScratch {
+    if (this.scratch) return this.scratch;
+    let nodeIndex = 0;
+    const edges: Edge[] = [];
+    for (const node of this.nodes.values()) {
+      (node as Node & SearchIndexed).searchIndex = nodeIndex++;
+      for (const edge of node.connections) {
+        (edge as Edge & SearchIndexed).searchIndex = edges.length;
+        edges.push(edge);
+      }
+    }
+    this.searchEdges = edges;
+    this.searchBaseCost = Float64Array.from(edges, (e) => this.edgeBaseCost.get(e.id) ?? 0);
+    this.scratch = new EdgeSearchScratch(edges.length, nodeIndex);
+    return this.scratch;
+  }
+
+  /** {@link calculateHeuristic}, memoized per node for the current search. */
+  private cachedHeuristic(
+    scratch: EdgeSearchScratch,
+    search: number,
+    from: Node,
+    to: Node
+  ): number {
+    const i = (from as Node & SearchIndexed).searchIndex!;
+    if (scratch.hStamp[i] === search) return scratch.h[i];
+    const h = this.calculateHeuristic(from, to);
+    scratch.hStamp[i] = search;
+    scratch.h[i] = h;
+    return h;
+  }
+
+  /**
+   * An edge's travel time with the dynamic incident / node-control terms
+   * applied, or -1 when the edge cannot be used (closure or impassable).
+   */
+  private dynamicEdgeCost(edge: Edge, index: number): number {
+    // Apply incident-based edge cost penalties
+    const incidentFactor =
+      this.incidentEdges.size > 0 ? this.incidentEdges.get(edge.id) : undefined;
+    if (incidentFactor !== undefined && incidentFactor === 0) return -1; // closure — skip edge
+
+    // Skip impassable roads (smoothnessFactor === 0)
+    if (edge.smoothnessFactor === 0) return -1;
+
+    // Static base cost was precomputed at graph-build time; only the dynamic
+    // incident/signal terms are applied here in the hot relaxation loop.
+    // (Mirrored into a typed array by searchIndex to skip the string-keyed Map.)
+    const baseTravelTime = this.searchBaseCost[index];
+    return applyDynamicCost(baseTravelTime, incidentFactor, edge.nodeDelayH ?? 0);
+  }
+
+  /**
+   * The turn cost (hours) the search charges for leaving `from.end` onto `to`
+   * — the same value `findRoute` adds, so ETA estimates over a returned route
+   * agree with the search. 0 when the edges are not consecutive.
+   */
+  public turnCostHours(from: Edge, to: Edge): number {
+    if (from.end.id !== to.start.id) return 0;
+    const node = from.end;
+    return turnCostHours(
+      from.bearing,
+      to.bearing,
+      to.end.id === from.start.id,
+      !from.oneway,
+      { degree: node.degree ?? node.connections.length, signalized: node.trafficSignal === true },
+      this.driveSide
+    );
+  }
+
+  /** Turn bans (arriving edge id -> banned next edge ids). */
+  public get bans(): Map<string, Set<string>> {
+    return this.turnBans;
   }
 
   /** Clear all cached routes. */
@@ -249,20 +366,14 @@ export class PathfindingEngine {
     return this.cachedIncidentFingerprint;
   }
 
-  private reconstructPath(
-    startId: string,
-    endId: string,
-    cameFrom: Map<string, { prevId: string; edge: Edge }>
-  ): Route {
+  private reconstructPath(last: number, prev: Int32Array): Route {
     const reversedPath: Edge[] = [];
-    let currentId = endId;
     let totalDistance = 0;
 
-    while (currentId !== startId) {
-      const { prevId, edge } = cameFrom.get(currentId)!;
+    for (let i = last; i !== -1; i = prev[i]) {
+      const edge = this.searchEdges[i];
       reversedPath.push(edge);
       totalDistance += edge.distance;
-      currentId = prevId;
     }
     reversedPath.reverse();
 
@@ -270,9 +381,11 @@ export class PathfindingEngine {
   }
 
   /**
-   * Nodes expanded by the most recent `findRoute` call — the number of heap pops
-   * that were not stale duplicates. Exposed so tests can assert that the ALT
-   * heuristic actually shrinks the search, not just that it stays correct.
+   * Search states expanded by the most recent `findRoute` call — the number of
+   * heap pops that were not stale duplicates. States are edges (see the module
+   * header), so this counts arrivals, not distinct nodes. Exposed so tests can
+   * assert that the ALT heuristic actually shrinks the search, not just that it
+   * stays correct.
    */
   public get expandedNodes(): number {
     return this.lastExpandedNodes;

@@ -290,6 +290,46 @@ describe("main-thread and worker A* return equivalent routes", () => {
   });
 });
 
+// ─── Turn model inputs: main-thread graph vs worker graph (fleetsim-all-1ajn.3) ──
+
+describe("main-thread and worker graphs agree on turn-model inputs", () => {
+  it("stamps identical node degrees, signal flags and edge bearings/oneway", () => {
+    const network = new RoadNetwork(fixture);
+    const workerNodes = buildGraph(fixture);
+    // @ts-expect-error — private graph, as the other RoadNetwork tests do.
+    const mainNodes = network.nodes as Map<string, import("../../types").Node>;
+
+    expect([...workerNodes.keys()]).toEqual([...mainNodes.keys()]);
+    for (const [id, workerNode] of workerNodes) {
+      const mainNode = mainNodes.get(id)!;
+      expect(workerNode.degree).toBe(mainNode.degree);
+      expect(Boolean(workerNode.trafficSignal)).toBe(Boolean(mainNode.trafficSignal));
+      expect(workerNode.edges.map((e) => e.id)).toEqual(mainNode.connections.map((e) => e.id));
+      workerNode.edges.forEach((edge, i) => {
+        expect(edge.bearing).toBe(mainNode.connections[i].bearing);
+        expect(edge.oneway).toBe(mainNode.connections[i].oneway);
+      });
+    }
+  });
+
+  it("returns identical routes in left-hand traffic too", () => {
+    const network = new RoadNetwork(fixture, { driveSide: "left" });
+    const workerNodes = buildGraph(fixture, undefined, undefined, "left");
+    const nodeIds = [...workerNodes.keys()];
+    for (const a of nodeIds) {
+      for (const b of nodeIds) {
+        if (a === b) continue;
+        const main = network.findRoute(
+          network.findNearestNode(parseKey(a)),
+          network.findNearestNode(parseKey(b))
+        );
+        const worker = workerFindRoute(workerNodes, a, b);
+        expect(main ? main.edges.map((e) => e.id) : null).toEqual(worker ? worker.edgeIds : null);
+      }
+    }
+  });
+});
+
 /** Parse a "lat,lon" snapped node key into a [lat, lon] tuple. */
 function parseKey(key: string): [number, number] {
   const [lat, lon] = key.split(",").map(Number);

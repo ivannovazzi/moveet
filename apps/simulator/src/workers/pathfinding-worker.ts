@@ -6,7 +6,7 @@
  * circular references), and processes route requests from the main thread.
  *
  * Protocol:
- *   Request:  { type: 'findRoute', id: number, startId: string, endId: string, incidentEdges?: Record<string, number> }
+ *   Request:  { type: 'findRoute', id: number, startId: string, endId: string, incidentEdges?: Record<string, number>, restrictedHighways?: string[] }
  *   Response: { type: 'result',    id: number, route: { edgeIds: string[], distance: number } | null }
  *
  * This worker no longer hand-duplicates the A* cost function, the binary heap or
@@ -18,7 +18,9 @@
  * `dist/workers/pathfinding-worker.cjs` at build time (esbuild) and the
  * PathfindingPool launches that bundle. Under vitest the equivalence test imports
  * this module in-process (vitest transforms the TS + its relative imports), so
- * the same shared code is exercised both ways. The only logic still local to the
+ * the same shared code is exercised both ways. The turn model (penalties, OSM
+ * restriction parsing and resolution to edge bans) is shared the same way via
+ * `../modules/pathfinding/turns`. The only logic still local to the
  * worker is the GeoJSON-to-adjacency parse and the A* loop itself: the parse
  * builds a flat, non-circular node/edge shape that differs from GraphBuilder's
  * circular `Edge` objects, so sharing it is not worth the entanglement (see the
@@ -45,7 +47,19 @@ import {
   TRAFFIC_CALMING_MAX_SPEED_KMH,
   type NodeControl,
 } from "../modules/pathfinding/cost";
-import { PathNodeHeap } from "../modules/pathfinding/heap";
+import { EdgeSearchScratch } from "../modules/pathfinding/search";
+import {
+  DEFAULT_DRIVE_SIDE,
+  bearingDegrees,
+  isUTurnAllowed,
+  parseTurnRestriction,
+  resolveTurnBans,
+  turnCostHours,
+  type DriveSide,
+  type TurnGraphEdge,
+  type TurnNodeContext,
+  type TurnRestriction,
+} from "../modules/pathfinding/turns";
 import {
   AltHeuristic,
   type LandmarkIndex,
@@ -89,6 +103,8 @@ export interface PathfindingWorkerData {
   landmarkCount?: number;
   /** Per-highway-class free-flow factors, already parsed from `FREE_FLOW_FACTORS`. */
   freeFlowFactors?: Record<HighwayType, number>;
+  /** Drive side for turn penalties, already parsed from `DRIVE_SIDE`. */
+  driveSide?: DriveSide;
 }
 
 // ---------------------------------------------------------------------------
@@ -98,8 +114,17 @@ export interface PathfindingWorkerData {
 interface WorkerEdge {
   id: string;
   streetId: string;
+  startNodeId: string;
   endNodeId: string;
+  /** The end node itself, so the hot loop needs no id lookup. */
+  endNode: WorkerNode;
+  /** Dense index into the search scratch (insertion order, as on the main thread). */
+  index: number;
   distance: number;
+  /** Bearing in degrees, computed exactly as GraphBuilder does (reverse = forward + 180). */
+  bearing: number;
+  /** Mirrors `Edge.oneway`: the way carries no oncoming traffic. */
+  oneway: boolean;
   maxSpeed: number;
   freeFlowSpeed: number;
   surface: string;
@@ -119,6 +144,10 @@ interface WorkerNode {
   lon: number;
   edges: WorkerEdge[];
   trafficSignal?: boolean;
+  /** Distinct neighbouring nodes (in or out); mirrors `Node.degree`. */
+  degree: number;
+  /** Dense index into the search scratch's per-node heuristic cache. */
+  index: number;
   /**
    * Index into the ALT landmark distance tables, assigned in sorted-node-id
    * order so it matches the main thread's assignment for the same GeoJSON.
@@ -149,6 +178,10 @@ let _maxNetworkSpeed = 110;
 let _alt: AltHeuristic | null = null;
 /** Nodes expanded by the most recent `findRoute` call (non-stale heap pops). */
 let _lastExpandedNodes = 0;
+/** Turn bans resolved by buildGraph: arriving edge id -> banned next edge ids. */
+let _turnBans = new Map<string, Set<string>>();
+/** Drive side for turn penalties (set by buildGraph from workerData). */
+let _driveSide: DriveSide = DEFAULT_DRIVE_SIDE;
 
 // Coordinate snapping to deduplicate near-identical intersection nodes
 const COORD_SNAP_EPSILON = 1e-7;
@@ -176,15 +209,17 @@ function calculateDistance(p1: [number, number], p2: [number, number]): number {
 function buildGraph(
   geojsonPath: string,
   landmarkCount: number = DEFAULT_LANDMARK_COUNT,
-  freeFlowFactors: Readonly<Record<HighwayType, number>> = DEFAULT_FREE_FLOW_FACTORS
+  freeFlowFactors: Readonly<Record<HighwayType, number>> = DEFAULT_FREE_FLOW_FACTORS,
+  driveSide: DriveSide = DEFAULT_DRIVE_SIDE
 ): Map<string, WorkerNode> {
+  _driveSide = driveSide;
   const data: FeatureCollection = JSON.parse(fs.readFileSync(geojsonPath, "utf8"));
   const nodes = new Map<string, WorkerNode>();
 
   function getOrCreate(id: string, lat: number, lon: number): WorkerNode {
     let node = nodes.get(id);
     if (!node) {
-      node = { id, lat, lon, edges: [], altIndex: -1 };
+      node = { id, lat, lon, edges: [], degree: 0, index: -1, altIndex: -1 };
       nodes.set(id, node);
     }
     return node;
@@ -219,8 +254,10 @@ function buildGraph(
     const forwardSpeed = resolveMaxSpeed(feature.properties, highway, "forward") * roundaboutFactor;
     const backwardSpeed =
       resolveMaxSpeed(feature.properties, highway, "backward") * roundaboutFactor;
-    const streetId: string =
-      feature.properties?.streetId || feature.properties?.id || feature.properties?.["@id"] || "";
+    // Stringified like GraphBuilder's, so OSM way ids match restriction from/to.
+    const streetId = String(
+      feature.properties?.streetId || feature.properties?.id || feature.properties?.["@id"] || ""
+    );
     const smoothnessFactor = parseSmoothness(feature.properties?.smoothness);
     const rawLanes = parseInt(feature.properties?.lanes ?? "1", 10);
     const lanes = isNaN(rawLanes) || rawLanes < 1 ? 1 : rawLanes;
@@ -244,6 +281,7 @@ function buildGraph(
       const node2 = getOrCreate(id2, lat2, lon2);
 
       const distance = calculateDistance([lat1, lon1], [lat2, lon2]);
+      const bearing = bearingDegrees([lat1, lon1], [lat2, lon2]);
 
       // Forward edge (node1 → node2): skip if reverse one-way
       if (effectiveOneway !== "reverse") {
@@ -251,8 +289,13 @@ function buildGraph(
         node1.edges.push({
           id: forwardEdgeId,
           streetId,
+          startNodeId: id1,
           endNodeId: id2,
+          endNode: node2,
+          index: -1, // assigned once the graph is complete
           distance,
+          bearing,
+          oneway: effectiveOneway === "forward",
           maxSpeed: forwardSpeed,
           freeFlowSpeed: Math.min(forwardSpeed * freeFlowFactor, calmingSpeedCap),
           surface,
@@ -271,8 +314,13 @@ function buildGraph(
         node2.edges.push({
           id: reverseEdgeId,
           streetId,
+          startNodeId: id2,
           endNodeId: id1,
+          endNode: node1,
+          index: -1, // assigned once the graph is complete
           distance,
+          bearing: (bearing + 180) % 360,
+          oneway: effectiveOneway === "reverse",
           maxSpeed: backwardSpeed,
           freeFlowSpeed: Math.min(backwardSpeed * freeFlowFactor, calmingSpeedCap),
           surface,
@@ -333,11 +381,71 @@ function buildGraph(
     }
   }
 
+  // Fourth pass: search indices, node degrees and turn bans — mirrors
+  // PathfindingEngine's indexing and GraphBuilder's stampNodeDegrees /
+  // buildTurnBans.
+  let nodeIndex = 0;
+  let edgeIndex = 0;
+  for (const node of nodes.values()) {
+    node.index = nodeIndex++;
+    for (const edge of node.edges) edge.index = edgeIndex++;
+  }
+  stampWorkerNodeDegrees(nodes);
+  const restrictions: TurnRestriction[] = [];
+  for (const feature of data.features) {
+    const parsed = parseTurnRestriction(feature.properties ?? {}, feature.geometry, makeNodeKey);
+    if (parsed) restrictions.push(parsed);
+  }
+  _turnBans = buildWorkerTurnBans(nodes, restrictions);
+
   // ALT landmark preprocessing over the static base costs (see
   // ../modules/pathfinding/landmarks.ts for the admissibility argument).
   _alt = buildWorkerLandmarks(nodes, landmarkCount);
 
   return nodes;
+}
+
+/** Mirrors `GraphBuilder.stampNodeDegrees`: distinct neighbours, in or out. */
+function stampWorkerNodeDegrees(nodes: Map<string, WorkerNode>): void {
+  for (const node of nodes.values()) {
+    const seen: string[] = [];
+    for (const edge of node.edges) {
+      if (!seen.includes(edge.endNodeId)) seen.push(edge.endNodeId);
+    }
+    node.degree = seen.length;
+  }
+  for (const node of nodes.values()) {
+    for (const edge of node.edges) {
+      const end = nodes.get(edge.endNodeId)!;
+      if (!end.edges.some((e) => e.endNodeId === edge.startNodeId)) end.degree++;
+    }
+  }
+}
+
+/** Mirrors `GraphBuilder.buildTurnBans`. */
+function buildWorkerTurnBans(
+  nodes: Map<string, WorkerNode>,
+  restrictions: TurnRestriction[]
+): Map<string, Set<string>> {
+  if (restrictions.length === 0) return new Map();
+  const viaIds = new Set(restrictions.map((r) => r.via));
+  const incoming = new Map<string, TurnGraphEdge[]>();
+  for (const node of nodes.values()) {
+    for (const edge of node.edges) {
+      if (!viaIds.has(edge.endNodeId)) continue;
+      let list = incoming.get(edge.endNodeId);
+      if (!list) {
+        list = [];
+        incoming.set(edge.endNodeId, list);
+      }
+      list.push(edge);
+    }
+  }
+  return resolveTurnBans(
+    restrictions,
+    (id) => incoming.get(id) ?? [],
+    (id) => nodes.get(id)?.edges ?? []
+  );
 }
 
 /**
@@ -417,128 +525,143 @@ function buildWorkerLandmarks(
 // A* implementation (mirrors RoadNetwork.findRoute)
 // ---------------------------------------------------------------------------
 
+/** Travel time with incident/node-control terms, or -1 when the edge is unusable. */
+function dynamicEdgeCost(
+  edge: WorkerEdge,
+  incidentEdges: Record<string, number> | undefined,
+  restrictedHighways: string[] | undefined
+): number {
+  // Skip edges on restricted road types for this vehicle
+  if (
+    restrictedHighways &&
+    restrictedHighways.length > 0 &&
+    restrictedHighways.includes(edge.highway)
+  ) {
+    return -1;
+  }
+
+  // Apply incident-based edge cost penalties
+  const incidentFactor = incidentEdges?.[edge.id];
+  if (incidentFactor !== undefined && incidentFactor === 0) return -1; // closure — skip edge
+
+  // Skip impassable roads (smoothnessFactor === 0)
+  if (edge.smoothnessFactor === 0) return -1;
+
+  // Static base cost and the node-control delay were both precomputed at
+  // graph-build time; only the dynamic incident term is derived here in
+  // the hot relaxation loop.
+  return applyDynamicCost(edge.baseTravelTime, incidentFactor, edge.nodeDelayH);
+}
+
+/**
+ * Edge-based A* (state = arriving edge), mirroring `PathfindingEngine.findRoute`
+ * step for step — same seeding, same turn costs/bans, same push order — so the
+ * two return identical routes.
+ */
 function findRoute(
   nodes: Map<string, WorkerNode>,
   startId: string,
   endId: string,
   incidentEdges?: Record<string, number>,
-  restrictedHighways?: string[],
-  turnRestrictions?: Record<string, string[]>,
-  turnRestrictionTypes?: Record<string, string>
+  restrictedHighways?: string[]
 ): { edgeIds: string[]; distance: number } | null {
   const startNode = nodes.get(startId);
   const endNode = nodes.get(endId);
   if (!startNode || !endNode) return null;
 
-  const closedSet = new Set<string>();
-  const cameFrom = new Map<
-    string,
-    {
-      prevId: string;
-      edgeId: string;
-      edgeDistance: number;
-      edgeStreetId: string;
-    }
-  >();
-  const gScore = new Map<string, number>();
+  _lastExpandedNodes = 0;
+  if (startId === endId) return { edgeIds: [], distance: 0 };
 
-  // Shared binary min-heap (identical to the main-thread A*); see the module
-  // header for why this worker is bundled rather than launched as raw TS.
-  const heap = new PathNodeHeap();
+  // Typed-array state indexed by edge/node `index` (see pathfinding/search.ts).
+  const { scratch, edges } = scratchFor(nodes);
+  const search = scratch.begin();
+  const { g, gStamp, closedStamp, prev, h, hStamp, heap } = scratch;
 
   const maxNetworkSpeed = _maxNetworkSpeed;
+  const turnBans = _turnBans;
+  const driveSide = _driveSide;
   // Pin the ALT heuristic to this target; falls back to pure haversine when
   // landmarks are disabled or no landmark bounds the target.
   const alt = _alt;
   const altActive = alt ? alt.setTarget(endNode.altIndex) : false;
-  const heuristic = (nodeId: string): number => {
-    const n = nodes.get(nodeId)!;
-    const geographic =
-      calculateDistance([n.lat, n.lon], [endNode.lat, endNode.lon]) / maxNetworkSpeed;
-    if (!altActive) return geographic;
-    // max of two admissible+consistent bounds is admissible+consistent.
-    const landmark = alt!.bound(n.altIndex);
-    return landmark > geographic ? landmark : geographic;
+  // Memoized per node for this search.
+  const heuristic = (n: WorkerNode): number => {
+    if (hStamp[n.index] === search) return h[n.index];
+    let bound = calculateDistance([n.lat, n.lon], [endNode.lat, endNode.lon]) / maxNetworkSpeed;
+    if (altActive) {
+      // max of two admissible+consistent bounds is admissible+consistent.
+      const landmark = alt!.bound(n.altIndex);
+      if (landmark > bound) bound = landmark;
+    }
+    hStamp[n.index] = search;
+    h[n.index] = bound;
+    return bound;
   };
 
-  gScore.set(startId, 0);
-  heap.push({ id: startId, gScore: 0, fScore: heuristic(startId) });
-  _lastExpandedNodes = 0;
+  // Seed with every usable edge out of the start node (no turn charged).
+  for (const edge of startNode.edges) {
+    const i = edge.index;
+    const travelTime = dynamicEdgeCost(edge, incidentEdges, restrictedHighways);
+    if (travelTime < 0) continue;
+    if (gStamp[i] === search && g[i] <= travelTime) continue;
+    gStamp[i] = search;
+    g[i] = travelTime;
+    prev[i] = -1;
+    heap.push(i, travelTime + heuristic(edge.endNode));
+  }
 
   while (heap.size > 0) {
     const current = heap.pop();
 
-    if (closedSet.has(current.id)) continue;
+    // Lazy deletion: skip stale duplicates of an already-expanded edge.
+    if (closedStamp[current] === search) continue;
     _lastExpandedNodes++;
 
-    if (current.id === endId) {
+    const arrival = edges[current];
+    if (arrival.endNodeId === endId) {
       // Reconstruct path (push + reverse is O(n) vs unshift's O(n²))
       const edgeIds: string[] = [];
       let totalDistance = 0;
-      let curId = endId;
-      while (curId !== startId) {
-        const prev = cameFrom.get(curId)!;
-        edgeIds.push(prev.edgeId);
-        totalDistance += prev.edgeDistance;
-        curId = prev.prevId;
+      for (let i = current; i !== -1; i = prev[i]) {
+        edgeIds.push(edges[i].id);
+        totalDistance += edges[i].distance;
       }
       edgeIds.reverse();
       return { edgeIds, distance: totalDistance };
     }
 
-    closedSet.add(current.id);
-    const currentNode = nodes.get(current.id)!;
+    closedStamp[current] = search;
+    const gCurrent = g[current];
+    const node = arrival.endNode;
 
-    for (const edge of currentNode.edges) {
-      if (closedSet.has(edge.endNodeId)) continue;
+    const bans = turnBans.size > 0 ? turnBans.get(arrival.id) : undefined;
+    const turnNode: TurnNodeContext = {
+      degree: node.degree,
+      signalized: node.trafficSignal === true,
+    };
+    const inTwoWay = !arrival.oneway;
 
-      // Skip edges on restricted road types for this vehicle
-      if (
-        restrictedHighways &&
-        restrictedHighways.length > 0 &&
-        restrictedHighways.includes(edge.highway)
-      ) {
-        continue;
-      }
+    for (const edge of node.edges) {
+      const j = edge.index;
+      if (closedStamp[j] === search) continue;
+      // OSM turn restriction resolved to this exact (arrival, edge) pair.
+      if (bans !== undefined && bans.has(edge.id)) continue;
+      const isUTurn = edge.endNodeId === arrival.startNodeId;
+      if (isUTurn && !isUTurnAllowed(turnNode.degree)) continue;
 
-      // Check turn restrictions
-      if (turnRestrictions) {
-        const arrivalEntry = cameFrom.get(current.id);
-        if (arrivalEntry) {
-          const key = `${arrivalEntry.edgeStreetId}|${current.id}`;
-          const restricted = turnRestrictions[key];
-          if (restricted) {
-            const rtype = turnRestrictionTypes?.[`${key}|type`];
-            if (rtype === "prohibitory" && restricted.includes(edge.streetId)) continue;
-            if (rtype === "mandatory" && !restricted.includes(edge.streetId)) continue;
-          }
-        }
-      }
+      const travelTime = dynamicEdgeCost(edge, incidentEdges, restrictedHighways);
+      if (travelTime < 0) continue;
 
-      // Apply incident-based edge cost penalties
-      const incidentFactor = incidentEdges?.[edge.id];
-      if (incidentFactor !== undefined && incidentFactor === 0) continue; // closure — skip edge
+      const tentativeCost =
+        gCurrent +
+        travelTime +
+        turnCostHours(arrival.bearing, edge.bearing, isUTurn, inTwoWay, turnNode, driveSide);
 
-      // Skip impassable roads (smoothnessFactor === 0)
-      if (edge.smoothnessFactor === 0) continue;
-
-      // Static base cost and the node-control delay were both precomputed at
-      // graph-build time; only the dynamic incident term is derived here in
-      // the hot relaxation loop.
-      const travelTime = applyDynamicCost(edge.baseTravelTime, incidentFactor, edge.nodeDelayH);
-      const tentativeCost = current.gScore + travelTime;
-      const existingCost = gScore.get(edge.endNodeId);
-
-      if (existingCost === undefined || tentativeCost < existingCost) {
-        cameFrom.set(edge.endNodeId, {
-          prevId: current.id,
-          edgeId: edge.id,
-          edgeDistance: edge.distance,
-          edgeStreetId: edge.streetId,
-        });
-        gScore.set(edge.endNodeId, tentativeCost);
-        const f = tentativeCost + heuristic(edge.endNodeId);
-        heap.push({ id: edge.endNodeId, gScore: tentativeCost, fScore: f });
+      if (gStamp[j] !== search || tentativeCost < g[j]) {
+        gStamp[j] = search;
+        g[j] = tentativeCost;
+        prev[j] = current;
+        heap.push(j, tentativeCost + heuristic(edge.endNode));
       }
     }
   }
@@ -546,13 +669,39 @@ function findRoute(
   return null;
 }
 
+/**
+ * Per-graph search scratch, created on first use. Keyed by the node map rather
+ * than held module-level because tests build several graphs in one process.
+ */
+const _scratches = new WeakMap<
+  Map<string, WorkerNode>,
+  { scratch: EdgeSearchScratch; edges: WorkerEdge[] }
+>();
+
+function scratchFor(nodes: Map<string, WorkerNode>): {
+  scratch: EdgeSearchScratch;
+  edges: WorkerEdge[];
+} {
+  let entry = _scratches.get(nodes);
+  if (!entry) {
+    const edges: WorkerEdge[] = [];
+    for (const node of nodes.values()) {
+      for (const edge of node.edges) edges[edge.index] = edge;
+    }
+    entry = { scratch: new EdgeSearchScratch(edges.length, nodes.size), edges };
+    _scratches.set(nodes, entry);
+  }
+  return entry;
+}
+
 // ---------------------------------------------------------------------------
 // Worker bootstrap
 // ---------------------------------------------------------------------------
 
 if (parentPort) {
-  const { geojsonPath, landmarkCount, freeFlowFactors } = workerData as PathfindingWorkerData;
-  const nodes = buildGraph(geojsonPath, landmarkCount, freeFlowFactors);
+  const { geojsonPath, landmarkCount, freeFlowFactors, driveSide } =
+    workerData as PathfindingWorkerData;
+  const nodes = buildGraph(geojsonPath, landmarkCount, freeFlowFactors, driveSide);
 
   parentPort.on(
     "message",
@@ -563,8 +712,6 @@ if (parentPort) {
       endId: string;
       incidentEdges?: Record<string, number>;
       restrictedHighways?: string[];
-      turnRestrictions?: Record<string, string[]>;
-      turnRestrictionTypes?: Record<string, string>;
     }) => {
       if (msg.type === "findRoute") {
         let route = findRoute(
@@ -572,21 +719,11 @@ if (parentPort) {
           msg.startId,
           msg.endId,
           msg.incidentEdges,
-          msg.restrictedHighways,
-          msg.turnRestrictions,
-          msg.turnRestrictionTypes
+          msg.restrictedHighways
         );
         // Fallback: if no route found with highway restrictions, retry without
         if (!route && msg.restrictedHighways && msg.restrictedHighways.length > 0) {
-          route = findRoute(
-            nodes,
-            msg.startId,
-            msg.endId,
-            msg.incidentEdges,
-            undefined,
-            msg.turnRestrictions,
-            msg.turnRestrictionTypes
-          );
+          route = findRoute(nodes, msg.startId, msg.endId, msg.incidentEdges, undefined);
         }
         parentPort!.postMessage({ type: "result", id: msg.id, route });
       }
