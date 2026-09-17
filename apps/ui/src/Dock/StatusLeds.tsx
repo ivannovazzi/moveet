@@ -98,9 +98,11 @@ export default function StatusLeds({ leds, className }: StatusLedsProps) {
             {/*
               The lamps sit in the top-right corner, so a long tooltip runs
               straight into the viewport edge. Keep it off by the same 12px the
-              shell grid uses as its gutter.
+              shell grid uses as its gutter, and stand it off the lamps rather
+              than letting it sit flush against them — Radix's arrow rides the
+              content edge, so the offset moves bubble and arrow together.
             */}
-            <TooltipContent side="bottom" sideOffset={6} collisionPadding={12}>
+            <TooltipContent side="bottom" sideOffset={8} collisionPadding={12}>
               {title}
             </TooltipContent>
           </Tooltip>

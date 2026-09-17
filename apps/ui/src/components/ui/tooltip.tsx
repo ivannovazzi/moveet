@@ -43,13 +43,42 @@ function TooltipContent({
       >
         {children}
         {/*
-          The arrow is the rotated, bordered SQUARE this svg box is styled into
-          — not the `<polygon>` Radix renders inside it. That polygon has no
-          fill attribute, so without `fill-transparent` it paints solid black
-          (the CSS initial value) straight over the glass, which is exactly how
-          it looked the first time this primitive was ever mounted.
+          Radix's own polygon, filled — not a rotated, bordered square.
+
+          This used to style the svg BOX into the arrow: `rotate-45`, two
+          borders, a glass background, and a negative `translate-y` to tuck it
+          under the bubble. That geometry only works for `side="top"`. Radix
+          wraps the arrow in a span it rotates per side (180deg for a tooltip
+          below its trigger), so on any other side the same classes drew the
+          wrong two edges and pushed the diamond OUT of the bubble instead of
+          into it. The polygon inside, meanwhile, had no `fill`, so it painted
+          solid black over the glass.
+
+          Letting Radix's polygon be the arrow makes all four sides correct for
+          free. It costs the 1px border the square had; at 11x5 over a bubble
+          this dark, that is not a trade worth four sides of geometry.
+
+          Filled with the OPAQUE `popover` token, not one of the translucent
+          `glass-*` stops. The bubble only reads light because `glass-frost`
+          brightens the map showing through it; an arrow is a bare polygon with
+          no backdrop-filter of its own, so at the glass stops' ~55% alpha it
+          sank into the map and the tooltip looked like it had no arrow at all.
+          `popover` sits between the gradient's two stops, so an opaque fill
+          lands on the bubble's apparent tone.
+
+          `-translate-y-px` tucks it one pixel INTO the bubble, so its base
+          covers the content's 1px top border instead of perching on top of it
+          — without that, the light border line runs underneath the arrow and
+          the two read as a triangle stuck onto a box rather than one shape.
+          The shift is side-agnostic: Radix rotates the arrow's wrapper so that
+          it points outward on every side, which makes local -Y always point
+          back into the content.
         */}
-        <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px] border-r border-b border-border bg-glass-bot fill-transparent" />
+        <TooltipPrimitive.Arrow
+          width={14}
+          height={7}
+          className="z-50 -translate-y-px fill-popover"
+        />
       </TooltipPrimitive.Content>
     </TooltipPrimitive.Portal>
   );
