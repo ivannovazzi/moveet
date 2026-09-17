@@ -18,10 +18,16 @@
  *    crossing / level crossing / traffic calming) at the destination node.
  *    The node-control delay itself is precomputed per edge at graph-build time
  *    (see {@link nodeDelayHours}, called from `GraphBuilder`/the worker's
- *    `buildGraph`) — it stays out of `computeBaseTravelTime`/the ALT landmark
- *    tables only because those are read from a plain edge-cost map, and this is
- *    cheaper to fold in alongside the incident term in the loop that already
- *    reads that map (see {@link applyDynamicCost}).
+ *    `buildGraph`). It stays out of `computeBaseTravelTime` (so the incident /
+ *    weather factor never scales it, see {@link applyDynamicCost}), but it IS
+ *    added to the ALT landmark edge weights (`GraphBuilder.buildLandmarks`, the
+ *    worker's `buildWorkerLandmarks`): it is static, >= 0 and charged on every
+ *    relaxation of that edge, so `landmarkLowerBoundCost(...) + nodeDelayH`
+ *    still lower-bounds the edge's search cost. The delay is attributed to the
+ *    edge (arrival at its end node), so the same weight serves both the
+ *    landmark→v (`distFrom`) and v→landmark (`distTo`) Dijkstras, and turn
+ *    costs (>= 0, never in the tables) keep the bound admissible for the
+ *    edge-based search.
  *
  * Splitting the static part out of the hot relaxation loop avoids recomputing
  * the same penalties millions of times per route search.

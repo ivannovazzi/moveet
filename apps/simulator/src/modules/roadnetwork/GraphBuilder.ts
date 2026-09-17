@@ -39,6 +39,7 @@ import {
   resolveMaxSpeed,
   parseOneway,
   parseNodeControls,
+  MAX_CONTROL_SNAP_KM,
   DEFAULT_FREE_FLOW_FACTORS,
   VALID_HIGHWAYS,
 } from "./types";
@@ -221,12 +222,16 @@ export class GraphBuilder {
       if (cost === undefined) continue;
       from[edgeCount] = (edge.start as Node & AltIndexed).altIndex!;
       to[edgeCount] = (edge.end as Node & AltIndexed).altIndex!;
-      weight[edgeCount] = landmarkLowerBoundCost(
-        cost,
-        edge.distance,
-        edge.freeFlowSpeed ?? edge.maxSpeed,
-        this.speedProfileRatio
-      );
+      // + the static node-control delay: A* charges it on every relaxation
+      // (never scaled by incidents/weather), so it is part of every edge's true
+      // cost and folding it in keeps the bound admissible while tightening it.
+      weight[edgeCount] =
+        landmarkLowerBoundCost(
+          cost,
+          edge.distance,
+          edge.freeFlowSpeed ?? edge.maxSpeed,
+          this.speedProfileRatio
+        ) + (edge.nodeDelayH ?? 0);
       edgeCount++;
     }
 
@@ -418,7 +423,13 @@ export class GraphBuilder {
   private findControlNode(lat: number, lon: number): Node | null {
     const exact = this.nodes.get(this.makeNodeKey(lat, lon));
     if (exact) return exact;
-    return this.findNearestNodeDuringBuild([lat, lon]);
+    const nearest = this.findNearestNodeDuringBuild([lat, lon]);
+    if (!nearest) return null;
+    // Unbounded snapping would pin a control on a filtered-out road to
+    // whatever graph node happens to be closest, however far away.
+    return utils.calculateDistance([lat, lon], nearest.coordinates) <= MAX_CONTROL_SNAP_KM
+      ? nearest
+      : null;
   }
 
   /**
@@ -439,9 +450,9 @@ export class GraphBuilder {
       );
       // Precomputed node-control delay for arriving at `edge.end` via THIS
       // edge (depends on the approach's own highway class, see cost.ts). Kept
-      // out of `edgeBaseCost`/the landmark tables and applied dynamically in
-      // the A* loop instead (see `applyDynamicCost`) — same reasoning as the
-      // old flat signal delay it replaces.
+      // out of `edgeBaseCost` (incident/weather factors must not scale it) and
+      // added in the A* loop (see `applyDynamicCost`); `buildLandmarks` adds it
+      // to the landmark weights, which runs after this.
       const delay = nodeDelayHours(this.nodeControls.get(edge.end.id), edge.highway);
       if (delay > 0) edge.nodeDelayH = delay;
     }

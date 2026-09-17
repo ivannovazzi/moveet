@@ -1,4 +1,4 @@
-import { Router } from "express";
+import express, { Router, type RequestHandler } from "express";
 import type { SpeedProfileManager } from "../modules/speedprofiles/SpeedProfileManager";
 import type { SpeedProfileFile } from "../modules/speedprofiles/SpeedProfileStore";
 import type { PositionFix } from "../modules/speedprofiles/FixMatcher";
@@ -13,6 +13,21 @@ import {
 export const SPEED_PROFILE_IMPORT_PATH = "/speed-profiles/import";
 /** Body limit for {@link SPEED_PROFILE_IMPORT_PATH}: a city-wide profile file is tens of MB. */
 export const SPEED_PROFILE_IMPORT_LIMIT = "64mb";
+
+/**
+ * The app-wide JSON body parser. Only when speed profiles are enabled (the
+ * import route exists) does {@link SPEED_PROFILE_IMPORT_PATH} get the large
+ * {@link SPEED_PROFILE_IMPORT_LIMIT}; otherwise every path, including that one,
+ * keeps express's default limit, so a disabled feature cannot be used to push
+ * 64 MB bodies through the parser.
+ */
+export function jsonBodyParser(speedProfilesEnabled: boolean): RequestHandler {
+  const jsonBody = express.json();
+  if (!speedProfilesEnabled) return jsonBody;
+  const largeJsonBody = express.json({ limit: SPEED_PROFILE_IMPORT_LIMIT });
+  return (req, res, next) =>
+    (req.path === SPEED_PROFILE_IMPORT_PATH ? largeJsonBody : jsonBody)(req, res, next);
+}
 
 /**
  * Learned per-edge speed profiles (registered only when SPEED_PROFILES_ENABLED):

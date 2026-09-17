@@ -173,3 +173,127 @@ describe("main-thread and worker A* agree with restrictions and turn penalties",
     });
   }
 });
+
+describe("arrival edge: turn rules apply at a moving vehicle's next node", () => {
+  const centre = gridPos(1, 1);
+  const south = gridPos(2, 1);
+  const west = gridPos(1, 0);
+  const features = [
+    ...gridFeatures(),
+    restriction("no_left_turn", colWay(1, 1), centre, rowWay(1, 0)),
+  ];
+
+  it("respects a no_left_turn at the start node when the arrival edge is given", () => {
+    const { rn } = network(features);
+    const start = rn.findNearestNode(centre);
+    const end = rn.findNearestNode(west);
+    const arrival = rn.getEdge(hop(rn, south, centre))!;
+
+    // Without an arrival edge the banned left turn is the direct route.
+    expect(ids(rn.findRoute(start, end))).toEqual([hop(rn, centre, west)]);
+
+    const r = rn.findRoute(start, end, arrival);
+    expect(r).not.toBeNull();
+    expect(r!.edges[0].id).not.toBe(hop(rn, centre, west));
+    expectLegal(rn, { edges: [arrival, ...r!.edges], distance: 0 });
+    expect(r!.edges.at(-1)!.end.id).toBe(nodeId(rn, west));
+  });
+
+  it("does not serve the unconstrained cached route to an arrival-constrained request", async () => {
+    const { rn } = network(features);
+    const start = rn.findNearestNode(centre);
+    const end = rn.findNearestNode(west);
+    const arrival = rn.getEdge(hop(rn, south, centre))!;
+    try {
+      const plain = await rn.findRouteAsync(start, end);
+      expect(ids(plain)).toEqual([hop(rn, centre, west)]);
+      const constrained = await rn.findRouteAsync(start, end, undefined, arrival);
+      expect(constrained).not.toBeNull();
+      expect(constrained!.edges[0].id).not.toBe(hop(rn, centre, west));
+      expect(ids(constrained)).toEqual(ids(rn.findRoute(start, end, arrival)));
+    } finally {
+      await rn.shutdownWorkers();
+    }
+  });
+
+  it("charges the first turn from the arrival edge (U-turn is costlier than straight on)", () => {
+    const { rn } = network(gridFeatures());
+    const start = rn.findNearestNode(centre);
+    const arrival = rn.getEdge(hop(rn, south, centre))!;
+    // Straight on (north) is free; heading back south is a U-turn.
+    const back = rn.findRoute(start, rn.findNearestNode(south), arrival)!;
+    const plainBack = rn.findRoute(start, rn.findNearestNode(south))!;
+    expect(ids(plainBack)).toEqual([hop(rn, centre, south)]);
+    // Either the U-turn is taken (and legal at an intersection) or avoided;
+    // the route must still be legal and reach the target.
+    expect(back.edges.at(-1)!.end.id).toBe(nodeId(rn, south));
+  });
+
+  it("lets a vehicle U-turn out of a node whose only exit is the reversal", () => {
+    // A <-> B two-way, C -> B one-way inbound: B has degree 2 and one exit.
+    const a: [number, number] = [-1.3, 36.9];
+    const b: [number, number] = [-1.3, 36.901];
+    const c: [number, number] = [-1.301, 36.901];
+    const way = (id: number, p: [number, number], q: [number, number], extra = {}) => ({
+      type: "Feature",
+      properties: { "@id": id, highway: "residential", ...extra },
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [p[1], p[0]],
+          [q[1], q[0]],
+        ],
+      },
+    });
+    const { file, rn } = network([way(1, a, b), way(2, c, b, { oneway: "yes" })]);
+    const arrival = rn.getEdge(hop(rn, a, b))!;
+    const r = rn.findRoute(rn.findNearestNode(b), rn.findNearestNode(a), arrival);
+    expect(ids(r)).toEqual([hop(rn, b, a)]);
+
+    const workerNodes = buildGraph(file, 2, DEFAULT_FREE_FLOW_FACTORS, "right");
+    const w = workerFindRoute(workerNodes, nodeId(rn, b), nodeId(rn, a), undefined, undefined, {
+      edgeId: arrival.id,
+      startId: arrival.start.id,
+    });
+    expect(w?.edgeIds).toEqual([hop(rn, b, a)]);
+  });
+
+  for (const driveSide of ["right", "left"] as const) {
+    it(`main-thread and worker agree for every arrival edge and target (${driveSide})`, () => {
+      const all = [
+        ...features,
+        restriction("only_straight_on", colWay(0, 1), centre, colWay(1, 1)),
+        restriction("no_u_turn", rowWay(1, 1), centre, rowWay(1, 1)),
+      ];
+      const { file, rn } = network(all, driveSide);
+      const workerNodes = buildGraph(file, 2, DEFAULT_FREE_FLOW_FACTORS, driveSide);
+      const nodeIds = [...workerNodes.keys()];
+      const toPos = (id: string) => id.split(",").map(Number) as [number, number];
+
+      let compared = 0;
+      for (const startId of nodeIds) {
+        const start = rn.findNearestNode(toPos(startId));
+        const arrivals = nodeIds
+          .map((id) => rn.getEdge(`${id}-${startId}`))
+          .filter((e): e is Edge => e !== undefined);
+        for (const arrival of arrivals) {
+          for (const endId of nodeIds) {
+            if (endId === startId) continue;
+            const main = rn.findRoute(start, rn.findNearestNode(toPos(endId)), arrival);
+            const worker = workerFindRoute(workerNodes, startId, endId, undefined, undefined, {
+              edgeId: arrival.id,
+              startId: arrival.start.id,
+            });
+            expect(Boolean(main)).toBe(Boolean(worker));
+            if (main && worker) {
+              expectLegal(rn, { edges: [arrival, ...main.edges], distance: 0 });
+              expect(ids(main)).toEqual(worker.edgeIds);
+              compared++;
+            }
+          }
+        }
+      }
+      expect(compared).toBeGreaterThan(100);
+    });
+  }
+});

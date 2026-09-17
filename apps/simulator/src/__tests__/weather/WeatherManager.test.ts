@@ -60,6 +60,31 @@ describe("WeatherManager", () => {
 
   // ─── Polling ─────────────────────────────────────────────────────────
 
+  it("skips a poll while the previous one is still in flight (no stale overwrite)", async () => {
+    let resolveSlow!: (v: ReturnType<typeof jsonResponse>) => void;
+    const slow = new Promise<ReturnType<typeof jsonResponse>>((r) => (resolveSlow = r));
+    const fetchImpl = vi
+      .fn<FetchLike>()
+      .mockReturnValueOnce(slow)
+      .mockResolvedValueOnce(jsonResponse(openMeteoBody({ weather_code: 0 })));
+    manager = new WeatherManager(BASE_SETTINGS, fetchImpl);
+
+    // @ts-expect-error — private, invoked directly.
+    const first = manager.poll();
+    // @ts-expect-error — private, invoked directly.
+    await manager.poll();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+
+    resolveSlow(jsonResponse(openMeteoBody({ rain: 5, weather_code: 63 })));
+    await first;
+    expect(manager.state().condition).toBe("rain");
+
+    // Once settled, the next poll runs again.
+    // @ts-expect-error — private, invoked directly.
+    await manager.poll();
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
   it("polls Open-Meteo for the given lat/lon and maps the reading to a factor", async () => {
     const fetchImpl = vi
       .fn<FetchLike>()

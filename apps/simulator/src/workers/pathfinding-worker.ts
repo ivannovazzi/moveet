@@ -6,7 +6,7 @@
  * circular references), and processes route requests from the main thread.
  *
  * Protocol:
- *   Request:  { type: 'findRoute', id: number, startId: string, endId: string, incidentEdges?: Record<string, number>, restrictedHighways?: string[] }
+ *   Request:  { type: 'findRoute', id: number, startId: string, endId: string, incidentEdges?: Record<string, number>, restrictedHighways?: string[], arrival?: { edgeId: string, startId: string } }
  *   Response: { type: 'result',    id: number, route: { edgeIds: string[], distance: number } | null }
  *   Table:    { type: 'speedProfile', indices: Int32Array, speeds: Float32Array }  (no response;
  *             replaces the learned-speed table used by every later request, see applySpeedOverrides)
@@ -80,6 +80,7 @@ import {
   resolveMaxSpeed,
   parseOneway,
   parseNodeControls,
+  MAX_CONTROL_SNAP_KM,
   DEFAULT_FREE_FLOW_FACTORS,
   VALID_HIGHWAYS,
 } from "../modules/roadnetwork/types";
@@ -499,7 +500,7 @@ function findControlNode(
       nearest = node;
     }
   }
-  return nearest;
+  return minDist <= MAX_CONTROL_SNAP_KM ? nearest : null;
 }
 
 /**
@@ -541,12 +542,14 @@ function buildWorkerLandmarks(
       if (target === undefined) continue;
       from[edgeCount] = sourceIndex;
       to[edgeCount] = target.altIndex;
-      weight[edgeCount] = landmarkLowerBoundCost(
-        edge.baseTravelTime,
-        edge.distance,
-        edge.freeFlowSpeed,
-        speedProfileRatio
-      );
+      // + the static node-control delay, exactly as GraphBuilder.buildLandmarks.
+      weight[edgeCount] =
+        landmarkLowerBoundCost(
+          edge.baseTravelTime,
+          edge.distance,
+          edge.freeFlowSpeed,
+          speedProfileRatio
+        ) + edge.nodeDelayH;
       edgeCount++;
     }
   }
@@ -588,6 +591,13 @@ function dynamicEdgeCost(
   return applyDynamicCost(edge.baseTravelTime, incidentFactor, edge.nodeDelayH, _weatherFactor);
 }
 
+/** The edge a moving vehicle arrives at the start node on (see `findRoute`). */
+interface WorkerArrival {
+  edgeId: string;
+  /** The arrival edge's start node id, where it is found in O(degree). */
+  startId: string;
+}
+
 /**
  * Edge-based A* (state = arriving edge), mirroring `PathfindingEngine.findRoute`
  * step for step — same seeding, same turn costs/bans, same push order — so the
@@ -598,11 +608,20 @@ function findRoute(
   startId: string,
   endId: string,
   incidentEdges?: Record<string, number>,
-  restrictedHighways?: string[]
+  restrictedHighways?: string[],
+  arrival?: WorkerArrival
 ): { edgeIds: string[]; distance: number } | null {
   const startNode = nodes.get(startId);
   const endNode = nodes.get(endId);
   if (!startNode || !endNode) return null;
+  // The arriving edge is found among its start node's outgoing edges; one that
+  // does not exist or does not end at the start node leaves the search
+  // unconstrained (mirrors `PathfindingEngine.validArrival`).
+  const from = arrival?.edgeId
+    ? nodes
+        .get(arrival.startId)
+        ?.edges.find((e) => e.id === arrival.edgeId && e.endNodeId === startId)
+    : undefined;
 
   _lastExpandedNodes = 0;
   if (startId === endId) return { edgeIds: [], distance: 0 };
@@ -633,16 +652,31 @@ function findRoute(
     return bound;
   };
 
-  // Seed with every usable edge out of the start node (no turn charged).
+  // Seed with every usable edge out of the start node: no turn charged unless
+  // an arrival edge is given, in which case its bans / U-turn rule / turn cost
+  // apply exactly as in the relaxation loop (mirrors PathfindingEngine).
+  const seedBans = from && turnBans.size > 0 ? turnBans.get(from.id) : undefined;
+  const startTurn: TurnNodeContext = {
+    degree: startNode.degree,
+    signalized: startNode.trafficSignal === true,
+  };
   for (const edge of startNode.edges) {
     const i = edge.index;
+    let turn = 0;
+    if (from) {
+      if (seedBans?.has(edge.id)) continue;
+      const isUTurn = edge.endNodeId === from.startNodeId;
+      if (isUTurn && !isUTurnAllowed(startTurn.degree, startNode.edges.length)) continue;
+      turn = turnCostHours(from.bearing, edge.bearing, isUTurn, !from.oneway, startTurn, driveSide);
+    }
     const travelTime = dynamicEdgeCost(edge, incidentEdges, restrictedHighways);
     if (travelTime < 0) continue;
-    if (gStamp[i] === search && g[i] <= travelTime) continue;
+    const cost = travelTime + turn;
+    if (gStamp[i] === search && g[i] <= cost) continue;
     gStamp[i] = search;
-    g[i] = travelTime;
+    g[i] = cost;
     prev[i] = -1;
-    heap.push(i, travelTime + heuristic(edge.endNode));
+    heap.push(i, cost + heuristic(edge.endNode));
   }
 
   while (heap.size > 0) {
@@ -682,7 +716,7 @@ function findRoute(
       // OSM turn restriction resolved to this exact (arrival, edge) pair.
       if (bans !== undefined && bans.has(edge.id)) continue;
       const isUTurn = edge.endNodeId === arrival.startNodeId;
-      if (isUTurn && !isUTurnAllowed(turnNode.degree)) continue;
+      if (isUTurn && !isUTurnAllowed(turnNode.degree, node.edges.length)) continue;
 
       const travelTime = dynamicEdgeCost(edge, incidentEdges, restrictedHighways);
       if (travelTime < 0) continue;
@@ -805,6 +839,7 @@ if (parentPort) {
       indices?: Int32Array;
       speeds?: Float32Array;
       factor?: number;
+      arrival?: WorkerArrival;
     }) => {
       if (msg.type === "speedProfile") {
         applySpeedOverrides(nodes, { indices: msg.indices!, speeds: msg.speeds! });
@@ -820,11 +855,19 @@ if (parentPort) {
           msg.startId,
           msg.endId,
           msg.incidentEdges,
-          msg.restrictedHighways
+          msg.restrictedHighways,
+          msg.arrival
         );
         // Fallback: if no route found with highway restrictions, retry without
         if (!route && msg.restrictedHighways && msg.restrictedHighways.length > 0) {
-          route = findRoute(nodes, msg.startId, msg.endId, msg.incidentEdges, undefined);
+          route = findRoute(
+            nodes,
+            msg.startId,
+            msg.endId,
+            msg.incidentEdges,
+            undefined,
+            msg.arrival
+          );
         }
         parentPort!.postMessage({ type: "result", id: msg.id, route });
       }
@@ -845,7 +888,7 @@ export {
   computeBaseTravelTime,
   applyDynamicCost,
 };
-export type { WorkerNode, WorkerEdge };
+export type { WorkerNode, WorkerEdge, WorkerArrival };
 
 /** Nodes expanded by the most recent `findRoute` call. Test/benchmark hook. */
 export function lastExpandedNodes(): number {

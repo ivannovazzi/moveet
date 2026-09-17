@@ -301,6 +301,15 @@ export const VALID_HIGHWAYS = new Set<string>([
 ]);
 
 /**
+ * Max distance (km) from a control Point feature (signal, stop, crossing, ...)
+ * to the graph node it is attached to when its coordinate does not match a
+ * node exactly. Farther points (typically on a road filtered out of the
+ * graph) are dropped instead of charging a delay at an unrelated node. Shared
+ * by `GraphBuilder` and the pathfinding worker so both attach the same set.
+ */
+export const MAX_CONTROL_SNAP_KM = 0.02;
+
+/**
  * Parses an OSM Point feature's tags into zero or more {@link NodeControl}
  * descriptors. A single point can carry more than one (a compound
  * `highway=traffic_signals;crossing` value, or a railway level crossing that

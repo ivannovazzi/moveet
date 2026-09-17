@@ -36,9 +36,8 @@ import {
   createSpeedProfileRoutes,
   createWeatherRoutes,
 } from "./routes";
-import { SPEED_PROFILE_IMPORT_LIMIT, SPEED_PROFILE_IMPORT_PATH } from "./routes/speedProfiles";
+import { jsonBodyParser } from "./routes/speedProfiles";
 import { SpeedProfileManager } from "./modules/speedprofiles/SpeedProfileManager";
-import type { SpeedProfileFile } from "./modules/speedprofiles/SpeedProfileStore";
 import { WeatherManager } from "./modules/weather/WeatherManager";
 import { createGeofenceRoutes } from "./routes/geofences";
 import type { RouteContext } from "./routes";
@@ -52,13 +51,9 @@ logConfig();
 const app = express();
 app.use(cors({ origin: true }));
 app.use(compression());
-// The speed-profile import takes a whole profile file; every other route keeps
-// express's default body limit.
-const jsonBody = express.json();
-const largeJsonBody = express.json({ limit: SPEED_PROFILE_IMPORT_LIMIT });
-app.use((req, res, next) =>
-  (req.path === SPEED_PROFILE_IMPORT_PATH ? largeJsonBody : jsonBody)(req, res, next)
-);
+// The speed-profile import takes a whole profile file; every other route (and
+// that one too when speed profiles are disabled) keeps express's default limit.
+app.use(jsonBodyParser(config.speedProfilesEnabled));
 
 // Correlation ID and request logging middleware
 app.use(correlationIdMiddleware);
@@ -153,14 +148,13 @@ if (config.persistenceEnabled) {
 if (speedProfiles) {
   // Learned profiles are accumulated knowledge rather than run state, so they
   // load whenever persistence is on (independent of RESTORE_STATE); a seed
-  // file merges on top.
+  // file merges on top, once per file content (see applySeedFile).
   if (stateStore) speedProfiles.loadFrom(stateStore);
   if (config.speedProfileSeedFile) {
-    const seed = JSON.parse(
-      fs.readFileSync(path.resolve(config.speedProfileSeedFile), "utf8")
-    ) as SpeedProfileFile;
-    const result = speedProfiles.importFile(seed, "merge");
-    logger.info(result, `Seeded speed profiles from ${config.speedProfileSeedFile}`);
+    const content = fs.readFileSync(path.resolve(config.speedProfileSeedFile), "utf8");
+    const { applied, result } = speedProfiles.applySeedFile(content, stateStore);
+    if (applied) logger.info(result, `Seeded speed profiles from ${config.speedProfileSeedFile}`);
+    else logger.info(`Speed profile seed ${config.speedProfileSeedFile} already applied; skipped`);
   }
 }
 
@@ -253,7 +247,10 @@ async function main() {
     logger.info(`Server started on port ${config.port}`);
   });
 
-  const { wss, broadcaster } = setupWebSocket(server);
+  const { wss, broadcaster } = setupWebSocket(server, {
+    // Weather only broadcasts on change, so a new client gets the current state now.
+    onClientConnected: (ws, b) => b.sendTo(ws, "weather", weatherManager.state()),
+  });
   const {
     trafficBroadcastInterval,
     analyticsBroadcastInterval,

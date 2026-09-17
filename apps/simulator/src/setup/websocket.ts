@@ -1,5 +1,5 @@
 import type { Server } from "http";
-import { WebSocketServer } from "ws";
+import { WebSocketServer, type WebSocket } from "ws";
 import {
   WebSocketBroadcaster,
   DEFAULT_PING_INTERVAL_MS,
@@ -9,6 +9,15 @@ import { selectBroadcastTransport } from "../modules/ws/selectTransport";
 import { parseSubscribeFilter } from "@moveet/shared-types";
 import { recordWsConnection, recordWsDisconnection } from "../metrics";
 import logger from "../utils/logger";
+
+export interface WebSocketSetupOptions {
+  /**
+   * Called once per new client, after it is tracked, to push current state a
+   * late joiner would otherwise only learn on the next change (e.g. weather,
+   * which only broadcasts when it changes). Use `broadcaster.sendTo`.
+   */
+  onClientConnected?: (ws: WebSocket, broadcaster: WebSocketBroadcaster) => void;
+}
 
 export interface WebSocketSetupResult {
   wss: WebSocketServer;
@@ -22,7 +31,10 @@ export interface WebSocketSetupResult {
  * "inprocess" preserves the historical direct fan-out; "redis" publishes onto
  * a pub/sub bus for the standalone gateway to fan out instead.
  */
-export function setupWebSocket(server: Server): WebSocketSetupResult {
+export function setupWebSocket(
+  server: Server,
+  options: WebSocketSetupOptions = {}
+): WebSocketSetupResult {
   const wss = new WebSocketServer({ server });
   const transport = selectBroadcastTransport(wss, {
     pingIntervalMs: DEFAULT_PING_INTERVAL_MS,
@@ -38,6 +50,11 @@ export function setupWebSocket(server: Server): WebSocketSetupResult {
     broadcaster.trackClient(ws);
     recordWsConnection(broadcaster.clientCount);
     logger.info(`Client connected (total: ${broadcaster.clientCount})`);
+    try {
+      options.onClientConnected?.(ws, broadcaster);
+    } catch (err) {
+      logger.warn({ err }, "Failed to send initial state to a new WebSocket client");
+    }
 
     ws.on("message", (data) => {
       try {

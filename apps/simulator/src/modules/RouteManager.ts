@@ -213,11 +213,9 @@ export class RouteManager extends EventEmitter {
     if (!vehicle) return;
 
     const destination = this.pickDestination();
-    const startNode = vehicle.currentEdge.end;
 
     const profile = getProfile(vehicle.type);
-    this.network
-      .findRouteAsync(startNode, destination, profile.restrictedHighways)
+    this.routeFromCurrentEdge(vehicle, destination, profile.restrictedHighways)
       .then((route) => {
         if (!this.registry.has(vehicleId)) return;
 
@@ -241,6 +239,29 @@ export class RouteManager extends EventEmitter {
       .catch((error) => {
         logger.warn("Pathfinding failed for vehicle %s: %o", vehicleId, error);
       });
+  }
+
+  /**
+   * Routes a moving vehicle from the end of its current edge, with that edge as
+   * the search's arrival edge so the turn it makes there obeys the same bans,
+   * U-turn rule and turn cost as every later turn. If that constraint leaves no
+   * route (e.g. every exit is banned), retries unconstrained rather than
+   * stranding the vehicle.
+   */
+  private async routeFromCurrentEdge(
+    vehicle: Vehicle,
+    destination: Node,
+    restrictedHighways?: string[]
+  ): Promise<Route | null> {
+    const arrival = vehicle.currentEdge;
+    const route = await this.network.findRouteAsync(
+      arrival.end,
+      destination,
+      restrictedHighways,
+      arrival
+    );
+    if (route) return route;
+    return this.network.findRouteAsync(arrival.end, destination, restrictedHighways);
   }
 
   // ─── Next edge logic ──────────────────────────────────────────────
@@ -649,6 +670,14 @@ export class RouteManager extends EventEmitter {
    * `speed`, because an idle candidate has `speed === 0` and
    * would otherwise price out at infinity — exactly backwards, since idle
    * vehicles are the ones worth dispatching.
+   *
+   * NOT identical to the route search's cost: the ETA models how the simulated
+   * vehicle will actually drive the route, so it leaves out the terms the
+   * search uses only to CHOOSE a route and that `updateSpeed` never applies to
+   * movement — the static surface / smoothness / BPR penalties baked into the
+   * base cost, and incident speed factors. Adding them here would make ETAs
+   * disagree with simulated arrival times. Terms both sides share (free-flow
+   * or learned speed, node delay, turn cost, weather) are priced identically.
    */
   async estimateTo(
     vehicleId: string,
@@ -662,7 +691,20 @@ export class RouteManager extends EventEmitter {
     if (startNode.connections.length === 0 || endNode.connections.length === 0) return null;
 
     const profile = getProfile(vehicle.type);
-    const route = await this.network.findRouteAsync(startNode, endNode, profile.restrictedHighways);
+    // Starting at the end of the vehicle's current edge: search with it as the
+    // arrival edge (same first-turn rules as a reroute) and charge that turn.
+    let arrival: Edge | undefined =
+      startNode.id === vehicle.currentEdge.end.id ? vehicle.currentEdge : undefined;
+    let route = await this.network.findRouteAsync(
+      startNode,
+      endNode,
+      profile.restrictedHighways,
+      arrival
+    );
+    if (!route && arrival) {
+      arrival = undefined;
+      route = await this.network.findRouteAsync(startNode, endNode, profile.restrictedHighways);
+    }
     if (!route || route.edges.length === 0) return null;
 
     // Each edge at the speed the movement model caps it at: the edge's free-flow
@@ -671,12 +713,13 @@ export class RouteManager extends EventEmitter {
     // node-control delay (signal/stop/give-way/crossing/level-crossing/traffic-
     // calming at the edge's end) — the same term `applyDynamicCost` adds during
     // pathfinding, so `best_eta` candidate comparisons and the route search
-    // agree on what a stop/signal costs. `updateSpeed` below has no stopping
+    // price a stop/signal the same way. `updateSpeed` below has no stopping
     // logic of its own (it only slows for turns/following distance/heat zones/
     // congestion), so there is nothing to double-count against.
     //
     // Plus the turn cost between consecutive edges, again exactly as the search
-    // charges it (pathfinding/turns.ts). This deliberately does NOT mirror
+    // charges it (pathfinding/turns.ts) — including the first turn off the
+    // vehicle's current edge when the route starts at its end node. This deliberately does NOT mirror
     // `updateSpeed`'s turn slowdown: that one is a pure-geometry speed dip
     // (any bearing change over TURN_THRESHOLD, drive-side agnostic) whose time
     // loss depends on the vehicle's acceleration profile, while the turn
@@ -691,13 +734,13 @@ export class RouteManager extends EventEmitter {
     // The global weather factor (fleetsim-all-1ajn.5) scales the resulting
     // speed down, exactly like `applyDynamicCost` scales travel TIME down by
     // the same factor for routing cost (dividing time by a factor < 1 is
-    // equivalent to multiplying speed by it) — so this ETA and the route the
-    // search actually costed agree. Node delay is NOT scaled by weather (a red
+    // equivalent to multiplying speed by it), and like `updateSpeed` scales
+    // movement. Node delay is NOT scaled by weather (a red
     // light's expected wait doesn't get longer in the rain the way a moving
     // edge's travel time does), matching the routing cost side.
     const weatherFactor = this.network.getWeatherFactor();
     let hours = 0;
-    let previous: (typeof route.edges)[number] | null = null;
+    let previous: Edge | null = arrival ?? null;
     for (const edge of route.edges) {
       const edgeSpeed = this.network.learnedSpeedKmh(edge) ?? edge.freeFlowSpeed ?? edge.maxSpeed;
       const speed = Math.min(profile.maxSpeed, edgeSpeed) * weatherFactor;
@@ -956,13 +999,11 @@ export class RouteManager extends EventEmitter {
     const route = this.routes.get(vehicleId);
     if (!vehicle || !route) return;
 
-    const startNode = vehicle.currentEdge.end;
     const lastEdge = route.edges[route.edges.length - 1];
     const destinationNode = lastEdge.end;
     const rerouteProfile = getProfile(vehicle.type);
 
-    this.network
-      .findRouteAsync(startNode, destinationNode, rerouteProfile.restrictedHighways)
+    this.routeFromCurrentEdge(vehicle, destinationNode, rerouteProfile.restrictedHighways)
       .then((newRoute) => {
         if (!this.registry.has(vehicleId)) return;
         if (!this.routes.has(vehicleId)) return;

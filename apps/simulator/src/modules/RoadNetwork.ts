@@ -280,10 +280,14 @@ export class RoadNetwork extends EventEmitter {
   /**
    * Finds the shortest route between two nodes using A* pathfinding.
    * Returns null if no route exists between the nodes.
+   *
+   * @param arrival  Edge a moving vehicle reaches `start` on; its turn bans,
+   *   U-turn rule and turn cost then apply to the first turn (see
+   *   `PathfindingEngine.findRoute`).
    */
-  public findRoute(start: Node, end: Node): Route | null {
+  public findRoute(start: Node, end: Node, arrival?: Edge | null): Route | null {
     this.routeRequestHook?.();
-    return this.pathfinding.findRoute(start, end);
+    return this.pathfinding.findRoute(start, end, arrival);
   }
 
   /**
@@ -414,13 +418,16 @@ export class RoadNetwork extends EventEmitter {
   public async findRouteAsync(
     start: Node,
     end: Node,
-    restrictedHighways?: string[]
+    restrictedHighways?: string[],
+    arrival?: Edge | null
   ): Promise<Route | null> {
     this.routeRequestHook?.();
+    const from = this.pathfinding.validArrival(start, arrival);
     // Check cache first — keyed identically to the sync path, plus the
-    // restricted-highway profile (a different profile yields a different route).
+    // restricted-highway profile (a different profile yields a different route)
+    // and the arrival edge (it changes which first turns are legal / cost).
     const highwayKey = restrictedHighways?.length ? restrictedHighways.join(",") : "";
-    const cacheKey = `${start.id}|${end.id}|${this.pathfinding.costFingerprint()}|${highwayKey}`;
+    const cacheKey = `${start.id}|${end.id}|${this.pathfinding.costFingerprint()}|${highwayKey}${PathfindingEngine.arrivalKey(from)}`;
     const cached = this.pathfinding.getCachedRoute(cacheKey);
     if (cached) return cached;
 
@@ -443,7 +450,8 @@ export class RoadNetwork extends EventEmitter {
       start.id,
       end.id,
       incidentEdges.size > 0 ? incidentEdges : undefined,
-      restrictedHighways
+      restrictedHighways,
+      from ? { edgeId: from.id, startId: from.start.id } : undefined
     );
     if (!result) return null;
 

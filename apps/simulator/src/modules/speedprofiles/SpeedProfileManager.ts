@@ -29,6 +29,7 @@
  * routing exactly once.
  */
 
+import crypto from "crypto";
 import type { Edge } from "../../types";
 import type { RoadNetwork } from "../RoadNetwork";
 import type { SpeedProfileRow, StateStore } from "../StateStore";
@@ -39,6 +40,9 @@ import { TraversalRecorder } from "./TraversalRecorder";
 import { FixMatcher, type PositionFix } from "./FixMatcher";
 
 const log = createLogger("SpeedProfiles");
+
+/** StateStore meta key holding the SHA-256 of the last seed file merged in. */
+export const SEED_HASH_META_KEY = "speed_profile_seed_sha256";
 
 export type SpeedSource = "sim" | "adapter";
 
@@ -222,6 +226,31 @@ export class SpeedProfileManager {
     const result = this.store.importFile(file, (id) => this.indexOfId(id));
     this.publish();
     return result;
+  }
+
+  /**
+   * Merges a seed file (`SPEED_PROFILE_SEED_FILE`) at boot — ONCE per content.
+   * Merging adds the file's sample counts, and persisted rows already contain
+   * a previous merge, so re-applying the same file on every restart would keep
+   * inflating counts. With a state store the content hash is recorded and an
+   * already-applied file is skipped; a changed file is applied once. Without a
+   * store nothing persists between boots, so the seed is always applied. The
+   * merged rows are saved right away so the recorded hash never outlives them.
+   */
+  applySeedFile(
+    content: string,
+    stateStore?: StateStore
+  ): { applied: boolean; result?: ImportResult } {
+    const hash = crypto.createHash("sha256").update(content).digest("hex");
+    if (stateStore && stateStore.getMeta(SEED_HASH_META_KEY) === hash) {
+      return { applied: false };
+    }
+    const result = this.importFile(JSON.parse(content) as SpeedProfileFile, "merge");
+    if (stateStore) {
+      this.saveTo(stateStore);
+      stateStore.setMeta(SEED_HASH_META_KEY, hash);
+    }
+    return { applied: true, result };
   }
 
   // ─── Persistence ──────────────────────────────────────────────────

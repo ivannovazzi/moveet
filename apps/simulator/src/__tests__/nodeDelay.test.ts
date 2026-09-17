@@ -6,7 +6,7 @@ import type { Feature, FeatureCollection } from "geojson";
 import { GraphBuilder } from "../modules/roadnetwork/GraphBuilder";
 import { buildGraph } from "../workers/pathfinding-worker";
 import { computeNodeDelayS, nodeDelayHours } from "../modules/pathfinding/cost";
-import { parseNodeControls } from "../modules/roadnetwork/types";
+import { MAX_CONTROL_SNAP_KM, parseNodeControls } from "../modules/roadnetwork/types";
 
 /**
  * fleetsim-all-1ajn.2: typed per-node delays replacing the flat 45s
@@ -264,6 +264,50 @@ describe("way-level traffic_calming caps freeFlowSpeed instead of adding a node 
       expect(edge.freeFlowSpeed).toBeGreaterThan(25);
     }
   });
+});
+
+describe("control points snap to a node only within MAX_CONTROL_SNAP_KM", () => {
+  function withPoint(lat: number, lon: number): FeatureCollection {
+    return {
+      type: "FeatureCollection",
+      features: [
+        lineString("r1", [LON_A, LON_B, LON_C]),
+        {
+          type: "Feature",
+          properties: { id: "p1", highway: "stop" },
+          geometry: { type: "Point", coordinates: [lon, lat] },
+        },
+      ],
+    };
+  }
+
+  const cases = [
+    // ~4 m east of B: a slightly offset tag still lands on B.
+    { name: "a nearby point", fc: withPoint(LAT, LON_B + 0.00005), delayed: true },
+    // ~220 m north of B: a control on a road that is not in the graph.
+    { name: "a far-away point", fc: withPoint(LAT + 0.002, LON_B), delayed: false },
+  ];
+
+  for (const { name, fc, delayed } of cases) {
+    it(`${delayed ? "attaches" : "drops"} ${name} (main thread and worker)`, () => {
+      expect(MAX_CONTROL_SNAP_KM).toBeGreaterThanOrEqual(0.015);
+      expect(MAX_CONTROL_SNAP_KM).toBeLessThanOrEqual(0.02);
+      const built = new GraphBuilder().build(fc);
+      const delayedEdges = [...built.edges.values()].filter((e) => (e.nodeDelayH ?? 0) > 0);
+      expect(delayedEdges.length > 0).toBe(delayed);
+
+      const tmpPath = writeTempGeojson(fc);
+      try {
+        const workerNodes = buildGraph(tmpPath);
+        const workerDelayed = [...workerNodes.values()]
+          .flatMap((n) => n.edges)
+          .filter((e) => e.nodeDelayH > 0);
+        expect(workerDelayed.length > 0).toBe(delayed);
+      } finally {
+        cleanupTempGeojson(tmpPath);
+      }
+    });
+  }
 });
 
 describe("worker buildGraph matches GraphBuilder's node-delay precomputation", () => {

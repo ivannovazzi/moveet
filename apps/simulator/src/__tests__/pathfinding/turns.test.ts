@@ -112,6 +112,13 @@ describe("isUTurnAllowed", () => {
     expect(isUTurnAllowed(3)).toBe(true);
     expect(isUTurnAllowed(4)).toBe(true);
   });
+
+  it("allows a mid-block U-turn when it is the node's only exit (no trap)", () => {
+    // Two-way road to A plus an inbound-only one-way from C: degree 2, and the
+    // only outgoing edge is the one back to A.
+    expect(isUTurnAllowed(2, 1)).toBe(true);
+    expect(isUTurnAllowed(2, 2)).toBe(false);
+  });
 });
 
 // ─── Restriction parsing ─────────────────────────────────────────────
@@ -271,6 +278,23 @@ describe("resolveTurnBans", () => {
       outgoing
     );
     expect([...bans.get("S>X")!]).toEqual(["X>S"]);
+  });
+
+  it("does not narrow a same-way only_* restriction to the reversal", () => {
+    // A way passing straight through X: only_straight_on from S onto the same
+    // way must keep the straight continuation, not only the U-turn.
+    const through: TurnGraphEdge[] = [
+      { id: "S>X", streetId: "T", startNodeId: "S", endNodeId: "X" },
+      { id: "X>S", streetId: "T", startNodeId: "X", endNodeId: "S" },
+      { id: "X>N", streetId: "T", startNodeId: "X", endNodeId: "N" },
+      { id: "X>E", streetId: "E", startNodeId: "X", endNodeId: "E" },
+    ];
+    const bans = resolveTurnBans(
+      [{ kind: "only", from: "T", via: "X", to: "T" }],
+      (n) => through.filter((e) => e.endNodeId === n),
+      (n) => through.filter((e) => e.startNodeId === n)
+    );
+    expect([...bans.get("S>X")!]).toEqual(["X>E"]);
   });
 
   it("drops an only_* restriction whose to-way is not in the graph instead of stranding the approach", () => {

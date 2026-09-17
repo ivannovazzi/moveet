@@ -97,3 +97,29 @@ describe("FixMatcher (adapter source, consecutive fixes on one edge)", () => {
     expect(sink).not.toHaveBeenCalled();
   });
 });
+
+describe("FixMatcher per-vehicle state stays bounded", () => {
+  const onEdge = along(west, centre, 0.5);
+
+  it("sweeps vehicles whose last fix is older than maxGapMs", () => {
+    const matcher = new FixMatcher(network, vi.fn(), {
+      maxGapMs: 1_000,
+      maxTrackedVehicles: 1_000,
+    });
+    for (let i = 0; i < 50; i++) {
+      matcher.ingest({ vehicleId: `old-${i}`, position: onEdge, timestamp: 1_000 + i });
+    }
+    expect(matcher.trackedVehicles).toBe(50);
+    // A fix far later: every earlier entry is past maxGapMs and useless.
+    matcher.ingest({ vehicleId: "new", position: onEdge, timestamp: 1_000_000 });
+    expect(matcher.trackedVehicles).toBe(1);
+  });
+
+  it("caps the number of tracked vehicles, evicting the least recently seen", () => {
+    const matcher = new FixMatcher(network, vi.fn(), { maxTrackedVehicles: 10 });
+    for (let i = 0; i < 25; i++) {
+      matcher.ingest({ vehicleId: `v-${i}`, position: onEdge, timestamp: 1_000 + i });
+    }
+    expect(matcher.trackedVehicles).toBe(10);
+  });
+});

@@ -2,7 +2,11 @@ import { describe, it, expect, afterAll, vi } from "vitest";
 import express from "express";
 import request from "supertest";
 import fs from "fs";
-import { createSpeedProfileRoutes } from "../../routes/speedProfiles";
+import {
+  createSpeedProfileRoutes,
+  jsonBodyParser,
+  SPEED_PROFILE_IMPORT_PATH,
+} from "../../routes/speedProfiles";
 import { RoadNetwork } from "../../modules/RoadNetwork";
 import {
   SpeedProfileManager,
@@ -115,5 +119,32 @@ describe("speed profile routes", () => {
       .post("/speed-profiles/observations")
       .send({ fixes: [{ vehicleId: "r1", position: [200, 0], timestamp: NOW }] });
     expect(bad.status).toBe(400);
+  });
+});
+
+describe("jsonBodyParser: the large import body limit", () => {
+  // ~200 KB: over express's default 100 KB, far under the import limit.
+  const bigBody = { edges: [], padding: "x".repeat(200_000) };
+
+  function probe(speedProfilesEnabled: boolean) {
+    const a = express();
+    a.use(jsonBodyParser(speedProfilesEnabled));
+    a.post(SPEED_PROFILE_IMPORT_PATH, (_req, res) => {
+      res.json({ ok: true });
+    });
+    a.use((err: { status?: number }, _req: express.Request, res: express.Response, _n: unknown) => {
+      res.status(err.status ?? 500).end();
+    });
+    return a;
+  }
+
+  it("accepts a large import body when speed profiles are enabled", async () => {
+    const res = await request(probe(true)).post(SPEED_PROFILE_IMPORT_PATH).send(bigBody);
+    expect(res.status).toBe(200);
+  });
+
+  it("keeps the default limit on the import path when speed profiles are disabled", async () => {
+    const res = await request(probe(false)).post(SPEED_PROFILE_IMPORT_PATH).send(bigBody);
+    expect(res.status).toBe(413);
   });
 });

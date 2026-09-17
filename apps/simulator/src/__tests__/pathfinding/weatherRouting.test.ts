@@ -65,6 +65,19 @@ describe("RoadNetwork.setWeatherFactor / getWeatherFactor", () => {
     expect(rn.routeCacheStats().hits).toBe(2);
   });
 
+  it("keys the route cache on the exact factor, not a rounded one", () => {
+    // Weather scales travel time but not node delays / turn costs, so even a
+    // small change can change the optimal route; a rounded key would serve it stale.
+    const { rn } = grid();
+    const west = rn.findNearestNode(gridPos(1, 0));
+    const east = rn.findNearestNode(gridPos(1, 2));
+    rn.setWeatherFactor(0.501);
+    rn.findRoute(west, east);
+    rn.setWeatherFactor(0.504);
+    rn.findRoute(west, east);
+    expect(rn.routeCacheStats().hits).toBe(0);
+  });
+
   it("does not change which route is chosen (a uniform factor scales every edge equally)", () => {
     const { rn } = grid();
     const west = rn.findNearestNode(gridPos(1, 0));

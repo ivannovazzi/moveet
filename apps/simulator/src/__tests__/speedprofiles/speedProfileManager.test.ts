@@ -210,4 +210,48 @@ describe("SpeedProfileManager", () => {
     expect(third.manager.store.sample(idx, 1)).toEqual({ speedKmh: 9, count: 3 });
     store3.close();
   });
+
+  it("applies a seed file once per content across restarts (counts are not re-merged)", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "speed-profiles-seed-"));
+    tmpFiles.push(dir);
+    const dbPath = path.join(dir, "state.db");
+    const networkFile = writeTmpNetwork(gridFeatures());
+
+    const source = setup({}, networkFile);
+    const e = source.edge(west, centre);
+    for (let i = 0; i < 4; i++) source.manager.observe(e, 7, MONDAY_8, "sim");
+    const seed = JSON.stringify(source.manager.exportFile());
+
+    /** One simulator boot: load persisted rows, apply the seed, save, shut down. */
+    const boot = (content: string) => {
+      const run = setup({}, networkFile);
+      const store = new StateStore(dbPath);
+      run.manager.loadFrom(store);
+      const outcome = run.manager.applySeedFile(content, store);
+      run.manager.saveTo(store);
+      const idx = run.network.edgeIndexOf(run.edge(west, centre));
+      const count = run.manager.store.sample(idx, run.manager.stats().currentBucket)?.count;
+      store.close();
+      return { applied: outcome.applied, count };
+    };
+
+    expect(boot(seed)).toEqual({ applied: true, count: 4 });
+    expect(boot(seed)).toEqual({ applied: false, count: 4 });
+    expect(boot(seed)).toEqual({ applied: false, count: 4 });
+
+    // A changed seed file is applied (once).
+    for (let i = 0; i < 2; i++) source.manager.observe(e, 7, MONDAY_8, "sim");
+    const changed = JSON.stringify(source.manager.exportFile());
+    expect(boot(changed).applied).toBe(true);
+    expect(boot(changed).applied).toBe(false);
+  });
+
+  it("applies a seed file every boot when there is no state store (nothing accumulates)", () => {
+    const source = setup();
+    for (let i = 0; i < 4; i++)
+      source.manager.observe(source.edge(west, centre), 7, MONDAY_8, "sim");
+    const seed = JSON.stringify(source.manager.exportFile());
+    const run = setup();
+    expect(run.manager.applySeedFile(seed).applied).toBe(true);
+  });
 });

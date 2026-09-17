@@ -15,7 +15,8 @@
  *
  * ## The bound
  *
- * For each landmark `L` we precompute, over the STATIC base edge cost only:
+ * For each landmark `L` we precompute, over the STATIC base edge cost plus the
+ * static per-edge node-control delay (`nodeDelayH`):
  *   - `distFrom[L][v]` — cost of the cheapest path L → v
  *   - `distTo[L][v]`   — cost of the cheapest path v → L
  *
@@ -37,9 +38,9 @@
  * only INCREASE an edge's cost or delete the edge:
  *   - incident factor: `applyDynamicCost` divides only when `factor < 1`, so the
  *     cost never shrinks; `factor === 0` is a closure and the edge is skipped.
- *   - node-control delay: `+ edge.nodeDelayH` (signal/stop/give-way/crossing/
- *     level-crossing/traffic-calming), always >= 0 (see `pathfinding/cost.ts`
- *     `nodeDelayHours`).
+ *   - node-control delay: `+ edge.nodeDelayH` is already IN the landmark
+ *     weights, and A* adds exactly that value (never scaled), so it neither
+ *     under- nor over-shoots.
  *   - turn restrictions / `restrictedHighways`: delete transitions or edges.
  * Deleting edges and raising costs can only raise the true shortest-path cost,
  * so a bound computed on the base metric remains a valid lower bound. There is

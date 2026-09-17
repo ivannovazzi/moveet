@@ -349,6 +349,10 @@ export class StateStore {
   private selectSpeedProfilesStmt: Database.Statement;
   private clearSpeedProfilesStmt: Database.Statement;
 
+  // Key/value metadata
+  private getMetaStmt: Database.Statement;
+  private setMetaStmt: Database.Statement;
+
   constructor(dbPath: string = "data/state.db") {
     // Ensure directory exists (skip for in-memory DBs)
     if (dbPath !== ":memory:") {
@@ -461,6 +465,13 @@ export class StateStore {
 
     this.clearSpeedProfilesStmt = this.db.prepare(`DELETE FROM speed_profiles`);
 
+    // ─── Metadata prepared statements ─────────────────────────────
+    this.getMetaStmt = this.db.prepare(`SELECT value FROM meta WHERE key = ?`);
+    this.setMetaStmt = this.db.prepare(`
+      INSERT INTO meta (key, value) VALUES (?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')
+    `);
+
     logger.info(`StateStore initialized at ${dbPath}`);
   }
 
@@ -518,6 +529,16 @@ export class StateStore {
         speeds       BLOB    NOT NULL,
         counts       BLOB    NOT NULL,
         updated_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+
+    // Small key/value facts about the database itself (e.g. which speed
+    // profile seed file has already been merged in).
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS meta (
+        key        TEXT PRIMARY KEY,
+        value      TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
       )
     `);
   }
@@ -814,6 +835,17 @@ export class StateStore {
 
   clearSpeedProfiles(): void {
     this.clearSpeedProfilesStmt.run();
+  }
+
+  // ─── Metadata methods ────────────────────────────────────────────
+
+  getMeta(key: string): string | undefined {
+    const row = this.getMetaStmt.get(key) as { value: string } | undefined;
+    return row?.value;
+  }
+
+  setMeta(key: string, value: string): void {
+    this.setMetaStmt.run(key, value);
   }
 
   // ─── Lifecycle ───────────────────────────────────────────────────

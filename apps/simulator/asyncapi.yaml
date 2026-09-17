@@ -103,6 +103,8 @@ channels:
         $ref: "#/components/messages/scenarioStopped"
       faultsConfig:
         $ref: "#/components/messages/faultsConfig"
+      weather:
+        $ref: "#/components/messages/weather"
       connect:
         $ref: "#/components/messages/connect"
       disconnect:
@@ -149,6 +151,7 @@ operations:
       - $ref: "#/components/messages/scenarioCompleted"
       - $ref: "#/components/messages/scenarioStopped"
       - $ref: "#/components/messages/faultsConfig"
+      - $ref: "#/components/messages/weather"
       - $ref: "#/components/messages/connect"
       - $ref: "#/components/messages/disconnect"
   sendClientCommands:
@@ -677,6 +680,21 @@ components:
             const: faults:config
           data:
             $ref: ./openapi.yaml#/components/schemas/DeviceFaultConfig
+    weather:
+      name: weather
+      title: Weather
+      summary: The global weather speed factor changed (live poll, or a manual override set/cleared). Also sent to each client on connect.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: weather
+          data:
+            $ref: ./openapi.yaml#/components/schemas/WeatherDTO
     connect:
       name: connect
       title: Connected

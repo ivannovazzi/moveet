@@ -163,12 +163,28 @@ export class PathfindingEngine {
   }
 
   /**
+   * The arrival edge a search may be seeded with: a real graph edge (not a
+   * synthetic U-turn fallback, which shares its original's id) ending at
+   * `start`. Anything else is ignored, i.e. the search is unconstrained.
+   */
+  public validArrival(start: Node, arrival: Edge | null | undefined): Edge | null {
+    if (!arrival || arrival.end.id !== start.id) return null;
+    return this.edgeIndexOf(arrival) >= 0 ? arrival : null;
+  }
+
+  /**
    * Finds the shortest route between two nodes using A* pathfinding.
    * Returns null if no route exists between the nodes.
+   *
+   * @param arrival  The edge the vehicle is on when it reaches `start` (a
+   *   moving vehicle routes from `currentEdge.end`). When given, the first
+   *   expansion applies that edge's turn bans, U-turn rule and turn cost exactly
+   *   as every later relaxation does. Ignored unless it ends at `start`.
    */
-  public findRoute(start: Node, end: Node): Route | null {
+  public findRoute(start: Node, end: Node, arrival?: Edge | null): Route | null {
+    const from = this.validArrival(start, arrival);
     // Check cache first
-    const cacheKey = `${start.id}|${end.id}|${this.costFingerprint()}`;
+    const cacheKey = `${start.id}|${end.id}|${this.costFingerprint()}${PathfindingEngine.arrivalKey(from)}`;
     const cached = this.routeCache.get(cacheKey);
     if (cached) return { edges: [...cached.edges], distance: cached.distance };
 
@@ -190,17 +206,39 @@ export class PathfindingEngine {
     // heuristic degrades to exactly the previous haversine bound.
     this.altActive = this.alt ? this.alt.setTarget((end as Node & AltIndexed).altIndex) : false;
 
-    // Seed with every usable edge out of the start node. There is no arriving
-    // edge yet, so no turn is charged.
+    // Seed with every usable edge out of the start node. Without an arrival
+    // edge no turn is charged; with one, the turn onto each first edge is
+    // filtered and priced exactly as in the relaxation loop below.
+    const seedBans = from && this.turnBans.size > 0 ? this.turnBans.get(from.id) : undefined;
+    const startTurn: TurnNodeContext = {
+      degree: start.degree ?? start.connections.length,
+      signalized: start.trafficSignal === true,
+    };
+    const startOut = start.connections.length;
     for (const edge of start.connections) {
       const i = (edge as Edge & SearchIndexed).searchIndex!;
+      let turn = 0;
+      if (from) {
+        if (seedBans?.has(edge.id)) continue;
+        const isUTurn = edge.end === from.start;
+        if (isUTurn && !isUTurnAllowed(startTurn.degree, startOut)) continue;
+        turn = turnCostHours(
+          from.bearing,
+          edge.bearing,
+          isUTurn,
+          !from.oneway,
+          startTurn,
+          this.driveSide
+        );
+      }
       const travelTime = this.dynamicEdgeCost(edge, i);
       if (travelTime < 0) continue;
-      if (gStamp[i] === search && g[i] <= travelTime) continue;
+      const cost = travelTime + turn;
+      if (gStamp[i] === search && g[i] <= cost) continue;
       gStamp[i] = search;
-      g[i] = travelTime;
+      g[i] = cost;
       prev[i] = -1;
-      heap.push(i, travelTime + this.cachedHeuristic(scratch, search, edge.end, end));
+      heap.push(i, cost + this.cachedHeuristic(scratch, search, edge.end, end));
     }
 
     while (heap.size > 0) {
@@ -235,7 +273,7 @@ export class PathfindingEngine {
         // OSM turn restriction resolved to this exact (arrival, edge) pair.
         if (bans !== undefined && bans.has(edge.id)) continue;
         const isUTurn = edge.end === arrival.start;
-        if (isUTurn && !isUTurnAllowed(turnNode.degree)) continue;
+        if (isUTurn && !isUTurnAllowed(turnNode.degree, node.connections.length)) continue;
 
         const travelTime = this.dynamicEdgeCost(edge, j);
         if (travelTime < 0) continue;
@@ -367,12 +405,17 @@ export class PathfindingEngine {
   public costFingerprint(): string {
     const incidents = this.incidentFingerprint();
     let fp = this.profileVersion === 0 ? incidents : `${incidents}#p${this.profileVersion}`;
-    // Quantised to 2 decimal places: enough resolution to distinguish every
-    // condition this composes with (weather factors are looked up from a
-    // handful of discrete condition buckets, see `modules/weather/conditions`),
-    // without fragmenting the route cache over noise in a live reading.
-    if (this.weatherFactor !== 1) fp += `#w${this.weatherFactor.toFixed(2)}`;
+    // The exact factor the cost uses: a rounded key would serve a route
+    // computed under a different factor (weather scales edge time but not node
+    // delays / turn costs, so the optimum can move). Live readings come from a
+    // handful of discrete condition buckets, so this does not fragment the cache.
+    if (this.weatherFactor !== 1) fp += `#w${this.weatherFactor}`;
     return fp;
+  }
+
+  /** Route-cache key suffix for an (already validated) arrival edge. */
+  public static arrivalKey(arrival: Edge | null): string {
+    return arrival ? `|a:${arrival.id}` : "";
   }
 
   /** {@link calculateHeuristic}, memoized per node for the current search. */

@@ -93,10 +93,15 @@ export interface TurnNodeContext {
 /**
  * U-turns are allowed at dead ends (the only way out) and at intersections
  * (where OSM maps `no_u_turn` explicitly when they are illegal), but not at a
- * mid-block vertex of a single road.
+ * mid-block vertex of a single road — unless the U-turn is the node's only
+ * outgoing edge (e.g. a two-way road meeting an inbound-only one-way), where
+ * banning it would trap every arrival.
+ *
+ * @param degree     Distinct neighbouring nodes (in or out), see {@link TurnNodeContext}.
+ * @param outDegree  Outgoing edges of the node; omitted = unknown (no exception).
  */
-export function isUTurnAllowed(degree: number): boolean {
-  return degree !== 2;
+export function isUTurnAllowed(degree: number, outDegree?: number): boolean {
+  return degree !== 2 || outDegree === 1;
 }
 
 /**
@@ -154,6 +159,8 @@ export interface TurnRestriction {
   via: string;
   /** Street id (OSM way id) of the exit. */
   to: string;
+  /** The value is a `*_u_turn` restriction (`no_u_turn` / `only_u_turn`). */
+  uTurn?: boolean;
 }
 
 /** Vehicle-class keys that bind a car, most specific first. */
@@ -227,7 +234,9 @@ export function parseTurnRestriction(
   }
   if (!via) return null;
 
-  return { kind, from: String(from), via, to: String(to) };
+  const restriction: TurnRestriction = { kind, from: String(from), via, to: String(to) };
+  if (value.endsWith("_u_turn")) restriction.uTurn = true;
+  return restriction;
 }
 
 /** The minimal edge shape {@link resolveTurnBans} needs from either graph. */
@@ -245,7 +254,10 @@ export interface TurnGraphEdge {
  *  - `no_*`: bans each (approach edge on `from` into `via`) -> (exit edge on
  *    `to` out of `via`). When `from === to` (typically `no_u_turn`) only the
  *    exit back to the approach's start is banned, so a way that merely passes
- *    through the via node keeps its straight-on continuation.
+ *    through the via node keeps its straight-on continuation. The same
+ *    narrowing applies to a same-way `only_u_turn`, but NOT to other same-way
+ *    `only_*` (e.g. `only_straight_on` along a through way), whose allowed
+ *    exits are every edge of that way.
  *  - `only_*`: bans every exit that is not on an allowed `to` way. Several
  *    `only_*` on the same approach union their allowed exits. When no allowed
  *    exit exists in the graph (the to-way was filtered out) the restriction is
@@ -273,13 +285,15 @@ export function resolveTurnBans(
   const mandatory = new Map<string, { exits: readonly TurnGraphEdge[]; allowed: Set<string> }>();
 
   for (const r of restrictions) {
+    // Same-way restriction that is about reversing: only the U-turn is meant.
+    const sameWayUTurn = r.from === r.to && (r.kind === "no" || r.uTurn === true);
     const approaches = incoming(r.via).filter((e) => e.streetId === r.from);
     if (approaches.length === 0) continue;
     const exits = outgoing(r.via);
 
     for (const approach of approaches) {
       const targets = exits.filter(
-        (e) => e.streetId === r.to && (r.from !== r.to || e.endNodeId === approach.startNodeId)
+        (e) => e.streetId === r.to && (!sameWayUTurn || e.endNodeId === approach.startNodeId)
       );
       if (r.kind === "no") {
         for (const t of targets) ban(approach.id, t.id);

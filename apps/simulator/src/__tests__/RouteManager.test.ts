@@ -442,6 +442,68 @@ describe("RouteManager", () => {
     });
   });
 
+  // ─── Arrival edge (turn rules at a moving vehicle's next node) ─────
+
+  describe("arrival edge", () => {
+    const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+    it("setRandomDestination routes from currentEdge.end with currentEdge as the arrival", async () => {
+      const vehicle = firstVehicle();
+      const spy = vi.spyOn(network, "findRouteAsync").mockResolvedValue(null);
+      routeManager.setRandomDestination(vehicle.id);
+      await flush();
+      expect(spy.mock.calls[0][0]).toBe(vehicle.currentEdge.end);
+      expect(spy.mock.calls[0][3]).toBe(vehicle.currentEdge);
+    });
+
+    it("falls back to an unconstrained search when the arrival leaves no legal route", async () => {
+      const vehicle = firstVehicle();
+      const route: Route = { edges: [vehicle.currentEdge], distance: 1 };
+      const spy = vi
+        .spyOn(network, "findRouteAsync")
+        .mockImplementation(async (_s, _e, _r, arrival) => (arrival ? null : route));
+      routeManager.setRandomDestination(vehicle.id);
+      await flush();
+      expect(spy).toHaveBeenCalledTimes(2);
+      expect(spy.mock.calls[1][3]).toBeUndefined();
+      expect(routeManager.getRoute(vehicle.id)).toBe(route);
+    });
+
+    it("an incident reroute passes currentEdge as the arrival", async () => {
+      const vehicle = firstVehicle();
+      routeManager.setRoute(vehicle.id, { edges: [vehicle.currentEdge], distance: 1 });
+      const spy = vi.spyOn(network, "findRouteAsync").mockResolvedValue(null);
+      (routeManager as any).dispatchReroute(vehicle.id, "inc-1");
+      await flush();
+      expect(spy.mock.calls[0][0]).toBe(vehicle.currentEdge.end);
+      expect(spy.mock.calls[0][3]).toBe(vehicle.currentEdge);
+    });
+
+    it("estimateTo charges the first turn off currentEdge when starting at its end node", async () => {
+      const vehicle = firstVehicle();
+      vehicle.position = [...vehicle.currentEdge.end.coordinates] as [number, number];
+      const edge = {
+        ...vehicle.currentEdge,
+        distance: 1,
+        maxSpeed: 50,
+        freeFlowSpeed: 30,
+        nodeDelayH: undefined,
+      };
+      const spy = vi.spyOn(network, "findRouteAsync").mockResolvedValue({
+        edges: [edge],
+        distance: 1,
+      });
+      const turnSpy = vi.spyOn(network, "turnCostHours").mockReturnValue(9 / 3600);
+
+      const est = await routeManager.estimateTo(vehicle.id, [45.5029, -73.5661]);
+
+      expect(spy.mock.calls[0][3]).toBe(vehicle.currentEdge);
+      expect(turnSpy).toHaveBeenCalledWith(vehicle.currentEdge, edge);
+      const profileMax = getProfile(vehicle.type).maxSpeed;
+      expect(est!.etaSeconds).toBeCloseTo((1 / Math.min(30, profileMax)) * 3600 + 9, 6);
+    });
+  });
+
   // ─── Incident rerouting ───────────────────────────────────────────
 
   describe("handleIncidentCreated", () => {

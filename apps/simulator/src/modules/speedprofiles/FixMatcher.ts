@@ -48,6 +48,12 @@ export interface FixMatcherOptions {
   maxSpeedKmh: number;
   /** Fraction of the edge at each end inside which a fix does not count. */
   endMargin: number;
+  /**
+   * Most vehicles whose last fix is remembered; the least recently seen are
+   * evicted beyond it, so a stream of one-off vehicle ids cannot grow memory
+   * without bound.
+   */
+  maxTrackedVehicles: number;
 }
 
 export const DEFAULT_FIX_MATCHER_OPTIONS: FixMatcherOptions = {
@@ -56,6 +62,7 @@ export const DEFAULT_FIX_MATCHER_OPTIONS: FixMatcherOptions = {
   minTravelKm: 0.015,
   maxSpeedKmh: 250,
   endMargin: 0.05,
+  maxTrackedVehicles: 10_000,
 };
 
 interface Match {
@@ -70,7 +77,10 @@ const KM_PER_DEG_LON_EQUATOR = 111.32;
 
 export class FixMatcher {
   private readonly options: FixMatcherOptions;
+  /** Last matched fix per vehicle, least recently seen first (Map insertion order). */
   private readonly last = new Map<string, Match>();
+  /** Fix time of the last stale-entry sweep. */
+  private lastSweepAt = -Infinity;
 
   constructor(
     private readonly network: FixMatcherNetwork,
@@ -84,15 +94,38 @@ export class FixMatcher {
   ingest(fix: PositionFix): boolean {
     const previous = this.last.get(fix.vehicleId);
     if (previous && fix.timestamp <= previous.timestamp) return false; // stale / out of order
+    this.sweep(fix.timestamp);
     const match = this.match(fix.position);
-    if (!match) {
-      this.last.delete(fix.vehicleId);
-      return false;
-    }
+    this.last.delete(fix.vehicleId);
+    if (!match) return false;
     const current: Match = { ...match, timestamp: fix.timestamp };
+    // Re-inserted so the Map stays ordered least- to most-recently seen.
     this.last.set(fix.vehicleId, current);
+    while (this.last.size > this.options.maxTrackedVehicles) {
+      this.last.delete(this.last.keys().next().value!);
+    }
     if (!previous) return false;
     return this.observe(previous, current);
+  }
+
+  /** Number of vehicles whose last fix is currently remembered. */
+  get trackedVehicles(): number {
+    return this.last.size;
+  }
+
+  /**
+   * Drops vehicles whose last fix is more than `maxGapMs` older than `now` (a
+   * fix time): it can never pair with a later fix. Runs at most once per
+   * `maxGapMs` of fix time, so ingest stays amortised O(1).
+   */
+  private sweep(now: number): void {
+    const { maxGapMs } = this.options;
+    if (now - this.lastSweepAt < maxGapMs) return;
+    this.lastSweepAt = now;
+    const cutoff = now - maxGapMs;
+    for (const [vehicleId, match] of this.last) {
+      if (match.timestamp < cutoff) this.last.delete(vehicleId);
+    }
   }
 
   /** Drops a vehicle's last fix (e.g. when it leaves the fleet). */

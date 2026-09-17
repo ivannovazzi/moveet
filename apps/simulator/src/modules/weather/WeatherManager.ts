@@ -76,6 +76,12 @@ export class WeatherManager extends EventEmitter {
   /** Active manual override, or null when routing/movement should use the live reading. */
   private overrideState: WeatherDTO | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
+  /**
+   * True while a poll's fetch is outstanding. A slow response (up to
+   * `fetchTimeoutMs`, which may exceed the poll interval) must not overlap a
+   * newer poll: whichever resolved last would win, possibly the older reading.
+   */
+  private polling = false;
 
   constructor(
     private readonly settings: WeatherManagerSettings,
@@ -151,12 +157,16 @@ export class WeatherManager extends EventEmitter {
   }
 
   private async poll(): Promise<void> {
+    if (this.polling) return;
+    this.polling = true;
     let obs: WeatherObservation;
     try {
       obs = await this.fetchObservation();
     } catch (err) {
       log.warn(`Weather poll failed, keeping last value: ${(err as Error).message}`);
       return;
+    } finally {
+      this.polling = false;
     }
     const { condition, factor } = weatherSpeedFactor(obs);
     const before = this.state();
