@@ -34,7 +34,7 @@
     "@loaders.gl/images": "4.4.5",
     "@luma.gl/core": "^9.3.6",
     "@luma.gl/gltf": "9.3.6",
-    "@luma.gl/webgl": "^9.3.6",
+    "@luma.gl/webgl": "^9.4.1",
     "@moveet/shared-types": "*",
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/dom": "^10.4.1",
