@@ -18,7 +18,7 @@ import {
 } from "./vehicleMeshes";
 
 /** The per-model triangle budget the design was chosen against. */
-const MAX_TRIANGLES = 40;
+const MAX_TRIANGLES = 60;
 
 function vertexCount(mesh: VehicleMesh): number {
   return mesh.attributes.POSITION.value.length / 3;
@@ -143,6 +143,30 @@ describe("vehicle meshes", () => {
       }
     });
 
+    it("keeps an asymmetrically tapered box's faces outward", () => {
+      // A raked windscreen is a large insetFront against a small insetBack.
+      const mesh = buildMesh([
+        {
+          cx: 0,
+          cy: 0,
+          z: 0,
+          sx: 2,
+          sy: 4,
+          sz: 1.2,
+          insetX: 0.3,
+          insetFront: 1.4,
+          insetBack: 0.3,
+          tint: [1, 1, 1],
+        },
+      ]);
+      const normals = mesh.attributes.NORMAL.value;
+      expect(normals[2]).toBeCloseTo(1, 5); // top still faces up
+      for (let v = 4; v < vertexCount(mesh); v += 4) {
+        // Every side leans outward and upward, none folds back on itself.
+        expect(normals[v * 3 + 2]).toBeGreaterThan(0);
+      }
+    });
+
     it("keeps a tapered box's faces outward too", () => {
       const mesh = buildMesh([
         { cx: 0, cy: 0, z: 0, sx: 2, sy: 4, sz: 2, insetX: 0.5, insetY: 0.9, tint: [1, 1, 1] },
@@ -154,6 +178,54 @@ describe("vehicle meshes", () => {
       for (let v = 4; v < vertexCount(mesh); v += 4) {
         expect(normals[v * 3 + 2]).toBeGreaterThan(0);
       }
+    });
+  });
+
+  describe("asymmetric taper", () => {
+    it("rakes the front more than the back when asked", () => {
+      const mesh = buildMesh([
+        {
+          cx: 0,
+          cy: 0,
+          z: 0,
+          sx: 1,
+          sy: 4,
+          sz: 1,
+          insetFront: 1.5,
+          insetBack: 0.2,
+          tint: [1, 1, 1],
+        },
+      ]);
+      const positions = mesh.attributes.POSITION.value;
+      let topFront = -Infinity;
+      let topBack = Infinity;
+      for (let i = 0; i < positions.length; i += 3) {
+        if (positions[i + 2] < 1) continue; // base ring, not the top face
+        topFront = Math.max(topFront, positions[i + 1]);
+        topBack = Math.min(topBack, positions[i + 1]);
+      }
+      // Base is +/-2. The front edge pulls in by 1.5, the back by 0.2.
+      expect(topFront).toBeCloseTo(0.5, 5);
+      expect(topBack).toBeCloseTo(-1.8, 5);
+    });
+
+    it("treats insetY as both ends, and lets one end override it", () => {
+      const both = buildMesh([
+        { cx: 0, cy: 0, z: 0, sx: 1, sy: 4, sz: 1, insetY: 0.5, tint: [1, 1, 1] },
+      ]);
+      const overridden = buildMesh([
+        { cx: 0, cy: 0, z: 0, sx: 1, sy: 4, sz: 1, insetY: 0.5, insetFront: 1.2, tint: [1, 1, 1] },
+      ]);
+      const topY = (m: typeof both) => {
+        const p = m.attributes.POSITION.value;
+        let max = -Infinity;
+        for (let i = 0; i < p.length; i += 3) {
+          if (p[i + 2] >= 1) max = Math.max(max, p[i + 1]);
+        }
+        return max;
+      };
+      expect(topY(both)).toBeCloseTo(1.5, 5);
+      expect(topY(overridden)).toBeCloseTo(0.8, 5);
     });
   });
 

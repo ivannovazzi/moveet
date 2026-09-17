@@ -276,19 +276,50 @@ function meshSizeScaleForZoom(zoom: number, latitude: number): number {
 const IDLE_MESH_DIM = 0.74;
 
 /**
- * The paint every vehicle is mixed towards — a light neutral, near "dark white".
+ * The neutral paints a vehicle can be finished in.
+ *
+ * Real traffic is overwhelmingly white, silver and grey, and a street where
+ * every car is the same shade of one colour reads as a diagram rather than as
+ * traffic. Each vehicle picks one of these deterministically from its id, so a
+ * fleet varies without flickering: the same vehicle is the same colour on every
+ * frame, across reconnects, and in every session.
+ *
+ * All four are neutral by construction, so the fleet hue mixed in on top is
+ * still the only thing that carries meaning.
  */
-const MESH_PAINT_NEUTRAL: [number, number, number] = [198, 202, 208];
+export const MESH_PAINTS: ReadonlyArray<readonly [number, number, number]> = [
+  [236, 238, 241], // white
+  [196, 200, 206], // silver
+  [142, 148, 158], // grey
+  [92, 97, 106], // graphite
+];
 
 /**
- * How far towards `MESH_PAINT_NEUTRAL` the fleet colour is pulled.
+ * Pick a vehicle's paint from its id — an FNV-1a hash, folded to the palette.
+ *
+ * Computed inline on every publish rather than cached. It is a handful of
+ * character operations against ids that are a few characters long, which is
+ * cheaper than the bookkeeping a cache would need to avoid growing without
+ * bound as vehicles come and go.
+ */
+function paintForId(id: string): readonly [number, number, number] {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < id.length; i++) {
+    hash ^= id.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return MESH_PAINTS[(hash >>> 0) % MESH_PAINTS.length];
+}
+
+/**
+ * How far towards the chosen paint the fleet colour is pulled.
  *
  * A vehicle rendered in a saturated fleet colour reads as a marker shaped like
- * a car, not as a car. Real traffic is overwhelmingly grey, white and black,
- * and a lit 3D body needs far less colour than a flat sprite does to stay
- * distinguishable. What is left of the hue is enough to tell two fleets apart
- * side by side, while the fleet colour stays at full strength everywhere it
- * actually carries meaning: the sprites, the legend and the selection ring.
+ * a car, not as a car. A lit 3D body also needs far less colour than a flat
+ * sprite does to stay distinguishable. What is left of the hue is enough to
+ * tell two fleets apart side by side, while the fleet colour stays at full
+ * strength everywhere it actually carries meaning: the sprites, the legend and
+ * the selection ring.
  */
 const MESH_PAINT_MIX = 0.72;
 
@@ -312,20 +343,19 @@ const MESH_PAINT_MIX = 0.72;
  * a shared reference.
  */
 const meshColorCache = new Map<string, RGBA>();
-function meshColorFor(color: string, idle: boolean): RGBA {
-  const key = `${color}|${idle ? 1 : 0}`;
+function meshColorFor(
+  color: string,
+  idle: boolean,
+  paint: readonly [number, number, number]
+): RGBA {
+  const key = `${color}|${paint[0]}|${idle ? 1 : 0}`;
   const cached = meshColorCache.get(key);
   if (cached) return cached;
   const [r, g, b] = resolveMapColor(color);
   const dim = idle ? IDLE_MESH_DIM : 1;
-  const paint = (channel: number, neutral: number) =>
+  const mix = (channel: number, neutral: number) =>
     Math.round((neutral * MESH_PAINT_MIX + channel * (1 - MESH_PAINT_MIX)) * dim);
-  const value: RGBA = [
-    paint(r, MESH_PAINT_NEUTRAL[0]),
-    paint(g, MESH_PAINT_NEUTRAL[1]),
-    paint(b, MESH_PAINT_NEUTRAL[2]),
-    255,
-  ];
+  const value: RGBA = [mix(r, paint[0]), mix(g, paint[1]), mix(b, paint[2]), 255];
   meshColorCache.set(key, value);
   return value;
 }
@@ -704,7 +734,7 @@ export default function VehiclesLayer({
           isSelected: v.id === currentSelectedId,
           isHovered: v.id === currentHoveredId,
           iconColor: idle ? IDLE_ICON_TINT : MOVING_ICON_TINT,
-          meshColor: meshColorFor(color, idle),
+          meshColor: meshColorFor(color, idle, paintForId(v.id)),
           // [pitch, yaw, roll]: vehicles stay level, so only yaw moves.
           orientation: [0, angle, 0],
         });

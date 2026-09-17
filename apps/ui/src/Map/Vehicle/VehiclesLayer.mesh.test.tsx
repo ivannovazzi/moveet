@@ -44,7 +44,7 @@ vi.mock("@/hooks/vehicleStore", () => ({
   },
 }));
 
-import VehiclesLayer, { MESH_ZOOM_THRESHOLD, MIN_MESH_PX } from "./VehiclesLayer";
+import VehiclesLayer, { MESH_ZOOM_THRESHOLD, MIN_MESH_PX, MESH_PAINTS } from "./VehiclesLayer";
 import { MESH_REFERENCE_LENGTH_M } from "./vehicleMeshes";
 
 // ── RAF driver ─────────────────────────────────────────────────────
@@ -289,25 +289,35 @@ describe("VehiclesLayer 3D meshes", () => {
       expect(idle.meshColor[0]).toBeLessThan(moving.meshColor[0]);
     });
 
-    it("interns colours so the publish allocates none", () => {
-      seed([
-        { id: "a", type: "car" },
-        { id: "b", type: "car" },
-      ]);
+    it("finishes vehicles in more than one paint", () => {
+      const ids = Array.from({ length: 24 }, (_, i) => ({ id: `v${i}`, type: "car" }));
+      seed(ids);
       renderLayer();
       pumpFrames();
 
-      const [a, b] = meshData("car");
-      expect(a.meshColor).toBe(b.meshColor);
+      const distinct = new Set(meshData("car").map((d) => d.meshColor.join(",")));
+      expect(distinct.size).toBeGreaterThan(1);
     });
 
-    it("keeps the same reference across publishes", () => {
-      seed([{ id: "a", type: "car" }]);
+    it("interns colours so a large fleet holds only a handful of references", () => {
+      const ids = Array.from({ length: 200 }, (_, i) => ({ id: `v${i}`, type: "car" }));
+      seed(ids);
+      renderLayer();
+      pumpFrames();
+
+      // One fleet colour x one idle state x the paint palette, and every datum
+      // holds a shared reference rather than its own array.
+      const refs = new Set(meshData("car").map((d) => d.meshColor));
+      expect(refs.size).toBeLessThanOrEqual(MESH_PAINTS.length);
+    });
+
+    it("gives a vehicle the same paint on every publish", () => {
+      seed([{ id: "steady", type: "car" }]);
       renderLayer();
       pumpFrames();
       const first = meshData("car")[0].meshColor;
 
-      seed([{ id: "a", type: "car" }]);
+      seed([{ id: "steady", type: "car" }]);
       pumpFrames();
       expect(meshData("car")[0].meshColor).toBe(first);
     });

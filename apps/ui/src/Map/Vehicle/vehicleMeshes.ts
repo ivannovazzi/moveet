@@ -57,9 +57,20 @@ interface Part {
   sy: number;
   /** Height, metres. */
   sz: number;
-  /** Per-side inset of the top face, metres — how much the box tapers. */
+  /** Per-side inset of the top face in x, metres — how much the box narrows. */
   insetX?: number;
+  /**
+   * Inset of the top face along y, metres. `insetY` applies to both ends;
+   * `insetFront` / `insetBack` override it for one end.
+   *
+   * An asymmetric taper is what turns a box into a vehicle: a large
+   * `insetFront` on a cabin is a raked windscreen, a smaller `insetBack` is the
+   * gentler slope of a rear window, and a nose that tapers more than the tail
+   * reads as a bonnet.
+   */
   insetY?: number;
+  insetFront?: number;
+  insetBack?: number;
   /** Multiplier on the vehicle's instance colour. See the module comment. */
   tint: [number, number, number];
 }
@@ -83,8 +94,8 @@ const TINT = {
   bodyLight: [1.18, 1.18, 1.18] as Vec3,
   /** The cabin/roof: a shade down, marginally cool, still clearly the fleet colour. */
   roof: [0.74, 0.76, 0.82] as Vec3,
-  /** The chassis slab standing in for wheels and ground shadow. */
-  chassis: [0.55, 0.56, 0.6] as Vec3,
+  /** Tyres. Dark enough to read as rubber, light enough not to be a hole. */
+  tyre: [0.5, 0.51, 0.55] as Vec3,
 } as const;
 
 /**
@@ -108,12 +119,15 @@ function pushPart(
   indices: number[]
 ): void {
   const { cx, cy, z, sx, sy, sz, insetX = 0, insetY = 0, tint } = part;
+  const insetFront = part.insetFront ?? insetY;
+  const insetBack = part.insetBack ?? insetY;
 
   const hx = sx / 2;
   const hy = sy / 2;
   // A taper may not cross the centreline, or the top face turns inside out.
   const tx = Math.max(hx - insetX, 0);
-  const ty = Math.max(hy - insetY, 0);
+  const tyFront = Math.max(hy - insetFront, 0);
+  const tyBack = Math.max(hy - insetBack, 0);
   const z0 = z;
   const z1 = z + sz;
 
@@ -122,10 +136,10 @@ function pushPart(
   const b1: Vec3 = [cx + hx, cy - hy, z0];
   const b2: Vec3 = [cx + hx, cy + hy, z0];
   const b3: Vec3 = [cx - hx, cy + hy, z0];
-  const t0: Vec3 = [cx - tx, cy - ty, z1];
-  const t1: Vec3 = [cx + tx, cy - ty, z1];
-  const t2: Vec3 = [cx + tx, cy + ty, z1];
-  const t3: Vec3 = [cx - tx, cy + ty, z1];
+  const t0: Vec3 = [cx - tx, cy - tyBack, z1];
+  const t1: Vec3 = [cx + tx, cy - tyBack, z1];
+  const t2: Vec3 = [cx + tx, cy + tyFront, z1];
+  const t3: Vec3 = [cx - tx, cy + tyFront, z1];
 
   const centre: Vec3 = [cx, cy, (z0 + z1) / 2];
   const quads: [Vec3, Vec3, Vec3, Vec3][] = [
@@ -194,15 +208,37 @@ export function buildMesh(parts: Part[]): VehicleMesh {
 }
 
 /**
- * One slab under the body, standing in for wheels and ground shadow.
+ * Four wheels at the corners of a wheelbase.
  *
- * Four separate wheel boxes cost four parts (40 triangles) and read as noise
- * below about 20 screen pixels, which is most of the range these models are
- * drawn at. A single darker slab set slightly inboard gives the same "sits on
- * the road" cue for a tenth of the geometry.
+ * An earlier pass replaced these with a single chassis slab, on the grounds
+ * that four boxes read as noise at the small end of the zoom range. They are
+ * back because a wheelless body reads as a brick from any angle where the
+ * models are legible at all, and because the tyre tint is now light enough
+ * (0.5) that four of them no longer drag the whole vehicle dark. They are set
+ * slightly proud of the body sides so the arches catch the key light.
  */
-function chassis(cy: number, sx: number, sy: number, sz = 0.34): Part {
-  return { cx: 0, cy, z: 0.01, sx, sy, sz, tint: TINT.chassis };
+function wheels(
+  halfTrack: number,
+  frontAxle: number,
+  rearAxle: number,
+  w: number,
+  r: number
+): Part[] {
+  const spec = (cx: number, cy: number): Part => ({
+    cx,
+    cy,
+    z: 0.015,
+    sx: w,
+    sy: r * 2,
+    sz: r * 2,
+    tint: TINT.tyre,
+  });
+  return [
+    spec(-halfTrack, frontAxle),
+    spec(halfTrack, frontAxle),
+    spec(-halfTrack, rearAxle),
+    spec(halfTrack, rearAxle),
+  ];
 }
 
 /**
@@ -214,79 +250,141 @@ function chassis(cy: number, sx: number, sy: number, sz = 0.34): Part {
 export const MESH_REFERENCE_LENGTH_M = 4.4;
 
 const CAR: Part[] = [
-  chassis(0, 1.9, 3.9),
-  { cx: 0, cy: 0, z: 0.3, sx: 1.8, sy: 4.4, sz: 0.62, insetY: 0.16, tint: TINT.body },
-  // Cabin. Kept short and narrow so the body colour still frames it from above.
+  // Body. The nose tapers harder than the tail, which is what reads as a bonnet.
   {
     cx: 0,
-    cy: -0.2,
-    z: 0.92,
-    sx: 1.5,
-    sy: 1.9,
-    sz: 0.46,
+    cy: 0,
+    z: 0.32,
+    sx: 1.8,
+    sy: 4.4,
+    sz: 0.56,
+    insetX: 0.06,
+    insetFront: 0.38,
+    insetBack: 0.2,
+    tint: TINT.body,
+  },
+  // Cabin. The large front inset is the windscreen rake; the smaller back one
+  // is the rear window.
+  {
+    cx: 0,
+    cy: -0.22,
+    z: 0.86,
+    sx: 1.58,
+    sy: 2.3,
+    sz: 0.52,
     insetX: 0.2,
-    insetY: 0.3,
+    insetFront: 0.66,
+    insetBack: 0.24,
     tint: TINT.roof,
   },
+  ...wheels(0.86, 1.4, -1.4, 0.28, 0.33),
 ];
 
 const TRUCK: Part[] = [
-  chassis(-0.4, 2.3, 7.2),
-  // Cab, forward and lower than the load behind it.
+  // Cab, forward and lower than the load behind it, with a raked screen.
   {
     cx: 0,
-    cy: 2.0,
-    z: 0.55,
+    cy: 2.1,
+    z: 0.62,
     sx: 2.3,
-    sy: 2.2,
+    sy: 2.0,
     sz: 1.5,
-    insetX: 0.1,
-    insetY: 0.35,
+    insetX: 0.08,
+    insetFront: 0.5,
+    insetBack: 0.08,
     tint: TINT.body,
   },
   // Cargo body — the block that makes it a truck rather than a long car.
-  { cx: 0, cy: -1.5, z: 0.65, sx: 2.44, sy: 4.0, sz: 2.2, tint: TINT.bodyLight },
+  {
+    cx: 0,
+    cy: -1.5,
+    z: 0.7,
+    sx: 2.44,
+    sy: 4.2,
+    sz: 2.2,
+    insetX: 0.05,
+    insetY: 0.05,
+    tint: TINT.bodyLight,
+  },
+  ...wheels(1.12, 2.1, -2.4, 0.32, 0.48),
 ];
 
 const BUS: Part[] = [
-  chassis(0, 2.3, 7.4),
-  { cx: 0, cy: 0, z: 0.45, sx: 2.5, sy: 8.0, sz: 2.1, insetX: 0.12, insetY: 0.2, tint: TINT.body },
+  {
+    cx: 0,
+    cy: 0,
+    z: 0.5,
+    sx: 2.5,
+    sy: 8.0,
+    sz: 2.15,
+    insetX: 0.1,
+    insetFront: 0.3,
+    insetBack: 0.25,
+    tint: TINT.body,
+  },
   // Roof cap, inset all round, so the silhouette from above is not one flat slab.
-  { cx: 0, cy: 0, z: 2.5, sx: 2.2, sy: 7.2, sz: 0.22, insetX: 0.16, insetY: 0.5, tint: TINT.roof },
+  {
+    cx: 0,
+    cy: 0,
+    z: 2.6,
+    sx: 2.24,
+    sy: 7.0,
+    sz: 0.2,
+    insetX: 0.14,
+    insetFront: 0.5,
+    insetBack: 0.45,
+    tint: TINT.roof,
+  },
+  ...wheels(1.12, 2.9, -2.7, 0.32, 0.48),
 ];
 
 const MOTORCYCLE: Part[] = [
-  { cx: 0, cy: 0, z: 0.16, sx: 0.4, sy: 2.0, sz: 0.5, insetY: 0.3, tint: TINT.body },
+  // Tank and seat: tapered at both ends, more at the front.
+  {
+    cx: 0,
+    cy: 0,
+    z: 0.28,
+    sx: 0.4,
+    sy: 1.75,
+    sz: 0.42,
+    insetFront: 0.45,
+    insetBack: 0.3,
+    tint: TINT.body,
+  },
   // Rider — the block that makes a motorcycle read as one at a glance.
   {
     cx: 0,
-    cy: -0.1,
-    z: 0.66,
-    sx: 0.6,
-    sy: 0.7,
-    sz: 0.8,
+    cy: -0.12,
+    z: 0.68,
+    sx: 0.58,
+    sy: 0.68,
+    sz: 0.78,
     insetX: 0.14,
-    insetY: 0.14,
+    insetFront: 0.16,
+    insetBack: 0.1,
     tint: TINT.roof,
   },
+  { cx: 0, cy: 0.86, z: 0.015, sx: 0.2, sy: 0.62, sz: 0.62, tint: TINT.tyre },
+  { cx: 0, cy: -0.86, z: 0.015, sx: 0.2, sy: 0.62, sz: 0.62, tint: TINT.tyre },
 ];
 
 const AMBULANCE: Part[] = [
-  chassis(0, 2.1, 5.4),
-  // Cab, lower and tapered.
+  // Cab, lower and raked.
   {
     cx: 0,
-    cy: 1.75,
-    z: 0.45,
+    cy: 1.7,
+    z: 0.46,
     sx: 2.05,
-    sy: 2.1,
-    sz: 1.2,
-    insetX: 0.14,
-    insetY: 0.34,
+    sy: 2.0,
+    sz: 1.25,
+    insetX: 0.12,
+    insetFront: 0.55,
+    insetBack: 0.08,
     tint: TINT.body,
   },
   // Patient compartment — the square box that separates it from a van.
-  { cx: 0, cy: -1.2, z: 0.45, sx: 2.2, sy: 3.7, sz: 1.9, tint: TINT.bodyLight },
+  { cx: 0, cy: -1.25, z: 0.46, sx: 2.2, sy: 3.6, sz: 1.95, insetX: 0.04, tint: TINT.bodyLight },
+  ...wheels(1.0, 1.7, -1.9, 0.28, 0.42),
 ];
 
 /**
