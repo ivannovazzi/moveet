@@ -66,18 +66,25 @@ interface Part {
 
 type Vec3 = [number, number, number];
 
-/** Shading multipliers shared across the models, so parts read alike by material. */
+/**
+ * Shading multipliers shared across the models, so parts read alike by material.
+ *
+ * These are deliberately shallow. An earlier pass used near-black glass (0.24)
+ * and tyres (0.14), which looked right in a side elevation and wrong on a map:
+ * the view is mostly top-down, the cabin covers most of the roof, and a vehicle
+ * read as a dark blob with a coloured rim instead of a coloured vehicle. The
+ * range here stays inside roughly 0.55..1.2 so the fleet colour survives on
+ * every face, and separation comes from the lighting rather than from pigment.
+ */
 const TINT = {
   /** Untouched fleet colour — the main body panel. */
   body: [1, 1, 1] as Vec3,
-  /** Slightly lifted, for a panel that should separate from the body beside it. */
-  bodyLight: [1.12, 1.12, 1.12] as Vec3,
-  /** Pulled down, for a panel that should recede. */
-  bodyDark: [0.82, 0.82, 0.84] as Vec3,
-  /** Glass — dark and marginally cool. */
-  glass: [0.24, 0.26, 0.32] as Vec3,
-  /** Tyres — darker still. */
-  wheel: [0.14, 0.15, 0.18] as Vec3,
+  /** Lifted, for a panel that should separate from the body beside it. */
+  bodyLight: [1.18, 1.18, 1.18] as Vec3,
+  /** The cabin/roof: a shade down, marginally cool, still clearly the fleet colour. */
+  roof: [0.74, 0.76, 0.82] as Vec3,
+  /** The chassis slab standing in for wheels and ground shadow. */
+  chassis: [0.55, 0.56, 0.6] as Vec3,
 } as const;
 
 /**
@@ -186,29 +193,16 @@ export function buildMesh(parts: Part[]): VehicleMesh {
   };
 }
 
-/** Four wheels at the corners of a wheelbase. */
-function wheels(
-  halfTrack: number,
-  frontAxle: number,
-  rearAxle: number,
-  w: number,
-  r: number
-): Part[] {
-  const spec = (cx: number, cy: number): Part => ({
-    cx,
-    cy,
-    z: 0.02,
-    sx: w,
-    sy: r * 2,
-    sz: r * 2,
-    tint: TINT.wheel,
-  });
-  return [
-    spec(-halfTrack, frontAxle),
-    spec(halfTrack, frontAxle),
-    spec(-halfTrack, rearAxle),
-    spec(halfTrack, rearAxle),
-  ];
+/**
+ * One slab under the body, standing in for wheels and ground shadow.
+ *
+ * Four separate wheel boxes cost four parts (40 triangles) and read as noise
+ * below about 20 screen pixels, which is most of the range these models are
+ * drawn at. A single darker slab set slightly inboard gives the same "sits on
+ * the road" cue for a tenth of the geometry.
+ */
+function chassis(cy: number, sx: number, sy: number, sz = 0.34): Part {
+  return { cx: 0, cy, z: 0.01, sx, sy, sz, tint: TINT.chassis };
 }
 
 /**
@@ -220,76 +214,79 @@ function wheels(
 export const MESH_REFERENCE_LENGTH_M = 4.4;
 
 const CAR: Part[] = [
-  { cx: 0, cy: 0, z: 0.34, sx: 1.8, sy: 4.4, sz: 0.56, insetY: 0.15, tint: TINT.body },
+  chassis(0, 1.9, 3.9),
+  { cx: 0, cy: 0, z: 0.3, sx: 1.8, sy: 4.4, sz: 0.62, insetY: 0.16, tint: TINT.body },
+  // Cabin. Kept short and narrow so the body colour still frames it from above.
   {
     cx: 0,
-    cy: -0.15,
-    z: 0.9,
-    sx: 1.62,
-    sy: 2.1,
-    sz: 0.5,
-    insetX: 0.22,
-    insetY: 0.34,
-    tint: TINT.glass,
+    cy: -0.2,
+    z: 0.92,
+    sx: 1.5,
+    sy: 1.9,
+    sz: 0.46,
+    insetX: 0.2,
+    insetY: 0.3,
+    tint: TINT.roof,
   },
-  ...wheels(0.86, 1.35, -1.35, 0.3, 0.32),
 ];
 
 const TRUCK: Part[] = [
-  // Cab, forward.
-  { cx: 0, cy: 2.0, z: 0.62, sx: 2.3, sy: 2.2, sz: 1.9, insetX: 0.1, insetY: 0.4, tint: TINT.body },
-  // Windscreen band across the cab's nose.
-  { cx: 0, cy: 1.16, z: 1.62, sx: 2.1, sy: 0.32, sz: 0.68, tint: TINT.glass },
-  // Cargo body, taller than the cab and set back.
-  { cx: 0, cy: -1.5, z: 0.72, sx: 2.44, sy: 4.0, sz: 2.2, tint: TINT.bodyLight },
-  ...wheels(1.12, 2.0, -2.5, 0.34, 0.5),
+  chassis(-0.4, 2.3, 7.2),
+  // Cab, forward and lower than the load behind it.
+  {
+    cx: 0,
+    cy: 2.0,
+    z: 0.55,
+    sx: 2.3,
+    sy: 2.2,
+    sz: 1.5,
+    insetX: 0.1,
+    insetY: 0.35,
+    tint: TINT.body,
+  },
+  // Cargo body — the block that makes it a truck rather than a long car.
+  { cx: 0, cy: -1.5, z: 0.65, sx: 2.44, sy: 4.0, sz: 2.2, tint: TINT.bodyLight },
 ];
 
 const BUS: Part[] = [
-  { cx: 0, cy: 0, z: 0.5, sx: 2.5, sy: 8.0, sz: 2.3, insetX: 0.12, insetY: 0.22, tint: TINT.body },
-  // Window band, a touch proud of the body so the two faces cannot z-fight.
-  { cx: 0, cy: -0.2, z: 1.5, sx: 2.54, sy: 6.6, sz: 0.82, tint: TINT.glass },
-  ...wheels(1.12, 2.8, -2.6, 0.34, 0.5),
+  chassis(0, 2.3, 7.4),
+  { cx: 0, cy: 0, z: 0.45, sx: 2.5, sy: 8.0, sz: 2.1, insetX: 0.12, insetY: 0.2, tint: TINT.body },
+  // Roof cap, inset all round, so the silhouette from above is not one flat slab.
+  { cx: 0, cy: 0, z: 2.5, sx: 2.2, sy: 7.2, sz: 0.22, insetX: 0.16, insetY: 0.5, tint: TINT.roof },
 ];
 
 const MOTORCYCLE: Part[] = [
-  { cx: 0, cy: -0.05, z: 0.5, sx: 0.46, sy: 1.8, sz: 0.36, insetY: 0.25, tint: TINT.body },
+  { cx: 0, cy: 0, z: 0.16, sx: 0.4, sy: 2.0, sz: 0.5, insetY: 0.3, tint: TINT.body },
   // Rider — the block that makes a motorcycle read as one at a glance.
   {
     cx: 0,
     cy: -0.1,
-    z: 0.84,
-    sx: 0.58,
-    sy: 0.66,
-    sz: 0.76,
-    insetX: 0.12,
-    insetY: 0.12,
-    tint: TINT.bodyDark,
+    z: 0.66,
+    sx: 0.6,
+    sy: 0.7,
+    sz: 0.8,
+    insetX: 0.14,
+    insetY: 0.14,
+    tint: TINT.roof,
   },
-  { cx: 0, cy: 0.62, z: 1.02, sx: 0.88, sy: 0.14, sz: 0.13, tint: TINT.wheel },
-  { cx: 0, cy: 0.92, z: 0.02, sx: 0.22, sy: 0.64, sz: 0.64, tint: TINT.wheel },
-  { cx: 0, cy: -0.92, z: 0.02, sx: 0.22, sy: 0.64, sz: 0.64, tint: TINT.wheel },
 ];
 
 const AMBULANCE: Part[] = [
+  chassis(0, 2.1, 5.4),
   // Cab, lower and tapered.
   {
     cx: 0,
     cy: 1.75,
-    z: 0.5,
+    z: 0.45,
     sx: 2.05,
     sy: 2.1,
-    sz: 1.3,
+    sz: 1.2,
     insetX: 0.14,
-    insetY: 0.38,
+    insetY: 0.34,
     tint: TINT.body,
   },
-  { cx: 0, cy: 0.82, z: 1.2, sx: 1.88, sy: 0.3, sz: 0.56, tint: TINT.glass },
   // Patient compartment — the square box that separates it from a van.
-  { cx: 0, cy: -1.2, z: 0.5, sx: 2.2, sy: 3.7, sz: 2.0, tint: TINT.bodyLight },
-  // Light bar.
-  { cx: 0, cy: 1.75, z: 1.8, sx: 1.5, sy: 0.46, sz: 0.2, tint: TINT.bodyLight },
-  ...wheels(1.0, 1.75, -1.85, 0.3, 0.42),
+  { cx: 0, cy: -1.2, z: 0.45, sx: 2.2, sy: 3.7, sz: 1.9, tint: TINT.bodyLight },
 ];
 
 /**

@@ -24,7 +24,8 @@ vi.mock("@/components/Map/hooks/useDeckLayers", () => ({
 
 vi.mock("@/components/Map/hooks", () => ({
   useMapContext: () => ({
-    getZoom: () => 14,
+    // Below MESH_ZOOM_THRESHOLD: these cases exercise the sprite layer.
+    getZoom: () => 13,
     // Degenerate bounds → culling disabled, so every seeded vehicle is kept.
     getBoundingBox: () => [
       [0, 0],
@@ -43,7 +44,7 @@ vi.mock("@/hooks/vehicleStore", () => ({
   },
 }));
 
-import VehiclesLayer from "./VehiclesLayer";
+import VehiclesLayer, { MESH_ZOOM_THRESHOLD } from "./VehiclesLayer";
 
 let rafQueue: FrameRequestCallback[] = [];
 let clock = 1000;
@@ -117,6 +118,12 @@ afterEach(() => {
 });
 
 describe("VehiclesLayer sprite selection", () => {
+  it("runs below the mesh gate, so every case here is the sprite layer", () => {
+    // The mocked getZoom is a literal (vi.mock factories are hoisted above the
+    // imports). This guards it against a future change to the threshold.
+    expect(13).toBeLessThan(MESH_ZOOM_THRESHOLD);
+  });
+
   it("selects the vehicle and claims the click by default", () => {
     seedVehicle();
     const onClick = renderLayer();

@@ -18,7 +18,7 @@ import {
 } from "./vehicleMeshes";
 
 /** The per-model triangle budget the design was chosen against. */
-const MAX_TRIANGLES = 120;
+const MAX_TRIANGLES = 40;
 
 function vertexCount(mesh: VehicleMesh): number {
   return mesh.attributes.POSITION.value.length / 3;
@@ -80,12 +80,14 @@ describe("vehicle meshes", () => {
     expect(triangleCount(VEHICLE_MESHES[type])).toBeLessThanOrEqual(MAX_TRIANGLES);
   });
 
-  it.each(MESH_VEHICLE_TYPES)("%s: tints never brighten past the fleet colour much", (type) => {
-    // Tints multiply the per-instance colour, so a value far above 1 would
-    // clip a light fleet colour to white and lose the vehicle's identity.
+  it.each(MESH_VEHICLE_TYPES)("%s: keeps every part close to the fleet colour", (type) => {
+    // Tints multiply the per-instance colour. Far above 1 clips a light fleet
+    // colour to white; far below it, the vehicle reads as a dark blob with a
+    // coloured rim rather than a coloured vehicle, which is what the first
+    // near-black glass/tyre pass actually looked like on the map.
     const colors = VEHICLE_MESHES[type].attributes.COLOR_0.value;
     for (const c of colors) {
-      expect(c).toBeGreaterThan(0);
+      expect(c).toBeGreaterThanOrEqual(0.5);
       expect(c).toBeLessThanOrEqual(1.2);
     }
   });

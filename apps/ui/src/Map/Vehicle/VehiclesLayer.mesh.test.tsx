@@ -44,7 +44,11 @@ vi.mock("@/hooks/vehicleStore", () => ({
   },
 }));
 
-import VehiclesLayer, { MESH_ZOOM_THRESHOLD } from "./VehiclesLayer";
+import VehiclesLayer, {
+  MESH_ZOOM_THRESHOLD,
+  MESH_SIZE_FACTOR,
+  iconSizeForZoom,
+} from "./VehiclesLayer";
 import { MESH_REFERENCE_LENGTH_M } from "./vehicleMeshes";
 
 // ── RAF driver ─────────────────────────────────────────────────────
@@ -311,8 +315,8 @@ describe("VehiclesLayer 3D meshes", () => {
       // Ground resolution at the mocked latitude 0.
       const metersPerPixel = 156543.03392 / 2 ** MESH_ZOOM_THRESHOLD;
       const onScreenPx = (sizeScale * MESH_REFERENCE_LENGTH_M) / metersPerPixel;
-      // The sprite is 24px at the reference zoom; meshes are drawn at 0.95 of it.
-      expect(onScreenPx).toBeCloseTo(24 * 0.95, 4);
+      // A car covers the sprite's own pixel size, less the halo allowance.
+      expect(onScreenPx).toBeCloseTo(iconSizeForZoom(MESH_ZOOM_THRESHOLD) * MESH_SIZE_FACTOR, 4);
     });
 
     it("grows the ground footprint as the camera zooms out", () => {

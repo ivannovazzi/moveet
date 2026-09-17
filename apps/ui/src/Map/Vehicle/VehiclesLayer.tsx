@@ -214,27 +214,33 @@ const MOVING_ICON_TINT: RGBA = [255, 255, 255, MOVING_ICON_ALPHA];
 /**
  * Zoom at (and above) which vehicles render as 3D meshes instead of sprites.
  *
- * This is a readability threshold, not a performance one: the mesh costs about
- * 70 triangles against the sprite's 2, which is noise beside the road network
- * already on screen. Below this zoom a vehicle covers too few pixels for a
- * silhouette to say anything a tinted sprite doesn't, and a lit, pitched box
- * at that size reads as visual noise. `REFERENCE_ZOOM` is where the sizing
- * curve is anchored, so it is also the natural place to change representation.
+ * This is a readability threshold, not a performance one: a model costs about
+ * 30 triangles against the sprite's 2, which is noise beside the road network
+ * already on screen. It sits one step above the density threshold, so the three
+ * representations tile the zoom range without a gap: hexagons below 13 (when
+ * the user opts in), sprites from 13 to 14, meshes from 14 up.
  *
- * The density swap below `DENSITY_ZOOM_THRESHOLD` is untouched and still owns
- * the far end, so mesh instance counts are bounded from both directions.
+ * It was 16 — the anchor of the sizing curve — which turned out to be too far
+ * in: vehicles only became 3D once you were almost on top of them, and the
+ * whole middle of the zoom range, where you actually watch the fleet move, was
+ * still flat. 14 is roughly where a simplified model is still wider than it is
+ * ambiguous, at about 11 screen pixels.
  */
-export const MESH_ZOOM_THRESHOLD = REFERENCE_ZOOM;
+export const MESH_ZOOM_THRESHOLD = 14;
 
 /** Web Mercator ground resolution at zoom 0, metres per pixel (256px tiles). */
 const METERS_PER_PIXEL_AT_Z0 = 156543.03392;
 
 /**
- * Meshes are drawn a touch smaller than the sprite they replace: the sprite's
- * footprint includes a translucent halo the mesh has no equivalent for, so
- * matching the raw pixel size would make vehicles appear to grow on the swap.
+ * Meshes are drawn smaller than the sprite they replace.
+ *
+ * Two reasons. The sprite's footprint includes a translucent halo the mesh has
+ * no equivalent for, so matching the raw pixel size makes vehicles appear to
+ * grow on the swap. And a lit box carries its own shading, which reads as more
+ * visual weight than a flat sprite of the same width — at parity the fleet
+ * looked oversized against the road network it drives on.
  */
-const MESH_SIZE_FACTOR = 0.95;
+export const MESH_SIZE_FACTOR = 0.78;
 
 /**
  * `SimpleMeshLayer` measures its geometry in metres on the ground, so a
@@ -260,7 +266,7 @@ function meshSizeScaleForZoom(zoom: number, latitude: number): number {
  * its near ones in whatever order the index buffer happens to be in, and the
  * vehicle turns inside out. Meshes stay fully opaque and dim instead.
  */
-const IDLE_MESH_DIM = 0.62;
+const IDLE_MESH_DIM = 0.74;
 
 /**
  * Intern the [r,g,b,a] tuple a mesh instance is coloured with.
@@ -291,7 +297,7 @@ function meshColorFor(color: string, idle: boolean): RGBA {
  */
 const EMPTY_VEHICLES: VehicleIconDatum[] = [];
 
-function iconSizeForZoom(zoom: number): number {
+export function iconSizeForZoom(zoom: number): number {
   const size = BASE_SIZE_PX * 2 ** ((zoom - REFERENCE_ZOOM) * SIZE_ZOOM_EXPONENT);
   return Math.min(Math.max(size, MIN_SIZE_PX), MAX_SIZE_PX);
 }
@@ -807,8 +813,8 @@ export default function VehiclesLayer({
             // Matte: vehicles should read by silhouette and shading, not by a
             // specular highlight sliding across them as the camera turns.
             material: {
-              ambient: 0.45,
-              diffuse: 0.72,
+              ambient: 0.6,
+              diffuse: 0.78,
               shininess: 24,
               specularColor: [38, 40, 48],
             },

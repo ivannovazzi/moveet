@@ -43,7 +43,7 @@ vi.mock("@/hooks/vehicleStore", () => ({
   },
 }));
 
-import VehiclesLayer from "./VehiclesLayer";
+import VehiclesLayer, { MESH_ZOOM_THRESHOLD } from "./VehiclesLayer";
 import { DENSITY_MIN_VEHICLES, DENSITY_ZOOM_THRESHOLD } from "./densityView";
 
 // ── RAF driver ─────────────────────────────────────────────────────
@@ -174,7 +174,9 @@ describe("VehiclesLayer density mode", () => {
     pumpFrames();
     expect(iconLayerData()).toHaveLength(0);
 
-    ctx.zoom = DENSITY_ZOOM_THRESHOLD + 2;
+    // Zoomed back in past the density threshold, but still short of the mesh
+    // gate, so the sprite layer is what comes back.
+    ctx.zoom = MESH_ZOOM_THRESHOLD - 1;
     pumpFrames();
     expect(iconLayerData()).toHaveLength(DENSITY_MIN_VEHICLES + 50);
   });
@@ -191,7 +193,9 @@ describe("VehiclesLayer density mode", () => {
     pumpFrames();
 
     // …and the sprite field comes back at the new positions, not the old ones.
-    ctx.zoom = DENSITY_ZOOM_THRESHOLD + 2;
+    // Zoomed back in past the density threshold, but still short of the mesh
+    // gate, so the sprite layer is what comes back.
+    ctx.zoom = MESH_ZOOM_THRESHOLD - 1;
     pumpFrames();
     const data = iconLayerData() as { position: [number, number] }[];
     expect(data).toHaveLength(DENSITY_MIN_VEHICLES + 50);

@@ -278,17 +278,17 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
   const lightingEffect = useMemo(
     () =>
       new LightingEffect({
-        ambient: new AmbientLight({ color: [255, 255, 255], intensity: 1.55 }),
+        ambient: new AmbientLight({ color: [255, 255, 255], intensity: 2.1 }),
         key: new DirectionalLight({
           color: [255, 252, 244],
-          intensity: 1.05,
+          intensity: 1.25,
           // From the upper left and behind the camera's default bearing, so the
           // lit face is the one turned towards the viewer.
           direction: [-0.6, -0.8, -1],
         }),
         fill: new DirectionalLight({
           color: [212, 224, 255],
-          intensity: 0.5,
+          intensity: 0.65,
           direction: [0.8, 0.6, -0.4],
         }),
       }),
