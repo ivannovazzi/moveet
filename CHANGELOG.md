@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.3](https://github.com/ivannovazzi/moveet/compare/v0.1.2...v0.1.3) (2026-09-17)
+
+
+### Features
+
+* **simulator:** more accurate ETAs from OSM road data, turns, learned speeds and weather ([#311](https://github.com/ivannovazzi/moveet/issues/311)) ([bbddf6d](https://github.com/ivannovazzi/moveet/commit/bbddf6d9ea780a0d17daf9ab316ee1209938e229))
+* **ui:** geo-anchor the map ground so it pans and zooms with the map ([#314](https://github.com/ivannovazzi/moveet/issues/314)) ([2c8d572](https://github.com/ivannovazzi/moveet/commit/2c8d5722e72ee891970f0c3ac9d945c5e006e83c))
+* **ui:** render vehicles as 3D meshes on the deck.gl map ([#312](https://github.com/ivannovazzi/moveet/issues/312)) ([3d4202e](https://github.com/ivannovazzi/moveet/commit/3d4202e79980c3de063a4e70c839c1a81691a805))
+
 ## [0.1.2](https://github.com/ivannovazzi/moveet/compare/v0.1.1...v0.1.2) (2026-09-15)
 
 0.1.1 was tagged but its container images never published, so this release carries every change from 0.1.1 as well as the fix that gets the images out.
