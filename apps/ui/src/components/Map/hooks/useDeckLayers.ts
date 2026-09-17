@@ -27,8 +27,19 @@ export function useDeckLayersContext() {
 
 // ─── Hook for the DeckGLMap parent to manage registered layers ─────
 
+/**
+ * Orders below this render *under* the road network; everything at or above it
+ * renders over it. The road `PathLayer`s are built inside `DeckGLMap` rather
+ * than registered here, so without this band nothing could be drawn beneath
+ * them — which is what the map ground needs.
+ */
+export const ROADS_ORDER = 5;
+
 /** Default layer ordering — lower numbers render first (bottom). */
 const LAYER_ORDER: Record<string, number> = {
+  // The map's own ground: the density bloom and the lat/lon graticule, the one
+  // thing that belongs under the roads.
+  ground: 1,
   geofences: 10,
   "traffic-overlay": 20,
   breadcrumbs: 30,
@@ -51,9 +62,19 @@ const LAYER_ORDER: Record<string, number> = {
   "geofence-draw": 80,
 };
 
+/** Registered layers split around the road network. */
+export interface RegisteredBands {
+  /** Registered with an order below {@link ROADS_ORDER} — drawn under the roads. */
+  under: Layer[];
+  /** Everything else, drawn over the roads. */
+  over: Layer[];
+}
+
+const EMPTY_BANDS: RegisteredBands = { under: [], over: [] };
+
 export function useDeckLayerManager() {
   const registryRef = useRef<Map<string, { layers: Layer[]; order: number }>>(new Map());
-  const [registeredLayers, setRegisteredLayers] = useState<Layer[]>([]);
+  const [registeredLayers, setRegisteredLayers] = useState<RegisteredBands>(EMPTY_BANDS);
   const rebuildScheduled = useRef(false);
 
   // Batched rebuild: multiple register/unregister calls in the same microtask
@@ -66,11 +87,12 @@ export function useDeckLayerManager() {
       rebuildScheduled.current = false;
       const entries = Array.from(registryRef.current.entries());
       entries.sort((a, b) => a[1].order - b[1].order);
-      const allLayers: Layer[] = [];
-      for (const [, { layers }] of entries) {
-        allLayers.push(...layers);
+      const under: Layer[] = [];
+      const over: Layer[] = [];
+      for (const [, { layers, order }] of entries) {
+        (order < ROADS_ORDER ? under : over).push(...layers);
       }
-      setRegisteredLayers(allLayers);
+      setRegisteredLayers({ under, over });
     });
   }, []);
 

@@ -30,6 +30,7 @@ const DeckGLMap = lazy(() =>
     default: m.DeckGLMap,
   }))
 );
+import GroundLayer from "./Ground/GroundLayer";
 import VehiclesLayer from "./Vehicle/VehiclesLayer";
 import Direction from "./Direction";
 import RoadRenderer from "./Road";
@@ -215,6 +216,10 @@ export default function Map({
           htmlMarkers={htmlMarkers}
           getTooltip={getTooltip}
         >
+          {/* The map's ground — density bloom + lat/lon graticule, in geographic
+            coordinates so it pans and zooms with everything drawn on it. Sits
+            in the layer manager's underlay band, beneath the roads. */}
+          <GroundLayer network={network} />
           {/* POIs & speed-limit signs — GPU-rendered via IconLayer */}
           {modifiers.showPOIs && (
             <Suspense fallback={null}>
