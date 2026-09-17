@@ -499,7 +499,9 @@ export class RouteManager extends EventEmitter {
 
   updateSpeed(vehicle: Vehicle, deltaMs: number, options: StartOptions): void {
     const profile = getProfile(vehicle.type);
-    const edgeMaxSpeed = vehicle.currentEdge.maxSpeed;
+    // Free-flow speed, not the posted limit: it is what the routing cost is
+    // priced at, so simulated driving matches the ETA the route was chosen on.
+    const edgeMaxSpeed = vehicle.currentEdge.freeFlowSpeed ?? vehicle.currentEdge.maxSpeed;
 
     const hour = this.getClockHour?.() ?? new Date().getHours();
     const isHighway =
@@ -603,8 +605,9 @@ export class RouteManager extends EventEmitter {
    * candidates, and `findAndSetRoutes` can't be used for that because it
    * teleports the vehicle onto the first edge of the route it finds.
    *
-   * The ETA is computed against the vehicle's profile cruise speed rather than
-   * its instantaneous `speed`, because an idle candidate has `speed === 0` and
+   * The ETA prices each edge at its free-flow speed capped by the profile's top
+   * speed (the movement model's cap) rather than the vehicle's instantaneous
+   * `speed`, because an idle candidate has `speed === 0` and
    * would otherwise price out at infinity — exactly backwards, since idle
    * vehicles are the ones worth dispatching.
    */
@@ -623,9 +626,16 @@ export class RouteManager extends EventEmitter {
     const route = await this.network.findRouteAsync(startNode, endNode, profile.restrictedHighways);
     if (!route || route.edges.length === 0) return null;
 
-    const cruise = (profile.minSpeed + profile.maxSpeed) / 2;
+    // Each edge at the speed the movement model caps it at: the edge's free-flow
+    // speed, limited by the profile's top speed. Independent of `vehicle.speed`,
+    // so an idle candidate still gets a finite ETA.
+    let hours = 0;
+    for (const edge of route.edges) {
+      const speed = Math.min(profile.maxSpeed, edge.freeFlowSpeed ?? edge.maxSpeed);
+      hours += edge.distance / Math.max(speed, 1);
+    }
     return {
-      etaSeconds: utils.estimateRouteDuration(route, cruise),
+      etaSeconds: hours * 3600,
       distanceKm: route.distance,
     };
   }

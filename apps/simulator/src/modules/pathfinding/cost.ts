@@ -3,7 +3,10 @@
  * and the {@link "../../workers/pathfinding-worker"} so the two implementations
  * cannot drift apart (they were previously hand-synced and easy to desync).
  *
- * The per-edge travel-time cost splits into two parts:
+ * Travel time is priced at the edge's free-flow speed (posted limit × the
+ * highway class's free-flow factor, see `roadnetwork/types.ts`), which is also
+ * what `RouteManager` caps vehicle movement at, so route ETAs match simulated
+ * driving. The per-edge travel-time cost splits into two parts:
  *
  *  - A STATIC base cost — surface penalty, smoothness penalty and BPR congestion
  *    (which uses the outbound-edge count of the edge's start node as a flow
@@ -28,6 +31,8 @@ export const SIGNAL_DELAY_H = SIGNAL_DELAY_S / 3600;
 export interface EdgeStatics {
   distance: number;
   maxSpeed: number;
+  /** Free-flow travel speed (km/h); the cost is priced at this when present. */
+  freeFlowSpeed?: number;
   surface: string;
   /** lanes × 1800 veh/hour (HCM). Falls back to 1800 when absent. */
   capacity?: number;
@@ -52,7 +57,8 @@ export function computeBaseTravelTime(edge: EdgeStatics, flow: number): number {
   const bprRatio = flow / (edge.capacity ?? 1800);
   const bprRatio2 = bprRatio * bprRatio;
   const bprCongestion = 1 + 0.15 * (bprRatio2 * bprRatio2);
-  return (edge.distance / edge.maxSpeed) * surfacePenalty * smoothnessPenalty * bprCongestion;
+  const speed = edge.freeFlowSpeed ?? edge.maxSpeed;
+  return (edge.distance / speed) * surfacePenalty * smoothnessPenalty * bprCongestion;
 }
 
 /**

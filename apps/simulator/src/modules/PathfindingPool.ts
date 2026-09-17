@@ -17,6 +17,7 @@ import path from "path";
 import os from "os";
 import { DEFAULT_LANDMARK_COUNT } from "./pathfinding/landmarks";
 import type { PathfindingWorkerData } from "../workers/pathfinding-worker";
+import type { HighwayType } from "../types";
 import logger from "../utils/logger";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -53,6 +54,8 @@ export interface PathfindingPoolOptions {
    * `PATHFINDING_LANDMARKS`) so the workers and the main-thread graph agree.
    */
   landmarkCount?: number;
+  /** Per-highway-class free-flow factors; must match the main-thread graph's. */
+  freeFlowFactors?: Record<HighwayType, number>;
 }
 
 export class PathfindingPool {
@@ -104,7 +107,8 @@ export class PathfindingPool {
       workerCandidates.find((p) => fs.existsSync(p)) ??
       workerCandidates[workerCandidates.length - 1];
 
-    const workerData: PathfindingWorkerData = { geojsonPath, landmarkCount };
+    const freeFlowFactors = typeof options === "number" ? undefined : options?.freeFlowFactors;
+    const workerData: PathfindingWorkerData = { geojsonPath, landmarkCount, freeFlowFactors };
 
     for (let i = 0; i < size; i++) {
       const worker = new Worker(workerPath, { workerData });

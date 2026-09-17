@@ -1,6 +1,6 @@
 import fs from "fs";
 import type { FeatureCollection } from "geojson";
-import type { Node, Edge, Route, HeatZoneFeature, POI, BoundingBox } from "../types";
+import type { Node, Edge, Route, HeatZoneFeature, POI, BoundingBox, HighwayType } from "../types";
 import { HEAT_ZONE_DEFAULTS } from "../constants";
 import { config } from "../utils/config";
 import type { TrafficProfile } from "../utils/trafficProfiles";
@@ -25,6 +25,11 @@ export interface RoadNetworkOptions {
    * (the parsed, clamped `PATHFINDING_LANDMARKS`).
    */
   landmarkCount?: number;
+  /**
+   * Per-highway-class free-flow factors. Defaults to `config.freeFlowFactors`
+   * (the parsed `FREE_FLOW_FACTORS`); threaded to the pool workers too.
+   */
+  freeFlowFactors?: Record<HighwayType, number>;
 }
 
 /**
@@ -81,17 +86,22 @@ export class RoadNetwork extends EventEmitter {
    * cannot import the config module.
    */
   private landmarkCount: number;
+  private freeFlowFactors: Record<HighwayType, number>;
 
   constructor(geojsonPath: string, options?: RoadNetworkOptions) {
     super();
     this.geojsonPath = geojsonPath;
     this.landmarkCount = options?.landmarkCount ?? config.pathfindingLandmarks;
+    this.freeFlowFactors = options?.freeFlowFactors ?? config.freeFlowFactors;
 
     // Parse the raw GeoJSON into a local — NOT a field — so the only reference
     // is dropped when the constructor returns and the blob can be GC'd.
     const data = JSON.parse(fs.readFileSync(geojsonPath, "utf8")) as FeatureCollection;
 
-    const built = new GraphBuilder({ landmarkCount: this.landmarkCount }).build(data);
+    const built = new GraphBuilder({
+      landmarkCount: this.landmarkCount,
+      freeFlowFactors: this.freeFlowFactors,
+    }).build(data);
     // `data` is now unreferenced from here on; it is released for GC.
 
     this.nodes = built.nodes;
@@ -306,6 +316,7 @@ export class RoadNetwork extends EventEmitter {
     if (!this.pathfindingPool) {
       this.pathfindingPool = new PathfindingPool(this.geojsonPath, {
         landmarkCount: this.landmarkCount,
+        freeFlowFactors: this.freeFlowFactors,
       });
     }
 

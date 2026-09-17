@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { z } from "zod";
 import { resolveLandmarkCount } from "../modules/pathfinding/landmarks";
+import { parseFreeFlowFactors } from "../modules/roadnetwork/types";
 import logger from "./logger";
 
 dotenv.config();
@@ -212,6 +213,25 @@ const envObjectSchema = z.object({
    * a malformed value aborts startup rather than silently arming nothing.
    */
   FAULT_PROFILES: z.string().default(""),
+
+  /**
+   * Per-highway-class free-flow factor overrides, `class=factor` comma list
+   * (e.g. `residential=0.5,motorway=0.95`), merged over the defaults in
+   * `modules/roadnetwork/types`. Each factor must be in (0, 1]: an edge's
+   * free-flow speed (routing cost + movement cap) is posted limit × factor.
+   * Resolved here and threaded to the graph builder and pathfinding workers.
+   */
+  FREE_FLOW_FACTORS: z
+    .string()
+    .optional()
+    .transform((v, ctx) => {
+      try {
+        return parseFreeFlowFactors(v);
+      } catch (err) {
+        ctx.addIssue({ code: "custom", message: (err as Error).message });
+        return z.NEVER;
+      }
+    }),
 });
 
 export const envSchema = envObjectSchema
@@ -275,6 +295,7 @@ function buildConfig(env: EnvConfig) {
     faultsEnabled: env.FAULTS_ENABLED,
     faultSeed: env.FAULT_SEED,
     faultProfiles: env.FAULT_PROFILES,
+    freeFlowFactors: env.FREE_FLOW_FACTORS,
   } as const;
 }
 

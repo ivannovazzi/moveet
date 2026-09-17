@@ -46,6 +46,13 @@ describe("envSchema / parseEnv", () => {
     expect(cfg.SPEED_VARIATION).toBe(0.1);
   });
 
+  it("parses FREE_FLOW_FACTORS overrides over the per-class defaults", () => {
+    expect(parseEnv({}).FREE_FLOW_FACTORS.residential).toBeGreaterThan(0);
+    const cfg = parseEnv(validEnv({ FREE_FLOW_FACTORS: "residential=0.5" }));
+    expect(cfg.FREE_FLOW_FACTORS.residential).toBe(0.5);
+    expect(() => parseEnv(validEnv({ FREE_FLOW_FACTORS: "residential=2" }))).toThrow();
+  });
+
   it("applies defaults when env vars are missing", () => {
     const cfg = parseEnv({});
     expect(cfg.PORT).toBe(5010);

@@ -49,8 +49,9 @@ import {
 } from "../modules/pathfinding/landmarks";
 import {
   parseSmoothness,
-  parseMaxSpeed,
+  resolveMaxSpeed,
   parseOneway,
+  DEFAULT_FREE_FLOW_FACTORS,
   VALID_HIGHWAYS,
 } from "../modules/roadnetwork/types";
 import type { HighwayType } from "../types";
@@ -78,6 +79,8 @@ export interface PathfindingWorkerData {
    * disables preprocessing and restores the pure-haversine heuristic.
    */
   landmarkCount?: number;
+  /** Per-highway-class free-flow factors, already parsed from `FREE_FLOW_FACTORS`. */
+  freeFlowFactors?: Record<HighwayType, number>;
 }
 
 // ---------------------------------------------------------------------------
@@ -90,6 +93,7 @@ interface WorkerEdge {
   endNodeId: string;
   distance: number;
   maxSpeed: number;
+  freeFlowSpeed: number;
   surface: string;
   highway: string;
   lanes: number;
@@ -161,7 +165,8 @@ function calculateDistance(p1: [number, number], p2: [number, number]): number {
 
 function buildGraph(
   geojsonPath: string,
-  landmarkCount: number = DEFAULT_LANDMARK_COUNT
+  landmarkCount: number = DEFAULT_LANDMARK_COUNT,
+  freeFlowFactors: Readonly<Record<HighwayType, number>> = DEFAULT_FREE_FLOW_FACTORS
 ): Map<string, WorkerNode> {
   const data: FeatureCollection = JSON.parse(fs.readFileSync(geojsonPath, "utf8"));
   const nodes = new Map<string, WorkerNode>();
@@ -195,12 +200,15 @@ function buildGraph(
     const highway: HighwayType = VALID_HIGHWAYS.has(rawHighway)
       ? (rawHighway as HighwayType)
       : "residential";
-    const maxSpeed = parseMaxSpeed(feature.properties?.maxspeed, highway);
+    const freeFlowFactor = freeFlowFactors[highway];
     const surface: string = feature.properties?.surface || "unknown";
     const onewayDir = parseOneway(feature.properties?.oneway);
     const isRoundabout = feature.properties?.junction === "roundabout";
     const effectiveOneway = isRoundabout ? "forward" : onewayDir;
-    const effectiveMaxSpeed = isRoundabout ? maxSpeed * 0.5 : maxSpeed;
+    const roundaboutFactor = isRoundabout ? 0.5 : 1;
+    const forwardSpeed = resolveMaxSpeed(feature.properties, highway, "forward") * roundaboutFactor;
+    const backwardSpeed =
+      resolveMaxSpeed(feature.properties, highway, "backward") * roundaboutFactor;
     const streetId: string =
       feature.properties?.streetId || feature.properties?.id || feature.properties?.["@id"] || "";
     const smoothnessFactor = parseSmoothness(feature.properties?.smoothness);
@@ -228,7 +236,8 @@ function buildGraph(
           streetId,
           endNodeId: id2,
           distance,
-          maxSpeed: effectiveMaxSpeed,
+          maxSpeed: forwardSpeed,
+          freeFlowSpeed: forwardSpeed * freeFlowFactor,
           surface,
           highway,
           lanes,
@@ -246,7 +255,8 @@ function buildGraph(
           streetId,
           endNodeId: id1,
           distance,
-          maxSpeed: effectiveMaxSpeed,
+          maxSpeed: backwardSpeed,
+          freeFlowSpeed: backwardSpeed * freeFlowFactor,
           surface,
           highway,
           lanes,
@@ -266,7 +276,7 @@ function buildGraph(
   for (const node of nodes.values()) {
     const flow = node.edges.length;
     for (const edge of node.edges) {
-      if (edge.maxSpeed > maxSpeed) maxSpeed = edge.maxSpeed;
+      if (edge.freeFlowSpeed > maxSpeed) maxSpeed = edge.freeFlowSpeed;
       edge.baseTravelTime = computeBaseTravelTime(edge, flow);
     }
   }
@@ -488,8 +498,8 @@ function findRoute(
 // ---------------------------------------------------------------------------
 
 if (parentPort) {
-  const { geojsonPath, landmarkCount } = workerData as PathfindingWorkerData;
-  const nodes = buildGraph(geojsonPath, landmarkCount);
+  const { geojsonPath, landmarkCount, freeFlowFactors } = workerData as PathfindingWorkerData;
+  const nodes = buildGraph(geojsonPath, landmarkCount, freeFlowFactors);
 
   parentPort.on(
     "message",

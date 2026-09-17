@@ -28,8 +28,9 @@ import {
   type Road,
   type Street,
   parseSmoothness,
-  parseMaxSpeed,
+  resolveMaxSpeed,
   parseOneway,
+  DEFAULT_FREE_FLOW_FACTORS,
   VALID_HIGHWAYS,
 } from "./types";
 
@@ -75,10 +76,16 @@ export interface GraphBuilderOptions {
    * `utils/config.ts` and threaded down from `RoadNetwork`.
    */
   landmarkCount?: number;
+  /**
+   * Per-highway-class free-flow factors (`FREE_FLOW_FACTORS`, parsed by the zod
+   * schema). Defaults to {@link DEFAULT_FREE_FLOW_FACTORS}.
+   */
+  freeFlowFactors?: Readonly<Record<HighwayType, number>>;
 }
 
 export class GraphBuilder {
   private readonly landmarkCount: number;
+  private readonly freeFlowFactors: Readonly<Record<HighwayType, number>>;
   private nodes: Map<string, Node> = new Map();
   private edges: Map<string, Edge> = new Map();
   private roads: Map<string, Road> = new Map();
@@ -89,6 +96,7 @@ export class GraphBuilder {
 
   constructor(options?: GraphBuilderOptions) {
     this.landmarkCount = options?.landmarkCount ?? DEFAULT_LANDMARK_COUNT;
+    this.freeFlowFactors = options?.freeFlowFactors ?? DEFAULT_FREE_FLOW_FACTORS;
   }
 
   private snapCoord(val: number): string {
@@ -116,9 +124,12 @@ export class GraphBuilder {
     this.buildGraph(data);
     this.buildEdgeBaseCosts();
 
+    // Upper bound on the speed the cost is priced at (free-flow ≤ posted), so
+    // distance / maxNetworkSpeed never overestimates an edge's base cost.
     let maxSpeed = 0;
     for (const edge of this.edges.values()) {
-      if (edge.maxSpeed > maxSpeed) maxSpeed = edge.maxSpeed;
+      const speed = edge.freeFlowSpeed ?? edge.maxSpeed;
+      if (speed > maxSpeed) maxSpeed = speed;
     }
     const maxNetworkSpeed = maxSpeed > 0 ? maxSpeed : 110;
 
@@ -205,14 +216,18 @@ export class GraphBuilder {
         const highway: HighwayType = VALID_HIGHWAYS.has(rawHighway)
           ? (rawHighway as HighwayType)
           : "residential";
-        const maxSpeed = parseMaxSpeed(feature.properties?.maxspeed, highway);
+        const forwardMaxSpeed = resolveMaxSpeed(feature.properties, highway, "forward");
+        const backwardMaxSpeed = resolveMaxSpeed(feature.properties, highway, "backward");
+        const freeFlowFactor = this.freeFlowFactors[highway];
         const surface: string = feature.properties?.surface || "unknown";
         const onewayDir = parseOneway(feature.properties?.oneway);
         const isRoundabout = feature.properties?.junction === "roundabout";
         // Roundabouts are implicitly one-way forward regardless of the oneway tag
         const effectiveOneway = isRoundabout ? "forward" : onewayDir;
         // Apply speed reduction for roundabout segments
-        const effectiveMaxSpeed = isRoundabout ? maxSpeed * 0.5 : maxSpeed;
+        const roundaboutFactor = isRoundabout ? 0.5 : 1;
+        const forwardSpeed = forwardMaxSpeed * roundaboutFactor;
+        const backwardSpeed = backwardMaxSpeed * roundaboutFactor;
 
         // Skip access-restricted roads (private estates, gated communities)
         const accessTag = feature.properties?.access;
@@ -273,7 +288,8 @@ export class GraphBuilder {
               bearing,
               name: streetName,
               highway,
-              maxSpeed: effectiveMaxSpeed,
+              maxSpeed: forwardSpeed,
+              freeFlowSpeed: forwardSpeed * freeFlowFactor,
               surface,
               oneway: effectiveOneway === "forward",
               lanes,
@@ -295,7 +311,8 @@ export class GraphBuilder {
               bearing: (bearing + 180) % 360,
               name: streetName,
               highway,
-              maxSpeed: effectiveMaxSpeed,
+              maxSpeed: backwardSpeed,
+              freeFlowSpeed: backwardSpeed * freeFlowFactor,
               surface,
               oneway: effectiveOneway === "reverse",
               lanes,

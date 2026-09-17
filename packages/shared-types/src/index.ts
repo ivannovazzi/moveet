@@ -255,7 +255,13 @@ export interface Edge {
   distance: number;
   bearing: number;
   highway: HighwayType;
-  maxSpeed: number;
+  maxSpeed: number; // posted limit (km/h), incl. the roundabout reduction
+  /**
+   * Typical uncongested travel speed (km/h): `maxSpeed` × the highway class's
+   * free-flow factor. Used by routing cost and as the vehicle movement cap;
+   * consumers fall back to `maxSpeed` when absent.
+   */
+  freeFlowSpeed?: number;
   surface: string;
   oneway: boolean;
   lanes?: number; // OSM lanes count (default 1)

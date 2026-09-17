@@ -9,6 +9,7 @@ import type { Vehicle, Route, StartOptions } from "../types";
 import path from "path";
 import logger from "../utils/logger";
 import * as metrics from "../metrics";
+import { getProfile } from "../utils/vehicleProfiles";
 
 vi.mock("../utils/logger", () => ({
   default: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
@@ -142,6 +143,19 @@ describe("RouteManager", () => {
       expect(vehicle.speed).toBeLessThanOrEqual(vehicle.currentEdge.maxSpeed);
     });
 
+    it("caps movement at the edge's free-flow speed so it matches the routing cost", () => {
+      const vehicle = firstVehicle();
+      vehicle.currentEdge = { ...vehicle.currentEdge, maxSpeed: 50, freeFlowSpeed: 25 };
+      vehicle.speed = 200;
+      vehicle.targetSpeed = 200;
+      traffic.leave(vehicle.currentEdge.id);
+      traffic.leave(vehicle.currentEdge.id);
+
+      routeManager.updateSpeed(vehicle, 1000, { ...DEFAULT_OPTIONS, minSpeed: 1 });
+
+      expect(vehicle.speed).toBeLessThanOrEqual(25);
+    });
+
     it("should respect minSpeed as lower bound", () => {
       const vehicle = firstVehicle();
       vehicle.speed = 1;
@@ -263,6 +277,24 @@ describe("RouteManager", () => {
       }
 
       routeManager.off("direction", directionListener);
+    });
+  });
+
+  describe("estimateTo", () => {
+    it("prices each edge at min(profile max, edge free-flow speed), like movement", async () => {
+      const vehicle = firstVehicle();
+      const base = vehicle.currentEdge;
+      const slow = { ...base, distance: 1, maxSpeed: 50, freeFlowSpeed: 30 };
+      const fast = { ...base, distance: 2, maxSpeed: 110, freeFlowSpeed: 99 };
+      vi.spyOn(network, "findRouteAsync").mockResolvedValue({ edges: [slow, fast], distance: 3 });
+
+      const est = await routeManager.estimateTo(vehicle.id, [45.5029, -73.5661]);
+
+      const profileMax = getProfile(vehicle.type).maxSpeed;
+      const expected = (1 / Math.min(30, profileMax) + 2 / Math.min(99, profileMax)) * 3600;
+      expect(est).not.toBeNull();
+      expect(est!.etaSeconds).toBeCloseTo(expected, 6);
+      expect(est!.distanceKm).toBe(3);
     });
   });
 
