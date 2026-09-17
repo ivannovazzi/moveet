@@ -31,6 +31,7 @@
     "@deck.gl/react": "^9.3.10",
     "@deck.gl/widgets": "^9.3.10",
     "@loaders.gl/gltf": "4.4.5",
+    "@loaders.gl/images": "4.4.5",
     "@luma.gl/core": "^9.3.6",
     "@luma.gl/gltf": "9.3.6",
     "@luma.gl/webgl": "^9.3.6",
