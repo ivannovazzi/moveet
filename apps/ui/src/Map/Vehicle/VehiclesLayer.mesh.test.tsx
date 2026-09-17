@@ -44,11 +44,7 @@ vi.mock("@/hooks/vehicleStore", () => ({
   },
 }));
 
-import VehiclesLayer, {
-  MESH_ZOOM_THRESHOLD,
-  MESH_SIZE_FACTOR,
-  iconSizeForZoom,
-} from "./VehiclesLayer";
+import VehiclesLayer, { MESH_ZOOM_THRESHOLD, MIN_MESH_PX } from "./VehiclesLayer";
 import { MESH_REFERENCE_LENGTH_M } from "./vehicleMeshes";
 
 // ── RAF driver ─────────────────────────────────────────────────────
@@ -266,6 +262,18 @@ describe("VehiclesLayer 3D meshes", () => {
   });
 
   describe("colour", () => {
+    it("mixes the fleet colour towards a neutral paint", () => {
+      // Saturated bodies read as markers shaped like cars rather than as cars.
+      // (Under jsdom resolveMapColor falls back to a mid grey, so this asserts
+      // the channels stay neutral rather than a particular hue.)
+      seed([{ id: "v1", type: "bus" }]);
+      renderLayer();
+      pumpFrames();
+
+      const [r, g, b] = meshData("bus")[0].meshColor;
+      expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThan(40);
+    });
+
     it("dims a near-idle vehicle instead of making it translucent", () => {
       // A semi-transparent solid blends its own back faces over its front ones.
       seed([
@@ -306,33 +314,40 @@ describe("VehiclesLayer 3D meshes", () => {
   });
 
   describe("sizing", () => {
-    it("covers the same pixels the sprite did, less the halo allowance", () => {
+    /** Ground resolution at the mocked latitude 0. */
+    const metersPerPixel = (zoom: number) => 156543.03392 / 2 ** zoom;
+
+    function sizeScaleAt(zoom: number): number {
       seed([{ id: "v1", type: "car" }]);
+      ctx.zoom = zoom;
       renderLayer();
       pumpFrames();
+      return layerById("vehicles-mesh-car")?.props.sizeScale as number;
+    }
 
-      const sizeScale = layerById("vehicles-mesh-car")?.props.sizeScale as number;
-      // Ground resolution at the mocked latitude 0.
-      const metersPerPixel = 156543.03392 / 2 ** MESH_ZOOM_THRESHOLD;
-      const onScreenPx = (sizeScale * MESH_REFERENCE_LENGTH_M) / metersPerPixel;
-      // A car covers the sprite's own pixel size, less the halo allowance.
-      expect(onScreenPx).toBeCloseTo(iconSizeForZoom(MESH_ZOOM_THRESHOLD) * MESH_SIZE_FACTOR, 4);
+    it("draws vehicles at true scale once they are big enough to see", () => {
+      // Far enough in that a real 4.4m car already covers more than MIN_MESH_PX.
+      expect(sizeScaleAt(20)).toBe(1);
     });
 
-    it("grows the ground footprint as the camera zooms out", () => {
-      seed([{ id: "v1", type: "car" }]);
-      renderLayer();
-      pumpFrames();
-      const atThreshold = layerById("vehicles-mesh-car")?.props.sizeScale as number;
+    it("never shrinks a vehicle below true scale", () => {
+      for (const zoom of [14, 16, 18, 20, 22]) {
+        expect(sizeScaleAt(zoom)).toBeGreaterThanOrEqual(1);
+      }
+    });
 
-      ctx.zoom = MESH_ZOOM_THRESHOLD + 2;
-      pumpFrames();
-      const zoomedIn = layerById("vehicles-mesh-car")?.props.sizeScale as number;
+    it("holds vehicles at the pixel floor when true scale would be a speck", () => {
+      const zoom = MESH_ZOOM_THRESHOLD;
+      const sizeScale = sizeScaleAt(zoom);
+      const onScreenPx = (sizeScale * MESH_REFERENCE_LENGTH_M) / metersPerPixel(zoom);
+      expect(onScreenPx).toBeCloseTo(MIN_MESH_PX, 4);
+      // Confirms this zoom really is in the floored regime, not at true scale.
+      expect(sizeScale).toBeGreaterThan(1);
+    });
 
-      // Metres per pixel falls faster than the damped pixel size grows, so a
-      // vehicle covers less ground (and more screen) the further in you go.
-      expect(zoomedIn).toBeLessThan(atThreshold);
-      expect(zoomedIn).toBeGreaterThan(0);
+    it("covers less ground the further in the camera goes", () => {
+      // Metres per pixel falls as you zoom, so the floor demands fewer metres.
+      expect(sizeScaleAt(16)).toBeLessThan(sizeScaleAt(14));
     });
   });
 

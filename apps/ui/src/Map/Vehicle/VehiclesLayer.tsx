@@ -6,7 +6,7 @@ import { vehicleStore } from "../../hooks/vehicleStore";
 import { VEHICLE_INTERPOLATION, shouldSnapPosition } from "../../data/constants";
 import { useRegisterLayers } from "../../components/Map/hooks/useDeckLayers";
 import { useMapContext } from "../../components/Map/hooks";
-import { VehicleIconAtlasManager, type VehicleAtlas, parseColor } from "./vehicleIconAtlas";
+import { VehicleIconAtlasManager, type VehicleAtlas } from "./vehicleIconAtlas";
 import {
   VEHICLE_MESHES,
   MESH_VEHICLE_TYPES,
@@ -232,30 +232,37 @@ export const MESH_ZOOM_THRESHOLD = 14;
 const METERS_PER_PIXEL_AT_Z0 = 156543.03392;
 
 /**
- * Meshes are drawn smaller than the sprite they replace.
+ * Smallest a vehicle is allowed to get on screen, in pixels.
  *
- * Two reasons. The sprite's footprint includes a translucent halo the mesh has
- * no equivalent for, so matching the raw pixel size makes vehicles appear to
- * grow on the swap. And a lit box carries its own shading, which reads as more
- * visual weight than a flat sprite of the same width — at parity the fleet
- * looked oversized against the road network it drives on.
+ * Below this the models stop being shapes and start being specks, so the floor
+ * takes over from true scale. See `meshSizeScaleForZoom`.
  */
-export const MESH_SIZE_FACTOR = 0.78;
+export const MIN_MESH_PX = 7;
 
 /**
- * `SimpleMeshLayer` measures its geometry in metres on the ground, so a
- * true-to-life 4.4m car is about one pixel wide at zoom 15 — invisible. Scale
- * the models so a car covers the same pixels its sprite did, which both keeps
- * them legible and makes the 2D/3D swap happen without a jump in size.
+ * How much to scale the models by, given the camera.
+ *
+ * `SimpleMeshLayer` measures its geometry in metres on the ground and the
+ * models are authored at life size, so **1 is true scale** and that is what
+ * this returns wherever it can. An earlier pass instead scaled them to match
+ * the sprite's pixel footprint, which made a car about 57 metres long at zoom
+ * 16 — most of the width of a city block, and the reason the fleet looked
+ * enormous against the street grid.
+ *
+ * True scale alone does not work at every zoom: a 4.4m car is under two pixels
+ * at zoom 16 and invisible. So the return is clamped to a floor of
+ * `MIN_MESH_PX` on screen. The two regimes meet at about zoom 18.3, where a
+ * real car finally covers 7 pixels; from there in, the scale is honest, and
+ * further out vehicles hold at a legible minimum instead of vanishing.
  *
  * `latitude` matters because Web Mercator's metres-per-pixel is latitude
- * dependent; at Nairobi it is a sub-1% correction, but it costs one cosine per
- * publish and keeps the sizing correct if the network ever moves north.
+ * dependent. It costs one cosine per publish.
  */
 function meshSizeScaleForZoom(zoom: number, latitude: number): number {
   const metersPerPixel =
     (METERS_PER_PIXEL_AT_Z0 * Math.cos((latitude * Math.PI) / 180)) / 2 ** zoom;
-  return (iconSizeForZoom(zoom) * MESH_SIZE_FACTOR * metersPerPixel) / MESH_REFERENCE_LENGTH_M;
+  const floor = (MIN_MESH_PX * metersPerPixel) / MESH_REFERENCE_LENGTH_M;
+  return Math.max(1, floor);
 }
 
 /**
@@ -269,23 +276,56 @@ function meshSizeScaleForZoom(zoom: number, latitude: number): number {
 const IDLE_MESH_DIM = 0.74;
 
 /**
+ * The paint every vehicle is mixed towards — a light neutral, near "dark white".
+ */
+const MESH_PAINT_NEUTRAL: [number, number, number] = [198, 202, 208];
+
+/**
+ * How far towards `MESH_PAINT_NEUTRAL` the fleet colour is pulled.
+ *
+ * A vehicle rendered in a saturated fleet colour reads as a marker shaped like
+ * a car, not as a car. Real traffic is overwhelmingly grey, white and black,
+ * and a lit 3D body needs far less colour than a flat sprite does to stay
+ * distinguishable. What is left of the hue is enough to tell two fleets apart
+ * side by side, while the fleet colour stays at full strength everywhere it
+ * actually carries meaning: the sprites, the legend and the selection ring.
+ */
+const MESH_PAINT_MIX = 0.72;
+
+/**
  * Intern the [r,g,b,a] tuple a mesh instance is coloured with.
  *
  * The sprite atlas bakes the vehicle colour into the texture, so the IconLayer
  * only ever tints white. A mesh has no colour of its own, so the fleet colour
- * has to arrive through `getColor` — and parsing a CSS colour string per
- * vehicle per frame is exactly the kind of work the fleet-colour precompute
- * above exists to avoid. The key space is (fleet colours x 2 idle states), so
- * this map stays tiny and every datum holds a shared reference.
+ * has to arrive through `getColor`.
+ *
+ * `resolveMapColor` does the parsing, via a 1x1 canvas, because the colour
+ * arriving here is whatever `tokens.css` holds and those tokens are `oklch()`.
+ * The atlas's own `parseColor` only understands hex and `rgb()`: handed
+ * `oklch(0.62 0.15 250)` it pulls out the three numbers and reads them as RGB,
+ * yielding [1, 0, 250]. That turned every vehicle type into the same saturated
+ * blue, since the third oklch component is a hue angle.
+ *
+ * `resolveMapColor` is documented as too slow for a per-frame path, which is
+ * exactly why this map exists: the key space is (fleet colours x 2 idle
+ * states), so a miss happens once per colour and every datum afterwards holds
+ * a shared reference.
  */
 const meshColorCache = new Map<string, RGBA>();
 function meshColorFor(color: string, idle: boolean): RGBA {
   const key = `${color}|${idle ? 1 : 0}`;
   const cached = meshColorCache.get(key);
   if (cached) return cached;
-  const [r, g, b] = parseColor(color);
+  const [r, g, b] = resolveMapColor(color);
   const dim = idle ? IDLE_MESH_DIM : 1;
-  const value: RGBA = [Math.round(r * dim), Math.round(g * dim), Math.round(b * dim), 255];
+  const paint = (channel: number, neutral: number) =>
+    Math.round((neutral * MESH_PAINT_MIX + channel * (1 - MESH_PAINT_MIX)) * dim);
+  const value: RGBA = [
+    paint(r, MESH_PAINT_NEUTRAL[0]),
+    paint(g, MESH_PAINT_NEUTRAL[1]),
+    paint(b, MESH_PAINT_NEUTRAL[2]),
+    255,
+  ];
   meshColorCache.set(key, value);
   return value;
 }
@@ -297,7 +337,7 @@ function meshColorFor(color: string, idle: boolean): RGBA {
  */
 const EMPTY_VEHICLES: VehicleIconDatum[] = [];
 
-export function iconSizeForZoom(zoom: number): number {
+function iconSizeForZoom(zoom: number): number {
   const size = BASE_SIZE_PX * 2 ** ((zoom - REFERENCE_ZOOM) * SIZE_ZOOM_EXPONENT);
   return Math.min(Math.max(size, MIN_SIZE_PX), MAX_SIZE_PX);
 }
