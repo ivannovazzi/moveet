@@ -216,7 +216,7 @@ export default function Map({
           htmlMarkers={htmlMarkers}
           getTooltip={getTooltip}
         >
-          {/* The map's ground — density bloom + lat/lon graticule, in geographic
+          {/* The map's ground — density bloom + honeycomb lattice, in geographic
             coordinates so it pans and zooms with everything drawn on it. Sits
             in the layer manager's underlay band, beneath the roads. */}
           <GroundLayer network={network} />

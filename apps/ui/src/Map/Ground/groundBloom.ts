@@ -12,13 +12,13 @@
  * blur uses — then painted to a canvas that deck.gl samples with linear
  * filtering. Nothing here runs per frame.
  */
-import type { GeoBounds } from "./graticule";
+import type { GeoBounds } from "./hexLattice";
 
 /** Field resolution per axis. Small on purpose: the result is a soft wash. */
 export const FIELD_SIZE = 160;
 
 /** Blur radius in cells. Wide enough that individual streets never show. */
-const BLUR_CELLS = 7;
+const BLUR_CELLS = 11;
 
 /** How many blur passes. Three box passes approximate a gaussian closely. */
 const BLUR_PASSES = 3;

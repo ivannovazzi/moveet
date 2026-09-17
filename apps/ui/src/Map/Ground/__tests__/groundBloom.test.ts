@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FIELD_SIZE, fieldToRgba, padBounds, rasterizeDensity, smoothField } from "../groundBloom";
-import type { GeoBounds } from "../graticule";
+import type { GeoBounds } from "../hexLattice";
 
 const BOUNDS: GeoBounds = [
   [0, 0],

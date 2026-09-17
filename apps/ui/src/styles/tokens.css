@@ -81,13 +81,14 @@
   --color-map-casing: oklch(0.12 0.01 255);
   --color-map-label: oklch(0.95 0.005 255);
 
-  /* The ground itself, read by Map/Ground. The graticule is the lat/lon grid
-     (drawn at single-digit alpha — it is a texture, not a reading aid), and
-     the bloom core is the tint the lit centre of the network drifts toward, so
-     the densest part of the city reads as a shift in colour and not just as
-     the same grey turned up. Both sit beside --color-map-lift/ground/edge in
-     index.css, which the bloom and the vignette are built from. */
-  --color-map-graticule: oklch(0.78 0.02 258);
+  /* The ground itself, read by Map/Ground. The lattice is the honeycomb the
+     ground is drawn on (single-digit alpha — it is a texture, not a reading
+     aid), and the bloom core is the tint the lit centre of the network drifts
+     toward, so the densest part of the city reads as a shift in colour and not
+     just as the same grey turned up. Both sit beside
+     --color-map-lift/ground/edge in index.css, which the bloom and the vignette
+     are built from. */
+  --color-map-lattice: oklch(0.78 0.02 258);
   --color-map-bloom-core: oklch(0.285 0.028 262);
 
   /* Heat ramp (HeatLayer), cool/sparse → hot/dense. A warm sequential ramp of

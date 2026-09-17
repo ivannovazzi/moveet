@@ -37,7 +37,7 @@ export const ROADS_ORDER = 5;
 
 /** Default layer ordering — lower numbers render first (bottom). */
 const LAYER_ORDER: Record<string, number> = {
-  // The map's own ground: the density bloom and the lat/lon graticule, the one
+  // The map's own ground: the density bloom and the honeycomb lattice, the one
   // thing that belongs under the roads.
   ground: 1,
   geofences: 10,

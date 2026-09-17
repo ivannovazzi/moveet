@@ -6,12 +6,13 @@ import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
 import { resolveMapColor } from "@/lib/mapColor";
 import {
   degreesPerPixel,
-  graticuleLod,
-  graticulePaths,
+  hexLatticePaths,
+  hexLod,
+  latitudeSquash,
   snapBounds,
   type GeoBounds,
-  type GraticulePath,
-} from "./graticule";
+  type HexPath,
+} from "./hexLattice";
 import { bloomImage, fieldToRgba, padBounds, rasterizeDensity, smoothField } from "./groundBloom";
 
 /**
@@ -26,9 +27,9 @@ import { bloomImage, fieldToRgba, padBounds, rasterizeDensity, smoothField } fro
  * - **bloom** — a bitmap rasterised from the road network's own vertex density,
  *   anchored to the network's bounding box. The lit area is the city rather
  *   than the middle of the window.
- * - **graticule** — two tiers of lat/lon lines on a 1-2-5 degree ladder. The
- *   half-step tier fades in across the upper half of each rung, so zooming
- *   thickens the grid continuously instead of swapping it in one frame.
+ * - **lattice** — a honeycomb on a power-of-two ladder, squashed in latitude so
+ *   its cells come out regular on screen. Hex lattices don't nest, so the ladder
+ *   steps by crossfading two of them rather than by adding detail to one.
  *
  * The vignette stays in CSS. It is a lens, and a lens belongs to the screen.
  */
@@ -36,16 +37,19 @@ import { bloomImage, fieldToRgba, padBounds, rasterizeDensity, smoothField } fro
 /** Fallback zoom before the map has published a view state. */
 const DEFAULT_ZOOM = 12;
 
-/** Alpha (0-255) of the solid grid tier, and of the half-step tier at full fade. */
-const COARSE_ALPHA = 24;
-const FINE_ALPHA = 13;
+/**
+ * Alpha (0-255) of the lattice at full strength. Around 8%: at the sizes the
+ * ladder picks, a honeycomb covers a lot more of the screen than a grid of
+ * hairlines did, so it has to sit quieter to stay a texture.
+ */
+const LATTICE_ALPHA = 21;
 
 /**
- * Half-width of the box the grid is built over, in pixels. Comfortably wider
+ * Half-width of the box the lattice is built over, in pixels. Comfortably wider
  * than any viewport: the block snap below already overshoots, and over-building
- * a few lines costs far less than a grid that ends mid-screen.
+ * a few cells costs far less than a lattice that ends mid-screen.
  */
-const GRID_HALF_SPAN_PX = 1600;
+const LATTICE_HALF_SPAN_PX = 1600;
 
 interface GroundLayerProps {
   network: RoadNetwork;
@@ -87,7 +91,7 @@ function sameBounds(a: GeoBounds | null, b: GeoBounds | null): boolean {
 }
 
 /**
- * The snapped box the grid is built over, held stable across frames that did
+ * The snapped box the lattice is built over, held stable across frames that did
  * not move it. Writing through the ref during render is safe here because the
  * computation is pure and idempotent: two renders of the same view state
  * produce the same box.
@@ -102,7 +106,7 @@ function useStableBounds(
   if (viewState && viewState.longitude != null && viewState.latitude != null) {
     // A generous box around the centre: the exact viewport isn't available here
     // without re-deriving it, and the block snap already overshoots.
-    const span = degreesPerPixel(zoom) * GRID_HALF_SPAN_PX;
+    const span = degreesPerPixel(zoom) * LATTICE_HALF_SPAN_PX;
     next = snapBounds(
       [
         [viewState.longitude - span, viewState.latitude - span],
@@ -133,14 +137,17 @@ export default function GroundLayer({ network }: GroundLayerProps) {
     return { image, bounds: [west, south, east, north] as [number, number, number, number] };
   }, [network]);
 
-  const lod = graticuleLod(zoom);
+  const lod = hexLod(zoom);
+  // Quantized, so panning north or south re-anchors the lattice rarely rather
+  // than sliding every row a little on every frame.
+  const squash = latitudeSquash(viewState?.latitude ?? 0);
 
-  // The grid is built over a box snapped to whole blocks, and the *same array*
-  // is handed back until the view actually crosses one. Panning changes
+  // The lattice is built over a box snapped to whole blocks, and the *same
+  // array* is handed back until the view actually crosses one. Panning changes
   // `viewState` every animation frame; a fresh box per frame would rebuild the
-  // paths and re-upload the layer 60x a second for a grid that hasn't moved.
+  // paths and re-upload the layer 60x a second for a lattice that hasn't moved.
   const boundsRef = useRef<GeoBounds | null>(null);
-  const snapped = useStableBounds(boundsRef, viewState, zoom, lod.coarse);
+  const snapped = useStableBounds(boundsRef, viewState, zoom, lod.primary);
 
   const layers = useMemo(() => {
     const built = [];
@@ -157,42 +164,44 @@ export default function GroundLayer({ network }: GroundLayerProps) {
     }
 
     if (snapped) {
-      const grid = resolveMapColor("var(--color-map-graticule)");
-      const coarse: GraticulePath[] = graticulePaths(snapped, lod.coarse);
-      const fine: GraticulePath[] =
-        lod.fineFade > 0.01 ? graticulePaths(snapped, lod.fine, lod.coarse) : [];
+      const ink = resolveMapColor("var(--color-map-lattice)");
+      // Round caps and joints: at one pixel the difference is small, but it is
+      // the difference between a honeycomb that looks drawn and one that looks
+      // plotted, and the whole point of the pattern is softness.
+      const stroke = {
+        getPath: (d: HexPath) => d,
+        getWidth: 1,
+        widthUnits: "pixels" as const,
+        widthMinPixels: 1,
+        jointRounded: true,
+        capRounded: true,
+        pickable: false,
+      };
 
-      if (fine.length > 0) {
+      if (lod.secondary !== null && lod.mix > 0.005) {
         built.push(
-          new PathLayer<GraticulePath>({
-            id: "graticule-fine",
-            data: fine,
-            getPath: (d) => d as unknown as [number, number][],
-            getColor: [grid[0], grid[1], grid[2], Math.round(FINE_ALPHA * lod.fineFade)],
-            getWidth: 1,
-            widthUnits: "pixels",
-            widthMinPixels: 1,
-            pickable: false,
-            updateTriggers: { getColor: lod.fineFade },
+          new PathLayer<HexPath>({
+            ...stroke,
+            id: "hex-lattice-secondary",
+            data: hexLatticePaths(snapped, lod.secondary, squash),
+            getColor: [ink[0], ink[1], ink[2], Math.round(LATTICE_ALPHA * lod.mix)],
+            updateTriggers: { getColor: lod.mix },
           })
         );
       }
       built.push(
-        new PathLayer<GraticulePath>({
-          id: "graticule-coarse",
-          data: coarse,
-          getPath: (d) => d as unknown as [number, number][],
-          getColor: [grid[0], grid[1], grid[2], COARSE_ALPHA],
-          getWidth: 1,
-          widthUnits: "pixels",
-          widthMinPixels: 1,
-          pickable: false,
+        new PathLayer<HexPath>({
+          ...stroke,
+          id: "hex-lattice-primary",
+          data: hexLatticePaths(snapped, lod.primary, squash),
+          getColor: [ink[0], ink[1], ink[2], Math.round(LATTICE_ALPHA * (1 - lod.mix))],
+          updateTriggers: { getColor: lod.mix },
         })
       );
     }
 
     return built;
-  }, [bloom, snapped, lod.coarse, lod.fine, lod.fineFade]);
+  }, [bloom, snapped, squash, lod.primary, lod.secondary, lod.mix]);
 
   useRegisterLayers("ground", layers);
 

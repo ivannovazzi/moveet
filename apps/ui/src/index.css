@@ -57,7 +57,7 @@
      lit area follows the road network instead of the middle of the window. */
   --color-map-lift: oklch(0.232 0.014 258);
   --color-map-ground: oklch(0.205 0.012 258);
-  /* Slightly translucent so the graticule stays faintly readable inside the
+  /* Slightly translucent so the lattice stays faintly readable inside the
      vignette instead of being painted out at the corners. */
   --color-map-edge: oklch(0.17 0.013 258 / 0.5);
 
@@ -225,7 +225,7 @@
    only with `showDirections` on).
 
    The ground is now split by what it is attached to. The lit field and the
-   surveyor's graticule are attached to the *world* and live in deck.gl layers
+   honeycomb lattice are attached to the *world* and live in deck.gl layers
    (`src/Map/Ground`), so they pan and zoom with the roads. Only the vignette
    is attached to the *screen*, and it stays here: it is a lens, and a lens
    that drifted with the map would be the same bug in reverse.
@@ -237,11 +237,11 @@
      screen: the base colour the deck.gl canvas is transparent over, and the
      vignette, which is a lens.
 
-     The lit centre and the grid used to live here too, as a radial gradient at
-     50%/38% and a repeating 160px SVG tile. Both were nailed to the viewport,
-     so panning slid the roads and vehicles across a ground that never moved and
-     the map lost its only parallax cue. They are deck.gl layers now, in lng/lat
-     — see `src/Map/Ground`. */
+     The lit centre and the pattern used to live here too, as a radial gradient
+     at 50%/38% and a repeating 160px SVG grid tile. Both were nailed to the
+     viewport, so panning slid the roads and vehicles across a ground that never
+     moved and the map lost its only parallax cue. They are deck.gl layers now,
+     in lng/lat — see `src/Map/Ground`. */
   background-color: var(--color-map-ground);
   background-image: radial-gradient(
     ellipse 132% 112% at 50% 38%,
