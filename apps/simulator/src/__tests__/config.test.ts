@@ -59,6 +59,45 @@ describe("envSchema / parseEnv", () => {
     expect(() => parseEnv(validEnv({ DRIVE_SIDE: "middle" }))).toThrow();
   });
 
+  it("parses speed profile settings, disabled by default", () => {
+    const d = parseEnv({});
+    expect(d.SPEED_PROFILES_ENABLED).toBe(false);
+    expect(d.SPEED_PROFILE_SOURCES).toEqual(["sim"]);
+    expect(d.SPEED_PROFILE_PERIOD).toBe("week");
+    expect(d.SPEED_PROFILE_BUCKET_HOURS).toBe(1);
+    expect(d.SPEED_PROFILE_MIN_SAMPLES).toBe(5);
+    expect(d.SPEED_PROFILE_EWMA_ALPHA).toBe(0.2);
+    expect(d.SPEED_PROFILE_MAX_SPEED_RATIO).toBe(1);
+    expect(d.SPEED_PROFILE_PUBLISH_INTERVAL_MS).toBe(30_000);
+    expect(d.SPEED_PROFILE_SEED_FILE).toBe("");
+
+    const c = parseEnv(
+      validEnv({
+        SPEED_PROFILES_ENABLED: "true",
+        SPEED_PROFILE_SOURCES: "sim, adapter",
+        SPEED_PROFILE_PERIOD: "day",
+        SPEED_PROFILE_BUCKET_HOURS: "6",
+        SPEED_PROFILE_MAX_SPEED_RATIO: "1.2",
+      })
+    );
+    expect(c.SPEED_PROFILES_ENABLED).toBe(true);
+    expect(c.SPEED_PROFILE_SOURCES).toEqual(["sim", "adapter"]);
+    expect(c.SPEED_PROFILE_BUCKET_HOURS).toBe(6);
+    expect(c.SPEED_PROFILE_MAX_SPEED_RATIO).toBe(1.2);
+  });
+
+  it("rejects invalid speed profile settings", () => {
+    expect(() => parseEnv(validEnv({ SPEED_PROFILE_SOURCES: "sim,radar" }))).toThrow();
+    expect(() => parseEnv(validEnv({ SPEED_PROFILE_SOURCES: "" }))).toThrow();
+    expect(() => parseEnv(validEnv({ SPEED_PROFILE_BUCKET_HOURS: "5" }))).toThrow();
+    expect(() =>
+      parseEnv(validEnv({ SPEED_PROFILE_PERIOD: "day", SPEED_PROFILE_BUCKET_HOURS: "48" }))
+    ).toThrow();
+    expect(() => parseEnv(validEnv({ SPEED_PROFILE_MAX_SPEED_RATIO: "0.9" }))).toThrow();
+    expect(() => parseEnv(validEnv({ SPEED_PROFILE_EWMA_ALPHA: "0" }))).toThrow();
+    expect(() => parseEnv(validEnv({ SPEED_PROFILE_MIN_SAMPLES: "0" }))).toThrow();
+  });
+
   it("applies defaults when env vars are missing", () => {
     const cfg = parseEnv({});
     expect(cfg.PORT).toBe(5010);

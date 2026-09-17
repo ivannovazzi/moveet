@@ -248,3 +248,65 @@ export function applyDynamicCost(
   }
   return travelTime;
 }
+
+// ─── Learned speeds (fleetsim-all-1ajn.4) ──────────────────────────────
+//
+// A learned per-edge speed (observed running time over the edge, see
+// `speedprofiles/`) REPLACES the static base travel time for that edge: the
+// observation already contains whatever the surface/smoothness/BPR penalties
+// try to model, so they are not applied on top. Node delays, turn costs and
+// incident factors still compose exactly as they do on a static edge.
+//
+// Admissibility: the ALT landmark tables are built once, at graph-build time,
+// but learned speeds arrive at runtime and may be FASTER than the static model.
+// Two rules keep every bound valid whatever gets learned later:
+//  1. a learned speed is clamped to at most `freeFlowSpeed × maxRatio`
+//     (`SPEED_PROFILE_MAX_SPEED_RATIO`, >= 1), so a learned cost is never below
+//     `distance / (freeFlowSpeed × maxRatio)`;
+//  2. with speed profiles enabled, landmarks are built on
+//     `min(staticBase, distance / (freeFlowSpeed × maxRatio))`
+//     ({@link landmarkLowerBoundCost}) and the haversine bound divides by
+//     `maxNetworkSpeed × maxRatio`, which lower-bound both the static and every
+//     possible learned cost.
+// With profiles disabled neither rule applies and the tables are byte-identical
+// to the static-only build.
+
+/** Floor for a learned speed (km/h), so a stalled observation cannot price an edge at infinity. */
+export const MIN_LEARNED_SPEED_KMH = 1;
+
+/** Clamps a learned speed to `[MIN_LEARNED_SPEED_KMH, freeFlowSpeed × maxRatio]`. */
+export function clampLearnedSpeed(
+  speedKmh: number,
+  freeFlowSpeed: number,
+  maxRatio: number
+): number {
+  const ceiling = freeFlowSpeed * maxRatio;
+  const floored = speedKmh > MIN_LEARNED_SPEED_KMH ? speedKmh : MIN_LEARNED_SPEED_KMH;
+  return floored < ceiling ? floored : ceiling;
+}
+
+/** Travel time (hours) of an edge priced at a learned speed; replaces its static base cost. */
+export function learnedTravelTime(
+  distance: number,
+  speedKmh: number,
+  freeFlowSpeed: number,
+  maxRatio: number
+): number {
+  return distance / clampLearnedSpeed(speedKmh, freeFlowSpeed, maxRatio);
+}
+
+/**
+ * Landmark-table weight for an edge. `maxRatio === null` (speed profiles
+ * disabled) returns the static base cost unchanged; otherwise the minimum of the
+ * static cost and the cheapest cost a learned speed may ever produce.
+ */
+export function landmarkLowerBoundCost(
+  baseTravelTime: number,
+  distance: number,
+  freeFlowSpeed: number,
+  maxRatio: number | null
+): number {
+  if (maxRatio === null) return baseTravelTime;
+  const fastest = distance / (freeFlowSpeed * maxRatio);
+  return fastest < baseTravelTime ? fastest : baseTravelTime;
+}

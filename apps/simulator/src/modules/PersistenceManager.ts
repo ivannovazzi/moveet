@@ -15,6 +15,11 @@ export interface PersistenceManagerDeps {
   fleetManager: FleetManager;
   geoFenceManager: GeoFenceManager;
   incidentManager: IncidentManager;
+  /**
+   * Learned speed profiles (`speedprofiles/SpeedProfileManager`), when enabled.
+   * Written incrementally (changed edges only) on every snapshot save.
+   */
+  speedProfiles?: { saveTo(stateStore: StateStore): number };
 }
 
 /**
@@ -30,6 +35,7 @@ export class PersistenceManager extends EventEmitter {
   private fleetManager: FleetManager;
   private geoFenceManager: GeoFenceManager;
   private incidentManager: IncidentManager;
+  private speedProfiles?: { saveTo(stateStore: StateStore): number };
 
   private autoSaveTimer: NodeJS.Timeout | null = null;
 
@@ -47,6 +53,7 @@ export class PersistenceManager extends EventEmitter {
     this.fleetManager = deps.fleetManager;
     this.geoFenceManager = deps.geoFenceManager;
     this.incidentManager = deps.incidentManager;
+    this.speedProfiles = deps.speedProfiles;
   }
 
   // ─── Auto-save ──────────────────────────────────────────────────────
@@ -106,9 +113,24 @@ export class PersistenceManager extends EventEmitter {
     const meta = this.stateStore.saveSnapshot(data);
     // Keep at most 50 snapshots to prevent unbounded growth
     this.stateStore.deleteOldSnapshots(50);
+    this.saveSpeedProfiles();
     log.info(`Snapshot saved (id: ${meta.id})`);
     this.emit("snapshot:saved", meta);
     return meta;
+  }
+
+  /**
+   * Persists changed learned speed profiles. Best-effort: a failure is logged
+   * and never fails the snapshot it rides along with.
+   */
+  private saveSpeedProfiles(): void {
+    if (!this.speedProfiles) return;
+    try {
+      const rows = this.speedProfiles.saveTo(this.stateStore);
+      if (rows > 0) log.info(`Saved ${rows} speed profile row(s)`);
+    } catch (err) {
+      log.error(`Speed profile save failed: ${err}`);
+    }
   }
 
   /**
@@ -121,6 +143,7 @@ export class PersistenceManager extends EventEmitter {
     const data = await this.collectSnapshotChunked();
     const meta = this.stateStore.saveSnapshot(data);
     this.stateStore.deleteOldSnapshots(50);
+    this.saveSpeedProfiles();
     log.info(`Snapshot saved (id: ${meta.id})`);
     this.emit("snapshot:saved", meta);
     return meta;
@@ -250,6 +273,8 @@ export class PersistenceManager extends EventEmitter {
    */
   shutdown(): void {
     this.stopAutoSave();
+    // Final flush of profiles learned since the last auto-save.
+    this.saveSpeedProfiles();
     this.stateStore.close();
   }
 }

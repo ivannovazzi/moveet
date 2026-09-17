@@ -239,6 +239,76 @@ const envObjectSchema = z.object({
    * for crossing oncoming traffic. Threaded to the graph and pathfinding workers.
    */
   DRIVE_SIDE: z.enum(["right", "left"]).default("right"),
+
+  // ─── Learned per-edge speed profiles (modules/speedprofiles) ──────
+
+  /**
+   * Learn per-edge speeds by time bucket from observed traversals and price
+   * routes/ETAs with them once a bucket has enough samples. Opt-in (default
+   * false): enabling it changes routing as soon as samples accumulate, and
+   * rebuilds the ALT landmark tables on a learned-speed lower bound.
+   */
+  SPEED_PROFILES_ENABLED: z
+    .enum(["true", "false", "1", "0", ""])
+    .default("false")
+    .transform((v) => v === "true" || v === "1"),
+
+  /**
+   * Observation sources, comma list: `sim` (traversals the simulated vehicles
+   * drive) and/or `adapter` (real position fixes posted to
+   * `POST /speed-profiles/observations`, map-matched to edges).
+   */
+  SPEED_PROFILE_SOURCES: z
+    .string()
+    .default("sim")
+    .transform((v, ctx) => {
+      const parts = [
+        ...new Set(
+          v
+            .split(",")
+            .map((p) => p.trim())
+            .filter(Boolean)
+        ),
+      ];
+      const bad = parts.filter((p) => p !== "sim" && p !== "adapter");
+      if (parts.length === 0 || bad.length > 0) {
+        ctx.addIssue({
+          code: "custom",
+          message: `must be a comma list of sim|adapter (got "${v}")`,
+        });
+        return z.NEVER;
+      }
+      return parts as Array<"sim" | "adapter">;
+    }),
+
+  /** Profile period: `week` (hour-of-week buckets) or `day` (weekdays folded together). */
+  SPEED_PROFILE_PERIOD: z.enum(["week", "day"]).default("week"),
+
+  /** Bucket width in hours; must divide the period (168 h for week, 24 h for day). */
+  SPEED_PROFILE_BUCKET_HOURS: z.coerce.number().int().min(1).max(168).default(1),
+
+  /** Samples a bucket needs before its learned speed replaces the static edge cost. */
+  SPEED_PROFILE_MIN_SAMPLES: z.coerce.number().int().min(1).max(65535).default(5),
+
+  /** EWMA weight of a new sample, (0, 1]. */
+  SPEED_PROFILE_EWMA_ALPHA: z.coerce.number().gt(0).max(1).default(0.2),
+
+  /**
+   * Upper clamp on a learned speed as a multiple of the edge's free-flow speed,
+   * [1, 3]. The ALT landmark tables are built on distance / (freeFlow × ratio),
+   * so a larger ratio lets routing learn faster-than-modelled roads at the cost
+   * of a looser heuristic (more nodes expanded per route).
+   */
+  SPEED_PROFILE_MAX_SPEED_RATIO: z.coerce.number().min(1).max(3).default(1),
+
+  /**
+   * Minimum simulated ms between re-publishing the learned table to routing
+   * when new samples arrived. A bucket change always publishes immediately.
+   */
+  SPEED_PROFILE_PUBLISH_INTERVAL_MS: z.coerce.number().int().min(0).default(30_000),
+
+  /** Optional profile JSON file (from `GET /speed-profiles/export`) merged in at startup. */
+  SPEED_PROFILE_SEED_FILE: z.string().default(""),
 });
 
 export const envSchema = envObjectSchema
@@ -249,7 +319,15 @@ export const envSchema = envObjectSchema
   .refine((data) => data.WS_TRANSPORT !== "redis" || data.REDIS_URL.length > 0, {
     message: "REDIS_URL is required when WS_TRANSPORT=redis",
     path: ["REDIS_URL"],
-  });
+  })
+  .refine(
+    (data) =>
+      (data.SPEED_PROFILE_PERIOD === "week" ? 168 : 24) % data.SPEED_PROFILE_BUCKET_HOURS === 0,
+    {
+      message: "SPEED_PROFILE_BUCKET_HOURS must divide the period (168 for week, 24 for day)",
+      path: ["SPEED_PROFILE_BUCKET_HOURS"],
+    }
+  );
 
 export type EnvConfig = z.infer<typeof envSchema>;
 
@@ -304,6 +382,15 @@ function buildConfig(env: EnvConfig) {
     faultProfiles: env.FAULT_PROFILES,
     freeFlowFactors: env.FREE_FLOW_FACTORS,
     driveSide: env.DRIVE_SIDE,
+    speedProfilesEnabled: env.SPEED_PROFILES_ENABLED,
+    speedProfileSources: env.SPEED_PROFILE_SOURCES,
+    speedProfilePeriod: env.SPEED_PROFILE_PERIOD,
+    speedProfileBucketHours: env.SPEED_PROFILE_BUCKET_HOURS,
+    speedProfileMinSamples: env.SPEED_PROFILE_MIN_SAMPLES,
+    speedProfileEwmaAlpha: env.SPEED_PROFILE_EWMA_ALPHA,
+    speedProfileMaxSpeedRatio: env.SPEED_PROFILE_MAX_SPEED_RATIO,
+    speedProfilePublishIntervalMs: env.SPEED_PROFILE_PUBLISH_INTERVAL_MS,
+    speedProfileSeedFile: env.SPEED_PROFILE_SEED_FILE,
   } as const;
 }
 

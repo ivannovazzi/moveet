@@ -12,6 +12,7 @@ import { SpatialIndex } from "./roadnetwork/SpatialIndex";
 import { PathfindingEngine } from "./roadnetwork/PathfindingEngine";
 import type { Road } from "./roadnetwork/types";
 import type { DriveSide } from "./pathfinding/turns";
+import type { SpeedOverrideTable } from "./speedprofiles/SpeedProfileStore";
 import EventEmitter from "events";
 
 /** Construction-time knobs for {@link RoadNetwork}. */
@@ -36,6 +37,12 @@ export interface RoadNetworkOptions {
    * `DRIVE_SIDE`); threaded to the pool workers too.
    */
   driveSide?: DriveSide;
+  /**
+   * `SPEED_PROFILE_MAX_SPEED_RATIO` when learned speed profiles are enabled, or
+   * null when they are disabled. Defaults to the parsed config
+   * (`SPEED_PROFILES_ENABLED`); threaded to the pool workers too.
+   */
+  speedProfileRatio?: number | null;
 }
 
 /**
@@ -92,6 +99,11 @@ export class RoadNetwork extends EventEmitter {
   private landmarkCount: number;
   private freeFlowFactors: Record<HighwayType, number>;
   private driveSide: DriveSide;
+  private speedProfileRatio: number | null;
+  /** Last applied learned-speed table, replayed to the pool when it starts. */
+  private speedOverrides: SpeedOverrideTable | null = null;
+  /** Called before every route request so a profile can follow the sim clock. */
+  private routeRequestHook: (() => void) | null = null;
 
   constructor(geojsonPath: string, options?: RoadNetworkOptions) {
     super();
@@ -99,6 +111,12 @@ export class RoadNetwork extends EventEmitter {
     this.landmarkCount = options?.landmarkCount ?? config.pathfindingLandmarks;
     this.freeFlowFactors = options?.freeFlowFactors ?? config.freeFlowFactors;
     this.driveSide = options?.driveSide ?? config.driveSide;
+    this.speedProfileRatio =
+      options?.speedProfileRatio !== undefined
+        ? options.speedProfileRatio
+        : config.speedProfilesEnabled
+          ? config.speedProfileMaxSpeedRatio
+          : null;
 
     // Parse the raw GeoJSON into a local — NOT a field — so the only reference
     // is dropped when the constructor returns and the blob can be GC'd.
@@ -107,6 +125,7 @@ export class RoadNetwork extends EventEmitter {
     const built = new GraphBuilder({
       landmarkCount: this.landmarkCount,
       freeFlowFactors: this.freeFlowFactors,
+      speedProfileRatio: this.speedProfileRatio,
     }).build(data);
     // `data` is now unreferenced from here on; it is released for GC.
 
@@ -128,6 +147,7 @@ export class RoadNetwork extends EventEmitter {
         driveSide: this.driveSide,
         maxNetworkSpeed: built.maxNetworkSpeed,
         landmarks: built.landmarks,
+        speedProfileRatio: this.speedProfileRatio,
       },
       options
     );
@@ -255,6 +275,7 @@ export class RoadNetwork extends EventEmitter {
    * Returns null if no route exists between the nodes.
    */
   public findRoute(start: Node, end: Node): Route | null {
+    this.routeRequestHook?.();
     return this.pathfinding.findRoute(start, end);
   }
 
@@ -272,6 +293,55 @@ export class RoadNetwork extends EventEmitter {
    */
   public turnCostHours(from: Edge, to: Edge): number {
     return this.pathfinding.turnCostHours(from, to);
+  }
+
+  // ─── Learned speed profiles (fleetsim-all-1ajn.4) ───────────────────
+
+  /** Number of graph edges; the range of {@link edgeIndexOf}. */
+  public get edgeCount(): number {
+    return this.pathfinding.edgeCount;
+  }
+
+  /** Dense index of a graph edge (shared with the pool workers), or -1. */
+  public edgeIndexOf(edge: Edge): number {
+    return this.pathfinding.edgeIndexOf(edge);
+  }
+
+  public edgeAt(index: number): Edge | undefined {
+    return this.pathfinding.edgeAt(index);
+  }
+
+  /** Whether learned speed profiles are enabled for this graph. */
+  public get speedProfilesEnabled(): boolean {
+    return this.speedProfileRatio !== null;
+  }
+
+  /**
+   * Replaces the learned-speed table on the main thread and in every pool
+   * worker. Messages to a worker are delivered in order, so every route request
+   * posted after this call is searched with the new table; the version bump
+   * keys the route cache so no route priced under an older table is served.
+   * Returns false when speed profiles are disabled.
+   */
+  public setSpeedOverrides(table: SpeedOverrideTable): boolean {
+    if (!this.pathfinding.setSpeedOverrides(table)) return false;
+    this.speedOverrides = table;
+    this.pathfindingPool?.setSpeedOverrides(table);
+    return true;
+  }
+
+  /** The (clamped) learned speed routing currently uses for `edge`, if any. */
+  public learnedSpeedKmh(edge: Edge): number | undefined {
+    return this.pathfinding.learnedSpeedKmh(edge);
+  }
+
+  public get speedProfileVersion(): number {
+    return this.pathfinding.speedProfileVersion;
+  }
+
+  /** Installs (or clears) the hook run at the start of every route request. */
+  public setRouteRequestHook(hook: (() => void) | null): void {
+    this.routeRequestHook = hook;
   }
 
   /** Clear all cached routes. */
@@ -320,10 +390,11 @@ export class RoadNetwork extends EventEmitter {
     end: Node,
     restrictedHighways?: string[]
   ): Promise<Route | null> {
+    this.routeRequestHook?.();
     // Check cache first — keyed identically to the sync path, plus the
     // restricted-highway profile (a different profile yields a different route).
     const highwayKey = restrictedHighways?.length ? restrictedHighways.join(",") : "";
-    const cacheKey = `${start.id}|${end.id}|${this.pathfinding.incidentFingerprint()}|${highwayKey}`;
+    const cacheKey = `${start.id}|${end.id}|${this.pathfinding.costFingerprint()}|${highwayKey}`;
     const cached = this.pathfinding.getCachedRoute(cacheKey);
     if (cached) return cached;
 
@@ -333,7 +404,9 @@ export class RoadNetwork extends EventEmitter {
         landmarkCount: this.landmarkCount,
         freeFlowFactors: this.freeFlowFactors,
         driveSide: this.driveSide,
+        speedProfileRatio: this.speedProfileRatio,
       });
+      if (this.speedOverrides) this.pathfindingPool.setSpeedOverrides(this.speedOverrides);
     }
 
     // Turn restrictions are NOT sent per request: each worker resolves them

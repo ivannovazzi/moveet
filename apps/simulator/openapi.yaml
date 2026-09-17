@@ -46,6 +46,8 @@ tags:
     description: Scenario management — load, start, pause, stop, status
   - name: State
     description: Simulation state persistence — save, restore, snapshots
+  - name: Speed Profiles
+    description: Learned per-edge speed profiles by time bucket (only when SPEED_PROFILES_ENABLED)
 
 paths:
   # ─── Simulation ──────────────────────────────────────────────────────
@@ -1886,6 +1888,139 @@ paths:
                       type: string
                       format: date-time
 
+  # ─── Speed Profiles ──────────────────────────────────────────────────
+  /speed-profiles:
+    get:
+      operationId: getSpeedProfileStats
+      summary: Learned speed profile statistics
+      description: >
+        Registered only when SPEED_PROFILES_ENABLED=true. Reports the bucket
+        layout, the bucket the simulated clock is in, and how many edges routing
+        currently prices at a learned speed.
+      tags: [Speed Profiles]
+      responses:
+        "200":
+          description: Speed profile statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SpeedProfileStats"
+
+  /speed-profiles/export:
+    get:
+      operationId: exportSpeedProfiles
+      summary: Export learned speed profiles as a portable JSON file
+      tags: [Speed Profiles]
+      responses:
+        "200":
+          description: Profile file (keyed by stable edge id, sent as an attachment)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SpeedProfileFile"
+
+  /speed-profiles/import:
+    post:
+      operationId: importSpeedProfiles
+      summary: Merge or replace learned speed profiles from a profile file
+      description: >
+        Edges are matched by id; ids this network does not have are counted and
+        skipped. Files recorded under another bucket layout are re-bucketed.
+        Routing uses the result immediately. Body limit 64 MB.
+      tags: [Speed Profiles]
+      parameters:
+        - name: mode
+          in: query
+          schema:
+            type: string
+            enum: [merge, replace]
+            default: merge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SpeedProfileFile"
+      responses:
+        "200":
+          description: Import result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mode:
+                    type: string
+                    enum: [merge, replace]
+                  matchedEdges:
+                    type: integer
+                  unmatchedEdges:
+                    type: integer
+                  entries:
+                    type: integer
+        "400":
+          description: Invalid profile file
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+
+  /speed-profiles/observations:
+    post:
+      operationId: postSpeedProfileObservations
+      summary: Feed real vehicle position fixes to the adapter speed-profile source
+      description: >
+        Consecutive fixes of a vehicle that fall inside the same road edge are
+        map-matched into running-speed observations, bucketed by fix timestamp.
+        Requires `adapter` in SPEED_PROFILE_SOURCES.
+      tags: [Speed Profiles]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fixes]
+              properties:
+                fixes:
+                  type: array
+                  maxItems: 10000
+                  items:
+                    type: object
+                    required: [vehicleId, position, timestamp]
+                    properties:
+                      vehicleId:
+                        type: string
+                      position:
+                        $ref: "#/components/schemas/LatLngPair"
+                      timestamp:
+                        type: integer
+                        description: Epoch milliseconds
+      responses:
+        "200":
+          description: Fixes processed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fixes:
+                    type: integer
+                  observations:
+                    type: integer
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+        "409":
+          description: The adapter source is not enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   # ─── Analytics ───────────────────────────────────────────────────────
   /analytics/summary:
     get:
@@ -2436,6 +2571,74 @@ components:
               type: string
             status:
               $ref: "#/components/schemas/JobStatus"
+
+    SpeedProfileStats:
+      type: object
+      properties:
+        sources:
+          type: array
+          items:
+            type: string
+            enum: [sim, adapter]
+        period:
+          type: string
+          enum: [week, day]
+        bucketHours:
+          type: integer
+        minSamples:
+          type: integer
+        currentBucket:
+          type: integer
+        observedEdges:
+          type: integer
+        totalSamples:
+          type: integer
+        activeOverrides:
+          type: integer
+        publishedBucket:
+          type: integer
+          nullable: true
+
+    SpeedProfileFile:
+      type: object
+      required: [format, version, period, bucketHours, edges]
+      properties:
+        format:
+          type: string
+          enum: [moveet-speed-profiles]
+        version:
+          type: integer
+          enum: [1]
+        period:
+          type: string
+          enum: [week, day]
+        bucketHours:
+          type: integer
+          description: Bucket width; divides the period (168 h for week, 24 h for day)
+        exportedAt:
+          type: string
+          format: date-time
+        edges:
+          type: array
+          items:
+            type: object
+            required: [id, b]
+            properties:
+              id:
+                type: string
+                description: Directed node-pair edge id
+              way:
+                type: string
+                description: OSM way id (informational)
+              b:
+                type: array
+                description: "[bucket, speedKmh, sampleCount] entries"
+                items:
+                  type: array
+                  minItems: 3
+                  maxItems: 3
+                  items:
+                    type: number
 
     ValidationError:
       type: object

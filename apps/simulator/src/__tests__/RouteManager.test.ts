@@ -339,6 +339,33 @@ describe("RouteManager", () => {
       expect(est!.etaSeconds).toBeCloseTo(expectedSeconds, 6);
     });
 
+    it("prices an edge with a learned speed at that speed instead of free-flow", async () => {
+      const vehicle = firstVehicle();
+      const base = vehicle.currentEdge;
+      const learned = {
+        ...base,
+        distance: 1,
+        maxSpeed: 50,
+        freeFlowSpeed: 30,
+        nodeDelayH: undefined,
+      };
+      const plain = { ...learned };
+      vi.spyOn(network, "findRouteAsync").mockResolvedValue({
+        edges: [learned, plain],
+        distance: 2,
+      });
+      vi.spyOn(network, "turnCostHours").mockReturnValue(0);
+      vi.spyOn(network, "learnedSpeedKmh").mockImplementation((e) =>
+        e === learned ? 12 : undefined
+      );
+
+      const est = await routeManager.estimateTo(vehicle.id, [45.5029, -73.5661]);
+
+      const profileMax = getProfile(vehicle.type).maxSpeed;
+      const expected = (1 / Math.min(12, profileMax) + 1 / Math.min(30, profileMax)) * 3600;
+      expect(est!.etaSeconds).toBeCloseTo(expected, 6);
+    });
+
     it("adds the turn cost the route search charges between consecutive edges", async () => {
       const vehicle = firstVehicle();
       const base = vehicle.currentEdge;

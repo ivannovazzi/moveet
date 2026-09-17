@@ -17,6 +17,7 @@ import type { Node, Edge, POI, HighwayType } from "../../types";
 import * as utils from "../../utils/helpers";
 import {
   computeBaseTravelTime,
+  landmarkLowerBoundCost,
   mergeNodeControl,
   nodeDelayHours,
   TRAFFIC_CALMING_MAX_SPEED_KMH,
@@ -93,11 +94,19 @@ export interface GraphBuilderOptions {
    * schema). Defaults to {@link DEFAULT_FREE_FLOW_FACTORS}.
    */
   freeFlowFactors?: Readonly<Record<HighwayType, number>>;
+  /**
+   * Learned speed profiles' `SPEED_PROFILE_MAX_SPEED_RATIO` when they are
+   * enabled, `null`/absent when they are not. When set, the landmark tables and
+   * `maxNetworkSpeed` are built on a metric that also lower-bounds every learned
+   * cost (see `pathfinding/cost.ts` `landmarkLowerBoundCost`).
+   */
+  speedProfileRatio?: number | null;
 }
 
 export class GraphBuilder {
   private readonly landmarkCount: number;
   private readonly freeFlowFactors: Readonly<Record<HighwayType, number>>;
+  private readonly speedProfileRatio: number | null;
   private nodes: Map<string, Node> = new Map();
   private edges: Map<string, Edge> = new Map();
   private roads: Map<string, Road> = new Map();
@@ -112,6 +121,7 @@ export class GraphBuilder {
   constructor(options?: GraphBuilderOptions) {
     this.landmarkCount = options?.landmarkCount ?? DEFAULT_LANDMARK_COUNT;
     this.freeFlowFactors = options?.freeFlowFactors ?? DEFAULT_FREE_FLOW_FACTORS;
+    this.speedProfileRatio = options?.speedProfileRatio ?? null;
   }
 
   private snapCoord(val: number): string {
@@ -148,11 +158,13 @@ export class GraphBuilder {
       const speed = edge.freeFlowSpeed ?? edge.maxSpeed;
       if (speed > maxSpeed) maxSpeed = speed;
     }
-    const maxNetworkSpeed = maxSpeed > 0 ? maxSpeed : 110;
+    // A learned speed may reach freeFlowSpeed × ratio, so the bound scales too.
+    const maxNetworkSpeed = (maxSpeed > 0 ? maxSpeed : 110) * (this.speedProfileRatio ?? 1);
 
-    // ALT landmark preprocessing. Runs on the STATIC base costs only, so the
-    // bounds it yields stay admissible under the dynamic incident/signal terms
-    // A* adds at query time (see pathfinding/landmarks.ts).
+    // ALT landmark preprocessing. Runs on the STATIC base costs only (or their
+    // learned-speed lower bound when profiles are enabled), so the bounds it
+    // yields stay admissible under the dynamic incident/signal terms A* adds at
+    // query time (see pathfinding/landmarks.ts).
     const landmarks = this.buildLandmarks();
 
     // Eagerly derive the data-backed collections so the raw FeatureCollection
@@ -209,7 +221,12 @@ export class GraphBuilder {
       if (cost === undefined) continue;
       from[edgeCount] = (edge.start as Node & AltIndexed).altIndex!;
       to[edgeCount] = (edge.end as Node & AltIndexed).altIndex!;
-      weight[edgeCount] = cost;
+      weight[edgeCount] = landmarkLowerBoundCost(
+        cost,
+        edge.distance,
+        edge.freeFlowSpeed ?? edge.maxSpeed,
+        this.speedProfileRatio
+      );
       edgeCount++;
     }
 

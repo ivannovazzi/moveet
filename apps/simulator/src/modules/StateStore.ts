@@ -82,6 +82,30 @@ export interface RecordingRow {
   created_at: string;
 }
 
+/**
+ * One edge's learned speed profile as persisted (fleetsim-all-1ajn.4): dense
+ * per-bucket EWMA speeds (km/h) and sample counts under the bucket layout it
+ * was recorded with. Keyed by the stable edge id (directed node pair).
+ */
+export interface SpeedProfileRow {
+  edgeId: string;
+  /** OSM way id, informational. */
+  wayId: string | null;
+  period: "week" | "day";
+  bucketHours: number;
+  speeds: Float32Array;
+  counts: Uint16Array;
+}
+
+interface RawSpeedProfileRow {
+  edge_id: string;
+  way_id: string | null;
+  period: "week" | "day";
+  bucket_hours: number;
+  speeds: Buffer;
+  counts: Buffer;
+}
+
 // ─── Analytics history helpers ──────────────────────────────────────
 
 /** Upper bound on rows (or buckets) a single history query may return. */
@@ -293,6 +317,7 @@ function withMeta(rows: AnalyticsHistoryRow[], meta: AnalyticsHistoryMeta): Anal
  * - `snapshots` — periodic simulation state snapshots
  * - `analytics_history` — time-series analytics for historical queries
  * - `recordings` — recording file metadata index
+ * - `speed_profiles` — learned per-edge speed profiles (one row per observed edge)
  *
  * Uses WAL mode for concurrent reads and prepared statements for performance.
  */
@@ -318,6 +343,11 @@ export class StateStore {
   private getRecordingStmt: Database.Statement;
   private getRecordingByPathStmt: Database.Statement;
   private deleteRecordingStmt: Database.Statement;
+
+  // ─── Speed profile statements ─────────────────────────────────────
+  private upsertSpeedProfileStmt: Database.Statement;
+  private selectSpeedProfilesStmt: Database.Statement;
+  private clearSpeedProfilesStmt: Database.Statement;
 
   constructor(dbPath: string = "data/state.db") {
     // Ensure directory exists (skip for in-memory DBs)
@@ -412,6 +442,25 @@ export class StateStore {
       DELETE FROM recordings WHERE id = ?
     `);
 
+    // ─── Speed profile prepared statements ────────────────────────
+    this.upsertSpeedProfileStmt = this.db.prepare(`
+      INSERT INTO speed_profiles (edge_id, way_id, period, bucket_hours, speeds, counts, updated_at)
+      VALUES (@edge_id, @way_id, @period, @bucket_hours, @speeds, @counts, datetime('now'))
+      ON CONFLICT(edge_id) DO UPDATE SET
+        way_id = excluded.way_id,
+        period = excluded.period,
+        bucket_hours = excluded.bucket_hours,
+        speeds = excluded.speeds,
+        counts = excluded.counts,
+        updated_at = excluded.updated_at
+    `);
+
+    this.selectSpeedProfilesStmt = this.db.prepare(`
+      SELECT edge_id, way_id, period, bucket_hours, speeds, counts FROM speed_profiles
+    `);
+
+    this.clearSpeedProfilesStmt = this.db.prepare(`DELETE FROM speed_profiles`);
+
     logger.info(`StateStore initialized at ${dbPath}`);
   }
 
@@ -454,6 +503,21 @@ export class StateStore {
         vehicle_count INTEGER NOT NULL,
         start_time    TEXT    NOT NULL,
         created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+      )
+    `);
+
+    // Learned speed profiles. Speeds/counts are little-endian Float32/Uint16
+    // blobs, one entry per bucket of (period, bucket_hours); a row recorded
+    // under another layout is re-bucketed on load rather than migrated here.
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS speed_profiles (
+        edge_id      TEXT PRIMARY KEY,
+        way_id       TEXT,
+        period       TEXT    NOT NULL,
+        bucket_hours INTEGER NOT NULL,
+        speeds       BLOB    NOT NULL,
+        counts       BLOB    NOT NULL,
+        updated_at   TEXT    NOT NULL DEFAULT (datetime('now'))
       )
     `);
   }
@@ -718,10 +782,68 @@ export class StateStore {
     return row.file_path;
   }
 
+  // ─── Speed profile methods ───────────────────────────────────────
+
+  /** Inserts or replaces speed profile rows in one transaction. */
+  upsertSpeedProfiles(rows: SpeedProfileRow[]): void {
+    const write = this.db.transaction((batch: SpeedProfileRow[]) => {
+      for (const row of batch) {
+        this.upsertSpeedProfileStmt.run({
+          edge_id: row.edgeId,
+          way_id: row.wayId,
+          period: row.period,
+          bucket_hours: row.bucketHours,
+          speeds: toLittleEndianBuffer(row.speeds),
+          counts: toLittleEndianBuffer(row.counts),
+        });
+      }
+    });
+    write(rows);
+  }
+
+  loadSpeedProfiles(): SpeedProfileRow[] {
+    return (this.selectSpeedProfilesStmt.all() as RawSpeedProfileRow[]).map((raw) => ({
+      edgeId: raw.edge_id,
+      wayId: raw.way_id,
+      period: raw.period,
+      bucketHours: raw.bucket_hours,
+      speeds: readFloat32(raw.speeds),
+      counts: readUint16(raw.counts),
+    }));
+  }
+
+  clearSpeedProfiles(): void {
+    this.clearSpeedProfilesStmt.run();
+  }
+
   // ─── Lifecycle ───────────────────────────────────────────────────
 
   close(): void {
     this.db.close();
     logger.info("StateStore closed");
   }
+}
+
+// ─── Typed-array blob helpers (explicit little-endian) ──────────────
+
+function toLittleEndianBuffer(values: Float32Array | Uint16Array): Buffer {
+  const width = values.BYTES_PER_ELEMENT;
+  const buf = Buffer.alloc(values.length * width);
+  for (let i = 0; i < values.length; i++) {
+    if (values instanceof Float32Array) buf.writeFloatLE(values[i], i * width);
+    else buf.writeUInt16LE(values[i], i * width);
+  }
+  return buf;
+}
+
+function readFloat32(buf: Buffer): Float32Array {
+  const out = new Float32Array(Math.floor(buf.length / 4));
+  for (let i = 0; i < out.length; i++) out[i] = buf.readFloatLE(i * 4);
+  return out;
+}
+
+function readUint16(buf: Buffer): Uint16Array {
+  const out = new Uint16Array(Math.floor(buf.length / 2));
+  for (let i = 0; i < out.length; i++) out[i] = buf.readUInt16LE(i * 2);
+  return out;
 }

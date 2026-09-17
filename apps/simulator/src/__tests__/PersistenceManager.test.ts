@@ -62,6 +62,28 @@ describe("PersistenceManager", () => {
       expect(meta.created_at).toBeDefined();
     });
 
+    it("saves learned speed profiles alongside the snapshot when wired", async () => {
+      const speedProfiles = { saveTo: vi.fn().mockReturnValue(2) };
+      const withProfiles = new PersistenceManager({
+        stateStore,
+        vehicleManager: createMockVehicleManager(),
+        fleetManager,
+        geoFenceManager,
+        incidentManager,
+        speedProfiles,
+      });
+      withProfiles.saveNow();
+      expect(speedProfiles.saveTo).toHaveBeenCalledWith(stateStore);
+      await withProfiles.saveNowChunked();
+      expect(speedProfiles.saveTo).toHaveBeenCalledTimes(2);
+
+      // A profile write failure must not fail the snapshot.
+      speedProfiles.saveTo.mockImplementation(() => {
+        throw new Error("disk full");
+      });
+      expect(() => withProfiles.saveNow()).not.toThrow();
+    });
+
     it("should emit snapshot:saved event", () => {
       const listener = vi.fn();
       pm.on("snapshot:saved", listener);

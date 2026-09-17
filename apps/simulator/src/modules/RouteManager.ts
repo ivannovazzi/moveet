@@ -21,6 +21,7 @@ import logger from "../utils/logger";
 import { setUnroutedVehicles } from "../metrics";
 import { config } from "../utils/config";
 import { HEAT_ZONE_DEFAULTS } from "../constants";
+import type { TraversalRecorder } from "./speedprofiles/TraversalRecorder";
 
 /**
  * After the first "vehicle still unrouted" warning is logged for a vehicle,
@@ -119,6 +120,13 @@ export class RouteManager extends EventEmitter {
    */
   private now: () => number = Date.now;
 
+  /**
+   * Learned-speed-profile `sim` source (see `speedprofiles/TraversalRecorder`),
+   * or null when that source is off — the movement hot path then pays one null
+   * check per edge transition.
+   */
+  private traversals: TraversalRecorder | null = null;
+
   constructor(
     private network: RoadNetwork,
     private registry: VehicleRegistry,
@@ -130,6 +138,11 @@ export class RouteManager extends EventEmitter {
   /** Replaces the dwell clock. See {@link now}. */
   setTimeSource(now: () => number): void {
     this.now = now;
+  }
+
+  /** Installs (or removes) the traversal recorder that feeds learned speed profiles. */
+  setTraversalRecorder(recorder: TraversalRecorder | null): void {
+    this.traversals = recorder;
   }
 
   // ─── Route getters ────────────────────────────────────────────────
@@ -381,17 +394,30 @@ export class RouteManager extends EventEmitter {
     route?: Route
   ): void {
     let remainingDistance = (vehicle.speed / 3600) * (deltaMs / 1000);
+    // Learned speed profiles: only route-following vehicles are measured (see
+    // TraversalRecorder). `msLeft` is the movement time not yet attributed to
+    // an edge; speed is constant within a tick, so the time spent reaching an
+    // edge's end is its share of the distance.
+    const recorder = route ? this.traversals : null;
+    let msLeft = deltaMs;
 
     while (remainingDistance > 0) {
       const edgeRemaining = (1 - vehicle.progress) * vehicle.currentEdge.distance;
 
       if (remainingDistance >= edgeRemaining) {
         vehicle.progress = 1;
+        // speed > 0 here (remainingDistance > 0); km/h -> km per ms is / 3.6e6.
+        const msToEnd = recorder ? edgeRemaining / (vehicle.speed / 3_600_000) : 0;
         remainingDistance -= edgeRemaining;
 
         this.updateVehiclePositionAndBearing(vehicle);
 
+        const completedEdge = vehicle.currentEdge;
         const nextEdgeResult = this.getNextEdgeForVehicle(vehicle, route);
+        if (recorder) {
+          msLeft -= msToEnd;
+          recorder.exit(vehicle, msToEnd, nextEdgeResult?.edge ?? null, options.turnThreshold);
+        }
         if (!nextEdgeResult) {
           // Set speed from options after handleRouteCompleted set it to 0
           vehicle.speed = options.minSpeed;
@@ -407,6 +433,7 @@ export class RouteManager extends EventEmitter {
         if (nextEdgeResult.edgeIndex !== undefined) {
           vehicle.edgeIndex = nextEdgeResult.edgeIndex;
         }
+        recorder?.enter(vehicle, completedEdge, nextEdgeResult.edge, options.turnThreshold);
       } else {
         vehicle.progress += remainingDistance / vehicle.currentEdge.distance;
         remainingDistance = 0;
@@ -414,6 +441,9 @@ export class RouteManager extends EventEmitter {
         this.updateVehiclePositionAndBearing(vehicle);
       }
     }
+    // Whatever is left (including a whole tick at speed 0) was spent on the
+    // edge the vehicle is on now.
+    recorder?.accrue(vehicle, msLeft);
   }
 
   private updateVehiclePositionAndBearing(vehicle: Vehicle): void {
@@ -644,10 +674,15 @@ export class RouteManager extends EventEmitter {
     // penalty prices the manoeuvre (yielding, crossing oncoming traffic,
     // U-turns) that the movement model does not simulate. Both share the 30°
     // "straight on" threshold by default.
+    //
+    // An edge with a learned speed in the active profile (speedprofiles/) is
+    // priced at that speed instead of free-flow — the (clamped) value the route
+    // search itself charged — still capped by the vehicle profile.
     let hours = 0;
     let previous: (typeof route.edges)[number] | null = null;
     for (const edge of route.edges) {
-      const speed = Math.min(profile.maxSpeed, edge.freeFlowSpeed ?? edge.maxSpeed);
+      const edgeSpeed = this.network.learnedSpeedKmh(edge) ?? edge.freeFlowSpeed ?? edge.maxSpeed;
+      const speed = Math.min(profile.maxSpeed, edgeSpeed);
       hours += edge.distance / Math.max(speed, 1) + (edge.nodeDelayH ?? 0);
       if (previous) hours += this.network.turnCostHours(previous, edge);
       previous = edge;

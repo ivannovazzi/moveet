@@ -8,6 +8,8 @@
  * Protocol:
  *   Request:  { type: 'findRoute', id: number, startId: string, endId: string, incidentEdges?: Record<string, number>, restrictedHighways?: string[] }
  *   Response: { type: 'result',    id: number, route: { edgeIds: string[], distance: number } | null }
+ *   Table:    { type: 'speedProfile', indices: Int32Array, speeds: Float32Array }  (no response;
+ *             replaces the learned-speed table used by every later request, see applySpeedOverrides)
  *
  * This worker no longer hand-duplicates the A* cost function, the binary heap or
  * the OSM-tag parsers: it imports them from the same canonical modules the
@@ -42,6 +44,8 @@ import type { FeatureCollection, LineString } from "geojson";
 import {
   computeBaseTravelTime,
   applyDynamicCost,
+  clampLearnedSpeed,
+  landmarkLowerBoundCost,
   mergeNodeControl,
   nodeDelayHours,
   TRAFFIC_CALMING_MAX_SPEED_KMH,
@@ -105,6 +109,12 @@ export interface PathfindingWorkerData {
   freeFlowFactors?: Record<HighwayType, number>;
   /** Drive side for turn penalties, already parsed from `DRIVE_SIDE`. */
   driveSide?: DriveSide;
+  /**
+   * `SPEED_PROFILE_MAX_SPEED_RATIO` when learned speed profiles are enabled,
+   * null/absent when disabled. Shapes the landmark tables exactly as on the main
+   * thread; the tables themselves arrive later as `speedProfile` messages.
+   */
+  speedProfileRatio?: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -132,7 +142,11 @@ interface WorkerEdge {
   lanes: number;
   capacity: number;
   smoothnessFactor: number;
-  /** Precomputed static base travel time (hours); set after the graph is built. */
+  /**
+   * Base travel time (hours) the search charges: the precomputed static cost,
+   * or the learned-speed cost while the edge is in the active speed table (see
+   * {@link applySpeedOverrides}).
+   */
   baseTravelTime: number;
   /** Precomputed node-control delay (hours) for arriving via this edge; 0 when none. */
   nodeDelayH: number;
@@ -182,6 +196,8 @@ let _lastExpandedNodes = 0;
 let _turnBans = new Map<string, Set<string>>();
 /** Drive side for turn penalties (set by buildGraph from workerData). */
 let _driveSide: DriveSide = DEFAULT_DRIVE_SIDE;
+/** Learned speed profile ratio, or null when profiles are disabled (set by buildGraph). */
+let _speedProfileRatio: number | null = null;
 
 // Coordinate snapping to deduplicate near-identical intersection nodes
 const COORD_SNAP_EPSILON = 1e-7;
@@ -210,9 +226,11 @@ function buildGraph(
   geojsonPath: string,
   landmarkCount: number = DEFAULT_LANDMARK_COUNT,
   freeFlowFactors: Readonly<Record<HighwayType, number>> = DEFAULT_FREE_FLOW_FACTORS,
-  driveSide: DriveSide = DEFAULT_DRIVE_SIDE
+  driveSide: DriveSide = DEFAULT_DRIVE_SIDE,
+  speedProfileRatio: number | null = null
 ): Map<string, WorkerNode> {
   _driveSide = driveSide;
+  _speedProfileRatio = speedProfileRatio;
   const data: FeatureCollection = JSON.parse(fs.readFileSync(geojsonPath, "utf8"));
   const nodes = new Map<string, WorkerNode>();
 
@@ -347,7 +365,8 @@ function buildGraph(
       edge.baseTravelTime = computeBaseTravelTime(edge, flow);
     }
   }
-  _maxNetworkSpeed = maxSpeed > 0 ? maxSpeed : 110;
+  // Scaled like GraphBuilder's: a learned speed may reach freeFlowSpeed × ratio.
+  _maxNetworkSpeed = (maxSpeed > 0 ? maxSpeed : 110) * (speedProfileRatio ?? 1);
 
   // Second pass: mark traffic signal nodes and collect node controls (stop,
   // give-way, crossings, level crossings, point traffic-calming) — mirrors
@@ -400,7 +419,7 @@ function buildGraph(
 
   // ALT landmark preprocessing over the static base costs (see
   // ../modules/pathfinding/landmarks.ts for the admissibility argument).
-  _alt = buildWorkerLandmarks(nodes, landmarkCount);
+  _alt = buildWorkerLandmarks(nodes, landmarkCount, speedProfileRatio);
 
   return nodes;
 }
@@ -484,7 +503,8 @@ function findControlNode(
  */
 function buildWorkerLandmarks(
   nodes: Map<string, WorkerNode>,
-  requested: number
+  requested: number,
+  speedProfileRatio: number | null
 ): AltHeuristic | null {
   const nodeCount = nodes.size;
   if (requested <= 0 || nodeCount === 0) return null;
@@ -511,7 +531,12 @@ function buildWorkerLandmarks(
       if (target === undefined) continue;
       from[edgeCount] = sourceIndex;
       to[edgeCount] = target.altIndex;
-      weight[edgeCount] = edge.baseTravelTime;
+      weight[edgeCount] = landmarkLowerBoundCost(
+        edge.baseTravelTime,
+        edge.distance,
+        edge.freeFlowSpeed,
+        speedProfileRatio
+      );
       edgeCount++;
     }
   }
@@ -673,25 +698,62 @@ function findRoute(
  * Per-graph search scratch, created on first use. Keyed by the node map rather
  * than held module-level because tests build several graphs in one process.
  */
-const _scratches = new WeakMap<
-  Map<string, WorkerNode>,
-  { scratch: EdgeSearchScratch; edges: WorkerEdge[] }
->();
-
-function scratchFor(nodes: Map<string, WorkerNode>): {
+interface ScratchEntry {
   scratch: EdgeSearchScratch;
   edges: WorkerEdge[];
-} {
+  /** Edge indices priced at a learned speed by the active table. */
+  overridden: Int32Array;
+}
+
+const _scratches = new WeakMap<Map<string, WorkerNode>, ScratchEntry>();
+
+function scratchFor(nodes: Map<string, WorkerNode>): ScratchEntry {
   let entry = _scratches.get(nodes);
   if (!entry) {
     const edges: WorkerEdge[] = [];
     for (const node of nodes.values()) {
       for (const edge of node.edges) edges[edge.index] = edge;
     }
-    entry = { scratch: new EdgeSearchScratch(edges.length, nodes.size), edges };
+    entry = {
+      scratch: new EdgeSearchScratch(edges.length, nodes.size),
+      edges,
+      overridden: new Int32Array(0),
+    };
     _scratches.set(nodes, entry);
   }
   return entry;
+}
+
+/**
+ * Replaces the active learned-speed table — mirrors
+ * `PathfindingEngine.setSpeedOverrides`: listed edges are priced at their
+ * clamped learned speed, edges of the previous table are restored to their
+ * static cost (recomputed with the same shared function and flow proxy, so the
+ * value is bit-identical to the build-time one). A no-op when profiles are
+ * disabled for this graph.
+ */
+function applySpeedOverrides(
+  nodes: Map<string, WorkerNode>,
+  table: { indices: ArrayLike<number>; speeds: ArrayLike<number> }
+): void {
+  const ratio = _speedProfileRatio;
+  if (ratio === null) return;
+  const entry = scratchFor(nodes);
+  const edges = entry.edges;
+  for (const i of entry.overridden) {
+    const edge = edges[i];
+    edge.baseTravelTime = computeBaseTravelTime(edge, nodes.get(edge.startNodeId)!.edges.length);
+  }
+  const applied: number[] = [];
+  for (let k = 0; k < table.indices.length; k++) {
+    const i = table.indices[k];
+    const edge = edges[i];
+    if (!edge || !(table.speeds[k] > 0)) continue;
+    edge.baseTravelTime =
+      edge.distance / clampLearnedSpeed(table.speeds[k], edge.freeFlowSpeed, ratio);
+    applied.push(i);
+  }
+  entry.overridden = Int32Array.from(applied);
 }
 
 // ---------------------------------------------------------------------------
@@ -699,9 +761,15 @@ function scratchFor(nodes: Map<string, WorkerNode>): {
 // ---------------------------------------------------------------------------
 
 if (parentPort) {
-  const { geojsonPath, landmarkCount, freeFlowFactors, driveSide } =
+  const { geojsonPath, landmarkCount, freeFlowFactors, driveSide, speedProfileRatio } =
     workerData as PathfindingWorkerData;
-  const nodes = buildGraph(geojsonPath, landmarkCount, freeFlowFactors, driveSide);
+  const nodes = buildGraph(
+    geojsonPath,
+    landmarkCount,
+    freeFlowFactors,
+    driveSide,
+    speedProfileRatio ?? null
+  );
 
   parentPort.on(
     "message",
@@ -712,7 +780,13 @@ if (parentPort) {
       endId: string;
       incidentEdges?: Record<string, number>;
       restrictedHighways?: string[];
+      indices?: Int32Array;
+      speeds?: Float32Array;
     }) => {
+      if (msg.type === "speedProfile") {
+        applySpeedOverrides(nodes, { indices: msg.indices!, speeds: msg.speeds! });
+        return;
+      }
       if (msg.type === "findRoute") {
         let route = findRoute(
           nodes,
@@ -735,7 +809,14 @@ if (parentPort) {
 // the shared cost module so the equivalence test can assert the worker uses the
 // exact same canonical functions as the main thread (they are now the same
 // reference, not a hand-synced copy).
-export { buildGraph, findRoute, calculateDistance, computeBaseTravelTime, applyDynamicCost };
+export {
+  buildGraph,
+  findRoute,
+  applySpeedOverrides,
+  calculateDistance,
+  computeBaseTravelTime,
+  applyDynamicCost,
+};
 export type { WorkerNode, WorkerEdge };
 
 /** Nodes expanded by the most recent `findRoute` call. Test/benchmark hook. */

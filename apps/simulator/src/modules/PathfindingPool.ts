@@ -19,6 +19,7 @@ import { DEFAULT_LANDMARK_COUNT } from "./pathfinding/landmarks";
 import type { PathfindingWorkerData } from "../workers/pathfinding-worker";
 import type { HighwayType } from "../types";
 import type { DriveSide } from "./pathfinding/turns";
+import type { SpeedOverrideTable } from "./speedprofiles/SpeedProfileStore";
 import logger from "../utils/logger";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -59,6 +60,8 @@ export interface PathfindingPoolOptions {
   freeFlowFactors?: Record<HighwayType, number>;
   /** Drive side for turn penalties; must match the main-thread graph's. */
   driveSide?: DriveSide;
+  /** Learned speed profile ratio (null/absent = disabled); must match the main-thread graph's. */
+  speedProfileRatio?: number | null;
 }
 
 export class PathfindingPool {
@@ -112,11 +115,14 @@ export class PathfindingPool {
 
     const freeFlowFactors = typeof options === "number" ? undefined : options?.freeFlowFactors;
     const driveSide = typeof options === "number" ? undefined : options?.driveSide;
+    const speedProfileRatio =
+      typeof options === "number" ? null : (options?.speedProfileRatio ?? null);
     const workerData: PathfindingWorkerData = {
       geojsonPath,
       landmarkCount,
       freeFlowFactors,
       driveSide,
+      speedProfileRatio,
     };
 
     for (let i = 0; i < size; i++) {
@@ -216,6 +222,18 @@ export class PathfindingPool {
       }
       worker.postMessage(msg);
     });
+  }
+
+  /**
+   * Sends a learned-speed table to every worker. A worker processes its
+   * messages in order, so each route request posted after this is searched with
+   * the new table. The typed arrays are structured-cloned (the table is sparse:
+   * only edges with enough samples in the active bucket).
+   */
+  public setSpeedOverrides(table: SpeedOverrideTable): void {
+    for (const worker of this.workers) {
+      worker.postMessage({ type: "speedProfile", indices: table.indices, speeds: table.speeds });
+    }
   }
 
   /**

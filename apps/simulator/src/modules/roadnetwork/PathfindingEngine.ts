@@ -21,7 +21,8 @@
 import type { Node, Edge, Route } from "../../types";
 import * as utils from "../../utils/helpers";
 import { LRUCache, type CacheStats } from "../../utils/LRUCache";
-import { applyDynamicCost } from "../pathfinding/cost";
+import { applyDynamicCost, clampLearnedSpeed } from "../pathfinding/cost";
+import type { SpeedOverrideTable } from "../speedprofiles/SpeedProfileStore";
 import { EdgeSearchScratch } from "../pathfinding/search";
 import {
   DEFAULT_DRIVE_SIDE,
@@ -44,6 +45,12 @@ export interface PathfindingEngineDeps {
   driveSide?: DriveSide;
   /** ALT landmark tables from GraphBuilder; omit/null to use the haversine bound alone. */
   landmarks?: LandmarkIndex | null;
+  /**
+   * `SPEED_PROFILE_MAX_SPEED_RATIO` when learned speed profiles are enabled
+   * (the landmarks/maxNetworkSpeed were built for it), null when disabled —
+   * in which case {@link PathfindingEngine.setSpeedOverrides} is a no-op.
+   */
+  speedProfileRatio?: number | null;
 }
 
 /** Dense per-graph index stamped on nodes and edges for the typed-array search state. */
@@ -58,6 +65,7 @@ export class PathfindingEngine {
   private readonly turnBans: Map<string, Set<string>>;
   private readonly driveSide: DriveSide;
   private readonly maxNetworkSpeed: number;
+  private readonly speedProfileRatio: number | null;
 
   /**
    * Reusable ALT heuristic (null when landmark preprocessing is disabled).
@@ -78,11 +86,22 @@ export class PathfindingEngine {
   // A* route cache — avoids recomputing identical start→end routes
   private routeCache: LRUCache<Route>;
 
-  /** Every searchable edge by `searchIndex`; built with the scratch on first search. */
+  /** Every searchable edge by `searchIndex`; built on first search or first index lookup. */
   private searchEdges: Edge[] = [];
-  /** `edgeBaseCost` by `searchIndex`. */
+  /**
+   * Effective base cost by `searchIndex`: `edgeBaseCost`, except for edges with
+   * a learned speed in the active profile table (see {@link setSpeedOverrides}).
+   */
   private searchBaseCost = new Float64Array(0);
+  private indexed = false;
   private scratch: EdgeSearchScratch | null = null;
+
+  /** Clamped learned speed (km/h) by `searchIndex`; 0 = none. Allocated on first table. */
+  private learnedSpeeds: Float32Array | null = null;
+  /** Indices overridden by the active table, restored when it is replaced. */
+  private overridden = new Int32Array(0);
+  /** Bumped on every applied table; part of the route-cache key. */
+  private profileVersion = 0;
 
   // Lazily-built cache of synthetic "U-turn" fallback edges (one per real edge).
   private fallbackEdges: Map<string, Edge> = new Map();
@@ -94,6 +113,7 @@ export class PathfindingEngine {
     this.turnBans = deps.turnBans;
     this.driveSide = deps.driveSide ?? DEFAULT_DRIVE_SIDE;
     this.maxNetworkSpeed = deps.maxNetworkSpeed;
+    this.speedProfileRatio = deps.speedProfileRatio ?? null;
     this.alt = deps.landmarks ? new AltHeuristic(deps.landmarks) : null;
 
     this.routeCache = new LRUCache<Route>({
@@ -138,7 +158,7 @@ export class PathfindingEngine {
    */
   public findRoute(start: Node, end: Node): Route | null {
     // Check cache first
-    const cacheKey = `${start.id}|${end.id}|${this.incidentFingerprint()}`;
+    const cacheKey = `${start.id}|${end.id}|${this.costFingerprint()}`;
     const cached = this.routeCache.get(cacheKey);
     if (cached) return { edges: [...cached.edges], distance: cached.distance };
 
@@ -236,6 +256,14 @@ export class PathfindingEngine {
    */
   private getScratch(): EdgeSearchScratch {
     if (this.scratch) return this.scratch;
+    this.ensureIndexed();
+    this.scratch = new EdgeSearchScratch(this.searchEdges.length, this.nodes.size);
+    return this.scratch;
+  }
+
+  /** Stamps the dense node/edge indices and mirrors the base costs (idempotent). */
+  private ensureIndexed(): void {
+    if (this.indexed) return;
     let nodeIndex = 0;
     const edges: Edge[] = [];
     for (const node of this.nodes.values()) {
@@ -247,8 +275,87 @@ export class PathfindingEngine {
     }
     this.searchEdges = edges;
     this.searchBaseCost = Float64Array.from(edges, (e) => this.edgeBaseCost.get(e.id) ?? 0);
-    this.scratch = new EdgeSearchScratch(edges.length, nodeIndex);
-    return this.scratch;
+    this.indexed = true;
+  }
+
+  // ─── Learned speed profiles (fleetsim-all-1ajn.4) ─────────────────
+
+  /** Number of searchable edges (the dense index range). */
+  public get edgeCount(): number {
+    this.ensureIndexed();
+    return this.searchEdges.length;
+  }
+
+  /**
+   * Dense index of a graph edge — node insertion order, then each node's
+   * connections, exactly the order the worker assigns `WorkerEdge.index` — or -1
+   * for an edge that is not part of the graph (e.g. a synthetic U-turn fallback,
+   * which is a spread copy and so carries its original's stamp).
+   */
+  public edgeIndexOf(edge: Edge): number {
+    this.ensureIndexed();
+    const i = (edge as Edge & SearchIndexed).searchIndex;
+    return i !== undefined && this.searchEdges[i] === edge ? i : -1;
+  }
+
+  public edgeAt(index: number): Edge | undefined {
+    this.ensureIndexed();
+    return this.searchEdges[index];
+  }
+
+  /**
+   * Replaces the active learned-speed table: listed edges are priced at their
+   * clamped learned speed (see `pathfinding/cost.ts`), every edge of the previous
+   * table goes back to its static base cost. Returns false (and changes nothing)
+   * when speed profiles are disabled for this graph.
+   */
+  public setSpeedOverrides(table: SpeedOverrideTable): boolean {
+    const ratio = this.speedProfileRatio;
+    if (ratio === null) return false;
+    this.ensureIndexed();
+    const edges = this.searchEdges;
+    if (!this.learnedSpeeds) this.learnedSpeeds = new Float32Array(edges.length);
+    const learned = this.learnedSpeeds;
+    for (const i of this.overridden) {
+      learned[i] = 0;
+      this.searchBaseCost[i] = this.edgeBaseCost.get(edges[i].id) ?? 0;
+    }
+    const applied: number[] = [];
+    for (let k = 0; k < table.indices.length; k++) {
+      const i = table.indices[k];
+      const edge = edges[i];
+      if (!edge || !(table.speeds[k] > 0)) continue;
+      const speed = clampLearnedSpeed(table.speeds[k], edge.freeFlowSpeed ?? edge.maxSpeed, ratio);
+      learned[i] = speed;
+      this.searchBaseCost[i] = edge.distance / speed;
+      applied.push(i);
+    }
+    this.overridden = Int32Array.from(applied);
+    this.profileVersion++;
+    return true;
+  }
+
+  /** The clamped learned speed the search currently prices `edge` at, if any. */
+  public learnedSpeedKmh(edge: Edge): number | undefined {
+    if (!this.learnedSpeeds) return undefined;
+    const i = this.edgeIndexOf(edge);
+    const speed = i >= 0 ? this.learnedSpeeds[i] : 0;
+    return speed > 0 ? speed : undefined;
+  }
+
+  /** Version of the active learned-speed table (0 = none applied yet). */
+  public get speedProfileVersion(): number {
+    return this.profileVersion;
+  }
+
+  /**
+   * Everything besides start/end that changes a route: incidents and the active
+   * learned-speed table. Used in route-cache keys; identical to
+   * {@link incidentFingerprint} until a profile table is applied.
+   */
+  public costFingerprint(): string {
+    const incidents = this.incidentFingerprint();
+    return this.profileVersion === 0 ? incidents : `${incidents}#p${this.profileVersion}`;
   }
 
   /** {@link calculateHeuristic}, memoized per node for the current search. */

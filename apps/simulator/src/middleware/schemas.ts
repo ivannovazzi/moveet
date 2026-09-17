@@ -258,3 +258,52 @@ export const assignJobSchema = z
     message: "vehicleId is required when strategy is manual",
     path: ["vehicleId"],
   });
+
+// ─── Learned speed profiles ─────────────────────────────────────────
+
+/** A profile file as written by `GET /speed-profiles/export`. */
+export const speedProfileFileSchema = z
+  .object({
+    format: z.literal("moveet-speed-profiles"),
+    version: z.literal(1),
+    period: z.enum(["week", "day"]),
+    bucketHours: z.number().int().min(1).max(168),
+    exportedAt: z.string().optional(),
+    edges: z.array(
+      z.object({
+        id: z.string().min(1),
+        way: z.string().optional(),
+        b: z.array(
+          z.tuple([
+            z.number().int().min(0),
+            z.number().positive(),
+            z.number().int().min(1).max(65535),
+          ])
+        ),
+      })
+    ),
+  })
+  .refine((f) => (f.period === "week" ? 168 : 24) % f.bucketHours === 0, {
+    message: "bucketHours must divide the period (168 for week, 24 for day)",
+    path: ["bucketHours"],
+  });
+
+export const speedProfileImportQuerySchema = z.object({
+  mode: z.enum(["merge", "replace"]).optional(),
+});
+
+/** Real position fixes for the adapter speed-profile source. */
+export const speedProfileObservationsSchema = z.object({
+  fixes: z
+    .array(
+      z.object({
+        vehicleId: z.string().min(1),
+        position: z.tuple([
+          z.number().min(-90, "latitude must be between -90 and 90").max(90),
+          z.number().min(-180, "longitude must be between -180 and 180").max(180),
+        ]),
+        timestamp: z.number().int().nonnegative(),
+      })
+    )
+    .max(10_000),
+});

@@ -33,7 +33,11 @@ import {
   createScenarioRoutes,
   createStateRoutes,
   createMetricsRoutes,
+  createSpeedProfileRoutes,
 } from "./routes";
+import { SPEED_PROFILE_IMPORT_LIMIT, SPEED_PROFILE_IMPORT_PATH } from "./routes/speedProfiles";
+import { SpeedProfileManager } from "./modules/speedprofiles/SpeedProfileManager";
+import type { SpeedProfileFile } from "./modules/speedprofiles/SpeedProfileStore";
 import { createGeofenceRoutes } from "./routes/geofences";
 import type { RouteContext } from "./routes";
 import { metricsMiddleware } from "./middleware/metrics";
@@ -46,7 +50,13 @@ logConfig();
 const app = express();
 app.use(cors({ origin: true }));
 app.use(compression());
-app.use(express.json());
+// The speed-profile import takes a whole profile file; every other route keeps
+// express's default body limit.
+const jsonBody = express.json();
+const largeJsonBody = express.json({ limit: SPEED_PROFILE_IMPORT_LIMIT });
+app.use((req, res, next) =>
+  (req.path === SPEED_PROFILE_IMPORT_PATH ? largeJsonBody : jsonBody)(req, res, next)
+);
 
 // Correlation ID and request logging middleware
 app.use(correlationIdMiddleware);
@@ -76,6 +86,28 @@ const scenarioManager = new ScenarioManager(
   jobManager
 );
 
+// ─── Learned speed profiles (optional) ──────────────────────────────
+
+// Off by default (SPEED_PROFILES_ENABLED): routing is then byte-for-byte the
+// static model, and the network was built without the learned-speed landmark
+// bound. When on, the simulated clock picks the active time bucket.
+let speedProfiles: SpeedProfileManager | undefined;
+if (config.speedProfilesEnabled) {
+  speedProfiles = new SpeedProfileManager(
+    network,
+    {
+      sources: config.speedProfileSources,
+      layout: { period: config.speedProfilePeriod, bucketHours: config.speedProfileBucketHours },
+      minSamples: config.speedProfileMinSamples,
+      alpha: config.speedProfileEwmaAlpha,
+      publishIntervalMs: config.speedProfilePublishIntervalMs,
+    },
+    () => vehicleManager.clock.now()
+  );
+  speedProfiles.install();
+  vehicleManager.routeManager.setTraversalRecorder(speedProfiles.recorder);
+}
+
 // ─── Persistence (optional) ─────────────────────────────────────────
 
 let persistenceManager: PersistenceManager | undefined;
@@ -89,7 +121,22 @@ if (config.persistenceEnabled) {
     fleetManager,
     geoFenceManager,
     incidentManager,
+    speedProfiles,
   });
+}
+
+if (speedProfiles) {
+  // Learned profiles are accumulated knowledge rather than run state, so they
+  // load whenever persistence is on (independent of RESTORE_STATE); a seed
+  // file merges on top.
+  if (stateStore) speedProfiles.loadFrom(stateStore);
+  if (config.speedProfileSeedFile) {
+    const seed = JSON.parse(
+      fs.readFileSync(path.resolve(config.speedProfileSeedFile), "utf8")
+    ) as SpeedProfileFile;
+    const result = speedProfiles.importFile(seed, "merge");
+    logger.info(result, `Seeded speed profiles from ${config.speedProfileSeedFile}`);
+  }
 }
 
 // ─── Route context shared by all route modules ──────────────────────
@@ -140,6 +187,9 @@ app.use(createGeofenceRoutes(geoFenceManager));
 app.use(createMetricsRoutes());
 if (persistenceManager) {
   app.use(createStateRoutes(persistenceManager));
+}
+if (speedProfiles) {
+  app.use(createSpeedProfileRoutes(speedProfiles));
 }
 
 // ─── API documentation ──────────────────────────────────────────────
