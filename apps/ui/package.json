@@ -29,7 +29,7 @@
     "@deck.gl/layers": "^9.3.10",
     "@deck.gl/mesh-layers": "9.3.10",
     "@deck.gl/react": "^9.3.10",
-    "@deck.gl/widgets": "^9.3.10",
+    "@deck.gl/widgets": "^9.4.0",
     "@loaders.gl/gltf": "4.4.5",
     "@loaders.gl/images": "4.4.5",
     "@luma.gl/core": "^9.3.6",
