@@ -1,7 +1,13 @@
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DeckGL from "@deck.gl/react";
-import { MapView, WebMercatorViewport } from "@deck.gl/core";
+import {
+  AmbientLight,
+  DirectionalLight,
+  LightingEffect,
+  MapView,
+  WebMercatorViewport,
+} from "@deck.gl/core";
 import type { Layer, MapViewState, PickingInfo } from "@deck.gl/core";
 
 // `TooltipContent` isn't re-exported from the @deck.gl/core package root
@@ -255,6 +261,41 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
     [roadLayers, registeredLayers]
   );
 
+  /**
+   * Lighting for the 3D vehicle meshes (`SimpleMeshLayer` in VehiclesLayer).
+   *
+   * Nothing else on the map is lit: the road/route `PathLayer`s and the
+   * scatterplot/icon layers ignore lighting entirely, and the density
+   * `HexagonLayer` is `extruded: false`, so this changes the appearance of the
+   * vehicle meshes and nothing else.
+   *
+   * No shadows. `LightingEffect` will cast them with `_shadow: true`, but each
+   * shadow-casting light costs a full extra scene render pass every frame —
+   * the single most expensive thing this map could switch on, for a cue that a
+   * vehicle at 20px doesn't need. The strong ambient term plus a shallow key
+   * light gives the faceted models enough tonal separation on their own.
+   */
+  const lightingEffect = useMemo(
+    () =>
+      new LightingEffect({
+        ambient: new AmbientLight({ color: [255, 255, 255], intensity: 1.55 }),
+        key: new DirectionalLight({
+          color: [255, 252, 244],
+          intensity: 1.05,
+          // From the upper left and behind the camera's default bearing, so the
+          // lit face is the one turned towards the viewer.
+          direction: [-0.6, -0.8, -1],
+        }),
+        fill: new DirectionalLight({
+          color: [212, 224, 255],
+          intensity: 0.5,
+          direction: [0.8, 0.6, -0.4],
+        }),
+      }),
+    []
+  );
+  const effects = useMemo(() => [lightingEffect], [lightingEffect]);
+
   /** Returns [[west, south], [east, north]] i.e. [[minLng, minLat], [maxLng, maxLat]]. */
   const getBoundingBox = useCallback((): [[number, number], [number, number]] => {
     if (!viewport) {
@@ -418,6 +459,7 @@ export const DeckGLMap: React.FC<DeckGLMapProps> = ({
                       onViewStateChange as Parameters<typeof DeckGL>[0]["onViewStateChange"]
                     }
                     layers={allLayers}
+                    effects={effects}
                     onClick={handleClick}
                     onError={handleDeckError}
                     pickingRadius={5}
