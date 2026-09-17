@@ -42,7 +42,14 @@ function TooltipContent({
         {...props}
       >
         {children}
-        <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px] border-b border-r border-border bg-glass-bot" />
+        {/*
+          The arrow is the rotated, bordered SQUARE this svg box is styled into
+          — not the `<polygon>` Radix renders inside it. That polygon has no
+          fill attribute, so without `fill-transparent` it paints solid black
+          (the CSS initial value) straight over the glass, which is exactly how
+          it looked the first time this primitive was ever mounted.
+        */}
+        <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px] border-r border-b border-border bg-glass-bot fill-transparent" />
       </TooltipPrimitive.Content>
     </TooltipPrimitive.Portal>
   );
