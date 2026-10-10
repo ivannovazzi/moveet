@@ -1,7 +1,6 @@
 import path from "path";
-import crypto from "crypto";
 import { fileURLToPath } from "url";
-import { resolveRegion, listRegions } from "../regions.js";
+import { resolveRegion, listRegions, regionCacheName } from "../regions.js";
 import { checkOsmiumAvailable } from "../docker.js";
 import { download, getCachePath } from "./download.js";
 import { extract } from "./extract.js";
@@ -75,16 +74,7 @@ export async function prepare(opts: PrepareOptions): Promise<void> {
   const output = resolvedOpts.output ?? DEFAULT_OUTPUT;
   const classes = resolvedOpts.classes ?? [...DEFAULT_ROAD_CLASSES];
   const regionName = resolvedOpts.region ?? "custom";
-  // Named regions key the cache by name; custom (bbox) runs key by a short
-  // hash of geofabrik + bbox so distinct custom areas don't collide on
-  // "custom.osm.pbf".
-  const safeName = resolvedOpts.region
-    ? regionName.replace(/[^a-z0-9-]/g, "-")
-    : `custom-${crypto
-        .createHash("sha1")
-        .update(`${region.geofabrik}|${region.bbox.join(",")}`)
-        .digest("hex")
-        .slice(0, 8)}`;
+  const safeName = regionCacheName(resolvedOpts.region, region);
 
   // Derive cache file paths from geofabrik path + region name
   const pbfCountry = getCachePath(region.geofabrik, CACHE_DIR);

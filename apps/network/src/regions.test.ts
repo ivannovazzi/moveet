@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveRegion, listRegions } from "./regions.js";
+import { resolveRegion, listRegions, regionCacheName } from "./regions.js";
 
 describe("resolveRegion", () => {
   it("resolves a known region by name", () => {
@@ -40,5 +40,21 @@ describe("listRegions", () => {
     expect(names).toContain("london");
     expect(names.length).toBeGreaterThanOrEqual(10);
     expect(names).toEqual([...names].sort());
+  });
+});
+
+describe("regionCacheName", () => {
+  it("keys named regions by name", () => {
+    expect(regionCacheName("mexico-city", resolveRegion({ region: "mexico-city" }))).toBe(
+      "mexico-city"
+    );
+  });
+
+  it("keys custom regions by a stable hash of geofabrik + bbox", () => {
+    const a = resolveRegion({ bbox: [1, 2, 3, 4], geofabrik: "x/y" });
+    const b = resolveRegion({ bbox: [1, 2, 3, 5], geofabrik: "x/y" });
+    expect(regionCacheName(undefined, a)).toMatch(/^custom-[0-9a-f]{8}$/);
+    expect(regionCacheName(undefined, a)).toBe(regionCacheName(undefined, a));
+    expect(regionCacheName(undefined, a)).not.toBe(regionCacheName(undefined, b));
   });
 });

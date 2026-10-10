@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { createRequire } from "module";
 import { z } from "zod";
 
@@ -56,4 +57,21 @@ export function resolveRegion(opts: ResolveOptions): ResolvedRegion {
 
 export function listRegions(): string[] {
   return Object.keys(manifest).sort();
+}
+
+/**
+ * File-name stem for a region's cached extracts (`<stem>.osm.pbf`,
+ * `<stem>-roads.osm.pbf`, ...). Named regions key the cache by name; custom
+ * (bbox) runs key by a short hash of geofabrik + bbox so distinct custom areas
+ * don't collide on "custom.osm.pbf". Shared by `prepare` and `buildings`, so
+ * both reuse the same bbox extract.
+ */
+export function regionCacheName(regionKey: string | undefined, region: ResolvedRegion): string {
+  if (regionKey) return regionKey.replace(/[^a-z0-9-]/g, "-");
+  const hash = crypto
+    .createHash("sha1")
+    .update(`${region.geofabrik}|${region.bbox.join(",")}`)
+    .digest("hex")
+    .slice(0, 8);
+  return `custom-${hash}`;
 }
