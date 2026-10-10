@@ -1,5 +1,6 @@
 import type { GeocodeResult } from "@moveet/shared-types";
 import type { FetchLike } from "./GeofabrikIndex";
+import { simplifyPolygons } from "./simplify";
 
 /**
  * Server-side place search against Nominatim, for picking a map area by name.
@@ -51,6 +52,30 @@ interface NominatimPlace {
   class?: string;
   type?: string;
   category?: string;
+  geojson?: { type?: string; coordinates?: unknown };
+}
+
+/** Upstream simplification Nominatim applies before sending a boundary (degrees). */
+const NOMINATIM_POLYGON_THRESHOLD = "0.0005";
+
+/**
+ * The place's boundary, simplified for a map preview: the tolerance scales
+ * with the place's size, so a district keeps its shape and a country stays
+ * small on the wire. Undefined for places without an area (points, roads).
+ */
+export function placeOutline(
+  geojson: NominatimPlace["geojson"],
+  bbox: [number, number, number, number]
+): [number, number][][][] | undefined {
+  if (!geojson) return undefined;
+  let polygons: [number, number][][][];
+  if (geojson.type === "Polygon") polygons = [geojson.coordinates as [number, number][][]];
+  else if (geojson.type === "MultiPolygon") {
+    polygons = geojson.coordinates as [number, number][][][];
+  } else return undefined;
+  const span = Math.max(bbox[2] - bbox[0], bbox[3] - bbox[1]);
+  const outline = simplifyPolygons(polygons, Math.max(0.0005, span / 400));
+  return outline.length > 0 ? outline : undefined;
 }
 
 /** Nominatim's `boundingbox` is `[south, north, west, east]` as strings. */
@@ -61,11 +86,14 @@ export function toGeocodeResult(place: NominatimPlace): GeocodeResult | null {
   if (bb?.length !== 4 || !bb.every(Number.isFinite)) return null;
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
   const [s, n, w, e] = bb;
+  const bbox: [number, number, number, number] = [w, s, e, n];
+  const outline = placeOutline(place.geojson, bbox);
   return {
     name: place.display_name ?? `${lat}, ${lon}`,
-    bbox: [w, s, e, n],
+    bbox,
     center: [lon, lat],
     type: `${place.class ?? place.category ?? "place"}/${place.type ?? "unknown"}`,
+    ...(outline ? { outline } : {}),
   };
 }
 
@@ -126,6 +154,9 @@ export class Geocoder {
     url.searchParams.set("q", query);
     url.searchParams.set("format", "jsonv2");
     url.searchParams.set("limit", String(this.opts.limit ?? 8));
+    // The place's own boundary, for the area picker's live preview.
+    url.searchParams.set("polygon_geojson", "1");
+    url.searchParams.set("polygon_threshold", NOMINATIM_POLYGON_THRESHOLD);
     let res: Awaited<ReturnType<FetchLike>>;
     try {
       res = await this.fetchImpl(url.toString(), {

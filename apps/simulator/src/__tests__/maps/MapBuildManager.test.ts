@@ -117,6 +117,7 @@ let activate: ReturnType<typeof vi.fn<(id: string) => Promise<unknown>>>;
 let geofabrik: {
   get: ReturnType<typeof vi.fn<(p: string) => Promise<GeofabrikRegion | null>>>;
   covers: ReturnType<typeof vi.fn<(p: string, b: Bbox) => Promise<boolean>>>;
+  smallestContaining: ReturnType<typeof vi.fn<(b: Bbox) => Promise<GeofabrikRegion | null>>>;
 };
 
 function manager(overrides: Partial<MapBuildManagerOptions> = {}): MapBuildManager {
@@ -184,6 +185,13 @@ beforeEach(() => {
         : null
     ),
     covers: vi.fn(async (_p: string, _b: Bbox) => true),
+    smallestContaining: vi.fn(async (_b: Bbox) => ({
+      path: "europe/italy",
+      name: "Italy",
+      bbox: [6.6, 36.6, 18.6, 47.1] as Bbox,
+      areaKm2: 1,
+      url: "",
+    })),
   };
 });
 
@@ -392,9 +400,29 @@ describe("MapBuildManager: guards", () => {
     expect(fake.calls).toHaveLength(0);
   });
 
-  it("rejects a bbox outside the named extract with 422", async () => {
+  it("rejects a bbox outside the named extract with 422, naming one that holds it", async () => {
+    const m = manager();
     geofabrik.covers.mockResolvedValueOnce(false);
-    await expect(manager().submit(BERGAMO)).rejects.toMatchObject({ status: 422 });
+    await expect(m.submit(BERGAMO)).rejects.toMatchObject({
+      status: 422,
+      message: expect.stringMatching(/smallest extract that contains it is europe\/italy/),
+    });
+  });
+
+  it("cuts an unnamed custom area from the smallest containing extract, bbox untouched", async () => {
+    const m = manager();
+    const { geofabrik: _named, ...unnamed } = BERGAMO;
+    const job = await m.submit(unnamed);
+    expect(job).toMatchObject({ bbox: BERGAMO.bbox, geofabrik: "europe/italy" });
+    expect(geofabrik.smallestContaining).toHaveBeenCalledWith(BERGAMO.bbox);
+  });
+
+  it("answers 422 for an unnamed area no extract holds", async () => {
+    const m = manager();
+    geofabrik.smallestContaining.mockResolvedValueOnce(null);
+    const { geofabrik: _named, ...unnamed } = BERGAMO;
+    await expect(m.submit(unnamed)).rejects.toMatchObject({ status: 422 });
+    expect(fake.calls).toHaveLength(0);
   });
 
   it("answers 503 when the Geofabrik index is unavailable", async () => {

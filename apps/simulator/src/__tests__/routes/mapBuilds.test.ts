@@ -100,6 +100,32 @@ describe("POST /maps", () => {
     expect(runner).toHaveBeenCalledTimes(1);
   });
 
+  it("builds exactly the requested bbox from the smallest containing extract when none is named", async () => {
+    const res = await request(app()).post("/maps").send({ label: "Bergamo", bbox: BERGAMO_BBOX });
+    expect(res.status).toBe(202);
+    expect(res.body).toMatchObject({ bbox: BERGAMO_BBOX, geofabrik: "europe/italy/nord-ovest" });
+    expect(runner.mock.calls[0][0]).toMatchObject({
+      bbox: BERGAMO_BBOX,
+      geofabrik: "europe/italy/nord-ovest",
+    });
+  });
+
+  it("walks up to the parent extract for a box across a regional border", async () => {
+    // Straddles the nord-ovest / nord-est border at 10.5: only Italy holds it all.
+    const bbox = [10.45, 45.5, 10.55, 45.55];
+    const res = await request(app()).post("/maps").send({ label: "Border", bbox });
+    expect(res.status).toBe(202);
+    expect(res.body).toMatchObject({ bbox, geofabrik: "europe/italy" });
+  });
+
+  it("answers 422 when no extract holds the whole bbox", async () => {
+    const res = await request(app())
+      .post("/maps")
+      .send({ label: "Nowhere", bbox: [100, 10, 100.1, 10.1] });
+    expect(res.status).toBe(422);
+    expect(res.body.error).toMatch(/No Geofabrik extract contains the whole bbox/);
+  });
+
   it("accepts a preset", async () => {
     const res = await request(app())
       .post("/maps")
@@ -111,7 +137,7 @@ describe("POST /maps", () => {
   it.each([
     ["an empty body", {}],
     ["a preset mixed with a custom area", { preset: "bergamo", bbox: BERGAMO_BBOX }],
-    ["a missing geofabrik", { label: "x", bbox: BERGAMO_BBOX }],
+    ["a missing bbox", { label: "x", geofabrik: "europe/italy" }],
     ["a three-value bbox", { label: "x", bbox: [1, 2, 3], geofabrik: "europe/italy" }],
     ["a latitude out of range", { label: "x", bbox: [0, 0, 1, 95], geofabrik: "europe/italy" }],
     [
@@ -142,6 +168,9 @@ describe("POST /maps", () => {
       .post("/maps")
       .send({ label: "x", bbox: BERGAMO_BBOX, geofabrik: "europe/italy/nord-est" });
     expect(res.status).toBe(422);
+    expect(res.body.error).toMatch(
+      /smallest extract that contains it is europe\/italy\/nord-ovest/
+    );
   });
 
   it("rejects an unordered or oversized bbox with 400", async () => {
@@ -258,6 +287,19 @@ describe("GET /maps/geofabrik", () => {
     ]);
   });
 
+  it("names the extracts a border-crossing bbox spans", async () => {
+    const res = await request(app())
+      .get("/maps/geofabrik")
+      .query({ bbox: "10.45,45.5,10.55,45.55" });
+    expect(res.status).toBe(200);
+    expect(res.body.regions[0].path).toBe("europe/italy");
+    expect(res.body.regions[0].parent).toBe("europe");
+    expect(res.body.crosses.map((r: { path: string }) => r.path).sort()).toEqual([
+      "europe/italy/nord-est",
+      "europe/italy/nord-ovest",
+    ]);
+  });
+
   it.each(["", "1,2,3", "a,b,c,d", "10,0,5,1", "0,0,1,1,2"])("rejects bbox=%j", async (bbox) => {
     const res = await request(app()).get("/maps/geofabrik").query({ bbox });
     expect(res.status).toBe(400);
@@ -282,6 +324,45 @@ describe("GET /maps/geofabrik", () => {
       })
     );
     const res = await request(a).get("/maps/geofabrik").query({ bbox: "0,0,1,1" });
+    expect(res.status).toBe(503);
+  });
+});
+
+describe("GET /maps/geofabrik/regions", () => {
+  it("serves simplified outlines with depth, parent and a credit", async () => {
+    const res = await request(app()).get("/maps/geofabrik/regions");
+    expect(res.status).toBe(200);
+    expect(res.headers["cache-control"]).toMatch(/max-age=3600/);
+    expect(res.body.attribution).toMatch(/Geofabrik/);
+    expect(res.body.attribution).toMatch(/OpenStreetMap/);
+    const italy = res.body.regions.find((r: { path: string }) => r.path === "europe/italy");
+    expect(italy).toMatchObject({ name: "Italy", parent: "europe", depth: 1 });
+    expect(italy.polygons).toHaveLength(2);
+    const nordOvest = res.body.regions.find(
+      (r: { path: string }) => r.path === "europe/italy/nord-ovest"
+    );
+    expect(nordOvest.depth).toBe(2);
+  });
+
+  it("answers 503 when the index cannot be fetched", async () => {
+    const a = express();
+    const geofabrik = new GeofabrikIndex({
+      cacheDir: path.join(root, "empty"),
+      ttlMs: 1,
+      userAgent: "t",
+      fetch: (async () => {
+        throw new Error("offline");
+      }) as FetchLike,
+    });
+    a.use(
+      createMapBuildRoutes({
+        builds: {} as MapBuildManager,
+        geofabrik,
+        geocoder: { search },
+        presets: {},
+      })
+    );
+    const res = await request(a).get("/maps/geofabrik/regions");
     expect(res.status).toBe(503);
   });
 });

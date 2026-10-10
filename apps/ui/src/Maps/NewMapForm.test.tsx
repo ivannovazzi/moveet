@@ -14,44 +14,54 @@ vi.mock("@/utils/client", async () => {
 });
 
 import { controlsRef } from "@/components/Map/providers/controls";
-import { getAreaDraft, setDraftArea } from "./areaDraft";
+import { adjustArea, clearAreaDraft, getAreaDraft } from "./areaDraft";
+import { bboxAreaKm2 } from "./bbox";
 import MapsPanel from "./MapsPanel";
 import { resetMapsStore } from "./mapsStore";
 
-const LISBON_BBOX = [-9.25, 38.69, -9.09, 38.8];
 const PORTO_BBOX = [-8.69, 41.13, -8.55, 41.19];
-
-const PRESETS = {
-  presets: [
-    {
-      name: "lisbon",
-      label: "Lisbon",
-      bbox: LISBON_BBOX,
-      geofabrik: "europe/portugal",
-      areaKm2: 170,
-    },
-    { name: "texas", label: "Texas", bbox: [-106, 26, -93, 36], areaKm2: 690_000 },
+const PORTO_OUTLINE = [
+  [
+    [
+      [-8.68, 41.14],
+      [-8.56, 41.14],
+      [-8.56, 41.18],
+      [-8.68, 41.18],
+      [-8.68, 41.14],
+    ],
   ],
-};
+];
+const BRAGA_BBOX = [-8.5, 41.5, -8.35, 41.6];
+// A district far over the 2,500 km² cap.
+const ALENTEJO_BBOX = [-9, 38, -7, 39.5];
 
 type Route = Reply | ((i: { url: URL; body: unknown }) => Reply | Promise<Reply>);
 
 function server(routes: Record<string, Route> = {}) {
   return mockMapsServer({
     "GET /maps": { body: libraryBody([makeMap()], "nairobi") },
-    "GET /maps/presets": { body: PRESETS },
+    "GET /maps/presets": { body: { presets: [] } },
     "GET /maps/jobs": { body: { jobs: [] } },
     "GET /maps/geofabrik": {
       body: {
         regions: [
-          { path: "europe/portugal", name: "Portugal" },
-          { path: "europe", name: "Europe" },
+          {
+            path: "europe/portugal",
+            name: "Portugal",
+            areaKm2: 92_000,
+            sizeBytes: 380 * 1024 ** 2,
+          },
+          { path: "europe", name: "Europe", areaKm2: 20_000_000 },
         ],
       },
     },
     "GET /maps/geocode": {
       body: {
-        results: [{ name: "Porto, Portugal", bbox: PORTO_BBOX, type: "place/city" }],
+        results: [
+          { name: "Porto, Portugal", bbox: PORTO_BBOX, type: "place/city", outline: PORTO_OUTLINE },
+          { name: "Braga, Portugal", bbox: BRAGA_BBOX, type: "place/city" },
+          { name: "Alentejo, Portugal", bbox: ALENTEJO_BBOX, type: "boundary/administrative" },
+        ],
         attribution: "Data © OpenStreetMap contributors, ODbL 1.0.",
       },
     },
@@ -66,61 +76,51 @@ async function openForm() {
   return user;
 }
 
+async function search(user: ReturnType<typeof userEvent.setup>, q = "Porto") {
+  await user.type(screen.getByLabelText("Place"), q);
+  return screen.findByRole("button", { name: /Porto, Portugal/ }, { timeout: 2000 });
+}
+
 beforeEach(() => {
   resetMapsStore();
-  setDraftArea(null, null);
+  clearAreaDraft();
   vi.clearAllMocks();
 });
 
 describe("New map form", () => {
-  it("builds a preset, previewing its area on the map", async () => {
-    const setBounds = vi.spyOn(controlsRef, "setBounds");
-    const { calls } = server({
-      "POST /maps": {
-        status: 202,
-        body: { id: "job-9", status: "queued", step: "queued", progress: 0, label: "Lisbon" },
-      },
-    });
-    const user = await openForm();
-    expect(screen.getByRole("button", { name: "Build" })).toBeDisabled();
-
-    await user.click(screen.getByRole("button", { name: /Lisbon/ }));
-    expect(getAreaDraft()).toMatchObject({ bbox: LISBON_BBOX, origin: "preset" });
-    expect(setBounds).toHaveBeenCalledWith([
-      [-9.25, 38.69],
-      [-9.09, 38.8],
-    ]);
-    expect(screen.getByText("of 2,500 km² max").parentElement).toHaveTextContent(
-      "170 km² of 2,500 km² max"
-    );
-    expect(screen.getByText("europe/portugal")).toBeInTheDocument();
-    expect(screen.getByLabelText("Name")).toHaveValue("Lisbon");
-
-    await user.click(screen.getByRole("switch", { name: "Include 3D buildings" }));
-    await user.click(screen.getByRole("button", { name: "Build" }));
-
-    await waitFor(() => expect(calls.some((c) => c.method === "POST")).toBe(true));
-    expect(calls.find((c) => c.method === "POST")?.body).toEqual({
-      preset: "lisbon",
-      label: "Lisbon",
-      buildings: false,
-      activate: false,
-    });
-    // Back on the library, with the preview gone.
-    expect(await screen.findByRole("list", { name: "Map library" })).toBeInTheDocument();
-    expect(getAreaDraft().bbox).toBeNull();
-    expect(toast.info).toHaveBeenCalledWith("Map build started");
-  });
-
-  it("blocks an area over the server's cap", async () => {
+  it("opens as a dialog with just a place search", async () => {
     server();
-    const user = await openForm();
-    await user.click(screen.getByRole("button", { name: /Texas/ }));
-    expect(screen.getByText(/over the 2,500 km² limit/)).toBeInTheDocument();
+    await openForm();
+    expect(screen.getByRole("dialog", { name: "New map" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Place")).toHaveFocus();
+    // jsdom has no WebGL2: the search still works without the world map.
+    expect(screen.getByText(/cannot draw the world map/)).toBeInTheDocument();
+    expect(screen.queryByRole("tab")).toBeNull();
     expect(screen.getByRole("button", { name: "Build" })).toBeDisabled();
   });
 
-  it("finds a place, resolves its source extract and builds it", async () => {
+  it("shows the top result live, previews a hovered one, and never moves the simulation map", async () => {
+    const setBounds = vi.spyOn(controlsRef, "setBounds");
+    const { calls } = server();
+    const user = await openForm();
+    await search(user);
+    // Debounced: one request for the whole word.
+    expect(calls.filter((c) => c.path.startsWith("/maps/geocode"))).toHaveLength(1);
+    expect(screen.getByText(/OpenStreetMap contributors/)).toBeInTheDocument();
+
+    // The top hit is on the map as soon as it arrives, outline and all.
+    expect(getAreaDraft().preview).toEqual({ bbox: PORTO_BBOX, outline: PORTO_OUTLINE });
+    const focused = getAreaDraft().focus?.seq;
+
+    await user.hover(screen.getByRole("button", { name: /Braga, Portugal/ }));
+    expect(getAreaDraft().preview?.bbox).toEqual(BRAGA_BBOX);
+    expect(getAreaDraft().focus?.seq).toBeGreaterThan(focused ?? 0);
+    // Nothing is chosen until a click.
+    expect(getAreaDraft().bbox).toBeNull();
+    expect(setBounds).not.toHaveBeenCalled();
+  });
+
+  it("builds exactly the picked place's box from the smallest extract", async () => {
     const { calls } = server({
       "POST /maps": {
         status: 202,
@@ -128,35 +128,123 @@ describe("New map form", () => {
       },
     });
     const user = await openForm();
-    await user.click(screen.getByRole("tab", { name: "Search" }));
-    await user.type(screen.getByLabelText("Place"), "Porto");
+    await user.click(await search(user));
 
-    const place = await screen.findByRole("button", { name: /Porto, Portugal/ }, { timeout: 2000 });
-    // Debounced: one request for the whole word.
-    expect(calls.filter((c) => c.path.startsWith("/maps/geocode"))).toHaveLength(1);
-    expect(screen.getByText(/OpenStreetMap contributors/)).toBeInTheDocument();
-
-    await user.click(place);
-    expect(getAreaDraft()).toMatchObject({ bbox: PORTO_BBOX, origin: "search" });
+    expect(getAreaDraft()).toMatchObject({ bbox: PORTO_BBOX, outline: PORTO_OUTLINE });
     expect(screen.getByLabelText("Name")).toHaveValue("Porto");
-
-    // Two extracts contain it: the smallest (listed first) is picked.
-    const smallest = await screen.findByRole("radio", { name: /europe\/portugal/ });
-    expect(smallest).toBeChecked();
-    expect(screen.getByRole("radio", { name: /^europe$/ })).not.toBeChecked();
+    expect(await screen.findByText("Portugal")).toBeInTheDocument();
+    expect(screen.getByText("380.0 MB")).toBeInTheDocument();
+    expect(getAreaDraft().extract.selected).toBe("europe/portugal");
     expect(calls.find((c) => c.path.startsWith("/maps/geofabrik"))?.path).toBe(
       `/maps/geofabrik?bbox=${PORTO_BBOX.join(",")}`
     );
 
+    await user.click(screen.getByRole("switch", { name: "Include 3D buildings" }));
     await user.click(screen.getByRole("button", { name: "Build" }));
     await waitFor(() => expect(calls.some((c) => c.method === "POST")).toBe(true));
     expect(calls.find((c) => c.method === "POST")?.body).toEqual({
       label: "Porto",
       bbox: PORTO_BBOX,
       geofabrik: "europe/portugal",
-      buildings: true,
+      buildings: false,
       activate: false,
     });
+    // Back on the library, with the area gone.
+    expect(await screen.findByRole("list", { name: "Map library" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(getAreaDraft().bbox).toBeNull();
+    expect(toast.info).toHaveBeenCalledWith("Map build started");
+  });
+
+  it("builds the box as adjusted on the map", async () => {
+    const { calls } = server({
+      "POST /maps": {
+        status: 202,
+        body: { id: "job-3", status: "queued", step: "queued", progress: 0, label: "Porto" },
+      },
+    });
+    const user = await openForm();
+    await user.click(await search(user));
+    const adjusted: [number, number, number, number] = [-8.66, 41.14, -8.58, 41.18];
+    act(() => adjustArea(adjusted));
+    await screen.findByText("Portugal");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Build" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "Build" }));
+    await waitFor(() => expect(calls.some((c) => c.method === "POST")).toBe(true));
+    expect(calls.find((c) => c.method === "POST")?.body).toMatchObject({ bbox: adjusted });
+  });
+
+  it("trims a place larger than the cap to an available box around its centre", async () => {
+    server();
+    const user = await openForm();
+    await search(user);
+    await user.click(screen.getByRole("button", { name: /Alentejo, Portugal/ }));
+
+    const [w, s, e, n] = getAreaDraft().bbox as [number, number, number, number];
+    expect(bboxAreaKm2([w, s, e, n])).toBeLessThanOrEqual(2500);
+    expect(bboxAreaKm2([w, s, e, n])).toBeGreaterThan(2400);
+    expect((w + e) / 2).toBeCloseTo(-8, 4);
+    expect((s + n) / 2).toBeCloseTo(38.75, 4);
+    expect(screen.getByText(/Alentejo is larger than the 2,500 km² limit/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Build" })).toBeEnabled());
+  });
+
+  it("explains a border crossing and warns about a large download", async () => {
+    server({
+      "GET /maps/geofabrik": {
+        body: {
+          regions: [
+            { path: "europe/italy", name: "Italy", areaKm2: 1_200_000, sizeBytes: 2.1 * 1024 ** 3 },
+            { path: "europe", name: "Europe", areaKm2: 20_000_000 },
+          ],
+          crosses: [
+            { path: "europe/italy/nord-ovest", name: "Nord-Ovest" },
+            { path: "europe/italy/nord-est", name: "Nord-Est" },
+          ],
+        },
+      },
+    });
+    const user = await openForm();
+    await user.click(await search(user));
+    expect(
+      await screen.findByText(
+        "The box crosses from Nord-Ovest into Nord-Est, so the whole of Italy is downloaded."
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByText(/That is a large download/)).toBeInTheDocument();
+    expect(screen.getByText("2.1 GB")).toBeInTheDocument();
+  });
+
+  it("says which extracts a box spans when none holds it all", async () => {
+    server({
+      "GET /maps/geofabrik": {
+        body: {
+          regions: [],
+          crosses: [
+            { path: "europe/turkey", name: "Turkey" },
+            { path: "asia/georgia", name: "Georgia" },
+          ],
+        },
+      },
+    });
+    const user = await openForm();
+    await user.click(await search(user));
+    const reasons = await screen.findByRole("list", { name: "Why the map cannot be built yet" });
+    await waitFor(() =>
+      expect(
+        within(reasons).getByText(/it spans Turkey into Georgia, which share no extract/)
+      ).toBeInTheDocument()
+    );
+    expect(screen.getByRole("button", { name: "Build" })).toBeDisabled();
+  });
+
+  it("asks for a name", async () => {
+    server();
+    const user = await openForm();
+    await user.click(await search(user));
+    await user.clear(screen.getByLabelText("Name"));
+    expect(await screen.findByText("Give the map a name.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Build" })).toBeDisabled();
   });
 
   it("waits and retries once when the geocoder is rate limited", async () => {
@@ -168,9 +256,7 @@ describe("New map form", () => {
           : { body: { results: [{ name: "Porto, Portugal", bbox: PORTO_BBOX }] } },
     });
     const user = await openForm();
-    await user.click(screen.getByRole("tab", { name: "Search" }));
     await user.type(screen.getByLabelText("Place"), "Porto");
-
     expect(
       await screen.findByText(/The place search is busy/, undefined, { timeout: 2000 })
     ).toBeInTheDocument();
@@ -180,44 +266,13 @@ describe("New map form", () => {
     expect(n).toBe(2);
   });
 
-  it("blocks an area no Geofabrik extract covers", async () => {
-    server({ "GET /maps/geofabrik": { body: { regions: [] } } });
-    const user = await openForm();
-    await user.click(screen.getByRole("tab", { name: "Draw" }));
-    await user.type(screen.getByLabelText("Name"), "Atlantis");
-    act(() => setDraftArea([-30, 30, -29.9, 30.1], "draw"));
-
-    const reasons = await screen.findByRole("list", { name: "Why the map cannot be built yet" });
-    await waitFor(() =>
-      expect(
-        within(reasons).getByText("No Geofabrik extract covers this area.")
-      ).toBeInTheDocument()
-    );
-    expect(screen.getByRole("button", { name: "Build" })).toBeDisabled();
-  });
-
-  it("asks for a name for a custom area", async () => {
-    server();
-    const user = await openForm();
-    await user.click(screen.getByRole("tab", { name: "Draw" }));
-    act(() => setDraftArea(PORTO_BBOX as [number, number, number, number], "draw"));
-    expect(await screen.findByText("Give the map a name.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Build" })).toBeDisabled();
-  });
-
-  it("enters draw mode and shows the server's refusal", async () => {
+  it("shows the server's refusal and keeps the form", async () => {
     server({
       "POST /maps": { status: 507, body: { error: "The map library is over its disk quota" } },
     });
     const user = await openForm();
-    await user.click(screen.getByRole("tab", { name: "Draw" }));
-    await user.click(screen.getByRole("button", { name: "Draw on map" }));
-    expect(getAreaDraft().drawing).toBe(true);
-    expect(screen.getByText("Drag a rectangle on the map. Esc cancels.")).toBeInTheDocument();
-
-    act(() => setDraftArea(PORTO_BBOX as [number, number, number, number], "draw"));
-    await user.type(screen.getByLabelText("Name"), "Porto");
-    await screen.findByRole("radio", { name: /europe\/portugal/ });
+    await user.click(await search(user));
+    await screen.findByText("Portugal");
     await user.click(screen.getByRole("button", { name: "Build" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "The map library is over its disk quota"
@@ -225,12 +280,18 @@ describe("New map form", () => {
     expect(screen.getByRole("form", { name: "New map" })).toBeInTheDocument();
   });
 
-  it("drops the preview when the form closes", async () => {
+  it("drops the area when the dialog closes, by Cancel or Esc", async () => {
     server();
     const user = await openForm();
-    await user.click(screen.getByRole("button", { name: /Lisbon/ }));
+    await user.click(await search(user));
     expect(getAreaDraft().bbox).not.toBeNull();
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(getAreaDraft().bbox).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "New map" }));
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(screen.getByRole("list", { name: "Map library" })).toBeInTheDocument();
   });
 });

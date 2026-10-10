@@ -4,6 +4,8 @@
  * The road network and POIs come from OpenStreetMap extracts, and the ODbL
  * requires a visible credit wherever that data is shown. Another source (a
  * buildings dataset, say) is credited by appending one entry to `CREDITS`.
+ * A map drawn from other sources (the New map picker's world map) passes its
+ * own credits and wording.
  */
 export interface Credit {
   /** Stable key for the entry. */
@@ -22,9 +24,17 @@ export const CREDITS: readonly Credit[] = [
 
 export interface AttributionProps {
   credits?: readonly Credit[];
+  /** Text before the credits (default "© "). */
+  prefix?: string;
+  /** Text after the credits (default " contributors"). */
+  suffix?: string;
 }
 
-export default function Attribution({ credits = CREDITS }: AttributionProps) {
+export default function Attribution({
+  credits = CREDITS,
+  prefix = "© ",
+  suffix = " contributors",
+}: AttributionProps) {
   if (credits.length === 0) return null;
 
   return (
@@ -34,7 +44,7 @@ export default function Attribution({ credits = CREDITS }: AttributionProps) {
       // draggable right up to the text.
       className="pointer-events-none rounded-md border border-border surface-glass glass-frost px-2 py-1 text-micro text-muted-foreground shadow-elevated"
     >
-      {"© "}
+      {prefix}
       {credits.map((credit, i) => (
         <span key={credit.id}>
           {i > 0 && ", "}
@@ -48,7 +58,7 @@ export default function Attribution({ credits = CREDITS }: AttributionProps) {
           </a>
         </span>
       ))}
-      {" contributors"}
+      {suffix}
     </div>
   );
 }

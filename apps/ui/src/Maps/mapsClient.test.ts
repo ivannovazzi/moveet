@@ -13,6 +13,8 @@ import {
   listPresets,
   parseGeocode,
   parseGeofabrik,
+  parseGeofabrikLookup,
+  parseGeofabrikOutlines,
   parseMapJob,
   parseMapJobs,
   parseMapList,
@@ -98,6 +100,38 @@ describe("lookup parsing", () => {
     expect(parseGeofabrik({ regions: [region, { name: "no path" }] })).toEqual([region]);
   });
 
+  it("reads a lookup with the borders a box crosses, ignoring a single crossing", () => {
+    const region = { path: "europe/italy", name: "Italy", bbox: [6, 36, 19, 47], areaKm2: 1 };
+    const crosses = [
+      { path: "europe/italy/nord-ovest", name: "Nord-Ovest" },
+      { path: "europe/italy/nord-est", name: "Nord-Est" },
+    ];
+    expect(parseGeofabrikLookup({ regions: [region], crosses })).toEqual({
+      regions: [region],
+      crosses,
+    });
+    expect(parseGeofabrikLookup({ regions: [region], crosses: [crosses[0]] })).toEqual({
+      regions: [region],
+    });
+    expect(parseGeofabrikLookup({ nope: true })).toBeNull();
+  });
+
+  it("keeps only drawable Geofabrik outlines", () => {
+    const ring = [
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [0, 0],
+    ];
+    const good = { path: "europe", name: "Europe", depth: 0, polygons: [[ring]] };
+    const parsed = parseGeofabrikOutlines({
+      regions: [good, { path: "x", name: "X", depth: 0, polygons: [[[[0, 0]]]] }, { path: 1 }],
+      attribution: "Geofabrik",
+    });
+    expect(parsed).toEqual({ regions: [good], attribution: "Geofabrik" });
+    expect(parseGeofabrikOutlines(null)).toBeNull();
+  });
+
   it("reads geocoder results and the attribution", () => {
     const result = {
       name: "Lisbon, Portugal",
@@ -180,7 +214,7 @@ describe("transport", () => {
       "GET /maps/geocode": { status: 429, body: { error: "Slow down" } },
     });
     const regions = await findGeofabrik([-9.2, 38.7, -9.1, 38.8]);
-    expect(regions.ok && regions.data.map((r) => r.path)).toEqual(["europe/portugal"]);
+    expect(regions.ok && regions.data.regions.map((r) => r.path)).toEqual(["europe/portugal"]);
     const places = await geocode("são paulo");
     expect(!places.ok && places.status).toBe(429);
     expect(calls[0].path).toBe("/maps/geofabrik?bbox=-9.2,38.7,-9.1,38.8");

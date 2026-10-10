@@ -16,7 +16,7 @@ import {
   useMapsState,
   type MapsState,
 } from "./mapsStore";
-import NewMapForm from "./NewMapForm";
+import NewMapDialog from "./NewMapDialog";
 
 const FOCUS_RING =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent";
@@ -61,10 +61,14 @@ export default function MapsPanel() {
     void refreshLibrary();
   }, []);
 
-  if (view === "new" && state.buildSupport === "enabled") {
-    return <NewMapForm library={state.library} onClose={() => setView("library")} />;
-  }
-  return <Library state={state} onNewMap={() => setView("new")} />;
+  return (
+    <>
+      <Library state={state} onNewMap={() => setView("new")} />
+      {view === "new" && state.buildSupport === "enabled" && (
+        <NewMapDialog library={state.library} onClose={() => setView("library")} />
+      )}
+    </>
+  );
 }
 
 function Library({ state, onNewMap }: { state: MapsState; onNewMap: () => void }) {

@@ -298,15 +298,23 @@ export interface MapBuildLimits {
 
 // ─── Map builds ─────────────────────────────────────────────────────
 
-/** `POST /maps` body: a `regions.json` preset, or a custom area of a Geofabrik extract. */
+/**
+ * `POST /maps` body: a `regions.json` preset, or a custom area. A custom map
+ * is cut to exactly `bbox`; `geofabrik` only names the extract downloaded to
+ * cut it from.
+ */
 export type MapBuildRequest =
   | { preset: string; label?: string; buildings?: boolean; activate?: boolean }
   | {
       label: string;
       /** `[west, south, east, north]` in degrees. */
       bbox: [number, number, number, number];
-      /** Geofabrik extract path from `GET /maps/geofabrik`, e.g. `europe/italy/nord-ovest`. */
-      geofabrik: string;
+      /**
+       * Geofabrik extract path from `GET /maps/geofabrik`, e.g.
+       * `europe/italy/nord-ovest`. Optional: when left out, the server picks
+       * the smallest extract whose boundary contains the whole bbox.
+       */
+      geofabrik?: string;
       buildings?: boolean;
       activate?: boolean;
     };
@@ -385,10 +393,37 @@ export interface GeofabrikRegion {
   areaKm2: number;
   /** Download URL of the `.pbf`. */
   url: string;
+  /** Path of the extract this one is part of (Geofabrik's hierarchy), if any. */
+  parent?: string;
+  /** Size of the `.pbf` download in bytes, when Geofabrik reported it. */
+  sizeBytes?: number;
 }
 
 export interface GeofabrikLookupResponse {
   regions: GeofabrikRegion[];
+  /**
+   * Set when the bbox crosses a border between extracts: the smallest extract
+   * under each part of the box (two or more). `regions[0]`, if any, is the
+   * smallest extract that holds all of it, usually their common parent.
+   */
+  crosses?: { path: string; name: string }[];
+}
+
+/** One extract outline for the area picker (`GET /maps/geofabrik/regions`). */
+export interface GeofabrikOutline {
+  path: string;
+  name: string;
+  parent?: string;
+  /** Depth in Geofabrik's hierarchy: 0 for a continent, 1 for a country, and so on. */
+  depth: number;
+  /** Simplified boundary as MultiPolygon coordinates (`[lon, lat]`, 3 decimals). */
+  polygons: [number, number][][][];
+}
+
+export interface GeofabrikOutlinesResponse {
+  regions: GeofabrikOutline[];
+  /** Credit for the outlines (Geofabrik, from OpenStreetMap data). */
+  attribution: string;
 }
 
 /** A place from `GET /maps/geocode` (Nominatim). */
@@ -400,6 +435,11 @@ export interface GeocodeResult {
   center: [number, number];
   /** OSM class/type, e.g. `boundary/administrative`, `place/city`. */
   type: string;
+  /**
+   * The place's own boundary when OpenStreetMap has one (a city, a district),
+   * simplified, as MultiPolygon coordinates (`[lon, lat]`). Absent for points.
+   */
+  outline?: [number, number][][][];
 }
 
 export interface GeocodeResponse {

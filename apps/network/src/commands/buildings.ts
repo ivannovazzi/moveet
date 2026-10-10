@@ -56,10 +56,24 @@ export function parseSeqLine(line: string): Record<string, unknown> | null {
   return JSON.parse(trimmed) as Record<string, unknown>;
 }
 
-/** Stream a GeoJSON-sequence file into a tile builder. */
+/** The first vertex of a GeoJSON feature's geometry, or null. */
+function firstVertex(feature: Record<string, unknown>): [number, number] | null {
+  let c = (feature.geometry as { coordinates?: unknown } | null | undefined)?.coordinates;
+  while (Array.isArray(c) && Array.isArray(c[0])) c = c[0];
+  return Array.isArray(c) && typeof c[0] === "number" && typeof c[1] === "number"
+    ? [c[0], c[1]]
+    : null;
+}
+
+/**
+ * Stream a GeoJSON-sequence file into a tile builder. With `bbox`, only
+ * buildings that start inside it are kept: the extract hands over whole ways
+ * that merely touch the box.
+ */
 export async function tileBuildings(
   seqPath: string,
-  builder: BuildingTileBuilder
+  builder: BuildingTileBuilder,
+  bbox?: Bbox
 ): Promise<BuildingTileBuilder> {
   const rl = readline.createInterface({
     input: fs.createReadStream(seqPath, "utf8"),
@@ -67,7 +81,14 @@ export async function tileBuildings(
   });
   for await (const line of rl) {
     const feature = parseSeqLine(line);
-    if (feature) builder.add(feature as Parameters<BuildingTileBuilder["add"]>[0]);
+    if (!feature) continue;
+    if (bbox) {
+      const at = firstVertex(feature);
+      if (!at || at[0] < bbox[0] || at[0] > bbox[2] || at[1] < bbox[1] || at[1] > bbox[3]) {
+        continue;
+      }
+    }
+    builder.add(feature as Parameters<BuildingTileBuilder["add"]>[0]);
   }
   return builder;
 }

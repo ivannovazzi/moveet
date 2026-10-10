@@ -2704,9 +2704,13 @@ paths:
 
 
         The body is either `{ preset }` (a `GET /maps/presets` name) or
-        `{ label, bbox, geofabrik }`, where `geofabrik` must be an extract
-        listed in Geofabrik's index (see `GET /maps/geofabrik`) whose boundary
-        contains the bbox. Raw URLs are never accepted.
+        `{ label, bbox, geofabrik? }`. A custom map covers exactly `bbox`:
+        roads crossing its edge are cut at the edge. `geofabrik`, when given,
+        must be an extract listed in Geofabrik's index (see
+        `GET /maps/geofabrik`) whose boundary contains the bbox; left out, the
+        smallest extract containing the whole bbox is used (a parent extract
+        such as a whole country when the box crosses a regional border). Raw
+        URLs are never accepted.
 
 
         One build runs at a time. Up to `buildLimits.maxQueuedJobs` more wait
@@ -2753,7 +2757,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "422":
-          description: The bbox is not inside the named Geofabrik extract
+          description: >
+            The bbox is not inside the named Geofabrik extract (the message
+            names the smallest one that contains it), or no extract contains
+            the whole bbox
           content:
             application/json:
               schema:
@@ -2927,6 +2934,30 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ValidationError"
+        "503":
+          description: Geofabrik's index could not be fetched and no cached copy exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /maps/geofabrik/regions:
+    get:
+      operationId: listGeofabrikOutlines
+      summary: Simplified outlines of every Geofabrik extract
+      description: >
+        Every extract in Geofabrik's index with its boundary simplified for a
+        world map (Douglas-Peucker, coarser towards continents) and rounded to
+        3 decimals, for the New map area picker. Derived from the cached index
+        and cached on disk next to it; rebuilt when the index content changes.
+      tags: [Maps]
+      responses:
+        "200":
+          description: The outlines
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeofabrikOutlinesResponse"
         "503":
           description: Geofabrik's index could not be fetched and no cached copy exists
           content:
@@ -3986,7 +4017,7 @@ components:
               description: Switch to the map once it is built.
         - type: object
           title: Custom area
-          required: [label, bbox, geofabrik]
+          required: [label, bbox]
           additionalProperties: false
           properties:
             label:
@@ -4005,7 +4036,8 @@ components:
               description: >
                 Geofabrik extract path from GET /maps/geofabrik, e.g.
                 `europe/italy/nord-ovest`. Must be listed in Geofabrik's index
-                and contain the bbox.
+                and contain the bbox. Optional: the smallest containing
+                extract is picked when it is left out.
               pattern: "^[a-z0-9][a-z0-9-]*(/[a-z0-9][a-z0-9-]*)*$"
             buildings:
               type: boolean
@@ -4123,6 +4155,14 @@ components:
         url:
           type: string
           description: Download URL of the .pbf.
+        parent:
+          type: string
+          description: Path of the extract this one is part of, if any.
+        sizeBytes:
+          type: integer
+          description: >
+            Size of the .pbf download, as Geofabrik reports it. Only on the
+            first few (smallest) regions of a lookup, and only when known.
 
     GeofabrikLookupResponse:
       type: object
@@ -4132,6 +4172,59 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/GeofabrikRegion"
+        crosses:
+          type: array
+          description: >
+            Present when the bbox crosses a border between extracts: the
+            smallest extract under each part of the box. `regions[0]` is then
+            the smallest extract holding all of it, usually their parent.
+          items:
+            type: object
+            required: [path, name]
+            properties:
+              path:
+                type: string
+              name:
+                type: string
+
+    GeofabrikOutline:
+      type: object
+      required: [path, name, depth, polygons]
+      properties:
+        path:
+          type: string
+        name:
+          type: string
+        parent:
+          type: string
+        depth:
+          type: integer
+          description: Depth in Geofabrik's hierarchy (0 for a continent).
+        polygons:
+          type: array
+          description: Simplified MultiPolygon coordinates, [lon, lat] to 3 decimals.
+          items:
+            type: array
+            items:
+              type: array
+              items:
+                type: array
+                minItems: 2
+                maxItems: 2
+                items:
+                  type: number
+
+    GeofabrikOutlinesResponse:
+      type: object
+      required: [regions, attribution]
+      properties:
+        regions:
+          type: array
+          items:
+            $ref: "#/components/schemas/GeofabrikOutline"
+        attribution:
+          type: string
+          description: Credit for the outlines (Geofabrik, OpenStreetMap contributors).
 
     GeocodeResult:
       type: object
@@ -4156,6 +4249,21 @@ components:
         type:
           type: string
           description: OSM class/type, e.g. `boundary/administrative`.
+        outline:
+          type: array
+          description: >
+            The place's own boundary when OpenStreetMap has one, simplified,
+            as MultiPolygon coordinates ([lon, lat]). Absent for points.
+          items:
+            type: array
+            items:
+              type: array
+              items:
+                type: array
+                minItems: 2
+                maxItems: 2
+                items:
+                  type: number
 
     GeocodeResponse:
       type: object
