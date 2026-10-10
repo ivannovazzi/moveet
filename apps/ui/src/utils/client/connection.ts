@@ -10,6 +10,7 @@ import type {
 } from "@/types";
 import type { MapStatusPayload, ResetPayload } from "../wsTypes";
 import { isValidVehicleDTO } from "@moveet/shared-types";
+import { MAP_JOB_WS_TYPES } from "@/Maps/mapsClient";
 
 /**
  * WebSocket lifecycle + core real-time channels (vehicle/status/options/
@@ -38,6 +39,8 @@ export class ConnectionSegment {
     this.offHeatzones = this.offHeatzones.bind(this);
     this.onMap = this.onMap.bind(this);
     this.offMap = this.offMap.bind(this);
+    this.onMapJob = this.onMapJob.bind(this);
+    this.offMapJob = this.offMapJob.bind(this);
     this.onDirection = this.onDirection.bind(this);
     this.offDirection = this.offDirection.bind(this);
     this.onEta = this.onEta.bind(this);
@@ -133,6 +136,18 @@ export class ConnectionSegment {
 
   offMap(handler?: (payload: MapStatusPayload) => void): void {
     this.deps.ws.off("map", handler);
+  }
+
+  /**
+   * Map build job progress. The payload is left raw: the Maps panel's client
+   * (`Maps/mapsClient`) owns its shape and the message names it arrives under.
+   */
+  onMapJob(handler: (data: unknown) => void): void {
+    for (const type of MAP_JOB_WS_TYPES) this.deps.ws.on(type, handler);
+  }
+
+  offMapJob(handler?: (data: unknown) => void): void {
+    for (const type of MAP_JOB_WS_TYPES) this.deps.ws.off(type, handler);
   }
 
   onDirection(handler: (direction: Direction) => void): void {

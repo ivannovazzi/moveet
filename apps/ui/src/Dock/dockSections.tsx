@@ -24,7 +24,7 @@ export type MonitorTabId =
   | "geofences"
   | "heatzones"
   | "faults";
-export type SessionTabId = "recordings" | "scenarios";
+export type SessionTabId = "recordings" | "scenarios" | "maps";
 export type SettingsTabId = "source" | "sinks" | "realism" | "advanced";
 export type InspectTabId = "detail";
 
@@ -76,6 +76,7 @@ export const DOCK_SECTIONS: DockSection[] = [
     tabs: [
       { id: "recordings", label: "Recordings" },
       { id: "scenarios", label: "Scenarios" },
+      { id: "maps", label: "Maps" },
     ],
   },
   {

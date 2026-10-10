@@ -63,6 +63,9 @@ const LAYER_ORDER: Record<string, number> = {
   "heatzone-draw": 78,
   "heatzone-handles": 79,
   "geofence-draw": 80,
+  // The box a new map will be built from (Maps panel): a preview over
+  // everything, since it describes the map itself rather than a feature on it.
+  "map-area": 82,
 };
 
 /** Registered layers split around the road network. */

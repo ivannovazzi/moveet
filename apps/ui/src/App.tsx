@@ -53,6 +53,7 @@ import { useConnectionState } from "./hooks/useConnectionState";
 import ErrorBoundary, { SectionErrorFallback } from "./components/ErrorBoundary";
 import { useAnalytics } from "./hooks/useAnalytics";
 import { useNetwork } from "./hooks/useNetwork";
+import { useMapsSync } from "./Maps/mapsStore";
 import { useRoads } from "./hooks/useRoads";
 import { useDataReady, useOptionsContext, usePOIContext } from "./data/useData";
 import CommandPalette, { buildCommands } from "./components/CommandPalette";
@@ -185,6 +186,8 @@ export default function App() {
 
   const { network, loading: networkLoading } = useNetwork();
   const { roads, loading: roadsLoading } = useRoads();
+  // The map library: switch toasts and build progress outlive the Maps panel.
+  useMapsSync();
   // Read-only context view of the POIs `SearchBar` already fetches — the
   // command palette searches them without adding a second request.
   const { pois } = usePOIContext();

@@ -46,6 +46,8 @@ export function createMockClient() {
     onConnectionStateChange: vi.fn(),
     onMap: vi.fn(),
     offMap: vi.fn(),
+    onMapJob: vi.fn(),
+    offMapJob: vi.fn(),
     start: vi.fn().mockResolvedValue({ data: undefined }),
     stop: vi.fn().mockResolvedValue({ data: undefined }),
     reset: vi.fn().mockResolvedValue({ data: undefined }),

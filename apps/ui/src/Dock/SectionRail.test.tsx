@@ -234,7 +234,7 @@ describe("dock section row", () => {
 
     expect(expanded("Session")).toBe(true);
     expect(expanded("Monitor")).toBe(false);
-    expect(tabNames()).toEqual(["Recordings", "Scenarios"]);
+    expect(tabNames()).toEqual(["Recordings", "Scenarios", "Maps"]);
   });
 
   it("never hides the main dock's controls behind an expanded section", async () => {
@@ -263,7 +263,7 @@ describe("dock section row", () => {
       within(panel)
         .getAllByRole("tab")
         .map((t) => t.textContent)
-    ).toEqual(["Recordings", "Scenarios"]);
+    ).toEqual(["Recordings", "Scenarios", "Maps"]);
 
     await user.click(within(panel).getByRole("button", { name: "Close Session" }));
     expect(expanded("Session")).toBe(false);
