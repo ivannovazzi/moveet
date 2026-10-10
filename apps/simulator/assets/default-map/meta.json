@@ -1,0 +1,11 @@
+{
+  "label": "Nairobi CBD (bundled)",
+  "attribution": "© OpenStreetMap contributors, ODbL 1.0 (openstreetmap.org/copyright)",
+  "build": {
+    "geofabrik": "africa/kenya",
+    "bbox": [36.805, -1.295, 36.835, -1.275],
+    "buildings": false,
+    "builtAt": "2026-10-10",
+    "note": "Built with POST /maps (apps/network pipeline). Data is OpenStreetMap, licensed under the Open Database License (ODbL) 1.0."
+  }
+}
