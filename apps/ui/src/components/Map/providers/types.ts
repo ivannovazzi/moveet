@@ -11,6 +11,8 @@ export interface DeckMapContextValue {
   /** Returns [[west, south], [east, north]] i.e. [[minLng, minLat], [maxLng, maxLat]]. */
   getBoundingBox: () => [[number, number], [number, number]];
   getZoom: () => number;
+  /** Current pitch in degrees, 0 while the map is flat. */
+  getPitch: () => number;
   /** Convenience: project [lng, lat] to [x, y] screen pixels */
   project: (position: Position) => [number, number] | null;
 }

@@ -20,10 +20,11 @@ vi.mock("@/components/Map/hooks/useDeckLayers", () => ({
 }));
 
 // ── Mock viewport ──────────────────────────────────────────────────
-const { ctx } = vi.hoisted(() => ({ ctx: { zoom: 16 } }));
+const { ctx } = vi.hoisted(() => ({ ctx: { zoom: 16, pitch: 0 } }));
 vi.mock("@/components/Map/hooks", () => ({
   useMapContext: () => ({
     getZoom: () => ctx.zoom,
+    getPitch: () => ctx.pitch,
     // Degenerate bounds → viewport culling disabled (and latitude 0, which the
     // mesh sizing assertions below take as given).
     getBoundingBox: () => [
@@ -44,8 +45,19 @@ vi.mock("@/hooks/vehicleStore", () => ({
   },
 }));
 
-import VehiclesLayer, { MESH_ZOOM_THRESHOLD, MIN_MESH_PX, MESH_PAINTS } from "./VehiclesLayer";
+import VehiclesLayer, { MIN_MESH_PX, MESH_PAINTS } from "./VehiclesLayer";
 import { MESH_REFERENCE_LENGTH_M } from "./vehicleMeshes";
+import {
+  MESH_MIN_PITCH_DEG,
+  MESH_PITCHED_MIN_ZOOM,
+  MESH_TOP_DOWN_MIN_ZOOM,
+  MESH_ZOOM_HYSTERESIS,
+} from "./vehicleRenderMode";
+
+/** Comfortably past the pitch threshold. */
+const PITCHED = MESH_MIN_PITCH_DEG + 25;
+/** Below every mesh threshold, hysteresis included. */
+const SPRITE_ZOOM = MESH_PITCHED_MIN_ZOOM - 2;
 
 // ── RAF driver ─────────────────────────────────────────────────────
 let rafQueue: FrameRequestCallback[] = [];
@@ -84,7 +96,7 @@ function seed(vehicles: Seed[]) {
   state.version++;
 }
 
-function renderLayer(props: { selectable?: boolean } = {}) {
+function renderLayer(props: { selectable?: boolean; selectedId?: string } = {}) {
   const onClick = vi.fn();
   render(
     <VehiclesLayer
@@ -94,6 +106,7 @@ function renderLayer(props: { selectable?: boolean } = {}) {
       hiddenVehicleTypes={new Set<VehicleType>()}
       onClick={onClick}
       selectable={props.selectable}
+      selectedId={props.selectedId}
     />
   );
   return onClick;
@@ -130,7 +143,8 @@ beforeEach(() => {
   state.version = 0;
   rafQueue = [];
   clock = 1000;
-  ctx.zoom = MESH_ZOOM_THRESHOLD;
+  ctx.zoom = MESH_TOP_DOWN_MIN_ZOOM;
+  ctx.pitch = 0;
   vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => rafQueue.push(cb));
   vi.stubGlobal("cancelAnimationFrame", () => {});
   vi.spyOn(performance, "now").mockImplementation(() => clock);
@@ -142,10 +156,10 @@ afterEach(() => {
 });
 
 describe("VehiclesLayer 3D meshes", () => {
-  describe("the zoom gate", () => {
-    it("draws sprites below the threshold", () => {
+  describe("the zoom and pitch gate", () => {
+    it("draws sprites top-down below the top-down zoom", () => {
       seed([{ id: "v1", type: "car" }]);
-      ctx.zoom = MESH_ZOOM_THRESHOLD - 1;
+      ctx.zoom = MESH_TOP_DOWN_MIN_ZOOM - 1;
       renderLayer();
       pumpFrames();
 
@@ -153,9 +167,9 @@ describe("VehiclesLayer 3D meshes", () => {
       expect(meshLayers()).toHaveLength(0);
     });
 
-    it("draws meshes at the threshold", () => {
+    it("draws meshes top-down at the top-down zoom", () => {
       seed([{ id: "v1", type: "car" }]);
-      ctx.zoom = MESH_ZOOM_THRESHOLD;
+      ctx.zoom = MESH_TOP_DOWN_MIN_ZOOM;
       renderLayer();
       pumpFrames();
 
@@ -164,13 +178,57 @@ describe("VehiclesLayer 3D meshes", () => {
       expect(meshData("car")).toHaveLength(1);
     });
 
+    it("draws meshes at the pitched zoom once the camera leans", () => {
+      seed([{ id: "v1", type: "car" }]);
+      ctx.zoom = MESH_PITCHED_MIN_ZOOM;
+      ctx.pitch = PITCHED;
+      renderLayer();
+      pumpFrames();
+
+      expect(layerById("vehicles")).toBeUndefined();
+      expect(meshLayers()).toHaveLength(1);
+    });
+
+    it("swaps on a pitch change alone, with zoom and viewport unchanged", () => {
+      seed([{ id: "v1", type: "car" }]);
+      ctx.zoom = MESH_PITCHED_MIN_ZOOM;
+      renderLayer();
+      pumpFrames();
+      expect(meshLayers()).toHaveLength(0);
+
+      ctx.pitch = PITCHED;
+      pumpFrames();
+      expect(meshLayers()).toHaveLength(1);
+
+      ctx.pitch = 0;
+      pumpFrames();
+      expect(meshLayers()).toHaveLength(0);
+    });
+
+    it("holds meshes inside the hysteresis band, then lets go past it", () => {
+      seed([{ id: "v1", type: "car" }]);
+      ctx.zoom = MESH_PITCHED_MIN_ZOOM;
+      ctx.pitch = PITCHED;
+      renderLayer();
+      pumpFrames();
+      expect(meshLayers()).toHaveLength(1);
+
+      ctx.zoom = MESH_PITCHED_MIN_ZOOM - MESH_ZOOM_HYSTERESIS / 2;
+      pumpFrames();
+      expect(meshLayers()).toHaveLength(1);
+
+      ctx.zoom = MESH_PITCHED_MIN_ZOOM - MESH_ZOOM_HYSTERESIS - 0.1;
+      pumpFrames();
+      expect(meshLayers()).toHaveLength(0);
+    });
+
     it("swaps back to sprites when the user zooms out", () => {
       seed([{ id: "v1", type: "car" }]);
       renderLayer();
       pumpFrames();
       expect(meshLayers()).toHaveLength(1);
 
-      ctx.zoom = MESH_ZOOM_THRESHOLD - 2;
+      ctx.zoom = SPRITE_ZOOM;
       pumpFrames();
       expect(meshLayers()).toHaveLength(0);
       expect((layerById("vehicles")?.props.data as unknown[]) ?? []).toHaveLength(1);
@@ -183,10 +241,61 @@ describe("VehiclesLayer 3D meshes", () => {
       expect(layerById("vehicle-selection-halo")).toBeDefined();
       expect(layerById("vehicle-highlight-ring")).toBeDefined();
 
-      ctx.zoom = MESH_ZOOM_THRESHOLD - 2;
+      ctx.zoom = SPRITE_ZOOM;
       pumpFrames();
       expect(layerById("vehicle-selection-halo")).toBeDefined();
       expect(layerById("vehicle-highlight-ring")).toBeDefined();
+    });
+  });
+
+  describe("selection ring", () => {
+    function selectedRingRadius(): number {
+      const ring = layerById("vehicle-highlight-ring");
+      const getRadius = ring?.props.getRadius as (d: { isSelected: boolean }) => number;
+      return getRadius({ isSelected: true });
+    }
+
+    it("hugs the mesh in 3D rather than keeping the sprite's size", () => {
+      seed([{ id: "v1", type: "car" }]);
+      ctx.zoom = MESH_PITCHED_MIN_ZOOM;
+      renderLayer({ selectedId: "v1" });
+      pumpFrames();
+      const spriteRing = selectedRingRadius();
+
+      ctx.pitch = PITCHED;
+      pumpFrames();
+      expect(meshLayers()).toHaveLength(1);
+      expect(selectedRingRadius()).toBeLessThan(spriteRing);
+    });
+
+    it("grows with the mesh once it is past the pixel floor", () => {
+      seed([{ id: "v1", type: "car" }]);
+      ctx.zoom = MESH_TOP_DOWN_MIN_ZOOM;
+      renderLayer({ selectedId: "v1" });
+      pumpFrames();
+      const near = selectedRingRadius();
+
+      ctx.zoom = MESH_TOP_DOWN_MIN_ZOOM + 3;
+      pumpFrames();
+      expect(selectedRingRadius()).toBeGreaterThan(near);
+    });
+  });
+
+  describe("sprite mode", () => {
+    it("skips the mesh-only per-vehicle work", () => {
+      seed([
+        { id: "a", type: "car", heading: 10 },
+        { id: "b", type: "bus", heading: 200 },
+      ]);
+      ctx.zoom = SPRITE_ZOOM;
+      renderLayer();
+      pumpFrames();
+
+      const sprites = (layerById("vehicles")?.props.data ?? []) as MeshDatum[];
+      expect(sprites).toHaveLength(2);
+      // Shared placeholders, not per-vehicle values.
+      expect(sprites[0].orientation).toBe(sprites[1].orientation);
+      expect(sprites[0].meshColor).toBe(sprites[1].meshColor);
     });
   });
 
@@ -252,7 +361,7 @@ describe("VehiclesLayer 3D meshes", () => {
       pumpFrames();
       const meshYaw = meshData("car")[0].orientation[1];
 
-      ctx.zoom = MESH_ZOOM_THRESHOLD - 2;
+      ctx.zoom = SPRITE_ZOOM;
       pumpFrames();
       const sprites = (layerById("vehicles")?.props.data ?? []) as { angle: number }[];
       const spriteAngle = sprites[0].angle;
@@ -330,6 +439,7 @@ describe("VehiclesLayer 3D meshes", () => {
     function sizeScaleAt(zoom: number): number {
       seed([{ id: "v1", type: "car" }]);
       ctx.zoom = zoom;
+      ctx.pitch = PITCHED;
       renderLayer();
       pumpFrames();
       return layerById("vehicles-mesh-car")?.props.sizeScale as number;
@@ -341,13 +451,13 @@ describe("VehiclesLayer 3D meshes", () => {
     });
 
     it("never shrinks a vehicle below true scale", () => {
-      for (const zoom of [14, 16, 18, 20, 22]) {
+      for (const zoom of [16, 18, 20, 22]) {
         expect(sizeScaleAt(zoom)).toBeGreaterThanOrEqual(1);
       }
     });
 
     it("holds vehicles at the pixel floor when true scale would be a speck", () => {
-      const zoom = MESH_ZOOM_THRESHOLD;
+      const zoom = MESH_PITCHED_MIN_ZOOM;
       const sizeScale = sizeScaleAt(zoom);
       const onScreenPx = (sizeScale * MESH_REFERENCE_LENGTH_M) / metersPerPixel(zoom);
       expect(onScreenPx).toBeCloseTo(MIN_MESH_PX, 4);
@@ -357,7 +467,7 @@ describe("VehiclesLayer 3D meshes", () => {
 
     it("covers less ground the further in the camera goes", () => {
       // Metres per pixel falls as you zoom, so the floor demands fewer metres.
-      expect(sizeScaleAt(16)).toBeLessThan(sizeScaleAt(14));
+      expect(sizeScaleAt(17)).toBeLessThan(sizeScaleAt(16));
     });
   });
 

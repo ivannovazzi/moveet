@@ -13,6 +13,7 @@ export const DeckMapContext = createContext<DeckMapContextValue>({
     [0, 0],
   ],
   getZoom: () => 0,
+  getPitch: () => 0,
   project: () => null,
 });
 

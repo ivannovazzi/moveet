@@ -538,6 +538,7 @@ describe("VehiclesLayer viewport culling", () => {
           viewport: null,
           viewState: null,
           getZoom: () => 12,
+          getPitch: () => 0,
           project: () => null,
           // [[west, south], [east, north]]
           getBoundingBox: () => [
