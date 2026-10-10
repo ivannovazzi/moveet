@@ -95,6 +95,8 @@ export default function NewMapForm({
     setMode(next);
     setPreset(null);
     setSubmitError(null);
+    // A name suggested by the old area does not describe the next one.
+    if (!labelEdited) setLabel("");
     clearAreaDraft();
   };
 

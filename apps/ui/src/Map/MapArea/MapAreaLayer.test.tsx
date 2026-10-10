@@ -67,6 +67,24 @@ describe("MapAreaLayer", () => {
     expect(screen.queryByRole("application")).toBeNull();
   });
 
+  it("keeps a drag whose events all land before a re-render", () => {
+    render(<MapAreaLayer />);
+    act(() => setDrawing(true));
+    const sheet = screen.getByRole("application");
+    act(() => {
+      for (const [type, x, y] of [
+        ["pointerdown", 0, 0],
+        ["pointermove", 100, 100],
+        ["pointerup", 200, 100],
+      ] as const) {
+        sheet.dispatchEvent(
+          new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: y })
+        );
+      }
+    });
+    expect(getAreaDraft().bbox).toEqual([0, -1, 2, -0]);
+  });
+
   it("ignores a click: a box needs a drag", () => {
     render(<MapAreaLayer />);
     act(() => setDrawing(true));

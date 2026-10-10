@@ -28,7 +28,10 @@ export default function MapAreaLayer() {
   const { viewport } = useMapContext();
   const [drag, setDrag] = useState<{ from: Corner; to: Corner } | null>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
+  // Where the press started, on screen and on the map. Refs, not state: a
+  // fast drag can deliver pointerup before React re-renders from pointerdown.
   const startPx = useRef<Corner | null>(null);
+  const startGeo = useRef<Corner | null>(null);
 
   useEffect(() => {
     if (!drawing) {
@@ -62,6 +65,7 @@ export default function MapAreaLayer() {
     if (!at) return;
     e.currentTarget.setPointerCapture?.(e.pointerId);
     startPx.current = at.px;
+    startGeo.current = at.geo;
     setDrag({ from: at.geo, to: at.geo });
   };
 
@@ -76,7 +80,8 @@ export default function MapAreaLayer() {
     startPx.current = null;
     e.currentTarget.releasePointerCapture?.(e.pointerId);
     const at = locate(e);
-    const from = drag?.from;
+    const from = startGeo.current;
+    startGeo.current = null;
     setDrag(null);
     if (!start || !at || !from) return;
     // A click is not a box: stay in draw mode for another try.
