@@ -5,6 +5,7 @@ import { TRAIL_LENGTH_RANGE, useTrailLength } from "@/hooks/useTrailLength";
 import { DENSITY_MIN_VEHICLES } from "./Vehicle/densityView";
 import type { Modifiers, VehicleType } from "@/types";
 import VehicleTypeKey from "./VehicleTypeKey";
+import { useBuildingsStatus } from "./Buildings/buildingsStatus";
 import { VISIBILITY_LAYERS } from "./visibilityLayers";
 
 /**
@@ -55,7 +56,7 @@ export interface VisibilityRailProps {
  *
  * Everything a key has to say beyond lit/unlit rides as a corner badge *on* the
  * key (the type key's hidden count, the trail length, Density's threshold), so
- * the rail is exactly eleven 34px keys tall whichever of them are on. Chips in
+ * the rail is one 34px key per row whichever of them are on. Chips in
  * the flow moved every key below them down ~17px the moment one appeared — the
  * operator clicked Trails and the key they were aiming at next had moved.
  *
@@ -77,6 +78,8 @@ export default function VisibilityRail({
 }: VisibilityRailProps) {
   const trail = useTrailLength();
   const densityHintId = useId();
+  const buildingsHintId = useId();
+  const buildingsStatus = useBuildingsStatus();
   const [trailOpen, setTrailOpen] = useState(false);
   const trailsOn = modifiers.showBreadcrumbs;
 
@@ -103,6 +106,25 @@ export default function VisibilityRail({
           key === "showDensity" && Boolean(on) && vehicleCount < DENSITY_MIN_VEHICLES;
         const starvedTitle = `Density — needs ${DENSITY_MIN_VEHICLES}+ vehicles (${vehicleCount} now)`;
         const starvedHint = `needs ${DENSITY_MIN_VEHICLES}+ vehicles, ${vehicleCount} now`;
+        // Buildings are optional data the simulator may not have. Lit with
+        // nothing to draw is the same visible state as a starved Density key,
+        // so the toggle never just silently does nothing.
+        const buildingsMissing =
+          key === "showBuildings" && Boolean(on) && buildingsStatus === "unavailable";
+        const hintId = densityStarved
+          ? densityHintId
+          : buildingsMissing
+            ? buildingsHintId
+            : undefined;
+        const title = densityStarved
+          ? starvedTitle
+          : buildingsMissing
+            ? "Buildings: no building data on the simulator"
+            : key === "showBuildings"
+              ? `${on ? "Hide" : "Show"} ${label} (zoom 14+)`
+              : on
+                ? `Hide ${label}`
+                : `Show ${label}`;
         return (
           <Fragment key={key}>
             <div className="relative flex flex-col items-center">
@@ -115,8 +137,8 @@ export default function VisibilityRail({
                 // only a draft attribute, and unsupported by most screen
                 // readers). `aria-pressed` stays true: the layer *is* on, it is
                 // the data that hasn't arrived.
-                aria-describedby={densityStarved ? densityHintId : undefined}
-                title={densityStarved ? starvedTitle : on ? `Hide ${label}` : `Show ${label}`}
+                aria-describedby={hintId}
+                title={title}
                 onClick={() => onChangeModifiers(key)(!on)}
                 className={cn(
                   "relative flex size-[34px] shrink-0 cursor-pointer items-center justify-center rounded-md",
@@ -126,7 +148,7 @@ export default function VisibilityRail({
                   on
                     ? "bg-accent/[0.10] text-accent"
                     : "text-muted-foreground/70 hover:bg-foreground/[0.05] hover:text-foreground",
-                  densityStarved && "opacity-55"
+                  (densityStarved || buildingsMissing) && "opacity-55"
                 )}
               >
                 {on && (
@@ -151,6 +173,17 @@ export default function VisibilityRail({
                 >
                   <span aria-hidden>{`${DENSITY_MIN_VEHICLES}+`}</span>
                   <span className="sr-only">{starvedHint}</span>
+                </span>
+              )}
+
+              {buildingsMissing && (
+                <span
+                  id={buildingsHintId}
+                  data-testid="buildings-missing-chip"
+                  className={cn(BADGE_CLASS, "bg-muted-foreground text-background")}
+                >
+                  <span aria-hidden>!</span>
+                  <span className="sr-only">no building data on the simulator</span>
                 </span>
               )}
 

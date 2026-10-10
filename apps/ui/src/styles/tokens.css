@@ -91,6 +91,11 @@
   --color-map-lattice: oklch(0.78 0.02 258);
   --color-map-bloom-core: oklch(0.285 0.028 262);
 
+  /* Optional 3D buildings (Map/Buildings). A neutral a step above the ground
+     and well under the label ink, drawn slightly translucent, so the city
+     fabric reads as context and never competes with roads, routes or units. */
+  --color-map-building: oklch(0.4 0.012 258);
+
   /* Heat ramp (HeatLayer), cool/sparse → hot/dense. A warm sequential ramp of
      its own so density reads as intensity rather than as the categorical
      overlay hues above. */

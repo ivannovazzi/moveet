@@ -66,6 +66,9 @@ const SpeedLimitSigns = lazy(() => import("./SpeedLimitSigns"));
 // isn't in the main deck chunk for the (default) non-density case.
 const VehicleDensityLayer = lazy(() => import("./Vehicle/VehicleDensityLayer"));
 const JobsLayer = lazy(() => import("./Jobs/JobsLayer"));
+// Optional 3D buildings: lazy and only mounted while toggled on, so the off
+// state downloads, fetches and parses nothing.
+const BuildingsLayer = lazy(() => import("./Buildings/BuildingsLayer"));
 
 interface MapProps {
   network: RoadNetwork;
@@ -220,6 +223,11 @@ export default function Map({
             coordinates so it pans and zooms with everything drawn on it. Sits
             in the layer manager's underlay band, beneath the roads. */}
           <GroundLayer network={network} />
+          {modifiers.showBuildings && (
+            <Suspense fallback={null}>
+              <BuildingsLayer />
+            </Suspense>
+          )}
           {/* POIs & speed-limit signs — GPU-rendered via IconLayer */}
           {modifiers.showPOIs && (
             <Suspense fallback={null}>

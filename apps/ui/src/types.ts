@@ -86,6 +86,11 @@ export interface Modifiers {
    * existing default-modifier objects stay valid; absent reads as off.
    */
   showJobs?: boolean;
+  /**
+   * Optional 3D buildings from OSM footprints, at street zoom. Optional so
+   * existing default-modifier objects stay valid; absent reads as off.
+   */
+  showBuildings?: boolean;
 }
 
 interface VehicleUIFlags {
