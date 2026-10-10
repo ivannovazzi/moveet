@@ -35,7 +35,7 @@ npx tsx apps/network/src/cli.ts prepare cairo
 npx tsx src/cli.ts prepare cairo
 ```
 
-This runs the full pipeline and writes the result to `apps/simulator/data/network.geojson`.
+This runs the full pipeline and writes the result to `apps/simulator/data/network.geojson`. The simulator imports that file into its map library on first start (when the library is empty); to add it to an existing library, copy it to `apps/simulator/data/maps/<id>/network.geojson` and activate it with `POST /maps/<id>/activate`.
 
 ## Built-in regions
 
@@ -116,7 +116,7 @@ The UI can draw OSM building footprints as extruded 3D blocks (the Buildings key
 npx tsx apps/network/src/cli.ts buildings nairobi
 ```
 
-This writes `apps/simulator/data/buildings/` (gitignored like `network.geojson`): an `index.json` plus one JSON file per z14 Web Mercator tile, which the simulator serves at `GET /buildings` and `GET /buildings/:z/:x/:y`. Without it the endpoint answers 404 and the UI's Buildings key reports that no data is available.
+This writes `apps/simulator/data/buildings/` (gitignored like `network.geojson`): an `index.json` plus one JSON file per z14 Web Mercator tile. It is imported together with `network.geojson` into the simulator's map library (or copy it to `apps/simulator/data/maps/<id>/buildings/`), and the simulator serves the active map's tiles at `GET /buildings` and `GET /buildings/:z/:x/:y`. Without it the endpoint answers 404 and the UI's Buildings key reports that no data is available.
 
 Each tile is a flat, delta-encoded number array (coordinates in 1e-6 degree units, outer rings only), so the browser only fetches and parses the tiles in view at zoom 14 and above. Height is the `height` tag, else `building:levels` x 3 m, else a per-type default (7 m for plain `building=yes`). OSM height tags are sparse: for Nairobi about 0.2% of buildings carry `height` and 0.7% `building:levels`, so most blocks use the default.
 

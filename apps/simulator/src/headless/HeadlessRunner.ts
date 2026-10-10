@@ -107,8 +107,6 @@ export class HeadlessRunner {
     const useSource = this.opts.useSource ?? !!config.adapterURL;
     const prevVehicleCount = config.vehicleCount;
     const prevAdapterURL = config.adapterURL;
-    const prevGeojsonPath = config.geojsonPath;
-    (config as { geojsonPath: string }).geojsonPath = geojsonPath;
     if (!useSource) {
       (config as { vehicleCount: number }).vehicleCount = vehicles;
       (config as { adapterURL: string }).adapterURL = "";
@@ -188,7 +186,6 @@ export class HeadlessRunner {
       }
       (config as { vehicleCount: number }).vehicleCount = prevVehicleCount;
       (config as { adapterURL: string }).adapterURL = prevAdapterURL;
-      (config as { geojsonPath: string }).geojsonPath = prevGeojsonPath;
       restoreRandom();
     }
   }

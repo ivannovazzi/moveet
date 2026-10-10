@@ -313,6 +313,16 @@ export const speedProfileImportQuerySchema = z.object({
   mode: z.enum(["merge", "replace"]).optional(),
 });
 
+/** `:id` of a map library entry: its directory name, so path-safe by construction. */
+export const mapIdParamsSchema = z.object({
+  id: z
+    .string()
+    .regex(
+      /^[a-z0-9][a-z0-9_-]{0,63}$/,
+      "map id must be 1-64 lowercase letters, digits, '-' or '_', starting with a letter or digit"
+    ),
+});
+
 /** Real position fixes for the adapter speed-profile source. */
 export const speedProfileObservationsSchema = z.object({
   fixes: z

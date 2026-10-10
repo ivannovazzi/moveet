@@ -50,6 +50,8 @@ tags:
     description: Learned per-edge speed profiles by time bucket (only when SPEED_PROFILES_ENABLED)
   - name: Weather
     description: Global weather speed factor — live Open-Meteo reading or a manual override
+  - name: Maps
+    description: Map library — the road networks on disk, the active one, and runtime hot swap
 
 paths:
   # ─── Simulation ──────────────────────────────────────────────────────
@@ -398,8 +400,9 @@ paths:
       summary: Index of the optional 3D building tiles
       description: >-
         Building footprints from OpenStreetMap (ODbL), pre-tiled by the network
-        CLI (`npx tsx apps/network/src/cli.ts buildings <region>`) into
-        BUILDINGS_DIR. Optional and gitignored: 404 when it was not generated.
+        CLI (`npx tsx apps/network/src/cli.ts buildings <region>`) and stored
+        with the active map (`<MAPS_DIR>/<id>/buildings/`). Optional: 404 when
+        the active map has none.
       tags: [Network]
       responses:
         "200":
@@ -2671,6 +2674,127 @@ paths:
               schema:
                 $ref: "#/components/schemas/WeatherDTO"
 
+  # ─── Maps ───────────────────────────────────────────────────────────
+  /maps:
+    get:
+      operationId: listMaps
+      summary: List the map library
+      description: >
+        Every road network in the library (`MAPS_DIR`), oldest first, with the
+        active map's id. `/network`, `/roads`, `/pois` and `/buildings` always
+        serve the active map.
+      tags: [Maps]
+      responses:
+        "200":
+          description: Library contents
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MapListResponse"
+
+  /maps/active:
+    get:
+      operationId: getActiveMap
+      summary: Get the active map
+      tags: [Maps]
+      responses:
+        "200":
+          description: The map the simulation is running on
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MapMeta"
+
+  /maps/{id}/activate:
+    post:
+      operationId: activateMap
+      summary: Hot-swap to another map
+      description: >
+        Loads the map and makes it active, persisting the choice across
+        restarts. The simulation is paused while the new graph is built; on
+        success everything tied to the old map is reset (vehicles respawn on
+        the new network; routes, route cache, traffic, incidents, jobs,
+        geofences, heat zones and a running scenario are cleared; learned speed
+        profiles are reloaded for the new map) and a running simulation
+        resumes. Progress is broadcast on the `map` WebSocket channel. On
+        failure the previous map stays active. Activating the active map is a
+        no-op (`changed: false`).
+      tags: [Maps]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Map id (its directory name in MAPS_DIR)
+          schema:
+            type: string
+            pattern: "^[a-z0-9][a-z0-9_-]{0,63}$"
+      responses:
+        "200":
+          description: The map is active
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MapActivateResponse"
+        "400":
+          description: Invalid map id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+        "404":
+          description: No such map
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Another map switch is in progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: The map could not be loaded; the previous map is still active
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /maps/{id}:
+    delete:
+      operationId: deleteMap
+      summary: Delete a map from the library
+      tags: [Maps]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Map id (its directory name in MAPS_DIR)
+          schema:
+            type: string
+            pattern: "^[a-z0-9][a-z0-9_-]{0,63}$"
+      responses:
+        "204":
+          description: Deleted
+        "400":
+          description: Invalid map id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+        "404":
+          description: No such map
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: The map is active, or a map switch is in progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
 components:
   schemas:
     # ─── Core types ──────────────────────────────────────────────────
@@ -3431,6 +3555,94 @@ components:
           exclusiveMinimum: true
           minimum: 0
           maximum: 1
+
+    # ─── Maps ────────────────────────────────────────────────────────
+    MapMeta:
+      type: object
+      required: [id, label, bbox, source, sizes, featureCount, nodeCount, hasBuildings, createdAt]
+      properties:
+        id:
+          type: string
+          pattern: "^[a-z0-9][a-z0-9_-]{0,63}$"
+        label:
+          type: string
+        bbox:
+          type: array
+          nullable: true
+          description: "[minLon, minLat, maxLon, maxLat] of the road geometry"
+          minItems: 4
+          maxItems: 4
+          items:
+            type: number
+        source:
+          type: object
+          required: [type]
+          description: >
+            Where the map came from: `import` (the pre-library network file,
+            with `from`), `bundled` (the demo map shipped in the image),
+            `geofabrik` (with `path`) or `preset` (with `name`).
+          properties:
+            type:
+              type: string
+              enum: [geofabrik, preset, import, bundled]
+            path:
+              type: string
+            name:
+              type: string
+            from:
+              type: string
+        sizes:
+          type: object
+          required: [networkBytes, buildingsBytes]
+          properties:
+            networkBytes:
+              type: integer
+            buildingsBytes:
+              type: integer
+        featureCount:
+          type: integer
+        nodeCount:
+          type: integer
+          nullable: true
+          description: Graph nodes, known once the map has been loaded at least once.
+        hasBuildings:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    MapListResponse:
+      type: object
+      required: [maps, activeId, switching]
+      properties:
+        maps:
+          type: array
+          items:
+            $ref: "#/components/schemas/MapMeta"
+        activeId:
+          type: string
+        switching:
+          type: boolean
+          description: True while a map switch is in progress.
+
+    MapActivateResponse:
+      type: object
+      required: [map, previousId, changed, durationMs]
+      properties:
+        map:
+          $ref: "#/components/schemas/MapMeta"
+        previousId:
+          type: string
+        changed:
+          type: boolean
+          description: False when the requested map was already active.
+        durationMs:
+          type: integer
+        warning:
+          type: string
+          description: >
+            Present when an external adapter is configured (ADAPTER_URL): the
+            switch went through, but the adapter's fleet now sits on another city.
 
     # ─── Recording & Replay ──────────────────────────────────────────
     RecordingHeader:

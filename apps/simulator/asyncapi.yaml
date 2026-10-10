@@ -107,6 +107,8 @@ channels:
         $ref: "#/components/messages/weather"
       eta:
         $ref: "#/components/messages/eta"
+      map:
+        $ref: "#/components/messages/map"
       connect:
         $ref: "#/components/messages/connect"
       disconnect:
@@ -155,6 +157,7 @@ operations:
       - $ref: "#/components/messages/faultsConfig"
       - $ref: "#/components/messages/weather"
       - $ref: "#/components/messages/eta"
+      - $ref: "#/components/messages/map"
       - $ref: "#/components/messages/connect"
       - $ref: "#/components/messages/disconnect"
   sendClientCommands:
@@ -698,6 +701,35 @@ components:
             const: weather
           data:
             $ref: ./openapi.yaml#/components/schemas/WeatherDTO
+    map:
+      name: map
+      title: Map library status
+      summary: >
+        Map hot-swap progress. `switching` when a POST /maps/{id}/activate starts
+        (the simulation is paused), `active` when the map is live (also sent to
+        each client on connect), `error` when the switch failed and `map` is the
+        map that stayed active. Clients refetch /network, /roads, /pois and
+        /buildings when the active map id differs from the one they loaded.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: map
+          data:
+            type: object
+            required: [status, map]
+            properties:
+              status:
+                type: string
+                enum: [switching, active, error]
+              map:
+                $ref: ./openapi.yaml#/components/schemas/MapMeta
+              error:
+                type: string
     eta:
       name: eta
       title: ETAs repriced

@@ -36,6 +36,7 @@ import {
   createSpeedProfileRoutes,
   createWeatherRoutes,
   createBuildingRoutes,
+  createMapRoutes,
 } from "./routes";
 import { jsonBodyParser } from "./routes/speedProfiles";
 import { SpeedProfileManager } from "./modules/speedprofiles/SpeedProfileManager";
@@ -45,6 +46,8 @@ import type { RouteContext } from "./routes";
 import { metricsMiddleware } from "./middleware/metrics";
 import { setupWebSocket, wireEvents, registerGracefulShutdown } from "./setup";
 import { apiReference } from "@scalar/express-api-reference";
+import { MapLibrary } from "./modules/maps/MapLibrary";
+import { MapSwitcher } from "./modules/maps/MapSwitcher";
 
 verifyConfig();
 logConfig();
@@ -66,13 +69,27 @@ const serverStartTime = Date.now();
 
 // ─── Domain modules ──────────────────────────────────────────────────
 
-const network = new RoadNetwork(config.geojsonPath);
+// The map library decides which network loads. On first start it imports the
+// pre-library data/network.geojson (+ data/buildings/) when present, else the
+// small bundled demo map, so the simulator always has something to run on.
+const mapLibrary = new MapLibrary(config.mapsDir);
+const initialMapId = mapLibrary.initialize({
+  legacyNetworkPath: path.resolve("data/network.geojson"),
+  legacyBuildingsDir: path.resolve("data/buildings"),
+  bundledNetworkPath: path.resolve("assets/default-map/network.geojson"),
+});
+logger.info(`Active map: ${initialMapId}`);
+
+const network = new RoadNetwork(mapLibrary.networkPath(initialMapId));
 const fleetManager = new FleetManager();
 const incidentManager = new IncidentManager();
 const vehicleManager = new VehicleManager(network, fleetManager);
 const simulationController = new SimulationController(vehicleManager, incidentManager);
 const recordingManager = new RecordingManager();
-const generationManager = new GenerationManager();
+// Headless generation runs on the active map unless the request names a file.
+const generationManager = new GenerationManager(() =>
+  mapLibrary.networkPath(mapSwitcher.getActiveId())
+);
 const geoFenceManager = new GeoFenceManager();
 const jobManager = new JobManager(vehicleManager);
 
@@ -159,6 +176,28 @@ if (speedProfiles) {
   }
 }
 
+// ─── Map library hot swap ───────────────────────────────────────────
+
+const mapSwitcher = new MapSwitcher(
+  {
+    library: mapLibrary,
+    network,
+    simulationController,
+    vehicleManager,
+    geoFenceManager,
+    scenarioManager,
+    weatherManager,
+    speedProfiles,
+    stateStore,
+    persistenceManager,
+    adapterConfigured: !!config.adapterURL,
+    weatherLat: config.weatherLat,
+    weatherLon: config.weatherLon,
+  },
+  initialMapId
+);
+mapSwitcher.recordGraphStats(initialMapId, network);
+
 // ─── Route context shared by all route modules ──────────────────────
 
 const ctx: RouteContext = {
@@ -213,7 +252,8 @@ if (speedProfiles) {
   app.use(createSpeedProfileRoutes(speedProfiles));
 }
 app.use(createWeatherRoutes(ctx));
-app.use(createBuildingRoutes({ dir: config.buildingsDir }));
+app.use(createBuildingRoutes({ dir: () => mapSwitcher.activeBuildingsDir() }));
+app.use(createMapRoutes({ library: mapLibrary, switcher: mapSwitcher }));
 
 // ─── API documentation ──────────────────────────────────────────────
 
@@ -251,8 +291,13 @@ async function main() {
 
   const { wss, broadcaster } = setupWebSocket(server, {
     // Weather only broadcasts on change, so a new client gets the current state now.
-    onClientConnected: (ws, b) => b.sendTo(ws, "weather", weatherManager.state()),
+    onClientConnected: (ws, b) => {
+      b.sendTo(ws, "weather", weatherManager.state());
+      // Lets a reconnecting client notice a map switch it missed.
+      b.sendTo(ws, "map", mapSwitcher.statusPayload());
+    },
   });
+  mapSwitcher.on("map", (payload) => broadcaster.broadcast("map", payload));
   const {
     trafficBroadcastInterval,
     analyticsBroadcastInterval,

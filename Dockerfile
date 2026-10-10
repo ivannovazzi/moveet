@@ -59,9 +59,11 @@ FROM source AS simulator
 # plain node cannot resolve from raw extensionless ESM specifiers.
 RUN node scripts/bundle-app.mjs apps/simulator/src/index.ts apps/simulator/dist/index.js \
  && node apps/simulator/scripts/build-worker.mjs
+# Maps live in a library under MAPS_DIR (mount a volume there to keep them).
+# An empty library is seeded from the bundled demo map in assets/default-map.
 ENV NODE_ENV=production \
     PORT=3000 \
-    GEOJSON_PATH=/data/network.geojson
+    MAPS_DIR=/data/maps
 EXPOSE 3000
 WORKDIR /repo/apps/simulator
 CMD ["node", "dist/index.js"]

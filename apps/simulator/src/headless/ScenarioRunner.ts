@@ -159,8 +159,6 @@ export class ScenarioRunner {
     // VehicleManager constructor seed `vehicleCount` vehicles locally.
     const prevVehicleCount = config.vehicleCount;
     const prevAdapterURL = config.adapterURL;
-    const prevGeojsonPath = config.geojsonPath;
-    (config as { geojsonPath: string }).geojsonPath = geojsonPath;
     (config as { vehicleCount: number }).vehicleCount = vehicles;
     (config as { adapterURL: string }).adapterURL = "";
 
@@ -290,7 +288,6 @@ export class ScenarioRunner {
       await roadNetwork?.shutdownWorkers();
       (config as { vehicleCount: number }).vehicleCount = prevVehicleCount;
       (config as { adapterURL: string }).adapterURL = prevAdapterURL;
-      (config as { geojsonPath: string }).geojsonPath = prevGeojsonPath;
       restoreRandom();
     }
   }

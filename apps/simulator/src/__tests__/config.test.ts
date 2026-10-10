@@ -28,7 +28,7 @@ function validEnv(overrides: Record<string, string> = {}): Record<string, string
     HEATZONE_SPEED_FACTOR: "0.5",
     SYNC_ADAPTER_TIMEOUT: "5000",
     VEHICLE_COUNT: "70",
-    GEOJSON_PATH: "./data/network.geojson",
+    MAPS_DIR: "./data/maps",
     ADAPTER_URL: "",
     ...overrides,
   };
@@ -135,7 +135,7 @@ describe("envSchema / parseEnv", () => {
     expect(cfg.MIN_SPEED).toBe(20);
     expect(cfg.MAX_SPEED).toBe(60);
     expect(cfg.VEHICLE_COUNT).toBe(70);
-    expect(cfg.GEOJSON_PATH).toBe("./data/network.geojson");
+    expect(cfg.MAPS_DIR).toBe("./data/maps");
     expect(cfg.ADAPTER_URL).toBe("");
     expect(cfg.SECTORS_N).toBe(10);
   });
@@ -259,15 +259,22 @@ describe("verifyConfig", () => {
     vi.restoreAllMocks();
   });
 
-  describe("GeoJSON path validation", () => {
-    it("throws when geojsonPath resolves to a missing file", () => {
+  describe("MAPS_DIR validation", () => {
+    it("passes when the library directory does not exist yet (created on startup)", () => {
       vi.spyOn(fs, "existsSync").mockReturnValue(false);
-      expect(() => verifyConfig()).toThrow(/GeoJSON file not found/i);
+      expect(() => verifyConfig()).not.toThrow();
     });
 
-    it("passes when geojsonPath file exists", () => {
+    it("passes when the library directory exists", () => {
       vi.spyOn(fs, "existsSync").mockReturnValue(true);
+      vi.spyOn(fs, "statSync").mockReturnValue({ isDirectory: () => true } as fs.Stats);
       expect(() => verifyConfig()).not.toThrow();
+    });
+
+    it("throws when MAPS_DIR exists but is a file", () => {
+      vi.spyOn(fs, "existsSync").mockReturnValue(true);
+      vi.spyOn(fs, "statSync").mockReturnValue({ isDirectory: () => false } as fs.Stats);
+      expect(() => verifyConfig()).toThrow(/not a directory/i);
     });
   });
 });
@@ -322,7 +329,7 @@ describe(".env.example completeness", () => {
     const vars = new Set<string>();
     // Match process.env.VAR_NAME
     for (const m of source.matchAll(/process\.env\.(\w+)/g)) vars.add(m[1]);
-    // Match zod schema field names (e.g. PORT: z.coerce, GEOJSON_PATH: z.string, or multiline z\n.enum)
+    // Match zod schema field names (e.g. PORT: z.coerce, MAPS_DIR: z.string, or multiline z\n.enum)
     for (const m of source.matchAll(/^\s+([A-Z][A-Z0-9_]+)\s*:\s*z[\s.]/gm)) vars.add(m[1]);
     vars.delete("NODE_ENV");
     return [...vars];
