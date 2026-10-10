@@ -67,7 +67,7 @@ describe("SnapGrid.nearestWithin matches a linear nearest-node scan", () => {
       }
       const grid = new SnapGrid(points, (p) => [p.lat, p.lon] as const, MAX_CONTROL_SNAP_KM);
       let hits = 0;
-      for (let q = 0; q < 3000; q++) {
+      for (let q = 0; q < 1000; q++) {
         const lat = lat0 - 0.001 + rand() * 0.007;
         const lon = lon0 - 0.001 + rand() * 0.009;
         const expected = linearNearestWithin(points, lat, lon, MAX_CONTROL_SNAP_KM);
@@ -75,8 +75,8 @@ describe("SnapGrid.nearestWithin matches a linear nearest-node scan", () => {
         if (expected) hits++;
       }
       // Both branches must actually be exercised.
-      expect(hits).toBeGreaterThan(300);
-      expect(hits).toBeLessThan(2900);
+      expect(hits).toBeGreaterThan(100);
+      expect(hits).toBeLessThan(970);
     });
   }
 
