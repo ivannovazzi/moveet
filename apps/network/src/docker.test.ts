@@ -51,7 +51,18 @@ describe("osmium", () => {
     expect(mockExec).toHaveBeenCalledWith(
       "osmium",
       ["export", "/w/in.osm.pbf", "-o", "/w/out.geojson"],
-      { stdio: "inherit" }
+      { stdio: ["ignore", "inherit", "pipe"] }
+    );
+  });
+
+  it("puts osmium's stderr into the thrown error", () => {
+    mockExec.mockImplementation(() => {
+      throw Object.assign(new Error("Command failed: osmium extract"), {
+        stderr: Buffer.from("Open failed for 'x.osm.pbf': No such file or directory\n"),
+      });
+    });
+    expect(() => osmium(["extract", "x.osm.pbf"], "/w")).toThrow(
+      "Command failed: osmium extract\nOpen failed for 'x.osm.pbf': No such file or directory"
     );
   });
 });

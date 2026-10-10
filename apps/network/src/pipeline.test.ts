@@ -43,7 +43,13 @@ vi.mock("./commands/download.js", async (orig) => ({
     return "";
   }),
 }));
-vi.mock("./commands/extract.js", () => ({ extract: vi.fn(() => calls.push("extract")) }));
+let extractedInput: string | undefined;
+vi.mock("./commands/extract.js", () => ({
+  extract: vi.fn((opts: { input: string }) => {
+    calls.push("extract");
+    extractedInput = fs.readFileSync(opts.input, "utf8");
+  }),
+}));
 vi.mock("./commands/filter.js", async (orig) => ({
   ...(await orig<typeof import("./commands/filter.js")>()),
   filter: vi.fn(() => calls.push("filter")),
@@ -88,6 +94,7 @@ beforeEach(() => {
   fs.mkdirSync(path.join(dir, "cache"));
   fs.writeFileSync(path.join(dir, "cache", "europe-italy-latest.osm.pbf"), "pbf");
   calls.length = 0;
+  extractedInput = undefined;
   exported = ROADS;
 });
 afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
@@ -126,6 +133,11 @@ describe("ProgressTracker", () => {
 });
 
 describe("buildMap", () => {
+  it("links the country file so it stays readable when the cache dir is relative", async () => {
+    await buildMap(options({ cacheDir: path.relative(process.cwd(), path.join(dir, "cache")) }));
+    expect(extractedInput).toBe("pbf");
+  });
+
   it("runs every step in order, reports monotonic progress and writes the outputs", async () => {
     const seen: BuildProgress[] = [];
     const result = await buildMap(options({ onProgress: (p) => seen.push(p) }));

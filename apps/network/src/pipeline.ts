@@ -198,11 +198,13 @@ export async function buildMap(opts: BuildMapOptions): Promise<BuildMapResult> {
   const output = path.join(opts.outDir, NETWORK_FILE);
 
   // osmium resolves file arguments against one workdir, so the country file is
-  // linked next to the intermediates instead of read across directories.
+  // linked next to the intermediates instead of read across directories. The
+  // target must be absolute: a relative one resolves from the link's own
+  // directory and dangles when the cache dir is relative (e.g. ./data/maps).
   const pbfLinked = path.join(opts.workDir, "country.osm.pbf");
   fs.rmSync(pbfLinked, { force: true });
   try {
-    fs.symlinkSync(pbfCountry, pbfLinked);
+    fs.symlinkSync(path.resolve(pbfCountry), pbfLinked);
   } catch {
     fs.copyFileSync(pbfCountry, pbfLinked);
   }
