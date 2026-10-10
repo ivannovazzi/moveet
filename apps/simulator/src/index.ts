@@ -35,6 +35,7 @@ import {
   createMetricsRoutes,
   createSpeedProfileRoutes,
   createWeatherRoutes,
+  createBuildingRoutes,
 } from "./routes";
 import { jsonBodyParser } from "./routes/speedProfiles";
 import { SpeedProfileManager } from "./modules/speedprofiles/SpeedProfileManager";
@@ -212,6 +213,7 @@ if (speedProfiles) {
   app.use(createSpeedProfileRoutes(speedProfiles));
 }
 app.use(createWeatherRoutes(ctx));
+app.use(createBuildingRoutes({ dir: config.buildingsDir }));
 
 // ─── API documentation ──────────────────────────────────────────────
 

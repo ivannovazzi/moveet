@@ -57,6 +57,7 @@ All config is parsed and validated through a single zod schema in `src/utils/con
 | ----------------------------- | ---------------------------------------------------------------------------------------- | ---------------------- |
 | `PORT`                        | HTTP server port                                                                         | 5010                   |
 | `GEOJSON_PATH`                | Path to OpenStreetMap GeoJSON file                                                       | ./data/network.geojson |
+| `BUILDINGS_DIR`               | Optional 3D building tiles from `network buildings`; absent means `GET /buildings` is 404 | ./data/buildings       |
 | `UPDATE_INTERVAL`             | Vehicle position update frequency (ms)                                                   | 500                    |
 | `MIN_SPEED`                   | Minimum vehicle speed (km/h)                                                             | 20                     |
 | `MAX_SPEED`                   | Maximum vehicle speed (km/h); must be greater than `MIN_SPEED`                           | 60                     |
@@ -328,7 +329,7 @@ Connect to `ws://localhost:5010` for real-time updates.
 
 **Message Types** (non-exhaustive): `vehicle`/`vehicles`, `status`, `clock`, `options`, `heatzones`, `direction`, `traffic`, `analytics`, `waypoint:reached`, `route:completed`, `vehicle:rerouted`, `incident:created`, `incident:cleared`, `geofence:event`, `fleet:created`/`fleet:deleted`/`fleet:assigned`, `scenario:*`, `replay:status`, `generate:progress`/`generate:complete`/`generate:error`, `faults:config`, `reset`.
 
-Beyond the endpoints shown above, the API also exposes incidents (`/incidents`), geofences (`/geofences`), fleets (`/fleets`), jobs (`/jobs`), device faults (`/faults`), analytics (`/analytics/*`), traffic (`/traffic`, `/traffic-profile`), clock (`/clock`), speed limits (`/speed-limits`), recording, replay (`/replay/status`), scenarios, and state persistence (`/state/save`, `/state/restore`, `/state/snapshots`). See the OpenAPI/Scalar reference served by the app for the full set.
+Beyond the endpoints shown above, the API also exposes incidents (`/incidents`), geofences (`/geofences`), fleets (`/fleets`), jobs (`/jobs`), device faults (`/faults`), analytics (`/analytics/*`), traffic (`/traffic`, `/traffic-profile`), clock (`/clock`), speed limits (`/speed-limits`), optional 3D building tiles (`/buildings`, `/buildings/:z/:x/:y`), recording, replay (`/replay/status`), scenarios, and state persistence (`/state/save`, `/state/restore`, `/state/snapshots`). See the OpenAPI/Scalar reference served by the app for the full set.
 
 ## API Specifications
 

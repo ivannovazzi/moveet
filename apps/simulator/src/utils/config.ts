@@ -91,6 +91,13 @@ const envObjectSchema = z.object({
   /** Path to the GeoJSON road network file */
   GEOJSON_PATH: z.string().default("./data/network.geojson"),
 
+  /**
+   * Directory of optional building-footprint tiles (`index.json` + z/x/y.json),
+   * written by `network buildings`. Absent is fine: GET /buildings answers 404
+   * and the UI's 3D buildings toggle reports that no data is available.
+   */
+  BUILDINGS_DIR: z.string().default("./data/buildings"),
+
   /** URL of the adapter service (empty = disabled) */
   ADAPTER_URL: z.string().default(""),
 
@@ -394,6 +401,7 @@ function buildConfig(env: EnvConfig) {
     vehicleCount: env.VEHICLE_COUNT,
     vehicleTypes: env.VEHICLE_TYPES,
     geojsonPath: env.GEOJSON_PATH,
+    buildingsDir: env.BUILDINGS_DIR,
     adapterURL: env.ADAPTER_URL,
     persistenceEnabled: env.PERSISTENCE_ENABLED,
     persistenceInterval: env.PERSISTENCE_INTERVAL,

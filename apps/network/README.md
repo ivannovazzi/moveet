@@ -107,6 +107,21 @@ npx tsx src/cli.ts prune --input apps/simulator/data/network.geojson
 npx tsx src/cli.ts validate --input apps/simulator/data/network.geojson
 ```
 
+## 3D buildings (optional)
+
+The UI can draw OSM building footprints as extruded 3D blocks (the Buildings key in the map's layer rail, off by default). The data is not produced by `prepare`; generate it separately when you want it:
+
+```bash
+# From the monorepo root (reuses the cached country download and bbox extract):
+npx tsx apps/network/src/cli.ts buildings nairobi
+```
+
+This writes `apps/simulator/data/buildings/` (gitignored like `network.geojson`): an `index.json` plus one JSON file per z14 Web Mercator tile, which the simulator serves at `GET /buildings` and `GET /buildings/:z/:x/:y`. Without it the endpoint answers 404 and the UI's Buildings key reports that no data is available.
+
+Each tile is a flat, delta-encoded number array (coordinates in 1e-6 degree units, outer rings only), so the browser only fetches and parses the tiles in view at zoom 14 and above. Height is the `height` tag, else `building:levels` x 3 m, else a per-type default (7 m for plain `building=yes`). OSM height tags are sparse: for Nairobi about 0.2% of buildings carry `height` and 0.7% `building:levels`, so most blocks use the default.
+
+Nairobi measured 623,773 buildings (157 MB as raw GeoJSON) and 28 MB of tiles in 274 files (11 MB gzipped, largest tile 1.2 MB / 28.8k buildings).
+
 ## Caching
 
 Downloaded PBF files are stored in `apps/network/.cache/` and reused on subsequent runs (compared by ETag). Use `--force` to re-download even when a cached file exists.

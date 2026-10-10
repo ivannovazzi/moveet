@@ -40,6 +40,9 @@ const LAYER_ORDER: Record<string, number> = {
   // The map's own ground: the density bloom and the honeycomb lattice, the one
   // thing that belongs under the roads.
   ground: 1,
+  // Optional 3D buildings: just over the road network (so they read as the
+  // city the roads run through) and under every overlay, route and vehicle.
+  buildings: 6,
   geofences: 10,
   "traffic-overlay": 20,
   breadcrumbs: 30,

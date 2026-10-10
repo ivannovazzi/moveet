@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { Modifiers } from "@/types";
 import {
+  BuildingIcon,
   CarIcon,
   Flame,
   GaugeIcon,
@@ -34,6 +35,7 @@ export interface VisibilityLayer {
 
 export const VISIBILITY_LAYERS: VisibilityLayer[] = [
   { key: "showDirections", label: "Network", icon: <Road /> },
+  { key: "showBuildings", label: "Buildings", icon: <BuildingIcon /> },
   { key: "showTrafficOverlay", label: "Traffic Colours", icon: <TrafficIcon /> },
   { key: "showVehicles", label: "Vehicles", icon: <CarIcon /> },
   { key: "showDensity", label: "Density", icon: <LayersIcon /> },

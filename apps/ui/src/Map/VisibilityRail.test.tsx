@@ -17,6 +17,7 @@ import VisibilityRail from "./VisibilityRail";
 import { VISIBILITY_LAYERS } from "./visibilityLayers";
 import { DENSITY_MIN_VEHICLES } from "./Vehicle/densityView";
 import { vehicleStore } from "@/hooks/vehicleStore";
+import { setBuildingsStatus } from "./Buildings/buildingsStatus";
 
 beforeEach(() => {
   // The Node test runtime's localStorage global throws on access.
@@ -26,6 +27,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  act(() => setBuildingsStatus("idle"));
 });
 
 function renderRail(
@@ -95,6 +97,46 @@ describe("VisibilityRail", () => {
 
     expect(key("Vehicles")).toHaveAttribute("aria-pressed", "true");
     expect(key("POIs")).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("has a Buildings key, off by default, that names its zoom range", () => {
+    renderRail({ showBuildings: undefined });
+
+    expect(key("Buildings")).toHaveAttribute("aria-pressed", "false");
+    expect(key("Buildings")).toHaveAttribute("title", "Show Buildings (zoom 14+)");
+    expect(screen.queryByTestId("buildings-missing-chip")).toBeNull();
+  });
+
+  it("dims a lit Buildings key and says why when the simulator has no data", () => {
+    renderRail({ showBuildings: true });
+    expect(screen.queryByTestId("buildings-missing-chip")).toBeNull();
+
+    act(() => setBuildingsStatus("unavailable"));
+
+    const chip = screen.getByTestId("buildings-missing-chip");
+    expect(chip).toHaveTextContent("no building data on the simulator");
+    expect(key("Buildings")).toHaveAttribute("aria-describedby", chip.id);
+    expect(key("Buildings")).toHaveAttribute("aria-pressed", "true");
+    expect(key("Buildings").className).toContain("opacity-55");
+  });
+
+  it("shows no missing-data hint while Buildings is off, or once data is ready", () => {
+    act(() => setBuildingsStatus("unavailable"));
+    const { rerender } = renderRail({ showBuildings: false });
+    expect(screen.queryByTestId("buildings-missing-chip")).toBeNull();
+
+    act(() => setBuildingsStatus("ready"));
+    rerender(
+      <VisibilityRail
+        modifiers={{ ...createModifiers(), showBuildings: true } as Modifiers}
+        onChangeModifiers={vi.fn(() => vi.fn())}
+        hiddenVehicleTypes={new Set()}
+        onToggleVehicleType={vi.fn()}
+        vehicleCount={0}
+      />
+    );
+    expect(screen.queryByTestId("buildings-missing-chip")).toBeNull();
+    expect(key("Buildings")).toHaveAttribute("title", "Hide Buildings (zoom 14+)");
   });
 
   it("reads an absent optional modifier as off", () => {

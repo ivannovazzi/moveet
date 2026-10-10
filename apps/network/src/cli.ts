@@ -9,6 +9,7 @@ import { prune } from "./commands/prune.js";
 import { validate } from "./commands/validate.js";
 import { diff } from "./commands/diff.js";
 import { prepare } from "./commands/prepare.js";
+import { buildings, DEFAULT_BUILDINGS_OUTPUT } from "./commands/buildings.js";
 import path from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 
@@ -137,6 +138,29 @@ program
         output: opts.output,
         force: opts.force,
         dryRun: opts.dryRun,
+        cacheDir: CACHE_DIR,
+      });
+    }
+  );
+
+program
+  .command("buildings [region]")
+  .description("Optional: extract building footprints as tiles for the UI's 3D buildings layer")
+  .option("--bbox <w,s,e,n>", "Custom bounding box (west,south,east,north)")
+  .option("--geofabrik <path>", "Geofabrik path (e.g. africa/kenya)")
+  .option("--output <dir>", "Output directory", DEFAULT_BUILDINGS_OUTPUT)
+  .option("--force", "Force re-download even if cached")
+  .action(
+    async (
+      region: string | undefined,
+      opts: { bbox?: string; geofabrik?: string; output: string; force?: boolean }
+    ) => {
+      await buildings({
+        region,
+        bbox: opts.bbox ? parseBbox(opts.bbox) : undefined,
+        geofabrik: opts.geofabrik,
+        output: opts.output,
+        force: opts.force,
         cacheDir: CACHE_DIR,
       });
     }
