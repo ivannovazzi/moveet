@@ -30,7 +30,17 @@ export function buildOsmiumArgs(args: string[], workdir: string): string[] {
 }
 
 export function osmium(args: string[], workdir: string): void {
-  execFileSync("osmium", buildOsmiumArgs(args, workdir), { stdio: "inherit" });
+  try {
+    execFileSync("osmium", buildOsmiumArgs(args, workdir), {
+      stdio: ["ignore", "inherit", "pipe"],
+    });
+  } catch (err) {
+    // Keep osmium's own diagnostics in the error, so a failed map build job
+    // reports why instead of only the command line.
+    const stderr = (err as { stderr?: Buffer }).stderr?.toString().trim();
+    if (stderr && err instanceof Error) err.message += `\n${stderr}`;
+    throw err;
+  }
 }
 
 /** Runs osmium like {@link osmium} but returns its stdout (e.g. `cat -f opl`). */
