@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook } from "@testing-library/react";
-import useTracking, { MIN_FOCUS_ZOOM } from "./useTracking";
+import useTracking, { MIN_FOCUS_ZOOM, FOCUS_FLY_MS } from "./useTracking";
 import { useMapControls } from "@/components/Map/hooks";
 import { createVehicle } from "@/test/mocks/types";
 import type { Vehicle } from "@/types";
@@ -50,7 +50,7 @@ describe("useTracking", () => {
 
     expect(focusOn).toHaveBeenCalledTimes(1);
     expect(focusOn).toHaveBeenCalledWith(36.82, -1.29, MIN_FOCUS_ZOOM, {
-      duration: 0,
+      duration: FOCUS_FLY_MS,
     });
   });
 
@@ -60,7 +60,7 @@ describe("useTracking", () => {
 
     renderTracking([vehicle], "v1");
 
-    expect(focusOn).toHaveBeenCalledWith(36.82, -1.29, 16.5, { duration: 0 });
+    expect(focusOn).toHaveBeenCalledWith(36.82, -1.29, 16.5, { duration: FOCUS_FLY_MS });
   });
 
   it("does NOT call focusOn when no vehicle is selected", () => {
@@ -96,7 +96,7 @@ describe("useTracking", () => {
 
     expect(focusOn).toHaveBeenCalledTimes(2);
     expect(focusOn).toHaveBeenLastCalledWith(36.9, -1.35, MIN_FOCUS_ZOOM, {
-      duration: 0,
+      duration: FOCUS_FLY_MS,
     });
   });
 
@@ -120,7 +120,7 @@ describe("useTracking", () => {
 
     expect(focusOn).toHaveBeenCalledTimes(1);
     expect(focusOn).toHaveBeenCalledWith(36.82, -1.29, MIN_FOCUS_ZOOM, {
-      duration: 0,
+      duration: FOCUS_FLY_MS,
     });
   });
 });

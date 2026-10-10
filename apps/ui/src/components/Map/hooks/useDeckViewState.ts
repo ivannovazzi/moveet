@@ -36,6 +36,15 @@ const FIT_PADDING = 40;
  */
 const MAX_PITCH = 60;
 
+/**
+ * Ease-in-out for camera flies. deck.gl's transition manager defaults to a
+ * linear ramp, which starts and stops abruptly (FlyToInterpolator only shapes
+ * the path, not the timing), so a fly reads as a lurch at both ends.
+ */
+export function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+}
+
 /** The pitch the tilt key and the `t` shortcut lean to from flat. */
 const TILT_PITCH = 45;
 
@@ -188,6 +197,7 @@ export function useDeckViewState({ data, width, height }: UseDeckViewStateOption
         ...centreForTarget(lng, lat, prev.zoom ?? DEFAULT_ZOOM, width, height),
         transitionDuration: options?.duration ?? 300,
         transitionInterpolator: new FlyToInterpolator(),
+        transitionEasing: easeInOutCubic,
       }));
     },
     [width, height]
@@ -256,6 +266,7 @@ export function useDeckViewState({ data, width, height }: UseDeckViewStateOption
         zoom,
         transitionDuration: options?.duration ?? 500,
         transitionInterpolator: new FlyToInterpolator(),
+        transitionEasing: easeInOutCubic,
       }));
     },
     [width, height]

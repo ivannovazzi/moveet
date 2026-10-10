@@ -385,7 +385,7 @@ export default function App() {
   useVersionCheck();
 
   const maxSpeedRef = useRef(60);
-  useTracking(vehicles, filters.selected, status.interval);
+  useTracking(vehicles, filters.selected);
 
   // Destructured up here so the keyboard dispatcher and the palette both
   // depend on the stable functions rather than the per-render `dispatch` /
