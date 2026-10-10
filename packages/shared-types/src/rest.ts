@@ -234,12 +234,13 @@ export type AnalyticsHistoryPayload = AnalyticsHistoryRow[] | AnalyticsHistoryEn
 /**
  * Where a library map came from. `import` is a file brought in from outside
  * the library (the pre-library `data/network.geojson`), `bundled` is the small
- * default shipped in the image, and `geofabrik`/`preset` are reserved for maps
- * the simulator builds itself.
+ * default shipped in the image, and `geofabrik`/`preset` are maps the
+ * simulator built itself (`POST /maps`) from a Geofabrik extract, cut to
+ * `bbox`. A `preset` build names its `regions.json` entry.
  */
 export type MapSource =
-  | { type: "geofabrik"; path: string }
-  | { type: "preset"; name: string }
+  | { type: "geofabrik"; path: string; bbox?: [number, number, number, number] }
+  | { type: "preset"; name: string; path?: string; bbox?: [number, number, number, number] }
   | { type: "import"; from: string }
   | { type: "bundled" };
 
@@ -263,6 +264,10 @@ export interface MapMeta {
   nodeCount: number | null;
   /** Whether the map ships 3D building tiles. */
   hasBuildings: boolean;
+  /** Buildings in the tile tree, when the simulator built the map. */
+  buildingCount?: number;
+  /** Data licence notice, e.g. OpenStreetMap's ODbL attribution. */
+  attribution?: string;
   createdAt: string;
 }
 
@@ -272,6 +277,135 @@ export interface MapListResponse {
   activeId: string;
   /** True while a `POST /maps/:id/activate` is swapping the network. */
   switching: boolean;
+  /** False when `ALLOW_MAP_BUILDS=false`: `POST /maps` and job cancellation answer 403. */
+  buildsAllowed: boolean;
+  buildLimits: MapBuildLimits;
+}
+
+/** Caps applied to `POST /maps`, so a client can check a request before sending it. */
+export interface MapBuildLimits {
+  /** Largest bbox a build accepts, in km². */
+  maxAreaKm2: number;
+  /** Disk budget for the library's maps (`MAP_BUILD_DISK_QUOTA_MB`), in bytes. */
+  diskQuotaBytes: number;
+  /** Bytes the library's maps use now (the download cache excluded). */
+  diskUsedBytes: number;
+  /** Bytes of cached Geofabrik downloads (`<MAPS_DIR>/.cache`). */
+  cacheBytes: number;
+  /** Jobs that may wait behind the running one; `POST /maps` answers 409 beyond that. */
+  maxQueuedJobs: number;
+}
+
+// ─── Map builds ─────────────────────────────────────────────────────
+
+/** `POST /maps` body: a `regions.json` preset, or a custom area of a Geofabrik extract. */
+export type MapBuildRequest =
+  | { preset: string; label?: string; buildings?: boolean; activate?: boolean }
+  | {
+      label: string;
+      /** `[west, south, east, north]` in degrees. */
+      bbox: [number, number, number, number];
+      /** Geofabrik extract path from `GET /maps/geofabrik`, e.g. `europe/italy/nord-ovest`. */
+      geofabrik: string;
+      buildings?: boolean;
+      activate?: boolean;
+    };
+
+export type MapJobStatus = "queued" | "running" | "done" | "failed" | "cancelled";
+
+export type MapJobStep =
+  | "queued"
+  | "download"
+  | "extract"
+  | "filter"
+  | "export"
+  | "prune"
+  | "validate"
+  | "buildings"
+  | "finalize"
+  | "activate";
+
+/**
+ * A map build job. Also the payload of the `mapjob` WebSocket message, sent on
+ * every state change and on progress.
+ */
+export interface MapJob {
+  id: string;
+  status: MapJobStatus;
+  step: MapJobStep;
+  /** Overall progress, 0..1. */
+  progress: number;
+  /** Download progress, while the Geofabrik extract is being fetched. */
+  bytesDownloaded?: number;
+  totalBytes?: number;
+  /**
+   * Why the job failed. On a `done` job it means the map was built but
+   * `activate: true` could not switch to it.
+   */
+  error?: string;
+  /** The library id of the built map, once `done`. */
+  mapId?: string;
+  label: string;
+  bbox: [number, number, number, number];
+  geofabrik: string;
+  preset?: string;
+  buildings: boolean;
+  activate: boolean;
+  createdAt: string;
+  startedAt?: string;
+  finishedAt?: string;
+}
+
+/** `POST /maps` (202): the job as it stands (`running` when nothing else was). */
+export type MapBuildAccepted = MapJob;
+
+/** `GET /maps/jobs` */
+export interface MapJobListResponse {
+  jobs: MapJob[];
+}
+
+/** One `GET /maps/presets` entry (`apps/network/regions.json`). */
+export interface MapPreset {
+  name: string;
+  label: string;
+  bbox: [number, number, number, number];
+  geofabrik: string;
+  /** Approximate area of the bbox, km². */
+  areaKm2: number;
+}
+
+/** A Geofabrik extract whose boundary contains the requested bbox (`GET /maps/geofabrik`). */
+export interface GeofabrikRegion {
+  /** Extract path, the `geofabrik` value of `POST /maps`. */
+  path: string;
+  name: string;
+  /** `[west, south, east, north]` of the extract's boundary. */
+  bbox: [number, number, number, number];
+  /** Approximate area of the extract's boundary, km²: the list is sorted by it, smallest first. */
+  areaKm2: number;
+  /** Download URL of the `.pbf`. */
+  url: string;
+}
+
+export interface GeofabrikLookupResponse {
+  regions: GeofabrikRegion[];
+}
+
+/** A place from `GET /maps/geocode` (Nominatim). */
+export interface GeocodeResult {
+  name: string;
+  /** `[west, south, east, north]` */
+  bbox: [number, number, number, number];
+  /** `[lon, lat]` */
+  center: [number, number];
+  /** OSM class/type, e.g. `boundary/administrative`, `place/city`. */
+  type: string;
+}
+
+export interface GeocodeResponse {
+  results: GeocodeResult[];
+  /** Nominatim's licence notice, to show next to the results. */
+  attribution: string;
 }
 
 /** `POST /maps/:id/activate` */
