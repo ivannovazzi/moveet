@@ -224,7 +224,7 @@ The active map's meta.
 
 #### `POST /maps/:id/activate`
 
-Hot-swaps the road network. The simulation pauses while the new graph is built, then everything tied to the old map is reset: vehicles respawn on the new network, and routes, the route cache, traffic, incidents, jobs, geofences, heat zones and a running scenario are cleared (learned speed profiles are reloaded for the new map). A running simulation resumes. Answers 200 with `{ map, previousId, changed, durationMs, warning? }`, 404 for an unknown map, 409 while another switch is in progress, and 422 when the map cannot be loaded (the previous map stays active). With `ADAPTER_URL` set the switch still happens but `warning` explains that the adapter's fleet now sits on another city. Progress is broadcast as WebSocket `map` frames: `{ status: "switching" | "active" | "error", map, error? }`.
+Hot-swaps the road network. The new graph is built in a worker thread while the current map keeps running and the server keeps answering; then everything tied to the old map is reset: vehicles respawn on the new network, and routes, the route cache, traffic, incidents, jobs, geofences, heat zones and a running scenario are cleared (learned speed profiles are reloaded for the new map). A running simulation resumes. Answers 200 with `{ map, previousId, changed, durationMs, warning? }`, 404 for an unknown map, 409 while another switch is in progress, and 422 when the map cannot be loaded (the previous map stays active). With `ADAPTER_URL` set the switch still happens but `warning` explains that the adapter's fleet now sits on another city. Progress is broadcast as WebSocket `map` frames: `{ status: "switching" | "active" | "error", map, error? }`.
 
 #### `DELETE /maps/:id`
 
@@ -398,15 +398,17 @@ npm run dev
 
 ```bash
 npm run build         # tsc + build:worker
-npm run build:worker  # bundle the pathfinding worker only
+npm run build:worker  # bundle the worker threads only
 ```
 
-The pathfinding worker is pre-bundled with esbuild into a self-contained
-`dist/workers/pathfinding-worker.cjs` (`scripts/build-worker.mjs`). The worker imports the
+The worker threads are pre-bundled with esbuild into self-contained files
+(`scripts/build-worker.mjs`): `dist/workers/pathfinding-worker.cjs` (the A\* pool) and
+`dist/workers/graph-build-worker.cjs` (builds the graph for a map switch off the main
+thread, so the server keeps answering while a new map loads). The workers import the
 shared A\* cost/heap modules and OSM-tag parsers via extensionless ESM specifiers that plain
 Node (and tsx, whose loader does not propagate into `worker_threads`) cannot resolve
 from raw `.ts`; bundling inlines them into one dependency-free CJS file. `build:worker` is
-chained into `build`, `predev`, and `pretest`, and `PathfindingPool` always launches the
+chained into `build`, `predev`, and `pretest`, and both are always launched from the
 `.cjs` (dev, vitest, and prod).
 
 ### WebSocket Gateway (optional, `WS_TRANSPORT=redis`)

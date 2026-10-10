@@ -284,6 +284,47 @@ describe("POST /maps/:id/activate", () => {
     expect(h.events[1].error).toBeTruthy();
   });
 
+  it("keeps the previous map when the build worker dies", async () => {
+    const workerPath = path.join(h.root, "crash.cjs");
+    fs.writeFileSync(workerPath, "process.exit(7);\n");
+    h.switcher = new MapSwitcher(
+      {
+        ...h.deps,
+        buildNetwork: (p) => RoadNetwork.loadOffThread(p, undefined, { workerPath }),
+      },
+      "small"
+    );
+    h.switcher.on("map", (p) => h.events.push(p));
+    await h.simulationController.start({});
+    const before = (await request(h.app).get("/network")).body;
+
+    await expect(h.switcher.activate("grid")).rejects.toThrow(/exited with code 7/);
+
+    expect((await request(h.app).get("/network")).body).toEqual(before);
+    expect(h.switcher.getActiveId()).toBe("small");
+    expect(h.switcher.isSwitching).toBe(false);
+    expect(new MapLibrary(h.root).getActiveId()).toBe("small");
+    expect(h.vehicleManager.isRunning()).toBe(true);
+    expect(h.events.map((e) => e.status)).toEqual(["switching", "error"]);
+  });
+
+  it("stays busy, and the event loop free, while the graph builds", async () => {
+    const first = h.switcher.activate("grid");
+    let settled = false;
+    void first.finally(() => {
+      settled = true;
+    });
+    // `switching` goes out before any building starts.
+    expect(h.events.map((e) => e.status)).toEqual(["switching"]);
+    // Requests are served mid-build, and every other switch is refused.
+    expect((await request(h.app).get("/maps")).body.switching).toBe(true);
+    expect((await request(h.app).post("/maps/small/activate")).status).toBe(409);
+    expect(settled).toBe(false);
+    await first;
+    expect(h.switcher.isSwitching).toBe(false);
+    expect(h.switcher.getActiveId()).toBe("grid");
+  });
+
   it("rolls the graph back when committing the switch fails", async () => {
     const before = (await request(h.app).get("/network")).body;
     vi.spyOn(h.library, "setActiveId").mockImplementationOnce(() => {

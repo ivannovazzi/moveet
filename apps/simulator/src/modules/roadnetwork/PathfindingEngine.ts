@@ -21,6 +21,7 @@
 import type { Node, Edge, Route } from "../../types";
 import * as utils from "../../utils/helpers";
 import { LRUCache, type CacheStats } from "../../utils/LRUCache";
+import { runSliced, runToEnd, SLICE_MASK } from "../../utils/sliced";
 import { applyDynamicCost, clampLearnedSpeed, clampWeatherFactor } from "../pathfinding/cost";
 import type { SpeedOverrideTable } from "../speedprofiles/SpeedProfileStore";
 import { EdgeSearchScratch } from "../pathfinding/search";
@@ -311,7 +312,18 @@ export class PathfindingEngine {
 
   /** Stamps the dense node/edge indices and mirrors the base costs (idempotent). */
   private ensureIndexed(): void {
-    if (this.indexed) return;
+    if (!this.indexed) runToEnd(this.indexSteps());
+  }
+
+  /**
+   * Indexes the graph now, in time slices (see {@link runSliced}), so a map
+   * loaded while the server is live does not pay for it on its first query.
+   */
+  public async indexSliced(): Promise<void> {
+    if (!this.indexed) await runSliced(this.indexSteps());
+  }
+
+  private *indexSteps(): Generator<void, void> {
     let nodeIndex = 0;
     const edges: Edge[] = [];
     for (const node of this.nodes.values()) {
@@ -320,9 +332,18 @@ export class PathfindingEngine {
         (edge as Edge & SearchIndexed).searchIndex = edges.length;
         edges.push(edge);
       }
+      if ((nodeIndex & SLICE_MASK) === 0) yield;
     }
+    const baseCost = new Float64Array(edges.length);
+    for (let i = 0; i < edges.length; i++) {
+      baseCost[i] = this.edgeBaseCost.get(edges[i].id) ?? 0;
+      if ((i & SLICE_MASK) === 0) yield;
+    }
+    // A synchronous call may have completed the index while a sliced run was
+    // paused; the result is the same either way, so keep the first.
+    if (this.indexed) return;
     this.searchEdges = edges;
-    this.searchBaseCost = Float64Array.from(edges, (e) => this.edgeBaseCost.get(e.id) ?? 0);
+    this.searchBaseCost = baseCost;
     this.indexed = true;
   }
 

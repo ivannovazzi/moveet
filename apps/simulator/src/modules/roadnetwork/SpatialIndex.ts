@@ -14,6 +14,7 @@ import * as utils from "../../utils/helpers";
 import { SPATIAL_GRID } from "../../constants";
 import { rng } from "../../utils/rng";
 import { config } from "../../utils/config";
+import { runSliced, runToEnd, SLICE_MASK } from "../../utils/sliced";
 
 const SECTORS_N = config.sectorsN;
 
@@ -39,22 +40,59 @@ export class SpatialIndex {
   private poiNodes: Node[] | null = null;
   private poiSectorBuckets: Node[][] | null = null;
 
-  constructor(nodes: Map<string, Node>, edges: Map<string, Edge>, pois: POI[]) {
+  /** `deferBuild` leaves the index empty for {@link SpatialIndex.buildSliced} to fill. */
+  constructor(nodes: Map<string, Node>, edges: Map<string, Edge>, pois: POI[], deferBuild = false) {
     this.nodes = nodes;
     this.edges = edges;
     this.pois = pois;
-    this.computeBbox();
-    this.buildSpatialIndex();
-    this.buildSectorIndex();
+    if (!deferBuild) runToEnd(this.buildSteps());
   }
 
-  private computeBbox(): void {
+  /**
+   * Builds the index with the event loop kept responsive: the same steps as
+   * the constructor, run in time slices (see {@link runSliced}). Used when a
+   * map is loaded while the server is live.
+   */
+  static async buildSliced(
+    nodes: Map<string, Node>,
+    edges: Map<string, Edge>,
+    pois: POI[]
+  ): Promise<SpatialIndex> {
+    const index = new SpatialIndex(nodes, edges, pois, true);
+    await runSliced(index.buildSteps());
+    // The POI -> nearest-node table is otherwise computed on first use, which
+    // is the respawn right after a map switch: about a second on a city with
+    // tens of thousands of POIs. Done here, it costs no event-loop stall.
+    await runSliced(index.poiNodeSteps());
+    return index;
+  }
+
+  /** Fills {@link getPOINodes}' memo, yielding every few hundred lookups. */
+  private *poiNodeSteps(): Generator<void, void> {
+    const poiNodes: Node[] = [];
+    for (let i = 0; i < this.pois.length; i++) {
+      poiNodes.push(this.findNearestNode(this.pois[i].coordinates));
+      if ((i & 255) === 255) yield;
+    }
+    this.poiNodes ??= poiNodes;
+  }
+
+  /** Bbox, nearest-node grid and sector buckets; yields every few thousand items. */
+  private *buildSteps(): Generator<void, void> {
+    yield* this.computeBbox();
+    yield* this.buildSpatialIndex();
+    yield* this.buildSectorIndex();
+  }
+
+  private *computeBbox(): Generator<void, void> {
+    let i = 0;
     for (const node of this.nodes.values()) {
       const [lat, lon] = node.coordinates;
       if (lat < this.bbox.minLat) this.bbox.minLat = lat;
       if (lat > this.bbox.maxLat) this.bbox.maxLat = lat;
       if (lon < this.bbox.minLon) this.bbox.minLon = lon;
       if (lon > this.bbox.maxLon) this.bbox.maxLon = lon;
+      if ((++i & SLICE_MASK) === 0) yield;
     }
   }
 
@@ -64,7 +102,8 @@ export class SpatialIndex {
     return `${gx},${gy}`;
   }
 
-  private buildSpatialIndex(): void {
+  private *buildSpatialIndex(): Generator<void, void> {
+    let i = 0;
     for (const node of this.nodes.values()) {
       const key = this.gridKey(node.coordinates[0], node.coordinates[1]);
       let cell = this.spatialGrid.get(key);
@@ -73,10 +112,11 @@ export class SpatialIndex {
         this.spatialGrid.set(key, cell);
       }
       cell.push(node);
+      if ((++i & SLICE_MASK) === 0) yield;
     }
   }
 
-  private buildSectorIndex(): void {
+  private *buildSectorIndex(): Generator<void, void> {
     // Divide the bbox into a SECTORS_N × SECTORS_N coarse grid.
     // Assign edges AND nodes to sectors by position.
     // Each occupied sector gets equal weight regardless of road density,
@@ -88,7 +128,9 @@ export class SpatialIndex {
     const edgeSectorMap = new Map<number, Edge[]>();
     const nodeSectorMap = new Map<number, Node[]>();
 
+    let i = 0;
     for (const edge of this.edges.values()) {
+      if ((++i & SLICE_MASK) === 0) yield;
       if (edge.start.connections.length === 0) continue;
       const [lat, lon] = edge.start.coordinates;
       const row = Math.min(Math.floor((lat - minLat) / latStep), SECTORS_N - 1);
@@ -113,6 +155,7 @@ export class SpatialIndex {
         nodeSectorMap.set(key, bucket);
       }
       bucket.push(node);
+      if ((++i & SLICE_MASK) === 0) yield;
     }
 
     this.sectorEdges = Array.from(edgeSectorMap.values());

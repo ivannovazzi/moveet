@@ -59,12 +59,12 @@ export interface MapSwitcherDeps {
   /** `WEATHER_LAT`/`WEATHER_LON`: when set they pin weather, whatever the map. */
   weatherLat?: number;
   weatherLon?: number;
-  /** Builds a graph from a GeoJSON file. Injectable for tests. */
-  buildNetwork?: (geojsonPath: string) => RoadNetwork;
+  /**
+   * Builds a graph from a GeoJSON file. Defaults to {@link RoadNetwork.loadOffThread},
+   * which keeps the event loop responsive while it runs. Injectable for tests.
+   */
+  buildNetwork?: (geojsonPath: string) => RoadNetwork | Promise<RoadNetwork>;
 }
-
-/** Hand control back to the event loop so queued I/O (the `switching` frame) goes out first. */
-const yieldToEventLoop = () => new Promise<void>((resolve) => setImmediate(resolve));
 
 /**
  * Hot-swaps the active road network.
@@ -153,17 +153,20 @@ export class MapSwitcher extends EventEmitter<{ map: [MapStatusPayload] }> {
       return { map: target, previousId, changed: false, durationMs: 0, ...warning };
     }
 
+    // Busy from here until the switch has settled either way: every other
+    // activate (or delete) in the meantime is answered with a conflict.
     this.switching = true;
     const startedAt = Date.now();
     try {
       this.emit("map", { status: "switching", map: target });
-      await yieldToEventLoop();
 
       // Build first, touching nothing live: a corrupt or empty map fails here
-      // and the running simulation never notices.
+      // and the running simulation never notices. The default builder works
+      // in a worker thread and rebuilds the objects here in short slices, so
+      // the simulation, HTTP and WebSocket traffic carry on meanwhile.
       let incoming: RoadNetwork;
       try {
-        incoming = (this.deps.buildNetwork ?? ((p: string) => new RoadNetwork(p)))(
+        incoming = await (this.deps.buildNetwork ?? ((p: string) => RoadNetwork.loadOffThread(p)))(
           library.networkPath(id)
         );
         if (incoming.edgeCount === 0) throw new Error("the map has no routable roads");
