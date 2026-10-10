@@ -228,3 +228,60 @@ export interface AnalyticsHistoryEnvelope {
  * returns — so a client that asks for the envelope must still tolerate this.
  */
 export type AnalyticsHistoryPayload = AnalyticsHistoryRow[] | AnalyticsHistoryEnvelope;
+
+// ─── Map library ────────────────────────────────────────────────────
+
+/**
+ * Where a library map came from. `import` is a file brought in from outside
+ * the library (the pre-library `data/network.geojson`), `bundled` is the small
+ * default shipped in the image, and `geofabrik`/`preset` are reserved for maps
+ * the simulator builds itself.
+ */
+export type MapSource =
+  | { type: "geofabrik"; path: string }
+  | { type: "preset"; name: string }
+  | { type: "import"; from: string }
+  | { type: "bundled" };
+
+/** A road network in the simulator's map library (`<MAPS_DIR>/<id>/meta.json`). */
+export interface MapMeta {
+  /** Directory name: lowercase letters, digits, `-` and `_`. */
+  id: string;
+  label: string;
+  /** `[minLon, minLat, maxLon, maxLat]` of the road geometry, or null when empty. */
+  bbox: [number, number, number, number] | null;
+  source: MapSource;
+  sizes: {
+    /** Bytes of `network.geojson`. */
+    networkBytes: number;
+    /** Bytes of the `buildings/` tile tree, or 0 when the map has none. */
+    buildingsBytes: number;
+  };
+  /** GeoJSON features in `network.geojson`. */
+  featureCount: number;
+  /** Graph nodes, known once the map has been loaded at least once. */
+  nodeCount: number | null;
+  /** Whether the map ships 3D building tiles. */
+  hasBuildings: boolean;
+  createdAt: string;
+}
+
+/** `GET /maps` */
+export interface MapListResponse {
+  maps: MapMeta[];
+  activeId: string;
+  /** True while a `POST /maps/:id/activate` is swapping the network. */
+  switching: boolean;
+}
+
+/** `POST /maps/:id/activate` */
+export interface MapActivateResponse {
+  map: MapMeta;
+  /** The map that was active before (the same id when nothing changed). */
+  previousId: string;
+  /** False when the requested map was already active. */
+  changed: boolean;
+  durationMs: number;
+  /** Set when an external adapter is configured: its fleet now sits on a different city. */
+  warning?: string;
+}
