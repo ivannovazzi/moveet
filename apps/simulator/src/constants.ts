@@ -103,3 +103,10 @@ export const FLEET_COLORS = [
   "#ec4899", // pink
   "#78716c", // stone
 ] as const;
+
+/**
+ * User-Agent for requests to third-party OpenStreetMap services (Geofabrik,
+ * Nominatim), whose usage policies ask clients to identify themselves.
+ */
+export const OSM_SERVICES_USER_AGENT =
+  "Moveet-Simulator/1 (+https://github.com/ivannovazzi/moveet)";

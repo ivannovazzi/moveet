@@ -1,5 +1,5 @@
 import { Router, type Response } from "express";
-import type { MapListResponse } from "@moveet/shared-types";
+import type { MapBuildLimits, MapListResponse } from "@moveet/shared-types";
 import { asyncHandler } from "./helpers";
 import { validateParams } from "../middleware/validate";
 import { mapIdParamsSchema } from "../middleware/schemas";
@@ -10,11 +10,22 @@ import {
   MapNotFoundError,
 } from "../modules/maps/MapSwitcher";
 import type { MapLibrary } from "../modules/maps/MapLibrary";
+import type { MapBuildManager } from "../modules/maps/MapBuildManager";
 
 export interface MapRoutesOptions {
   library: MapLibrary;
   switcher: MapSwitcher;
+  /** Build permission and caps reported by `GET /maps`; without it builds read as disabled. */
+  builds?: Pick<MapBuildManager, "allowed" | "limits">;
 }
+
+const NO_BUILDS: MapBuildLimits = {
+  maxAreaKm2: 0,
+  diskQuotaBytes: 0,
+  diskUsedBytes: 0,
+  cacheBytes: 0,
+  maxQueuedJobs: 0,
+};
 
 /** Maps the switcher's domain errors to HTTP statuses; anything else is rethrown. */
 function sendMapError(err: unknown, res: Response): void {
@@ -34,7 +45,7 @@ function sendMapError(err: unknown, res: Response): void {
  * hot-swap to another, delete one. `/network`, `/roads`, `/pois` and
  * `/buildings*` always serve the active map.
  */
-export function createMapRoutes({ library, switcher }: MapRoutesOptions): Router {
+export function createMapRoutes({ library, switcher, builds }: MapRoutesOptions): Router {
   const router = Router();
 
   router.get("/maps", (_req, res) => {
@@ -42,6 +53,8 @@ export function createMapRoutes({ library, switcher }: MapRoutesOptions): Router
       maps: library.list(),
       activeId: switcher.getActiveId(),
       switching: switcher.isSwitching,
+      buildsAllowed: builds?.allowed ?? false,
+      buildLimits: builds?.limits() ?? NO_BUILDS,
     };
     res.json(body);
   });

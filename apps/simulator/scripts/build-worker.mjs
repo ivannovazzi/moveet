@@ -1,7 +1,8 @@
 /**
  * Bundles the worker threads into self-contained CommonJS files in dist/workers:
  * pathfinding-worker.cjs (the A* pool) and graph-build-worker.cjs (builds the
- * graph for a map switch off the main thread).
+ * graph for a map switch off the main thread). Also bundles the map build child
+ * process into dist/workers/map-build-child.mjs.
  *
  * Why a separate bundle step: the worker imports the shared A* cost/heap modules
  * and the OSM-tag parsers (../modules/pathfinding/{cost,heap}, ../modules/
@@ -35,3 +36,18 @@ for (const name of ["pathfinding-worker", "graph-build-worker"]) {
   });
   console.log(`Bundled dist/workers/${name}.cjs`);
 }
+
+// The map build child process (modules/maps/MapBuildRunner forks it). It runs
+// the apps/network pipeline, which is raw TypeScript in a workspace package,
+// so everything is inlined (no externals but node builtins) and the result is
+// one standalone ESM file that plain node runs in dev, tests and the image.
+await build({
+  entryPoints: [path.join(root, "src", "workers", "map-build-child.ts")],
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "node26",
+  outfile: path.join(root, "dist", "workers", "map-build-child.mjs"),
+});
+
+console.log("Bundled dist/workers/map-build-child.mjs");

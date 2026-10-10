@@ -323,6 +323,54 @@ export const mapIdParamsSchema = z.object({
     ),
 });
 
+/** `[west, south, east, north]`; ordering and the area cap are checked by the build manager. */
+const bboxTuple = z.tuple([
+  z.number().min(-180).max(180),
+  z.number().min(-90).max(90),
+  z.number().min(-180).max(180),
+  z.number().min(-90).max(90),
+]);
+
+/** A Geofabrik extract path (`europe/italy/nord-ovest`), never a URL. */
+const geofabrikPath = z
+  .string()
+  .max(200)
+  .regex(
+    /^[a-z0-9][a-z0-9-]*(\/[a-z0-9][a-z0-9-]*)*$/,
+    "geofabrik must be an extract path such as europe/italy/nord-ovest"
+  );
+
+const mapLabel = z.string().trim().min(1, "label must not be empty").max(80);
+
+const buildFlags = {
+  buildings: z.boolean().default(true),
+  activate: z.boolean().default(false),
+};
+
+/** `POST /maps`: a `regions.json` preset, or a bbox inside a Geofabrik extract. */
+export const mapBuildBodySchema = z.union([
+  z.strictObject({ preset: z.string().min(1).max(64), label: mapLabel.optional(), ...buildFlags }),
+  z.strictObject({ label: mapLabel, bbox: bboxTuple, geofabrik: geofabrikPath, ...buildFlags }),
+]);
+
+/** `:id` of a map build job. */
+export const mapJobIdParamsSchema = z.object({
+  id: z.string().regex(/^[A-Za-z0-9-]{1,64}$/, "invalid job id"),
+});
+
+/** `?bbox=w,s,e,n` */
+export const bboxQuerySchema = z.object({
+  bbox: z
+    .string()
+    .transform((v) => v.split(",").map((p) => (p.trim() === "" ? Number.NaN : Number(p))))
+    .pipe(bboxTuple.refine(([w, s, e, n]) => w < e && s < n, "bbox must be west,south,east,north")),
+});
+
+/** `?q=...` */
+export const geocodeQuerySchema = z.object({
+  q: z.string().trim().min(2, "q must be at least 2 characters").max(200),
+});
+
 /** Real position fixes for the adapter speed-profile source. */
 export const speedProfileObservationsSchema = z.object({
   fixes: z

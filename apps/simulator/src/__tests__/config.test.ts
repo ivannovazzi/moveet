@@ -128,6 +128,38 @@ describe("envSchema / parseEnv", () => {
     expect(() => parseEnv(validEnv({ WEATHER_LON: "-500" }))).toThrow(); // out of [-180, 180]
   });
 
+  it("parses map build settings, allowed by default", () => {
+    const d = parseEnv(validEnv());
+    expect(d.ALLOW_MAP_BUILDS).toBe(true);
+    expect(d.MAP_BUILD_MAX_AREA_KM2).toBe(2500);
+    expect(d.MAP_BUILD_DISK_QUOTA_MB).toBe(4096);
+    expect(d.MAP_BUILD_MAX_QUEUED).toBe(3);
+    expect(d.MAP_BUILD_CACHE_DIR).toBe("");
+    expect(d.GEOFABRIK_INDEX_TTL_HOURS).toBe(24);
+    expect(d.NOMINATIM_URL).toBe("https://nominatim.openstreetmap.org");
+
+    expect(parseEnv(validEnv({ ALLOW_MAP_BUILDS: "false" })).ALLOW_MAP_BUILDS).toBe(false);
+    expect(parseEnv(validEnv({ ALLOW_MAP_BUILDS: "0" })).ALLOW_MAP_BUILDS).toBe(false);
+    expect(parseEnv(validEnv({ ALLOW_MAP_BUILDS: "" })).ALLOW_MAP_BUILDS).toBe(true);
+    const c = parseEnv(
+      validEnv({
+        MAP_BUILD_MAX_AREA_KM2: "100",
+        MAP_BUILD_DISK_QUOTA_MB: "512",
+        MAP_BUILD_MAX_QUEUED: "0",
+      })
+    );
+    expect([c.MAP_BUILD_MAX_AREA_KM2, c.MAP_BUILD_DISK_QUOTA_MB, c.MAP_BUILD_MAX_QUEUED]).toEqual([
+      100, 512, 0,
+    ]);
+  });
+
+  it("rejects invalid map build settings", () => {
+    expect(() => parseEnv(validEnv({ ALLOW_MAP_BUILDS: "maybe" }))).toThrow();
+    expect(() => parseEnv(validEnv({ MAP_BUILD_MAX_AREA_KM2: "0" }))).toThrow();
+    expect(() => parseEnv(validEnv({ MAP_BUILD_DISK_QUOTA_MB: "-1" }))).toThrow();
+    expect(() => parseEnv(validEnv({ NOMINATIM_URL: "not a url" }))).toThrow();
+  });
+
   it("applies defaults when env vars are missing", () => {
     const cfg = parseEnv({});
     expect(cfg.PORT).toBe(5010);

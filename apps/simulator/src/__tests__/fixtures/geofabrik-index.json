@@ -1,0 +1,97 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "europe",
+        "name": "Europe",
+        "urls": { "pbf": "https://download.geofabrik.de/europe-latest.osm.pbf" }
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-25, 34], [45, 34], [45, 72], [-25, 72], [-25, 34]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "italy",
+        "parent": "europe",
+        "name": "Italy",
+        "urls": { "pbf": "https://download.geofabrik.de/europe/italy-latest.osm.pbf" }
+      },
+      "geometry": {
+        "type": "MultiPolygon",
+        "coordinates": [
+          [[[6.6, 36.6], [18.6, 36.6], [18.6, 47.1], [6.6, 47.1], [6.6, 36.6]]],
+          [[[8, 38.8], [9.9, 38.8], [9.9, 41.3], [8, 41.3], [8, 38.8]]]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "nord-ovest",
+        "parent": "italy",
+        "name": "Nord-Ovest",
+        "urls": { "pbf": "https://download.geofabrik.de/europe/italy/nord-ovest-latest.osm.pbf" }
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [[6.6, 43.7], [10.5, 43.7], [10.5, 46.6], [9.7, 46.6], [6.6, 46.0], [6.6, 43.7]]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "nord-est",
+        "parent": "italy",
+        "name": "Nord-Est",
+        "urls": { "pbf": "https://download.geofabrik.de/europe/italy/nord-est-latest.osm.pbf" }
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[10.5, 44.4], [13.9, 44.4], [13.9, 47.1], [10.5, 47.1], [10.5, 44.4]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "ring-region",
+        "name": "Region with a hole",
+        "urls": { "pbf": "https://download.geofabrik.de/test/ring-region-latest.osm.pbf" }
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [[0, 0], [4, 0], [4, 4], [0, 4], [0, 0]],
+          [[1, 1], [3, 1], [3, 3], [1, 3], [1, 1]]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "no-geometry",
+        "name": "No geometry",
+        "urls": { "pbf": "https://download.geofabrik.de/test/no-geometry-latest.osm.pbf" }
+      },
+      "geometry": null
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "foreign",
+        "name": "Not a Geofabrik URL",
+        "urls": { "pbf": "https://example.org/foreign-latest.osm.pbf" }
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-1, -1], [1, -1], [1, 1], [-1, 1], [-1, -1]]]
+      }
+    }
+  ]
+}

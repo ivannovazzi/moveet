@@ -28,6 +28,8 @@ export interface GracefulShutdownContext {
   recordingManager?: RecordingManager;
   persistenceManager?: PersistenceManager;
   weatherManager?: WeatherManager;
+  /** Kills a running map build so no osmium process outlives the server. */
+  mapBuildManager?: { shutdown(): void };
 }
 
 /**
@@ -48,6 +50,7 @@ export function registerGracefulShutdown(ctx: GracefulShutdownContext): void {
     recordingManager,
     persistenceManager,
     weatherManager,
+    mapBuildManager,
   } = ctx;
 
   // Re-entrancy latch: shutdown is now a multi-second async sequence, so a
@@ -67,6 +70,7 @@ export function registerGracefulShutdown(ctx: GracefulShutdownContext): void {
     clearInterval(trafficBroadcastInterval);
     clearInterval(analyticsBroadcastInterval);
     weatherManager?.stop();
+    mapBuildManager?.shutdown();
     logger.info("WebSocket broadcaster stopped");
 
     // Drain the recording pipeline before the process exits: stop the periodic

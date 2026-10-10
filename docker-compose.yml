@@ -13,7 +13,8 @@
 # Simulator: http://localhost:5010   Adapter: http://localhost:5011
 #
 # Road networks live in the simulator's map library on the `maps` named volume
-# (GET /maps, POST /maps/:id/activate). An empty library starts on a small
+# (GET /maps, POST /maps/:id/activate); new maps are built at runtime with
+# POST /maps (ALLOW_MAP_BUILDS, on by default). An empty library starts on a small
 # bundled demo map. To bring an existing ./apps/simulator/data/network.geojson
 # (and data/buildings/) into a fresh library, uncomment the one-time import
 # mounts on the simulator service below.
