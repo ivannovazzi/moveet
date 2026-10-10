@@ -13,4 +13,5 @@ export { createStateRoutes } from "./state";
 export { createMetricsRoutes } from "./metrics";
 export { createSpeedProfileRoutes } from "./speedProfiles";
 export { createWeatherRoutes } from "./weather";
+export { createBuildingRoutes } from "./buildings";
 export type { RouteContext } from "./types";
