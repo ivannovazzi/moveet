@@ -104,6 +104,12 @@
   --color-picker-land: oklch(0.255 0.012 258);
   --color-picker-border: oklch(0.42 0.012 258);
   --color-picker-outline: oklch(0.78 0.08 205);
+  /* The picker's optional overlays, each toggled from its legend: preset
+     areas (warm), library map extents (green; the active map drawn bolder),
+     and Geofabrik extract outlines (a faint violet, highlighted on hover). */
+  --color-picker-preset: oklch(0.8 0.12 80);
+  --color-picker-library: oklch(0.76 0.12 152);
+  --color-picker-region: oklch(0.7 0.08 300);
 
   /* Heat ramp (HeatLayer), cool/sparse → hot/dense. A warm sequential ramp of
      its own so density reads as intensity rather than as the categorical
@@ -122,4 +128,7 @@
   --color-picker-land: oklch(0.985 0.004 90);
   --color-picker-border: oklch(0.72 0.01 258);
   --color-picker-outline: oklch(0.5 0.1 220);
+  --color-picker-preset: oklch(0.6 0.13 70);
+  --color-picker-library: oklch(0.52 0.12 152);
+  --color-picker-region: oklch(0.5 0.1 300);
 }

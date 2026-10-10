@@ -10,7 +10,16 @@ import {
   setResolvedExtract,
   useAreaDraft,
 } from "./areaDraft";
-import { bboxAreaKm2, bboxProblem, formatArea, formatBytes, shrinkToArea } from "./bbox";
+import {
+  BOUND_NAMES,
+  type BoundsText,
+  bboxAreaKm2,
+  bboxProblem,
+  formatArea,
+  formatBytes,
+  parseBounds,
+  shrinkToArea,
+} from "./bbox";
 import {
   findGeofabrik,
   geocode,
@@ -45,8 +54,10 @@ const OPTION_ROW = cn(
  * The New map flow, beside the area picker's world map: search a place, see
  * it on the map as the results come in, pick one, and build. The box is the
  * place's extent, trimmed to the server's area cap when it is larger, and can
- * be adjusted on the map (never past the cap). The map covers exactly that box;
- * the Geofabrik extract it is cut from is picked automatically.
+ * be adjusted on the map (never past the cap). A box can also be drawn on the
+ * map, taken from a preset, or typed in as bounds. The map covers exactly that
+ * box; the Geofabrik extract it is cut from defaults to the smallest that
+ * holds it, and any larger one can be chosen instead.
  */
 export default function NewMapForm({
   library,
@@ -65,7 +76,14 @@ export default function NewMapForm({
   const [activateWhenDone, setActivateWhenDone] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const ids = { query: useId(), label: useId(), buildings: useId(), activate: useId() };
+  const [chosenExtract, setChosenExtract] = useState<string | null>(null);
+  const ids = {
+    query: useId(),
+    label: useId(),
+    buildings: useId(),
+    activate: useId(),
+    extract: useId(),
+  };
   const search = useGeocode(query);
   const maxArea = library?.builds?.limits.maxAreaKm2 ?? null;
 
@@ -79,6 +97,18 @@ export default function NewMapForm({
   useEffect(() => {
     if (top && !picked) previewArea({ bbox: top.bbox, outline: top.outline });
   }, [topKey]);
+
+  // A box drawn on the map, typed in or taken from a preset is no search pick:
+  // drop the pick's notes, and take a preset's name while the operator has not
+  // named the map.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: once per new choice.
+  useEffect(() => {
+    const source = draft.source;
+    if (!source || source.kind === "search") return;
+    setPicked(null);
+    setTrimmed(false);
+    if (source.name && !labelEdited) setLabel(source.name.slice(0, MAX_LABEL));
+  }, [draft.source?.seq]);
 
   const pick = (c: GeocodeResult) => {
     const fits = maxArea === null || bboxAreaKm2(c.bbox) <= maxArea;
@@ -94,8 +124,10 @@ export default function NewMapForm({
   const area = bbox ? bboxAreaKm2(bbox) : null;
   const shapeProblem = bbox ? bboxProblem(bbox) : null;
   const lookup = useGeofabrikLookup(bbox && !shapeProblem ? bbox : null);
-  // The smallest extract that holds the whole box.
-  const region = lookup.regions?.[0] ?? null;
+  // The extract chosen from those that hold the whole box; by default (or once
+  // the box moves out of the chosen one) the smallest.
+  const region =
+    lookup.regions?.find((r) => r.path === chosenExtract) ?? lookup.regions?.[0] ?? null;
 
   useEffect(() => {
     setResolvedExtract({ selected: bbox ? (region?.path ?? null) : null });
@@ -218,6 +250,8 @@ export default function NewMapForm({
         )}
       </div>
 
+      <BoundsFields bbox={bbox} maxArea={maxArea} />
+
       {bbox && (
         <div className="mx-[15px] flex flex-col gap-1.5 rounded-md border border-border-soft px-3 py-2 text-meta">
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
@@ -228,11 +262,14 @@ export default function NewMapForm({
                 <span className="text-muted-foreground"> of {formatArea(maxArea)} max</span>
               )}
             </dd>
-            <dt className="text-muted-foreground">Download</dt>
-            <dd className="min-w-0">
-              <SourceText region={region} loading={lookup.loading} />
-            </dd>
           </dl>
+          <ExtractChoice
+            name={ids.extract}
+            regions={lookup.regions}
+            selected={region?.path ?? null}
+            loading={lookup.loading}
+            onChoose={setChosenExtract}
+          />
           {trimmed && maxArea !== null && (
             <p className="text-micro leading-snug text-muted-foreground">
               {picked?.name.split(",")[0] ?? "The place"} is larger than the {formatArea(maxArea)}{" "}
@@ -252,7 +289,7 @@ export default function NewMapForm({
             </p>
           )}
           <p className="text-micro leading-snug text-muted-foreground/70">
-            Drag the box's corners or edges on the map to adjust it.
+            Drag the box's corners or edges on the map to adjust it, or draw a new one.
           </p>
         </div>
       )}
@@ -333,24 +370,140 @@ function namesOf(regions: { name: string }[]): string {
   return `${names.slice(0, -1).join(", ")} into ${names[names.length - 1]}`;
 }
 
-function SourceText({ region, loading }: { region: GeofabrikRegion | null; loading: boolean }) {
-  if (loading) return <span className="text-muted-foreground">Finding…</span>;
-  if (!region) return <span className="text-status-error">No extract covers it</span>;
+/**
+ * Every Geofabrik extract that holds the whole box, smallest first, to choose
+ * the one the build downloads. The smallest is the default.
+ */
+function ExtractChoice({
+  name,
+  regions,
+  selected,
+  loading,
+  onChoose,
+}: {
+  name: string;
+  regions: GeofabrikRegion[] | null;
+  selected: string | null;
+  loading: boolean;
+  onChoose: (path: string) => void;
+}) {
   return (
-    <span className="flex min-w-0 items-baseline gap-1.5" title={region.path}>
-      <span className="truncate">{region.name}</span>
-      {region.sizeBytes !== undefined && (
-        <span
-          className={cn(
-            mono,
-            "shrink-0 text-micro",
-            region.sizeBytes >= LARGE_DOWNLOAD_BYTES ? "text-status-warn" : "text-muted-foreground"
-          )}
-        >
-          {formatBytes(region.sizeBytes)}
-        </span>
+    <fieldset className="flex min-w-0 flex-col gap-1">
+      <legend className="mb-1 text-muted-foreground">Download from</legend>
+      {loading ? (
+        <span className="text-muted-foreground">Finding…</span>
+      ) : !regions || regions.length === 0 ? (
+        <span className="text-status-error">No extract covers it</span>
+      ) : (
+        regions.map((r, i) => (
+          <label
+            key={r.path}
+            title={r.path}
+            className="flex min-w-0 cursor-pointer items-baseline gap-1.5 rounded-sm px-1 py-0.5 hover:bg-foreground/[0.04]"
+          >
+            <input
+              type="radio"
+              name={name}
+              value={r.path}
+              checked={r.path === selected}
+              onChange={() => onChoose(r.path)}
+              className="shrink-0 translate-y-[1px] accent-[var(--color-accent)]"
+            />
+            <span className="truncate">{r.name}</span>
+            {r.sizeBytes !== undefined && (
+              <span
+                className={cn(
+                  mono,
+                  "shrink-0 text-micro",
+                  r.sizeBytes >= LARGE_DOWNLOAD_BYTES ? "text-status-warn" : "text-muted-foreground"
+                )}
+              >
+                {formatBytes(r.sizeBytes)}
+              </span>
+            )}
+            {i === 0 && regions.length > 1 && (
+              <span className="shrink-0 text-micro text-muted-foreground/70">smallest</span>
+            )}
+          </label>
+        ))
       )}
-    </span>
+    </fieldset>
+  );
+}
+
+const NO_BOUNDS: BoundsText = ["", "", "", ""];
+
+function boundsText(bbox: Bbox | null): BoundsText {
+  return bbox ? (bbox.map((v) => String(v)) as BoundsText) : NO_BOUNDS;
+}
+
+/**
+ * The box as typed W/S/E/N bounds, kept in step with the map both ways: a box
+ * drawn, adjusted or searched shows here, and applied bounds (Enter or Apply)
+ * become the box and fly the map to it.
+ */
+function BoundsFields({ bbox, maxArea }: { bbox: Bbox | null; maxArea: number | null }) {
+  const key = bbox?.join(",") ?? "";
+  const [text, setText] = useState<BoundsText>(() => boundsText(bbox));
+  // The box moved (on the map, or by a search): show where it is now.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `key` is the box, by value.
+  useEffect(() => setText(boundsText(bbox)), [key]);
+
+  const current = boundsText(bbox);
+  const dirty = text.some((t, i) => t.trim() !== current[i]);
+  const parsed = parseBounds(text, maxArea);
+  const apply = () => {
+    if (dirty && parsed.ok) selectArea(parsed.bbox, undefined, { kind: "bounds" });
+  };
+
+  return (
+    <fieldset className="flex flex-col gap-1.5 px-[15px]">
+      <legend className="mb-1 text-micro text-muted-foreground">Bounds, in decimal degrees</legend>
+      <div className="grid grid-cols-4 gap-1.5">
+        {BOUND_NAMES.map((label, i) => (
+          <label
+            key={label}
+            className="flex min-w-0 flex-col gap-1 text-micro text-muted-foreground"
+          >
+            {label}
+            <Input
+              value={text[i]}
+              inputMode="decimal"
+              autoComplete="off"
+              spellCheck={false}
+              className={cn(mono, "px-1.5 text-meta md:text-meta")}
+              aria-invalid={dirty && !parsed.ok ? true : undefined}
+              onChange={(e) => {
+                const next = [...text] as BoundsText;
+                next[i] = e.target.value;
+                setText(next);
+              }}
+              onKeyDown={(e) => {
+                // Enter applies the bounds, never builds.
+                if (e.key !== "Enter") return;
+                e.preventDefault();
+                apply();
+              }}
+            />
+          </label>
+        ))}
+      </div>
+      {dirty && (
+        <div className="flex items-center justify-between gap-2">
+          <p
+            className={cn(
+              "min-w-0 text-micro leading-snug",
+              parsed.ok ? "text-muted-foreground" : "text-status-error"
+            )}
+          >
+            {parsed.ok ? "Press Enter or Apply to use these bounds." : parsed.error}
+          </p>
+          <Button size="xs" type="button" disabled={!parsed.ok} onClick={apply}>
+            Apply
+          </Button>
+        </div>
+      )}
+    </fieldset>
   );
 }
 

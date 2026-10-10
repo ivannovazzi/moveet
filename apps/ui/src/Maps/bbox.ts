@@ -32,6 +32,44 @@ export function bboxProblem(bbox: Bbox): string | null {
   return null;
 }
 
+/** Typed bounds, as the text of the W, S, E and N fields. */
+export type BoundsText = [string, string, string, string];
+
+export const BOUND_NAMES = ["West", "South", "East", "North"] as const;
+
+/**
+ * Typed W/S/E/N bounds (decimal degrees) as a box, or why they are not one:
+ * each must be a finite number in range, west before east and south before
+ * north, and the box no larger than `maxKm2` when there is a cap.
+ */
+export function parseBounds(
+  text: BoundsText,
+  maxKm2: number | null
+): { ok: true; bbox: Bbox } | { ok: false; error: string } {
+  const values: number[] = [];
+  for (let i = 0; i < 4; i++) {
+    const raw = text[i].trim();
+    const v = raw === "" ? Number.NaN : Number(raw);
+    if (!Number.isFinite(v)) return { ok: false, error: `${BOUND_NAMES[i]} is not a number.` };
+    const limit = i % 2 === 0 ? 180 : 90;
+    if (v < -limit || v > limit) {
+      return { ok: false, error: `${BOUND_NAMES[i]} must be between -${limit} and ${limit}.` };
+    }
+    values.push(v);
+  }
+  const bbox = values as Bbox;
+  const [w, s, e, n] = bbox;
+  if (w >= e) return { ok: false, error: "West must be less than East." };
+  if (s >= n) return { ok: false, error: "South must be less than North." };
+  if (maxKm2 !== null && bboxAreaKm2(bbox) > maxKm2) {
+    return {
+      ok: false,
+      error: `That area is ${formatArea(bboxAreaKm2(bbox))}, over the ${formatArea(maxKm2)} limit.`,
+    };
+  }
+  return { ok: true, bbox };
+}
+
 /**
  * The box scaled about its centre until its area is at most `maxKm2` (aiming a
  * hair under, so rounding cannot tip it back over). Its proportions in degrees

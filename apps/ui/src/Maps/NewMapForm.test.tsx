@@ -14,7 +14,7 @@ vi.mock("@/utils/client", async () => {
 });
 
 import { controlsRef } from "@/components/Map/providers/controls";
-import { adjustArea, clearAreaDraft, getAreaDraft } from "./areaDraft";
+import { adjustArea, clearAreaDraft, drawArea, getAreaDraft, selectArea } from "./areaDraft";
 import { bboxAreaKm2 } from "./bbox";
 import MapsPanel from "./MapsPanel";
 import { resetMapsStore } from "./mapsStore";
@@ -278,6 +278,150 @@ describe("New map form", () => {
       "The map library is over its disk quota"
     );
     expect(screen.getByRole("form", { name: "New map" })).toBeInTheDocument();
+  });
+
+  it("builds from a chosen larger extract instead of the smallest", async () => {
+    const { calls } = server({
+      "POST /maps": {
+        status: 202,
+        body: { id: "job-4", status: "queued", step: "queued", progress: 0, label: "Porto" },
+      },
+    });
+    const user = await openForm();
+    await user.click(await search(user));
+    const smallest = await screen.findByRole("radio", { name: /Portugal/ });
+    expect(smallest).toBeChecked();
+    expect(screen.getByText("smallest")).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: /Europe/ }));
+    expect(screen.getByRole("radio", { name: /Europe/ })).toBeChecked();
+    expect(getAreaDraft().extract.selected).toBe("europe");
+
+    await user.click(screen.getByRole("button", { name: "Build" }));
+    await waitFor(() => expect(calls.some((c) => c.method === "POST")).toBe(true));
+    expect(calls.find((c) => c.method === "POST")?.body).toEqual({
+      label: "Porto",
+      bbox: PORTO_BBOX,
+      geofabrik: "europe",
+      buildings: true,
+      activate: false,
+    });
+  });
+
+  it("falls back to the smallest extract when the chosen one no longer holds the box", async () => {
+    let lookups = 0;
+    server({
+      "GET /maps/geofabrik": () =>
+        ++lookups === 1
+          ? {
+              body: {
+                regions: [
+                  { path: "europe/portugal", name: "Portugal", areaKm2: 92_000 },
+                  { path: "europe", name: "Europe", areaKm2: 20_000_000 },
+                ],
+              },
+            }
+          : { body: { regions: [{ path: "europe/spain", name: "Spain", areaKm2: 500_000 }] } },
+    });
+    const user = await openForm();
+    await user.click(await search(user));
+    await user.click(await screen.findByRole("radio", { name: /Europe/ }));
+    act(() => adjustArea([-7, 41, -6.9, 41.1]));
+    expect(await screen.findByRole("radio", { name: /Spain/ })).toBeChecked();
+    await waitFor(() => expect(getAreaDraft().extract.selected).toBe("europe/spain"));
+  });
+
+  it("builds a box drawn on the map, and names a preset's box after it", async () => {
+    const { calls } = server({
+      "POST /maps": {
+        status: 202,
+        body: { id: "job-5", status: "queued", step: "queued", progress: 0, label: "Douro" },
+      },
+    });
+    const user = await openForm();
+    await search(user);
+    await user.click(screen.getByRole("button", { name: /Alentejo, Portugal/ }));
+    expect(screen.getByText(/is larger than the 2,500 km² limit/)).toBeInTheDocument();
+
+    const drawn: [number, number, number, number] = [-7.9, 41.1, -7.7, 41.2];
+    act(() => drawArea(drawn));
+    // Not the searched place any more: its notes go.
+    expect(screen.queryByText(/is larger than the 2,500 km² limit/)).toBeNull();
+    expect(screen.getByLabelText("West")).toHaveValue("-7.9");
+    await user.clear(screen.getByLabelText("Name"));
+    await user.type(screen.getByLabelText("Name"), "Douro");
+    await screen.findByText("Portugal");
+    await user.click(screen.getByRole("button", { name: "Build" }));
+    await waitFor(() => expect(calls.some((c) => c.method === "POST")).toBe(true));
+    expect(calls.find((c) => c.method === "POST")?.body).toMatchObject({
+      label: "Douro",
+      bbox: drawn,
+      geofabrik: "europe/portugal",
+    });
+  });
+
+  it("names the map after a preset picked on the map, until the name is edited", async () => {
+    server();
+    await openForm();
+    act(() => selectArea([32.5, 0.25, 32.7, 0.4], undefined, { kind: "preset", name: "Kampala" }));
+    expect(await screen.findByLabelText("Name")).toHaveValue("Kampala");
+  });
+
+  describe("typed bounds", () => {
+    it("applies typed bounds as the box and flies to it, on Enter", async () => {
+      server();
+      const user = await openForm();
+      expect(getAreaDraft().bbox).toBeNull();
+      await user.type(screen.getByLabelText("West"), "-8.66");
+      await user.type(screen.getByLabelText("South"), "41.14");
+      await user.type(screen.getByLabelText("East"), "-8.58");
+      await user.type(screen.getByLabelText("North"), "41.18");
+      expect(screen.getByText("Press Enter or Apply to use these bounds.")).toBeInTheDocument();
+      // Not yet: typing alone does not move the map.
+      expect(getAreaDraft().bbox).toBeNull();
+      await user.keyboard("{Enter}");
+      expect(getAreaDraft().bbox).toEqual([-8.66, 41.14, -8.58, 41.18]);
+      expect(getAreaDraft().focus?.bbox).toEqual([-8.66, 41.14, -8.58, 41.18]);
+      expect(getAreaDraft().source?.kind).toBe("bounds");
+      // Enter applied the bounds; it did not submit the form.
+      expect(screen.getByRole("form", { name: "New map" })).toBeInTheDocument();
+      expect(screen.queryByText("Press Enter or Apply to use these bounds.")).toBeNull();
+    });
+
+    it("follows the box as it is searched or adjusted on the map", async () => {
+      server();
+      const user = await openForm();
+      await user.click(await search(user));
+      expect(screen.getByLabelText("West")).toHaveValue(String(PORTO_BBOX[0]));
+      expect(screen.getByLabelText("North")).toHaveValue(String(PORTO_BBOX[3]));
+      act(() => adjustArea([-8.123456789, 41.1, -8.0, 41.2]));
+      expect(screen.getByLabelText("West")).toHaveValue("-8.12346");
+      expect(screen.getByLabelText("East")).toHaveValue("-8");
+
+      // Edited with Apply: the map moves to the new bounds.
+      await user.clear(screen.getByLabelText("East"));
+      await user.type(screen.getByLabelText("East"), "-8.05");
+      await user.click(screen.getByRole("button", { name: "Apply" }));
+      expect(getAreaDraft().bbox).toEqual([-8.12346, 41.1, -8.05, 41.2]);
+    });
+
+    it.each([
+      ["West", "-8.5", "West must be less than East."],
+      ["North", "95", "North must be between -90 and 90."],
+      ["South", "x", "South is not a number."],
+      ["West", "-40", "over the 2,500 km² limit."],
+    ])("refuses %s = %s", async (field, value, error) => {
+      server();
+      const user = await openForm();
+      await user.click(await search(user));
+      const before = getAreaDraft().bbox;
+      await user.clear(screen.getByLabelText(field));
+      await user.type(screen.getByLabelText(field), value);
+      expect(screen.getByText(new RegExp(error.replace(/\./g, "\\.")))).toBeInTheDocument();
+      expect(screen.getByLabelText(field)).toHaveAttribute("aria-invalid", "true");
+      expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+      await user.keyboard("{Enter}");
+      expect(getAreaDraft().bbox).toEqual(before);
+    });
   });
 
   it("drops the area when the dialog closes, by Cancel or Esc", async () => {
