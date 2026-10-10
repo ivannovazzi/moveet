@@ -18,7 +18,7 @@ import {
   findGeofabrik,
   geocode,
   type Bbox,
-  type GeocodeCandidate,
+  type GeocodeResult,
   type GeofabrikRegion,
   type MapBuildRequest,
   type MapLibrary,
@@ -27,6 +27,9 @@ import {
 import { startBuild, useMapsState } from "./mapsStore";
 
 type AreaMode = "preset" | "search" | "draw";
+
+/** The extract a build is cut from: a looked-up region, or the one a preset names. */
+type SourceRegion = Pick<GeofabrikRegion, "path" | "name">;
 
 const MODES: { value: AreaMode; label: string }[] = [
   { value: "preset", label: "Preset" },
@@ -107,7 +110,7 @@ export default function NewMapForm({
     frame(p.bbox);
   };
 
-  const chooseCandidate = (c: GeocodeCandidate) => {
+  const chooseCandidate = (c: GeocodeResult) => {
     setDraftArea(c.bbox, "search");
     suggestLabel(c.name.split(",")[0].trim());
     frame(c.bbox);
@@ -115,11 +118,7 @@ export default function NewMapForm({
 
   // ── Checks ─────────────────────────────────────────────────────────
   const maxArea = library?.builds?.limits.maxAreaKm2 ?? null;
-  const area = bbox
-    ? usingPreset && preset?.areaKm2 != null
-      ? preset.areaKm2
-      : bboxAreaKm2(bbox)
-    : null;
+  const area = bbox ? (usingPreset && preset ? preset.areaKm2 : bboxAreaKm2(bbox)) : null;
   const overCap = area !== null && maxArea !== null && area > maxArea;
   const shapeProblem = bbox ? bboxProblem(bbox) : null;
   const estimate = bbox && library ? estimateNetworkBytes(bbox, library.maps) : null;
@@ -127,8 +126,8 @@ export default function NewMapForm({
   // A preset names its own extract; any other box is looked up.
   const lookupBbox = bbox && !usingPreset && !overCap && !shapeProblem ? bbox : null;
   const lookup = useGeofabrikLookup(lookupBbox);
-  const region: GeofabrikRegion | null = usingPreset
-    ? preset?.geofabrik
+  const region: SourceRegion | null = usingPreset
+    ? preset
       ? { path: preset.geofabrik, name: preset.geofabrik }
       : null
     : (lookup.regions?.find((r) => r.path === regionPath) ?? lookup.regions?.[0] ?? null);
@@ -333,11 +332,9 @@ function PresetPicker({
             className={OPTION_ROW}
           >
             <span className="text-label text-foreground">{p.label}</span>
-            {p.areaKm2 != null && (
-              <span className={cn(mono, "text-micro text-muted-foreground/70")}>
-                {formatArea(p.areaKm2)}
-              </span>
-            )}
+            <span className={cn(mono, "text-micro text-muted-foreground/70")}>
+              {formatArea(p.areaKm2)}
+            </span>
           </button>
         </li>
       ))}
@@ -350,10 +347,10 @@ function PlaceSearch({
   onPick,
 }: {
   selected: Bbox | null;
-  onPick: (c: GeocodeCandidate) => void;
+  onPick: (c: GeocodeResult) => void;
 }) {
   const [query, setQuery] = useState("");
-  const { candidates, loading, error, busy, attribution } = useGeocode(query);
+  const { results, loading, error, busy, attribution } = useGeocode(query);
   const inputId = useId();
   const selectedKey = selected?.join(",");
 
@@ -378,9 +375,9 @@ function PlaceSearch({
         {loading ? "Searching…" : busy ? "The place search is busy. Trying again in a moment." : ""}
       </div>
       {error && <p className="text-micro text-status-error">{error}</p>}
-      {candidates.length > 0 && (
+      {results.length > 0 && (
         <ul aria-label="Places" className="flex max-h-48 flex-col gap-0.5 overflow-y-auto">
-          {candidates.map((c) => (
+          {results.map((c) => (
             <li key={`${c.name}|${c.bbox.join(",")}`}>
               <button
                 type="button"
@@ -398,14 +395,10 @@ function PlaceSearch({
           ))}
         </ul>
       )}
-      {!loading &&
-        !busy &&
-        !error &&
-        query.trim().length >= MIN_QUERY &&
-        candidates.length === 0 && (
-          <p className="text-micro text-muted-foreground">No places found.</p>
-        )}
-      {attribution && candidates.length > 0 && (
+      {!loading && !busy && !error && query.trim().length >= MIN_QUERY && results.length === 0 && (
+        <p className="text-micro text-muted-foreground">No places found.</p>
+      )}
+      {attribution && results.length > 0 && (
         <p className="text-micro text-muted-foreground/60">{attribution}</p>
       )}
     </div>
@@ -446,7 +439,7 @@ function SourceLine({
   onSelect,
 }: {
   usingPreset: boolean;
-  region: GeofabrikRegion | null;
+  region: SourceRegion | null;
   lookup: GeofabrikLookup;
   blocked: boolean;
   selectedPath: string | null;
@@ -485,9 +478,6 @@ function RegionText({ region }: { region: GeofabrikRegion }) {
   return (
     <span className={cn(mono, "truncate")} title={region.name}>
       {region.path}
-      {region.sizeBytes != null && (
-        <span className="text-muted-foreground"> · {formatBytes(region.sizeBytes)} download</span>
-      )}
     </span>
   );
 }
@@ -531,7 +521,7 @@ function useGeofabrikLookup(bbox: Bbox | null): GeofabrikLookup {
 }
 
 interface GeocodeState {
-  candidates: GeocodeCandidate[];
+  results: GeocodeResult[];
   loading: boolean;
   /** Rate limited: a retry is scheduled. */
   busy: boolean;
@@ -542,7 +532,7 @@ interface GeocodeState {
 /** Debounced place search. A 429 is retried once, quietly, after a pause. */
 function useGeocode(query: string): GeocodeState {
   const [state, setState] = useState<GeocodeState>({
-    candidates: [],
+    results: [],
     loading: false,
     busy: false,
     error: null,
@@ -553,7 +543,7 @@ function useGeocode(query: string): GeocodeState {
   useEffect(() => {
     retried.current = false;
     if (q.length < MIN_QUERY) {
-      setState({ candidates: [], loading: false, busy: false, error: null });
+      setState({ results: [], loading: false, busy: false, error: null });
       return;
     }
     const ac = new AbortController();
@@ -565,7 +555,7 @@ function useGeocode(query: string): GeocodeState {
       if (ac.signal.aborted) return;
       if (res.ok) {
         setState({
-          candidates: res.data.candidates,
+          results: res.data.results,
           attribution: res.data.attribution,
           loading: false,
           busy: false,
@@ -577,13 +567,13 @@ function useGeocode(query: string): GeocodeState {
         timer = setTimeout(run, GEOCODE_RETRY_MS);
       } else if (res.status === 429) {
         setState({
-          candidates: [],
+          results: [],
           loading: false,
           busy: false,
           error: "The place search is busy. Try again in a few seconds.",
         });
       } else {
-        setState({ candidates: [], loading: false, busy: false, error: res.error });
+        setState({ results: [], loading: false, busy: false, error: res.error });
       }
     };
 

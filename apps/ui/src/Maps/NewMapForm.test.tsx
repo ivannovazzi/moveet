@@ -44,7 +44,7 @@ function server(routes: Record<string, Route> = {}) {
     "GET /maps/geofabrik": {
       body: {
         regions: [
-          { path: "europe/portugal", name: "Portugal", size: 300 * 1024 * 1024 },
+          { path: "europe/portugal", name: "Portugal" },
           { path: "europe", name: "Europe" },
         ],
       },
@@ -121,7 +121,12 @@ describe("New map form", () => {
   });
 
   it("finds a place, resolves its source extract and builds it", async () => {
-    const { calls } = server({ "POST /maps": { status: 202, body: { id: "job-2" } } });
+    const { calls } = server({
+      "POST /maps": {
+        status: 202,
+        body: { id: "job-2", status: "queued", step: "queued", progress: 0, label: "Porto" },
+      },
+    });
     const user = await openForm();
     await user.click(screen.getByRole("tab", { name: "Search" }));
     await user.type(screen.getByLabelText("Place"), "Porto");
@@ -135,10 +140,10 @@ describe("New map form", () => {
     expect(getAreaDraft()).toMatchObject({ bbox: PORTO_BBOX, origin: "search" });
     expect(screen.getByLabelText("Name")).toHaveValue("Porto");
 
-    // Two extracts contain it: the smallest is picked, with its download size.
+    // Two extracts contain it: the smallest (listed first) is picked.
     const smallest = await screen.findByRole("radio", { name: /europe\/portugal/ });
     expect(smallest).toBeChecked();
-    expect(screen.getByText(/300\.0 MB download/)).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /^europe$/ })).not.toBeChecked();
     expect(calls.find((c) => c.path.startsWith("/maps/geofabrik"))?.path).toBe(
       `/maps/geofabrik?bbox=${PORTO_BBOX.join(",")}`
     );

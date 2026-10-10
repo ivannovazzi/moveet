@@ -10,7 +10,6 @@ import { TelemetrySegment } from "./telemetry";
 import { GeofenceSegment } from "./geofences";
 import { ScenarioSegment } from "./scenarios";
 import { FaultSegment } from "./faults";
-import { MAP_JOB_WS_TYPES } from "@/Maps/mapsClient";
 
 // Per-segment delegation tests. The facade test (../client.test.ts) drives the
 // singleton, but the per-segment source modules (utils/client/*.ts) are mostly
@@ -123,14 +122,12 @@ describe("ConnectionSegment", () => {
     expect(h.ws.off).toHaveBeenCalledWith("vehicles");
   });
 
-  it("listens for map build progress under every name the Maps client accepts", () => {
+  it("listens for map build progress on the mapjob channel", () => {
     const fn = vi.fn();
     seg.onMapJob(fn);
     seg.offMapJob(fn);
-    for (const type of MAP_JOB_WS_TYPES) {
-      expect(h.ws.on).toHaveBeenCalledWith(type, fn);
-      expect(h.ws.off).toHaveBeenCalledWith(type, fn);
-    }
+    expect(h.ws.on).toHaveBeenCalledWith("mapjob", fn);
+    expect(h.ws.off).toHaveBeenCalledWith("mapjob", fn);
   });
 });
 

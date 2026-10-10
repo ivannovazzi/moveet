@@ -11,13 +11,12 @@ import {
   listMapJobs,
   listMaps,
   listPresets,
-  parseMapJobMessage,
+  parseMapJob,
   type MapBuildRequest,
   type MapJob,
   type MapLibrary,
   type MapPreset,
   type MapsResponse,
-  type MapBuildAccepted,
 } from "./mapsClient";
 
 /**
@@ -103,19 +102,16 @@ export function isJobActive(job: MapJob): boolean {
   return job.status === "queued" || job.status === "running";
 }
 
-function anyJobActive(): boolean {
-  return state.jobs.some(isJobActive);
-}
-
 /**
  * Last status seen per job, so a toast fires once per transition into a
- * terminal state whether the news came over the WebSocket or a poll, and never
+ * terminal state whether the news came over the WebSocket or a reload of
+ * `/maps/jobs`, and never
  * for jobs that had already finished when the page loaded.
  */
 const jobStatusSeen = new Map<string, MapJob["status"]>();
 
 function jobName(job: MapJob): string {
-  return job.label ?? job.mapId ?? "map";
+  return job.label || job.mapId || "map";
 }
 
 function noteJob(job: MapJob): void {
@@ -136,7 +132,7 @@ function noteJob(job: MapJob): void {
 
 /** Newest first; the server's order is creation order. */
 function sortJobs(jobs: MapJob[]): MapJob[] {
-  return [...jobs].sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+  return [...jobs].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 function upsertJob(job: MapJob): void {
@@ -147,9 +143,9 @@ function upsertJob(job: MapJob): void {
   });
 }
 
-/** Feed a job progress WebSocket frame into the store. */
-export function handleMapJobFrame(data: unknown): void {
-  const job = parseMapJobMessage(data);
+/** Feed a `mapjob` WebSocket frame into the store. */
+export function handleMapJobFrame(data: MapJob): void {
+  const job = parseMapJob(data);
   if (job) upsertJob(job);
 }
 
@@ -165,19 +161,16 @@ export async function refreshJobs(): Promise<void> {
   update({ jobs: sortJobs(res.data) });
 }
 
-export async function startBuild(req: MapBuildRequest): Promise<MapsResponse<MapBuildAccepted>> {
+export async function startBuild(req: MapBuildRequest): Promise<MapsResponse<MapJob>> {
   const res = await buildMap(req);
   if (res.ok) {
-    if (res.data.job) {
-      jobStatusSeen.set(res.data.job.id, res.data.job.status);
-      update((s) => ({
-        jobs: sortJobs([res.data.job as MapJob, ...s.jobs.filter((j) => j.id !== res.data.id)]),
-      }));
-    } else {
-      jobStatusSeen.set(res.data.id, "queued");
+    const job = res.data;
+    // Its `mapjob` frames may already have arrived; never step it backwards.
+    if (!jobStatusSeen.has(job.id)) {
+      jobStatusSeen.set(job.id, job.status);
+      update((s) => ({ jobs: sortJobs([job, ...s.jobs]) }));
     }
     toast.info("Map build started");
-    void refreshJobs();
   }
   return res;
 }
@@ -297,18 +290,29 @@ export function handleMapFrame(payload: MapStatusPayload): void {
 
 // ─── Sync hook ───────────────────────────────────────────────────────
 
-/** How often to poll `/maps/jobs` while a build runs (WebSocket frames may not arrive). */
-export const JOB_POLL_MS = 2000;
+/**
+ * Catch up after the socket (re)connects: frames sent while it was down are
+ * lost, so the library and the job list are read again.
+ */
+async function resync(): Promise<void> {
+  await refreshLibrary();
+  if (state.buildSupport === "enabled" || state.buildSupport === "disabled") {
+    await refreshJobs();
+  }
+}
 
 /**
  * Keeps the store current for the whole session. Mount once, at the app root:
- * loads the library, listens on the `map` and job progress channels, reloads
- * after a reconnect, and polls the job list while a build is running.
+ * loads the library and the job list, follows the `map` and `mapjob` channels,
+ * and reads both again after a reconnect. No polling: live frames carry
+ * progress, and a page reload starts from `/maps/jobs`.
+ *
+ * It reads no state itself, so the host (App) never re-renders for it.
  */
 export function useMapsSync(): void {
   useEffect(() => {
     void refreshLibrary();
-    const onConnect = () => void refreshLibrary();
+    const onConnect = () => void resync();
     client.onMap(handleMapFrame);
     client.onMapJob(handleMapJobFrame);
     client.onConnect(onConnect);
@@ -318,13 +322,4 @@ export function useMapsSync(): void {
       client.offConnect(onConnect);
     };
   }, []);
-
-  // A boolean selector, so the host (App) re-renders when a build starts or
-  // ends, not on every progress tick.
-  const anyActive = useSyncExternalStore(subscribe, anyJobActive, anyJobActive);
-  useEffect(() => {
-    if (!anyActive) return;
-    const timer = setInterval(() => void refreshJobs(), JOB_POLL_MS);
-    return () => clearInterval(timer);
-  }, [anyActive]);
 }

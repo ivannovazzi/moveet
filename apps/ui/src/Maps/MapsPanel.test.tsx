@@ -24,7 +24,9 @@ vi.mock("@/utils/client", async () => {
         wsHandlers.mapjob = h;
       },
       offMapJob: vi.fn(),
-      onConnect: vi.fn(),
+      onConnect: (h: (d: unknown) => void) => {
+        wsHandlers.connect = h;
+      },
       offConnect: vi.fn(),
     },
   };
@@ -357,6 +359,19 @@ describe("build progress", () => {
     render(<Harness />);
     expect(await screen.findByText("done")).toBeInTheDocument();
     expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("reads the job list again after the socket reconnects", async () => {
+    let jobs = [job()];
+    server({ "GET /maps/jobs": () => ({ body: { jobs } }) });
+    render(<Harness />);
+    await screen.findByRole("progressbar", { name: "Porto build progress" });
+
+    // The build finished while the socket was down: its frame never arrived.
+    jobs = [job({ status: "done", progress: 1, mapId: "porto" })];
+    await act(async () => wsHandlers.connect({}));
+    await waitFor(() => expect(screen.queryByRole("progressbar")).toBeNull());
+    expect(toast.success).toHaveBeenCalledWith("Built Porto");
   });
 
   it("keeps listing a build after the panel closes and reopens", async () => {

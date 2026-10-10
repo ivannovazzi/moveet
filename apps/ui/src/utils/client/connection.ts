@@ -9,8 +9,7 @@ import type {
   Heatzone,
 } from "@/types";
 import type { MapStatusPayload, ResetPayload } from "../wsTypes";
-import { isValidVehicleDTO } from "@moveet/shared-types";
-import { MAP_JOB_WS_TYPES } from "@/Maps/mapsClient";
+import { isValidVehicleDTO, type MapJob } from "@moveet/shared-types";
 
 /**
  * WebSocket lifecycle + core real-time channels (vehicle/status/options/
@@ -138,16 +137,13 @@ export class ConnectionSegment {
     this.deps.ws.off("map", handler);
   }
 
-  /**
-   * Map build job progress. The payload is left raw: the Maps panel's client
-   * (`Maps/mapsClient`) owns its shape and the message names it arrives under.
-   */
-  onMapJob(handler: (data: unknown) => void): void {
-    for (const type of MAP_JOB_WS_TYPES) this.deps.ws.on(type, handler);
+  /** Map build job progress: every state change and progress tick of a build. */
+  onMapJob(handler: (job: MapJob) => void): void {
+    this.deps.ws.on("mapjob", handler);
   }
 
-  offMapJob(handler?: (data: unknown) => void): void {
-    for (const type of MAP_JOB_WS_TYPES) this.deps.ws.off(type, handler);
+  offMapJob(handler?: (job: MapJob) => void): void {
+    this.deps.ws.off("mapjob", handler);
   }
 
   onDirection(handler: (direction: Direction) => void): void {

@@ -34,7 +34,7 @@ export function stepLabel(step: string): string {
 }
 
 function jobTitle(job: MapJob): string {
-  return job.label ?? job.mapId ?? "New map";
+  return job.label || job.mapId || "New map";
 }
 
 /** The jobs worth showing: every running one, then the latest few that finished. */

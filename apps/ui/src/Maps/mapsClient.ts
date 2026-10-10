@@ -1,22 +1,37 @@
-import type { MapActivateResponse, MapMeta } from "@moveet/shared-types";
+import type {
+  GeocodeResponse,
+  GeofabrikRegion,
+  MapActivateResponse,
+  MapBuildAccepted,
+  MapBuildLimits,
+  MapBuildRequest,
+  MapJob,
+  MapMeta,
+  MapPreset,
+} from "@moveet/shared-types";
 import { config } from "@/utils/config";
 
 /**
- * Every call the Maps panel makes, and every payload it reads, in one place.
- *
- * The library half (`GET /maps`, activate, delete) is the simulator's settled
- * API. The build half (`POST /maps`, `/maps/jobs`, `/maps/presets`,
- * `/maps/geofabrik`, `/maps/geocode` and the job progress WebSocket frames) is
- * newer and may be missing on an older simulator, so each parser here is
- * lenient: it accepts the documented shape plus the obvious alternatives
- * (bare array vs `{ items }` envelope, `{ id }` vs a full job) and normalizes
- * them, so the rest of the UI only ever sees the types below. Reconciling with
- * a changed server shape is a change to this file alone.
+ * Every call the Maps panel makes, in one place, typed against the simulator's
+ * map library contract in `@moveet/shared-types`.
  *
  * Calls never throw. They resolve to a `MapsResponse` carrying the HTTP status,
- * because the panel acts on it: 404 on `/maps/presets` means builds are not
- * supported, 429 on `/maps/geocode` means "slow down", 409 means "busy".
+ * because the panel acts on it: 404 on `/maps/presets` means the server cannot
+ * build maps, 429 on `/maps/geocode` means "slow down", 409 means "busy".
+ * Bodies are checked for their outer shape before they are trusted, so an
+ * older simulator degrades to "not supported" rather than to a crash.
  */
+
+export type {
+  GeocodeResponse,
+  GeocodeResult,
+  GeofabrikRegion,
+  MapBuildLimits,
+  MapBuildRequest,
+  MapJob,
+  MapJobStatus,
+  MapPreset,
+} from "@moveet/shared-types";
 
 /** `[west, south, east, north]` in degrees. */
 export type Bbox = [number, number, number, number];
@@ -26,13 +41,7 @@ export type MapsResponse<T> =
   /** `status` is 0 when the request never got an HTTP answer. */
   | { ok: false; status: number; error: string };
 
-/** Caps the server applies to a build. Each is null when the server does not say. */
-export interface MapBuildLimits {
-  maxAreaKm2: number | null;
-  diskQuotaBytes: number | null;
-  diskUsedBytes: number | null;
-}
-
+/** `GET /maps`, with the build capabilities folded into one optional field. */
 export interface MapLibrary {
   maps: MapMeta[];
   activeId: string;
@@ -40,69 +49,6 @@ export interface MapLibrary {
   /** Null when the server predates map builds (no `buildsAllowed` field). */
   builds: { allowed: boolean; limits: MapBuildLimits } | null;
 }
-
-export type MapJobStatus = "queued" | "running" | "done" | "failed" | "cancelled";
-
-export interface MapJob {
-  id: string;
-  status: MapJobStatus;
-  /** Free-form step name from the server (`download`, `extract`, ...). */
-  step: string;
-  /** Overall progress, 0..1. */
-  progress: number;
-  bytesDownloaded?: number;
-  totalBytes?: number;
-  error?: string;
-  /** Library id of the built map, once done. */
-  mapId?: string;
-  label?: string;
-  activate?: boolean;
-  createdAt?: string;
-}
-
-export interface MapPreset {
-  name: string;
-  label: string;
-  bbox: Bbox;
-  geofabrik?: string;
-  areaKm2?: number;
-}
-
-export interface GeofabrikRegion {
-  path: string;
-  name: string;
-  /** Download size of the extract, when the server knows it. */
-  sizeBytes?: number;
-}
-
-export interface GeocodeCandidate {
-  name: string;
-  bbox: Bbox;
-  type?: string;
-}
-
-export interface GeocodeResult {
-  candidates: GeocodeCandidate[];
-  /** Licence notice to show next to the results. */
-  attribution?: string;
-}
-
-export type MapBuildRequest = {
-  buildings?: boolean;
-  activate?: boolean;
-} & ({ preset: string; label?: string } | { label: string; bbox: Bbox; geofabrik: string });
-
-export interface MapBuildAccepted {
-  id: string;
-  /** The job as the server reported it, when it sent more than the id. */
-  job?: MapJob;
-}
-
-/**
- * WebSocket message types that may carry map build progress. The server
- * announces jobs on one of these; listening on both costs nothing.
- */
-export const MAP_JOB_WS_TYPES = ["mapjob", "map:job"] as const;
 
 // ─── Parsing ─────────────────────────────────────────────────────────
 
@@ -112,35 +58,13 @@ function isObj(v: unknown): v is Obj {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
-function num(v: unknown): number | undefined {
-  return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+function isBbox(v: unknown): v is Bbox {
+  return Array.isArray(v) && v.length === 4 && v.every((x) => Number.isFinite(x));
 }
 
-function str(v: unknown): string | undefined {
-  return typeof v === "string" && v.length > 0 ? v : undefined;
-}
-
-export function parseBbox(v: unknown): Bbox | null {
-  if (!Array.isArray(v) || v.length !== 4) return null;
-  const n = v.map((x) => (typeof x === "string" ? Number(x) : x));
-  if (!n.every((x) => typeof x === "number" && Number.isFinite(x))) return null;
-  return n as Bbox;
-}
-
-/** A list either bare or wrapped as `{ [key]: [...] }`. */
-function listOf(body: unknown, key: string): unknown[] | null {
-  if (Array.isArray(body)) return body;
-  if (isObj(body) && Array.isArray(body[key])) return body[key] as unknown[];
-  return null;
-}
-
-function parseLimits(body: Obj): MapBuildLimits {
-  const raw = [body.buildLimits, body.limits, body.caps].find(isObj) ?? body;
-  return {
-    maxAreaKm2: num(raw.maxAreaKm2) ?? num(raw.maxBboxAreaKm2) ?? null,
-    diskQuotaBytes: num(raw.diskQuotaBytes) ?? null,
-    diskUsedBytes: num(raw.diskUsedBytes) ?? null,
-  };
+/** The array under `key` of a `{ [key]: [...] }` envelope, or null. */
+function envelope(body: unknown, key: string): unknown[] | null {
+  return isObj(body) && Array.isArray(body[key]) ? (body[key] as unknown[]) : null;
 }
 
 export function parseMapList(body: unknown): MapLibrary | null {
@@ -148,13 +72,14 @@ export function parseMapList(body: unknown): MapLibrary | null {
   const maps = body.maps.filter(
     (m): m is MapMeta => isObj(m) && typeof m.id === "string" && typeof m.label === "string"
   );
+  const limits = isObj(body.buildLimits) ? (body.buildLimits as unknown as MapBuildLimits) : null;
   return {
     maps,
     activeId: typeof body.activeId === "string" ? body.activeId : "",
     switching: body.switching === true,
     builds:
-      typeof body.buildsAllowed === "boolean"
-        ? { allowed: body.buildsAllowed, limits: parseLimits(body) }
+      typeof body.buildsAllowed === "boolean" && limits
+        ? { allowed: body.buildsAllowed, limits }
         : null,
   };
 }
@@ -167,94 +92,47 @@ const JOB_STATUSES: ReadonlySet<string> = new Set([
   "cancelled",
 ]);
 
+/** A job (REST or the `mapjob` WebSocket payload), or null when it is not one. */
 export function parseMapJob(v: unknown): MapJob | null {
   if (!isObj(v) || typeof v.id !== "string") return null;
   if (typeof v.status !== "string" || !JOB_STATUSES.has(v.status)) return null;
-  const progress = num(v.progress) ?? 0;
+  const progress = typeof v.progress === "number" && Number.isFinite(v.progress) ? v.progress : 0;
   return {
-    id: v.id,
-    status: v.status as MapJobStatus,
-    step: str(v.step) ?? v.status,
+    ...(v as unknown as MapJob),
+    step: (typeof v.step === "string" ? v.step : v.status) as MapJob["step"],
     progress: Math.min(1, Math.max(0, progress)),
-    bytesDownloaded: num(v.bytesDownloaded),
-    totalBytes: num(v.totalBytes),
-    error: str(v.error),
-    mapId: str(v.mapId),
-    label: str(v.label),
-    activate: typeof v.activate === "boolean" ? v.activate : undefined,
-    createdAt: str(v.createdAt),
   };
 }
 
-export function parseMapJobs(body: unknown): MapJob[] {
-  const list = listOf(body, "jobs") ?? [];
-  return list.map(parseMapJob).filter((j): j is MapJob => j !== null);
+export function parseMapJobs(body: unknown): MapJob[] | null {
+  const list = envelope(body, "jobs");
+  return list ? list.map(parseMapJob).filter((j): j is MapJob => j !== null) : null;
 }
 
-/** A job progress WebSocket frame's `data`, or null when it is not one. */
-export function parseMapJobMessage(data: unknown): MapJob | null {
-  // Tolerate a frame that wraps the job (`{ job: {...} }`).
-  if (isObj(data) && isObj(data.job)) return parseMapJob(data.job);
-  return parseMapJob(data);
+export function parsePresets(body: unknown): MapPreset[] | null {
+  const list = envelope(body, "presets");
+  if (!list) return null;
+  return list.filter(
+    (p): p is MapPreset =>
+      isObj(p) && typeof p.name === "string" && typeof p.label === "string" && isBbox(p.bbox)
+  );
 }
 
-export function parseBuildAccepted(body: unknown): MapBuildAccepted | null {
-  if (!isObj(body)) return null;
-  const job = parseMapJob(body);
-  if (job) return { id: job.id, job };
-  if (typeof body.id === "string") return { id: body.id };
-  if (typeof body.jobId === "string") return { id: body.jobId };
-  return null;
+export function parseGeofabrik(body: unknown): GeofabrikRegion[] | null {
+  const list = envelope(body, "regions");
+  if (!list) return null;
+  return list.filter((r): r is GeofabrikRegion => isObj(r) && typeof r.path === "string");
 }
 
-export function parsePresets(body: unknown): MapPreset[] {
-  const list = listOf(body, "presets") ?? [];
-  const out: MapPreset[] = [];
-  for (const p of list) {
-    if (!isObj(p)) continue;
-    const bbox = parseBbox(p.bbox);
-    const name = str(p.name) ?? str(p.id);
-    if (!bbox || !name) continue;
-    out.push({
-      name,
-      label: str(p.label) ?? name,
-      bbox,
-      geofabrik: str(p.geofabrik),
-      areaKm2: num(p.areaKm2),
-    });
-  }
-  return out;
-}
-
-export function parseGeofabrik(body: unknown): GeofabrikRegion[] {
-  const list = listOf(body, "regions") ?? [];
-  const out: GeofabrikRegion[] = [];
-  for (const r of list) {
-    if (!isObj(r)) continue;
-    const path = str(r.path);
-    if (!path) continue;
-    out.push({
-      path,
-      name: str(r.name) ?? path,
-      sizeBytes: num(r.sizeBytes) ?? num(r.size) ?? num(r.bytes),
-    });
-  }
-  return out;
-}
-
-export function parseGeocode(body: unknown): GeocodeResult {
-  const list = listOf(body, "results") ?? [];
-  const candidates: GeocodeCandidate[] = [];
-  for (const c of list) {
-    if (!isObj(c)) continue;
-    const bbox = parseBbox(c.bbox);
-    const name = str(c.name) ?? str(c.displayName);
-    if (!bbox || !name) continue;
-    candidates.push({ name, bbox, type: str(c.type) });
-  }
+export function parseGeocode(body: unknown): GeocodeResponse | null {
+  const list = envelope(body, "results");
+  if (!list || !isObj(body)) return null;
   return {
-    candidates,
-    attribution: isObj(body) ? str(body.attribution) : undefined,
+    results: list.filter(
+      (c): c is GeocodeResponse["results"][number] =>
+        isObj(c) && typeof c.name === "string" && isBbox(c.bbox)
+    ),
+    attribution: typeof body.attribution === "string" ? body.attribution : "",
   };
 }
 
@@ -328,17 +206,11 @@ export function deleteMap(id: string): Promise<MapsResponse<true>> {
 }
 
 export function buildMap(req: MapBuildRequest): Promise<MapsResponse<MapBuildAccepted>> {
-  return request("POST", "/maps", parseBuildAccepted, { body: req });
+  return request("POST", "/maps", parseMapJob, { body: req });
 }
 
 export function listMapJobs(signal?: AbortSignal): Promise<MapsResponse<MapJob[]>> {
-  return request("GET", "/maps/jobs", (b) => (listOf(b, "jobs") ? parseMapJobs(b) : null), {
-    signal,
-  });
-}
-
-export function getMapJob(id: string): Promise<MapsResponse<MapJob>> {
-  return request("GET", `/maps/jobs/${enc(id)}`, parseMapJob);
+  return request("GET", "/maps/jobs", parseMapJobs, { signal });
 }
 
 export function cancelMapJob(id: string): Promise<MapsResponse<true>> {
@@ -346,23 +218,16 @@ export function cancelMapJob(id: string): Promise<MapsResponse<true>> {
 }
 
 export function listPresets(signal?: AbortSignal): Promise<MapsResponse<MapPreset[]>> {
-  return request("GET", "/maps/presets", (b) => (listOf(b, "presets") ? parsePresets(b) : null), {
-    signal,
-  });
+  return request("GET", "/maps/presets", parsePresets, { signal });
 }
 
 export function findGeofabrik(
   bbox: Bbox,
   signal?: AbortSignal
 ): Promise<MapsResponse<GeofabrikRegion[]>> {
-  return request(
-    "GET",
-    `/maps/geofabrik?bbox=${bbox.join(",")}`,
-    (b) => (listOf(b, "regions") ? parseGeofabrik(b) : null),
-    { signal }
-  );
+  return request("GET", `/maps/geofabrik?bbox=${bbox.join(",")}`, parseGeofabrik, { signal });
 }
 
-export function geocode(q: string, signal?: AbortSignal): Promise<MapsResponse<GeocodeResult>> {
+export function geocode(q: string, signal?: AbortSignal): Promise<MapsResponse<GeocodeResponse>> {
   return request("GET", `/maps/geocode?q=${enc(q)}`, parseGeocode, { signal });
 }
