@@ -7,6 +7,7 @@ interface DeckProps {
   viewState: MapViewState | null;
   getBoundingBox: () => [[number, number], [number, number]];
   getZoom: () => number;
+  getPitch: () => number;
   project: (position: Position) => [number, number] | null;
   children: React.ReactNode;
 }
@@ -16,10 +17,13 @@ export const DeckMapContextProvider: React.FC<DeckProps> = ({
   viewState,
   getBoundingBox,
   getZoom,
+  getPitch,
   project,
   children,
 }) => (
-  <DeckMapContext.Provider value={{ viewport, viewState, getBoundingBox, getZoom, project }}>
+  <DeckMapContext.Provider
+    value={{ viewport, viewState, getBoundingBox, getZoom, getPitch, project }}
+  >
     {children}
   </DeckMapContext.Provider>
 );

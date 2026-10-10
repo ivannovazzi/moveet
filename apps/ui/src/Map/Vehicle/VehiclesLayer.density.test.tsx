@@ -24,6 +24,7 @@ const { ctx } = vi.hoisted(() => ({ ctx: { zoom: 11 } }));
 vi.mock("@/components/Map/hooks", () => ({
   useMapContext: () => ({
     getZoom: () => ctx.zoom,
+    getPitch: () => 0,
     // Degenerate bounds → viewport culling disabled, so every vehicle is kept.
     getBoundingBox: () => [
       [0, 0],
@@ -43,7 +44,8 @@ vi.mock("@/hooks/vehicleStore", () => ({
   },
 }));
 
-import VehiclesLayer, { MESH_ZOOM_THRESHOLD } from "./VehiclesLayer";
+import VehiclesLayer from "./VehiclesLayer";
+import { MESH_PITCHED_MIN_ZOOM } from "./vehicleRenderMode";
 import { DENSITY_MIN_VEHICLES, DENSITY_ZOOM_THRESHOLD } from "./densityView";
 
 // ── RAF driver ─────────────────────────────────────────────────────
@@ -176,7 +178,7 @@ describe("VehiclesLayer density mode", () => {
 
     // Zoomed back in past the density threshold, but still short of the mesh
     // gate, so the sprite layer is what comes back.
-    ctx.zoom = MESH_ZOOM_THRESHOLD - 1;
+    ctx.zoom = MESH_PITCHED_MIN_ZOOM - 1;
     pumpFrames();
     expect(iconLayerData()).toHaveLength(DENSITY_MIN_VEHICLES + 50);
   });
@@ -195,7 +197,7 @@ describe("VehiclesLayer density mode", () => {
     // …and the sprite field comes back at the new positions, not the old ones.
     // Zoomed back in past the density threshold, but still short of the mesh
     // gate, so the sprite layer is what comes back.
-    ctx.zoom = MESH_ZOOM_THRESHOLD - 1;
+    ctx.zoom = MESH_PITCHED_MIN_ZOOM - 1;
     pumpFrames();
     const data = iconLayerData() as { position: [number, number] }[];
     expect(data).toHaveLength(DENSITY_MIN_VEHICLES + 50);

@@ -14,6 +14,7 @@ import {
   meshTypeFor,
 } from "./vehicleMeshes";
 import { shouldAggregate } from "./densityView";
+import { nextUse3D } from "./vehicleRenderMode";
 import { resolveMapColor } from "../../lib/mapColor";
 
 // Type-specific default colors (used when no fleet color). These reference the
@@ -88,14 +89,14 @@ interface VehicleIconDatum {
    * The vehicle's own colour as [r,g,b,a] for the mesh, which (unlike the
    * pre-tinted sprite) carries no colour of its own. Always opaque; idle is
    * signalled by dimming. Interned per (colour, idle) pair in `meshColorFor`,
-   * so this is a shared reference too.
+   * so this is a shared reference too. `NO_MESH_COLOR` while sprites show.
    */
   meshColor: RGBA;
   /**
    * Mesh rotation as deck.gl's [pitch, yaw, roll] in degrees. Only yaw moves;
    * it holds the same value as `angle`. Stored on the datum (not built in the
    * accessor) so a 1000-vehicle frame does not allocate 1000 arrays per
-   * accessor pass.
+   * accessor pass. `NO_ORIENTATION` while sprites show.
    */
   orientation: [number, number, number];
 }
@@ -211,23 +212,6 @@ const MOVING_ICON_ALPHA = 255;
 const IDLE_ICON_TINT: RGBA = [255, 255, 255, IDLE_ICON_ALPHA];
 const MOVING_ICON_TINT: RGBA = [255, 255, 255, MOVING_ICON_ALPHA];
 
-/**
- * Zoom at (and above) which vehicles render as 3D meshes instead of sprites.
- *
- * This is a readability threshold, not a performance one: a model costs about
- * 30 triangles against the sprite's 2, which is noise beside the road network
- * already on screen. It sits one step above the density threshold, so the three
- * representations tile the zoom range without a gap: hexagons below 13 (when
- * the user opts in), sprites from 13 to 14, meshes from 14 up.
- *
- * It was 16 — the anchor of the sizing curve — which turned out to be too far
- * in: vehicles only became 3D once you were almost on top of them, and the
- * whole middle of the zoom range, where you actually watch the fleet move, was
- * still flat. 14 is roughly where a simplified model is still wider than it is
- * ambiguous, at about 11 screen pixels.
- */
-export const MESH_ZOOM_THRESHOLD = 14;
-
 /** Web Mercator ground resolution at zoom 0, metres per pixel (256px tiles). */
 const METERS_PER_PIXEL_AT_Z0 = 156543.03392;
 
@@ -255,14 +239,27 @@ export const MIN_MESH_PX = 7;
  * real car finally covers 7 pixels; from there in, the scale is honest, and
  * further out vehicles hold at a legible minimum instead of vanishing.
  *
- * `latitude` matters because Web Mercator's metres-per-pixel is latitude
- * dependent. It costs one cosine per publish.
+ * Takes the ground resolution from `metersPerPixelAt`, which folds in the
+ * latitude (Web Mercator's metres-per-pixel depends on it) for one cosine per
+ * publish.
  */
-function meshSizeScaleForZoom(zoom: number, latitude: number): number {
-  const metersPerPixel =
-    (METERS_PER_PIXEL_AT_Z0 * Math.cos((latitude * Math.PI) / 180)) / 2 ** zoom;
+function meshSizeScaleForZoom(metersPerPixel: number): number {
   const floor = (MIN_MESH_PX * metersPerPixel) / MESH_REFERENCE_LENGTH_M;
   return Math.max(1, floor);
+}
+
+/** Web Mercator ground resolution at `latitude`, metres per screen pixel. */
+function metersPerPixelAt(zoom: number, latitude: number): number {
+  return (METERS_PER_PIXEL_AT_Z0 * Math.cos((latitude * Math.PI) / 180)) / 2 ** zoom;
+}
+
+/**
+ * On-screen length of a reference vehicle mesh, in pixels: true scale, or the
+ * `MIN_MESH_PX` floor where true scale would be smaller. Same two regimes as
+ * `meshSizeScaleForZoom`, read back in pixels for the selection ring.
+ */
+function meshPxForZoom(metersPerPixel: number): number {
+  return Math.max(MIN_MESH_PX, MESH_REFERENCE_LENGTH_M / metersPerPixel);
 }
 
 /**
@@ -367,6 +364,15 @@ function meshColorFor(
  */
 const EMPTY_VEHICLES: VehicleIconDatum[] = [];
 
+/**
+ * Placeholders for the mesh-only datum fields while sprites are on screen, so
+ * the sprite publish skips the paint hash, colour lookup and orientation
+ * allocation it would only throw away. Never drawn: the mesh layers are not
+ * built in that mode, and the next 3D publish fills in real values.
+ */
+const NO_MESH_COLOR: RGBA = [0, 0, 0, 0];
+const NO_ORIENTATION: [number, number, number] = [0, 0, 0];
+
 function iconSizeForZoom(zoom: number): number {
   const size = BASE_SIZE_PX * 2 ** ((zoom - REFERENCE_ZOOM) * SIZE_ZOOM_EXPONENT);
   return Math.min(Math.max(size, MIN_SIZE_PX), MAX_SIZE_PX);
@@ -396,14 +402,18 @@ export default function VehiclesLayer({
   densityMode = false,
   selectable = true,
 }: VehiclesLayerProps) {
-  const { getZoom, getBoundingBox } = useMapContext();
+  const { getZoom, getPitch, getBoundingBox } = useMapContext();
   const [vehicleData, setVehicleData] = useState<VehicleIconDatum[]>([]);
   const [iconSize, setIconSize] = useState(BASE_SIZE_PX);
-  // Zoomed-in vehicles render as lit 3D meshes, zoomed-out ones as sprites.
-  // Both are driven by the same publish, so the swap costs a layer rebuild and
-  // nothing in the hot loop.
+  // Close-in, pitched vehicles render as lit 3D meshes, everything else as
+  // sprites (see `vehicleRenderMode.ts`). Both are driven by the same publish,
+  // so the swap costs a layer rebuild and nothing in the hot loop.
   const [use3D, setUse3D] = useState(false);
   const [meshSizeScale, setMeshSizeScale] = useState(1);
+  // Base size the selection/hover rings scale from: the sprite size, or the
+  // mesh's on-screen length in 3D so a ring hugs a 7px model rather than
+  // circling empty road sized for a 24px sprite.
+  const [ringSize, setRingSize] = useState(BASE_SIZE_PX);
   const [atlasManager] = useState(() => new VehicleIconAtlasManager());
   // Warm the atlas with the default per-type sprites so the icon layer exists
   // (and renders instantly) before the first fleet-colored vehicle arrives.
@@ -445,6 +455,8 @@ export default function VehiclesLayer({
   onHoverRef.current = onHover;
   const getZoomRef = useRef(getZoom);
   getZoomRef.current = getZoom;
+  const getPitchRef = useRef(getPitch);
+  getPitchRef.current = getPitch;
   const getBoundingBoxRef = useRef(getBoundingBox);
   getBoundingBoxRef.current = getBoundingBox;
   const densityModeRef = useRef(densityMode);
@@ -471,6 +483,9 @@ export default function VehiclesLayer({
     let lastBoundsKey = "";
     // Whether the density (hexagon) view was on screen on the last publish.
     let lastAggregated = false;
+    // Render mode on the last publish. Kept here, not read back from React
+    // state, so the hysteresis in `nextUse3D` costs nothing per frame.
+    let lastUse3D = false;
     // Sticky add/remove flag — survives throttled frames so a removal isn't
     // dropped when the 16ms gate skips the frame it was detected on.
     let structureChanged = false;
@@ -629,6 +644,12 @@ export default function VehiclesLayer({
         : false;
       const aggregationChanged = aggregated !== lastAggregated;
 
+      // Sprites or meshes. Pitch alone can flip this (zoom unchanged), so a
+      // change is its own dirty reason; otherwise pitching the camera never
+      // triggers a publish.
+      const use3DNow = nextUse3D(lastUse3D, currentZoom, getPitchRef.current());
+      const modeChanged = use3DNow !== lastUse3D;
+
       // Dirty check: skip building/publishing the VehicleIconDatum[] array
       // entirely when nothing visible changed — no vehicle moved (mid-lerp),
       // none was added/removed, and zoom/viewport/selection/filters are all
@@ -640,7 +661,8 @@ export default function VehiclesLayer({
         zoomChanged ||
         visualsChanged ||
         boundsChanged ||
-        aggregationChanged;
+        aggregationChanged ||
+        modeChanged;
       if (!isDirty) {
         return;
       }
@@ -656,6 +678,7 @@ export default function VehiclesLayer({
       lastHiddenTypes = hiddenTypesRef.current;
       lastBoundsKey = boundsKey;
       lastAggregated = aggregated;
+      lastUse3D = use3DNow;
       structureChanged = false;
 
       // Hexagon plate is on screen — skip the per-vehicle build entirely.
@@ -734,9 +757,9 @@ export default function VehiclesLayer({
           isSelected: v.id === currentSelectedId,
           isHovered: v.id === currentHoveredId,
           iconColor: idle ? IDLE_ICON_TINT : MOVING_ICON_TINT,
-          meshColor: meshColorFor(color, idle, paintForId(v.id)),
+          meshColor: use3DNow ? meshColorFor(color, idle, paintForId(v.id)) : NO_MESH_COLOR,
           // [pitch, yaw, roll]: vehicles stay level, so only yaw moves.
-          orientation: [0, angle, 0],
+          orientation: use3DNow ? [0, angle, 0] : NO_ORIENTATION,
         });
       }
 
@@ -744,11 +767,15 @@ export default function VehiclesLayer({
       if (atlasManager.isDirty) {
         setAtlas(atlasManager.build());
       }
-      setIconSize(iconSizeForZoom(currentZoom));
-      // Both are plain numbers/booleans, so React bails out of the re-render on
-      // every frame the camera didn't actually move.
-      setUse3D(currentZoom >= MESH_ZOOM_THRESHOLD);
-      setMeshSizeScale(meshSizeScaleForZoom(currentZoom, (south + north) / 2));
+      const iconPx = iconSizeForZoom(currentZoom);
+      const metersPerPixel = metersPerPixelAt(currentZoom, (south + north) / 2);
+      // All plain numbers/booleans, so React bails out of the re-render on
+      // every frame the camera didn't actually move, and `use3D` only ever
+      // changes when `nextUse3D` flips it.
+      setIconSize(iconPx);
+      setUse3D(use3DNow);
+      setMeshSizeScale(meshSizeScaleForZoom(metersPerPixel));
+      setRingSize(use3DNow ? Math.max(meshPxForZoom(metersPerPixel), MIN_SIZE_PX) : iconPx);
       setVehicleData(vehicles);
     };
 
@@ -822,7 +849,7 @@ export default function VehiclesLayer({
       data: ringData.filter((d) => d.isSelected),
       getPosition: (d) => d.position,
       getFillColor: selectedHalo,
-      getRadius: iconSize * 1.7,
+      getRadius: ringSize * 1.7,
       radiusUnits: "pixels",
       stroked: false,
       pickable: false,
@@ -835,7 +862,7 @@ export default function VehiclesLayer({
       getPosition: (d) => d.position,
       getFillColor: (d) => (d.isSelected ? selectedFill : hoverBg),
       getLineColor: (d) => (d.isSelected ? selectedStroke : hoverStroke),
-      getRadius: (d) => iconSize * (d.isSelected ? 0.95 : 0.75),
+      getRadius: (d) => ringSize * (d.isSelected ? 0.95 : 0.75),
       getLineWidth: (d) => (d.isSelected ? 3 : 2),
       radiusUnits: "pixels",
       lineWidthUnits: "pixels",
@@ -844,7 +871,7 @@ export default function VehiclesLayer({
       updateTriggers: {
         getFillColor: ringKey,
         getLineColor: ringKey,
-        getRadius: [ringKey, iconSize],
+        getRadius: [ringKey, ringSize],
         getLineWidth: ringKey,
       },
       // Animate hover/select transitions instead of popping instantly between
@@ -930,6 +957,7 @@ export default function VehiclesLayer({
     ringData,
     atlas,
     iconSize,
+    ringSize,
     ringColors,
     handleClick,
     handleHover,
