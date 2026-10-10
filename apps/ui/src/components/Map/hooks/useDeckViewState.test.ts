@@ -2,7 +2,7 @@ import { afterEach, describe, it, expect } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { WebMercatorViewport } from "@deck.gl/core";
 import type { RoadNetwork } from "@/types";
-import { useDeckViewState } from "./useDeckViewState";
+import { useDeckViewState, easeInOutCubic } from "./useDeckViewState";
 import { resetInsets, setInset } from "../mapInsets";
 
 // Default zoom when no network data is supplied (see DEFAULT_VIEW_STATE).
@@ -268,5 +268,33 @@ describe("flying to a target the chrome is covering", () => {
     // Less room means a wider-out fit, and a centre pushed away from the panel.
     expect(result.current.viewState.zoom!).toBeLessThan(plain.zoom!);
     expect(result.current.viewState.longitude!).toBeGreaterThan(plain.longitude!);
+  });
+});
+
+describe("easeInOutCubic", () => {
+  it("starts at 0, ends at 1 and crosses the midpoint at 0.5", () => {
+    expect(easeInOutCubic(0)).toBe(0);
+    expect(easeInOutCubic(0.5)).toBe(0.5);
+    expect(easeInOutCubic(1)).toBe(1);
+  });
+
+  it("is slower than linear at the ends and monotonic", () => {
+    expect(easeInOutCubic(0.1)).toBeLessThan(0.1);
+    expect(easeInOutCubic(0.9)).toBeGreaterThan(0.9);
+    let prev = 0;
+    for (let t = 0.05; t <= 1; t += 0.05) {
+      const v = easeInOutCubic(t);
+      expect(v).toBeGreaterThanOrEqual(prev);
+      prev = v;
+    }
+  });
+});
+
+describe("useDeckViewState focusOn", () => {
+  it("flies with an eased transition", () => {
+    const { result } = setup();
+    act(() => result.current.controls.focusOn(36.8, -1.3, 15, { duration: 800 }));
+    expect(result.current.viewState.transitionDuration).toBe(800);
+    expect(result.current.viewState.transitionEasing).toBe(easeInOutCubic);
   });
 });
