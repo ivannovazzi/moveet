@@ -1,4 +1,5 @@
 import { WebMercatorViewport } from "@deck.gl/core";
+import { bboxAreaKm2 } from "../bbox";
 import type { Bbox } from "../mapsClient";
 
 /**
@@ -100,6 +101,35 @@ export function boxFromCorners(a: [number, number], b: [number, number]): Bbox {
     clampLon(Math.max(a[0], b[0])),
     clampLat(Math.max(a[1], b[1])),
   ];
+}
+
+/**
+ * The box drawn from `anchor` (where the drag began) to `to` (the pointer).
+ * Past `maxKm2` the far corner is pulled back along the drag towards the
+ * anchor, a hair under the cap so rounding cannot tip it over; `capped` says
+ * so. The anchor never moves.
+ */
+export function drawBox(
+  anchor: [number, number],
+  to: [number, number],
+  maxKm2: number | null
+): { bbox: Bbox; capped: boolean } {
+  const full = boxFromCorners(anchor, to);
+  if (maxKm2 === null || bboxAreaKm2(full) <= maxKm2) return { bbox: full, capped: false };
+  const at = (k: number): Bbox =>
+    boxFromCorners(anchor, [
+      anchor[0] + (to[0] - anchor[0]) * k,
+      anchor[1] + (to[1] - anchor[1]) * k,
+    ]);
+  // Area grows monotonically with the scale, so bisect it.
+  let lo = 0;
+  let hi = 1;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (bboxAreaKm2(at(mid)) <= maxKm2 * 0.99) lo = mid;
+    else hi = mid;
+  }
+  return { bbox: at(lo), capped: true };
 }
 
 /**

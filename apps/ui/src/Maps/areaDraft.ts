@@ -22,6 +22,13 @@ export interface ResolvedExtract {
   selected: string | null;
 }
 
+/** Where the current box came from, so the form can follow it. */
+export interface AreaSource {
+  kind: "search" | "draw" | "bounds" | "preset";
+  /** A name to suggest for the map (a preset's label). */
+  name?: string;
+}
+
 export interface AreaDraft {
   /** The box the map will be built from, exactly; null until one is chosen. */
   bbox: Bbox | null;
@@ -33,6 +40,8 @@ export interface AreaDraft {
   focus: { bbox: Bbox; seq: number } | null;
   /** The Geofabrik extract the form resolved for the box, for the picker to highlight. */
   extract: ResolvedExtract;
+  /** How the box was last chosen, with a new `seq` per choice. Adjusting keeps it. */
+  source: (AreaSource & { seq: number }) | null;
 }
 
 const IDLE: AreaDraft = {
@@ -41,6 +50,7 @@ const IDLE: AreaDraft = {
   preview: null,
   focus: null,
   extract: { selected: null },
+  source: null,
 };
 
 let state: AreaDraft = IDLE;
@@ -61,8 +71,15 @@ export function roundBbox(bbox: Bbox): Bbox {
   return bbox.map((v) => Math.round(v * 1e5) / 1e5) as Bbox;
 }
 
-/** Chooses the box to build (from a search result), and flies the picker to it. */
-export function selectArea(bbox: Bbox, outline?: Outline): void {
+/**
+ * Chooses the box to build (a search result, typed bounds or a preset), and
+ * flies the picker to it.
+ */
+export function selectArea(
+  bbox: Bbox,
+  outline?: Outline,
+  source: AreaSource = { kind: "search" }
+): void {
   const rounded = roundBbox(bbox);
   set({
     ...state,
@@ -70,6 +87,18 @@ export function selectArea(bbox: Bbox, outline?: Outline): void {
     outline: outline ?? null,
     preview: null,
     focus: { bbox: rounded, seq: ++seq },
+    source: { ...source, seq: ++seq },
+  });
+}
+
+/** A box drawn by hand on the picker: it replaces any other, where it is, with no flight. */
+export function drawArea(bbox: Bbox): void {
+  set({
+    ...state,
+    bbox: roundBbox(bbox),
+    outline: null,
+    preview: null,
+    source: { kind: "draw", seq: ++seq },
   });
 }
 

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { bboxAreaKm2, parseBounds } from "../bbox";
 import {
   boxFromCorners,
+  drawBox,
   moveBox,
   projectLngLat,
   resizeBox,
@@ -47,8 +49,46 @@ describe("picker geometry", () => {
     expect(resizeBox(box, "s", [0, 20])).toEqual([0, 10, 10, 20]);
   });
 
+  it("draws a box from its anchor, pulled back along the drag past the cap", () => {
+    expect(drawBox([10, 50], [12, 48], null)).toEqual({ bbox: [10, 48, 12, 50], capped: false });
+    const free = drawBox([10, 50], [10.1, 49.95], 2500);
+    expect(free).toEqual({ bbox: [10, 49.95, 10.1, 50], capped: false });
+
+    const { bbox, capped } = drawBox([10, 50], [12, 48], 100);
+    expect(capped).toBe(true);
+    expect(bboxAreaKm2(bbox)).toBeLessThanOrEqual(100);
+    expect(bboxAreaKm2(bbox)).toBeGreaterThan(98);
+    // The anchor (north-west here) stays put, and the drag's proportions are kept.
+    expect([bbox[0], bbox[3]]).toEqual([10, 50]);
+    expect((bbox[2] - bbox[0]) / (bbox[3] - bbox[1])).toBeCloseTo(1, 6);
+  });
+
   it("moves a box whole, stopping at the world's edge", () => {
     expect(moveBox([0, 0, 10, 10], 5, -3)).toEqual([5, -3, 15, 7]);
     expect(moveBox([170, 0, 179, 10], 5, 0)).toEqual([171, 0, 180, 10]);
+  });
+});
+
+describe("typed bounds", () => {
+  it("reads W/S/E/N in decimal degrees", () => {
+    expect(parseBounds([" 36.7", "-1.4", "37", "-1.2 "], 2500)).toEqual({
+      ok: true,
+      bbox: [36.7, -1.4, 37, -1.2],
+    });
+  });
+
+  it.each([
+    [["", "-1.4", "37", "-1.2"], "West is not a number."],
+    [["36.7", "abc", "37", "-1.2"], "South is not a number."],
+    [["36.7", "-1.4", "Infinity", "-1.2"], "East is not a number."],
+    [["-181", "-1.4", "37", "-1.2"], "West must be between -180 and 180."],
+    [["36.7", "-1.4", "37", "91"], "North must be between -90 and 90."],
+    [["37", "-1.4", "36.7", "-1.2"], "West must be less than East."],
+    [["36.7", "-1.2", "37", "-1.2"], "South must be less than North."],
+    [["30", "-5", "40", "5"], "km², over the 2,500 km² limit."],
+  ])("refuses %j", (text, error) => {
+    const res = parseBounds(text as [string, string, string, string], 2500);
+    expect(res.ok).toBe(false);
+    expect(res.ok ? "" : res.error).toContain(error);
   });
 });

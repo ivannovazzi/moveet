@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type { MapLibrary } from "./mapsClient";
+import { useMapsState } from "./mapsStore";
 import NewMapForm from "./NewMapForm";
 
 /** deck.gl and the picker's layers load only when the dialog opens. */
@@ -24,6 +25,7 @@ export default function NewMapDialog({
   library: MapLibrary | null;
   onClose: () => void;
 }) {
+  const { presets } = useMapsState();
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent
@@ -34,7 +36,7 @@ export default function NewMapDialog({
       >
         <DialogTitle className="sr-only">New map</DialogTitle>
         <DialogDescription className="sr-only">
-          Search a place, check its area on the world map, then build it.
+          Search a place, draw an area or type its bounds, check it on the world map, then build it.
         </DialogDescription>
         <div className="relative min-h-[45dvh] flex-1 md:min-h-0">
           {canDrawMap() ? (
@@ -46,6 +48,7 @@ export default function NewMapDialog({
               <PickerMap
                 library={library}
                 maxAreaKm2={library?.builds?.limits.maxAreaKm2 ?? null}
+                presets={presets}
               />
             </Suspense>
           ) : (
