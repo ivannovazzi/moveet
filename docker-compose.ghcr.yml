@@ -2,7 +2,8 @@
 # Usage: docker compose -f docker-compose.ghcr.yml up
 #
 # Road networks live in the simulator's map library on the `maps` named volume
-# (GET /maps, POST /maps/:id/activate). An empty library starts on a small
+# (GET /maps, POST /maps/:id/activate); new maps are built at runtime with
+# POST /maps (ALLOW_MAP_BUILDS, on by default). An empty library starts on a small
 # bundled demo map. To import a network generated with
 # `npx tsx apps/network/src/cli.ts prepare <region>` into a fresh library,
 # uncomment the import mount below; the host file must exist first, or Docker

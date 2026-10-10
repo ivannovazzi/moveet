@@ -109,6 +109,8 @@ channels:
         $ref: "#/components/messages/eta"
       map:
         $ref: "#/components/messages/map"
+      mapjob:
+        $ref: "#/components/messages/mapjob"
       connect:
         $ref: "#/components/messages/connect"
       disconnect:
@@ -158,6 +160,7 @@ operations:
       - $ref: "#/components/messages/weather"
       - $ref: "#/components/messages/eta"
       - $ref: "#/components/messages/map"
+      - $ref: "#/components/messages/mapjob"
       - $ref: "#/components/messages/connect"
       - $ref: "#/components/messages/disconnect"
   sendClientCommands:
@@ -730,6 +733,25 @@ components:
                 $ref: ./openapi.yaml#/components/schemas/MapMeta
               error:
                 type: string
+    mapjob:
+      name: mapjob
+      title: Map build job
+      summary: >
+        A map build job (POST /maps) changed state or reported progress:
+        `queued`, `running` (with `step` and overall `progress` 0..1, plus
+        `bytesDownloaded`/`totalBytes` while the Geofabrik extract downloads),
+        then `done` (with `mapId`), `failed` (with `error`) or `cancelled`.
+      payload:
+        type: object
+        required:
+          - type
+          - data
+        properties:
+          type:
+            type: string
+            const: mapjob
+          data:
+            $ref: ./openapi.yaml#/components/schemas/MapJob
     eta:
       name: eta
       title: ETAs repriced

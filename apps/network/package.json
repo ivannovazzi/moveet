@@ -4,6 +4,10 @@
   "private": true,
   "description": "Internal CLI tool for downloading and preparing OSM road network data (not published, versioned independently of the monorepo release)",
   "type": "module",
+  "exports": {
+    "./pipeline": "./src/pipeline.ts",
+    "./regions": "./src/regions.ts"
+  },
   "bin": {
     "network": "./dist/cli.js"
   },

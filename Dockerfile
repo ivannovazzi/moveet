@@ -51,12 +51,35 @@ FROM deps AS source
 COPY . .
 
 # ── simulator runtime (bundled, plain node) ─────────────────────────────────
+FROM node:26-alpine AS osmium
+# osmium-tool compiles maps built at runtime (POST /maps): the build child
+# process runs the apps/network pipeline, which shells out to `osmium`. Alpine
+# packages only libosmium (headers), not the tool, so it is built here from a
+# pinned release and copied into the simulator image on its own.
+ARG OSMIUM_TOOL_VERSION=1.19.0
+RUN apk add --no-cache --virtual .build cmake make g++ curl \
+      libosmium-dev protozero-dev nlohmann-json boost-dev expat-dev bzip2-dev zlib-dev lz4-dev \
+ && curl -fsSL "https://github.com/osmcode/osmium-tool/archive/refs/tags/v${OSMIUM_TOOL_VERSION}.tar.gz" \
+      | tar -xz -C /tmp \
+ && cmake -S "/tmp/osmium-tool-${OSMIUM_TOOL_VERSION}" -B /tmp/build \
+      -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF \
+ && cmake --build /tmp/build -j"$(nproc)" --target osmium \
+ && install -m 755 /tmp/build/src/osmium /usr/local/bin/osmium \
+ && rm -rf /tmp/build "/tmp/osmium-tool-${OSMIUM_TOOL_VERSION}" \
+ && apk del .build
+
 FROM source AS simulator
+# osmium's shared-library dependencies (the binary is built in the osmium stage).
+RUN apk add --no-cache boost-program_options libexpat libbz2 zlib lz4-libs
+COPY --from=osmium /usr/local/bin/osmium /usr/local/bin/osmium
+RUN osmium --version
 # Bundle the server (ESM) and the pathfinding worker (self-contained CJS).
 # The worker is emitted as CommonJS into dist/workers/pathfinding-worker.cjs so
 # it runs regardless of "type":"module"; PathfindingPool launches that .cjs. It
 # inlines the shared A* cost/heap + OSM-parser modules the worker imports, which
-# plain node cannot resolve from raw extensionless ESM specifiers.
+# plain node cannot resolve from raw extensionless ESM specifiers. The same
+# script bundles the map build child (dist/workers/map-build-child.mjs, the
+# network pipeline inlined) that MapBuildRunner forks.
 RUN node scripts/bundle-app.mjs apps/simulator/src/index.ts apps/simulator/dist/index.js \
  && node apps/simulator/scripts/build-worker.mjs
 # Maps live in a library under MAPS_DIR (mount a volume there to keep them).

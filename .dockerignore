@@ -15,3 +15,5 @@ recordings
 apps/simulator/data/*.geojson
 apps/simulator/data/*.meta.json
 apps/network/.cache
+# The local map library (MAPS_DIR) and its download cache.
+apps/simulator/data/maps

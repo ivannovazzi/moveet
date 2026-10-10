@@ -2691,6 +2691,85 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MapListResponse"
+    post:
+      operationId: buildMap
+      summary: Build a new map from OpenStreetMap data
+      description: >
+        Queues a build job: the Geofabrik extract is downloaded (cached in
+        `<MAPS_DIR>/.cache`, so later builds in the same region skip it), cut
+        to the bbox, filtered to driveable roads, exported, pruned, validated
+        and, unless `buildings: false`, tiled into 3D buildings. The result is
+        added to the library; with `activate: true` it then becomes the active
+        map. Progress is broadcast on the `mapjob` WebSocket channel.
+
+
+        The body is either `{ preset }` (a `GET /maps/presets` name) or
+        `{ label, bbox, geofabrik }`, where `geofabrik` must be an extract
+        listed in Geofabrik's index (see `GET /maps/geofabrik`) whose boundary
+        contains the bbox. Raw URLs are never accepted.
+
+
+        One build runs at a time. Up to `buildLimits.maxQueuedJobs` more wait
+        in order (status `queued`); beyond that the request is refused with 409.
+      tags: [Maps]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MapBuildRequest"
+      responses:
+        "202":
+          description: Job accepted (queued, or already running)
+          headers:
+            Location:
+              description: The job's URL
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MapJob"
+        "400":
+          description: >
+            Invalid body, unknown preset, a bbox that is unordered or over the
+            area cap, or a `geofabrik` path missing from Geofabrik's index
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ValidationError"
+                  - $ref: "#/components/schemas/Error"
+        "403":
+          description: Map builds are disabled (ALLOW_MAP_BUILDS=false)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: A build is running and the queue is full
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: The bbox is not inside the named Geofabrik extract
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Geofabrik's index could not be fetched and no cached copy exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "507":
+          description: The library's maps already use the disk quota (MAP_BUILD_DISK_QUOTA_MB)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /maps/active:
     get:
@@ -2704,6 +2783,204 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MapMeta"
+
+  /maps/jobs:
+    get:
+      operationId: listMapJobs
+      summary: List map build jobs
+      description: Queued, running and recently finished build jobs, newest first.
+      tags: [Maps]
+      responses:
+        "200":
+          description: Jobs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MapJobListResponse"
+
+  /maps/jobs/{id}:
+    get:
+      operationId: getMapJob
+      summary: Get a map build job
+      tags: [Maps]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Job id
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MapJob"
+        "400":
+          description: Invalid job id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+        "404":
+          description: No such job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: cancelMapJob
+      summary: Cancel a map build job
+      description: >
+        A queued job is dropped at once. A running one has its build process
+        (and any osmium it started) killed and its partial output removed; it
+        reports `cancelled` on the `mapjob` channel once cleaned up.
+      tags: [Maps]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Job id
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Cancellation accepted; the job as it stands
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MapJob"
+        "400":
+          description: Invalid job id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+        "403":
+          description: Map builds are disabled (ALLOW_MAP_BUILDS=false)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: No such job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: The job already finished
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /maps/presets:
+    get:
+      operationId: listMapPresets
+      summary: List the built-in map presets
+      description: Named city areas (`apps/network/regions.json`) that `POST /maps` accepts as `preset`.
+      tags: [Maps]
+      responses:
+        "200":
+          description: Presets, sorted by label
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [presets]
+                properties:
+                  presets:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/MapPreset"
+
+  /maps/geofabrik:
+    get:
+      operationId: findGeofabrikRegions
+      summary: Find the Geofabrik extracts covering a bbox
+      description: >
+        Every extract in Geofabrik's official index whose boundary contains the
+        bbox, smallest first; the first is the cheapest download for a build.
+        The index is cached on disk (GEOFABRIK_INDEX_TTL_HOURS) and is the
+        allowlist for `POST /maps`.
+      tags: [Maps]
+      parameters:
+        - name: bbox
+          in: query
+          required: true
+          description: west,south,east,north in degrees
+          schema:
+            type: string
+            example: "9.64,45.68,9.70,45.71"
+      responses:
+        "200":
+          description: Matching extracts (empty when none covers the whole bbox)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeofabrikLookupResponse"
+        "400":
+          description: Invalid bbox
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+        "503":
+          description: Geofabrik's index could not be fetched and no cached copy exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /maps/geocode:
+    get:
+      operationId: geocodePlace
+      summary: Search for a place by name
+      description: >
+        Server-side Nominatim search (NOMINATIM_URL) returning names and
+        bounding boxes, to pick a build area. Requests identify the project in
+        their User-Agent, go out at most once a second (a few wait in line,
+        the rest get 429) and results are cached.
+      tags: [Maps]
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 200
+      responses:
+        "200":
+          description: Matching places
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeocodeResponse"
+        "400":
+          description: Missing or invalid query
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationError"
+        "429":
+          description: Too many searches; retry after a second
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: Nominatim failed or returned something unreadable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /maps/{id}/activate:
     post:
@@ -3582,7 +3859,8 @@ components:
           description: >
             Where the map came from: `import` (the pre-library network file,
             with `from`), `bundled` (the demo map shipped in the image),
-            `geofabrik` (with `path`) or `preset` (with `name`).
+            `geofabrik` (built with POST /maps; `path` and `bbox`) or `preset`
+            (built from a preset; `name`, `path` and `bbox`).
           properties:
             type:
               type: string
@@ -3593,6 +3871,13 @@ components:
               type: string
             from:
               type: string
+            bbox:
+              type: array
+              description: The requested build area (west, south, east, north), for built maps.
+              minItems: 4
+              maxItems: 4
+              items:
+                type: number
         sizes:
           type: object
           required: [networkBytes, buildingsBytes]
@@ -3609,13 +3894,19 @@ components:
           description: Graph nodes, known once the map has been loaded at least once.
         hasBuildings:
           type: boolean
+        buildingCount:
+          type: integer
+          description: Buildings in the tile tree, for maps the simulator built.
+        attribution:
+          type: string
+          description: Data licence notice (OpenStreetMap ODbL for built maps).
         createdAt:
           type: string
           format: date-time
 
     MapListResponse:
       type: object
-      required: [maps, activeId, switching]
+      required: [maps, activeId, switching, buildsAllowed, buildLimits]
       properties:
         maps:
           type: array
@@ -3626,6 +3917,11 @@ components:
         switching:
           type: boolean
           description: True while a map switch is in progress.
+        buildsAllowed:
+          type: boolean
+          description: False when ALLOW_MAP_BUILDS=false (POST /maps and job cancellation answer 403).
+        buildLimits:
+          $ref: "#/components/schemas/MapBuildLimits"
 
     MapActivateResponse:
       type: object
@@ -3645,6 +3941,232 @@ components:
           description: >
             Present when an external adapter is configured (ADAPTER_URL): the
             switch went through, but the adapter's fleet now sits on another city.
+
+    MapBuildLimits:
+      type: object
+      required: [maxAreaKm2, diskQuotaBytes, diskUsedBytes, cacheBytes, maxQueuedJobs]
+      properties:
+        maxAreaKm2:
+          type: number
+          description: Largest bbox a build accepts (MAP_BUILD_MAX_AREA_KM2).
+        diskQuotaBytes:
+          type: integer
+          description: Disk budget for the library's maps (MAP_BUILD_DISK_QUOTA_MB).
+        diskUsedBytes:
+          type: integer
+          description: Bytes the maps use now; builds are refused (507) once this reaches the quota.
+        cacheBytes:
+          type: integer
+          description: Bytes of cached Geofabrik downloads (not counted against the quota).
+        maxQueuedJobs:
+          type: integer
+          description: Builds that may wait behind the running one (MAP_BUILD_MAX_QUEUED).
+
+    MapBuildRequest:
+      oneOf:
+        - type: object
+          title: Preset
+          required: [preset]
+          additionalProperties: false
+          properties:
+            preset:
+              type: string
+              description: A name from GET /maps/presets.
+            label:
+              type: string
+              maxLength: 80
+              description: Overrides the preset's label.
+            buildings:
+              type: boolean
+              default: true
+              description: Also build 3D building tiles.
+            activate:
+              type: boolean
+              default: false
+              description: Switch to the map once it is built.
+        - type: object
+          title: Custom area
+          required: [label, bbox, geofabrik]
+          additionalProperties: false
+          properties:
+            label:
+              type: string
+              minLength: 1
+              maxLength: 80
+            bbox:
+              type: array
+              description: "[west, south, east, north] in degrees"
+              minItems: 4
+              maxItems: 4
+              items:
+                type: number
+            geofabrik:
+              type: string
+              description: >
+                Geofabrik extract path from GET /maps/geofabrik, e.g.
+                `europe/italy/nord-ovest`. Must be listed in Geofabrik's index
+                and contain the bbox.
+              pattern: "^[a-z0-9][a-z0-9-]*(/[a-z0-9][a-z0-9-]*)*$"
+            buildings:
+              type: boolean
+              default: true
+            activate:
+              type: boolean
+              default: false
+
+    MapJob:
+      type: object
+      required:
+        [id, status, step, progress, label, bbox, geofabrik, buildings, activate, createdAt]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [queued, running, done, failed, cancelled]
+        step:
+          type: string
+          enum:
+            [queued, download, extract, filter, export, prune, validate, buildings, finalize, activate]
+        progress:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Overall progress.
+        bytesDownloaded:
+          type: integer
+        totalBytes:
+          type: integer
+        error:
+          type: string
+          description: >
+            Why the job failed. On a `done` job: the map was built but
+            `activate: true` could not switch to it.
+        mapId:
+          type: string
+          description: Library id of the built map, once done.
+        label:
+          type: string
+        bbox:
+          type: array
+          description: "[west, south, east, north] in degrees"
+          minItems: 4
+          maxItems: 4
+          items:
+            type: number
+        geofabrik:
+          type: string
+        preset:
+          type: string
+        buildings:
+          type: boolean
+        activate:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+
+    MapJobListResponse:
+      type: object
+      required: [jobs]
+      properties:
+        jobs:
+          type: array
+          items:
+            $ref: "#/components/schemas/MapJob"
+
+    MapPreset:
+      type: object
+      required: [name, label, bbox, geofabrik, areaKm2]
+      properties:
+        name:
+          type: string
+        label:
+          type: string
+        bbox:
+          type: array
+          description: "[west, south, east, north] in degrees"
+          minItems: 4
+          maxItems: 4
+          items:
+            type: number
+        geofabrik:
+          type: string
+        areaKm2:
+          type: number
+
+    GeofabrikRegion:
+      type: object
+      required: [path, name, bbox, areaKm2, url]
+      properties:
+        path:
+          type: string
+          description: Extract path, the `geofabrik` value of POST /maps.
+        name:
+          type: string
+        bbox:
+          type: array
+          description: "[west, south, east, north] in degrees"
+          minItems: 4
+          maxItems: 4
+          items:
+            type: number
+        areaKm2:
+          type: number
+          description: Approximate area of the extract's bounding box.
+        url:
+          type: string
+          description: Download URL of the .pbf.
+
+    GeofabrikLookupResponse:
+      type: object
+      required: [regions]
+      properties:
+        regions:
+          type: array
+          items:
+            $ref: "#/components/schemas/GeofabrikRegion"
+
+    GeocodeResult:
+      type: object
+      required: [name, bbox, center, type]
+      properties:
+        name:
+          type: string
+        bbox:
+          type: array
+          description: "[west, south, east, north] in degrees"
+          minItems: 4
+          maxItems: 4
+          items:
+            type: number
+        center:
+          type: array
+          description: "[lon, lat]"
+          minItems: 2
+          maxItems: 2
+          items:
+            type: number
+        type:
+          type: string
+          description: OSM class/type, e.g. `boundary/administrative`.
+
+    GeocodeResponse:
+      type: object
+      required: [results, attribution]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/GeocodeResult"
+        attribution:
+          type: string
 
     # ─── Recording & Replay ──────────────────────────────────────────
     RecordingHeader:

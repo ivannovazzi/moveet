@@ -191,6 +191,20 @@ describe("MapLibrary", () => {
       });
       expect(active).toBe("demo");
       expect(library.get("demo")?.source).toEqual({ type: "bundled" });
+      // Label and ODbL attribution come from the bundled map's meta.json.
+      expect(library.get("demo")?.label).toBe("Nairobi CBD (bundled)");
+      expect(library.get("demo")?.attribution).toMatch(/OpenStreetMap contributors, ODbL/);
+      expect(library.get("demo")?.featureCount).toBeGreaterThan(1000);
+    });
+
+    it("labels a bundled map without a readable meta.json generically", () => {
+      const dir = tmp();
+      fs.copyFileSync(SMALL, path.join(dir, "network.geojson"));
+      fs.writeFileSync(path.join(dir, "meta.json"), "not json");
+      const library = new MapLibrary(tmp());
+      library.initialize({ bundledNetworkPath: path.join(dir, "network.geojson") });
+      expect(library.get("demo")?.label).toBe("Demo map (bundled)");
+      expect(library.get("demo")?.attribution).toBeUndefined();
     });
 
     it("does not import again once the library has maps, and keeps the active choice", () => {
@@ -212,5 +226,92 @@ describe("MapLibrary", () => {
       const library = new MapLibrary(tmp());
       expect(() => library.initialize({})).toThrow(/empty/);
     });
+  });
+});
+
+describe("built maps", () => {
+  function stage(root: string, name: string, withBuildings: boolean): string {
+    const dir = path.join(root, `.build-${name}`);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.copyFileSync(SMALL, path.join(dir, "network.geojson"));
+    if (withBuildings) {
+      fs.mkdirSync(path.join(dir, "buildings"));
+      fs.writeFileSync(path.join(dir, "buildings", "index.json"), "{}");
+    }
+    return dir;
+  }
+
+  it("moves a staged build into the library with its meta", () => {
+    const root = tmp();
+    const library = new MapLibrary(root);
+    const staging = stage(root, "a", true);
+    const meta = library.addBuiltMap({
+      id: "Bergamo Centre",
+      label: "Bergamo centre",
+      stagingDir: staging,
+      source: {
+        type: "geofabrik",
+        path: "europe/italy/nord-ovest",
+        bbox: [9.64, 45.68, 9.7, 45.71],
+      },
+      bbox: [9.65, 45.69, 9.69, 45.7],
+      featureCount: 12,
+      buildingCount: 5,
+      attribution: "OSM",
+    });
+    expect(meta).toMatchObject({
+      id: "bergamo-centre",
+      hasBuildings: true,
+      featureCount: 12,
+      buildingCount: 5,
+      attribution: "OSM",
+      nodeCount: null,
+    });
+    expect(meta.sizes.networkBytes).toBe(fs.statSync(SMALL).size);
+    expect(meta.sizes.buildingsBytes).toBe(2);
+    expect(fs.existsSync(staging)).toBe(false);
+    expect(library.get("bergamo-centre")).toEqual(meta);
+
+    // A second build with the same name gets a fresh id.
+    const again = library.addBuiltMap({
+      id: "Bergamo Centre",
+      label: "Again",
+      stagingDir: stage(root, "b", false),
+      source: { type: "geofabrik", path: "europe/italy/nord-ovest" },
+      bbox: null,
+      featureCount: 1,
+    });
+    expect(again.id).toBe("bergamo-centre-2");
+    expect(again.hasBuildings).toBe(false);
+    expect(again.buildingCount).toBeUndefined();
+  });
+
+  it("refuses a staging directory without a network", () => {
+    const root = tmp();
+    const staging = path.join(root, ".build-empty");
+    fs.mkdirSync(staging, { recursive: true });
+    expect(() =>
+      new MapLibrary(root).addBuiltMap({
+        id: "x",
+        label: "x",
+        stagingDir: staging,
+        source: { type: "bundled" },
+        bbox: null,
+        featureCount: 0,
+      })
+    ).toThrow(/no network.geojson/);
+  });
+
+  it("counts map directories only in usedBytes", () => {
+    const root = tmp();
+    const library = new MapLibrary(root);
+    expect(library.usedBytes()).toBe(0);
+    library.importMap({ id: "a", label: "A", networkPath: SMALL, source: { type: "bundled" } });
+    const used = library.usedBytes();
+    expect(used).toBeGreaterThanOrEqual(fs.statSync(SMALL).size);
+    fs.mkdirSync(path.join(root, ".cache"));
+    fs.writeFileSync(path.join(root, ".cache", "big.osm.pbf"), Buffer.alloc(10_000));
+    stage(root, "pending", false);
+    expect(library.usedBytes()).toBe(used);
   });
 });

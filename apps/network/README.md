@@ -107,6 +107,10 @@ npx tsx src/cli.ts prune --input apps/simulator/data/network.geojson
 npx tsx src/cli.ts validate --input apps/simulator/data/network.geojson
 ```
 
+## As a library
+
+The same steps are exported for programs that build maps themselves: `buildMap()` from `@moveet/network/pipeline` runs download, extract, filter, export, prune, validate and (optionally) building tiles into one output directory, reporting `{ step, progress, bytesDownloaded?, totalBytes? }` as it goes, and `presetRegions()` from `@moveet/network/regions` returns `regions.json`. The simulator uses them for `POST /maps`, running `buildMap()` in a child process because every osmium step is synchronous.
+
 ## 3D buildings (optional)
 
 The UI can draw OSM building footprints as extruded 3D blocks (the Buildings key in the map's layer rail, off by default). The data is not produced by `prepare`; generate it separately when you want it:

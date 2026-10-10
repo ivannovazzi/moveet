@@ -23,7 +23,7 @@ import type {
   DeviceFaultConfig,
   WeatherDTO,
 } from "./index";
-import type { MapMeta } from "./rest";
+import type { MapJob, MapMeta } from "./rest";
 
 // ─── UI/producer-shared payload shapes ──────────────────────────────
 // These moved out of the UI so both producer (simulator) and consumer
@@ -313,6 +313,8 @@ export interface WsMessageMap {
   eta: VehicleEtaUpdate[];
   /** Map library hot-swap progress (and the active map, on connect). */
   map: MapStatusPayload;
+  /** Map build job state change or progress (`POST /maps`). */
+  mapjob: MapJob;
 }
 
 /** Every data-carrying WS message type. */
@@ -374,6 +376,7 @@ const DATA_MESSAGE_TYPES: ReadonlySet<string> = new Set<WsDataMessageType>([
   "weather",
   "eta",
   "map",
+  "mapjob",
 ]);
 
 /**

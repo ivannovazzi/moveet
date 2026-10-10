@@ -53,7 +53,19 @@ data/maps/
   <id>/meta.json          # id, label, bbox, source, sizes, counts, createdAt
 ```
 
-On first start with an empty library, an existing `./data/network.geojson` (plus `./data/buildings/`) is imported as the map `imported`; with nothing to import, the bundled demo grid (`assets/default-map/`) is used so the server always boots. A directory dropped into the library by hand gets its `meta.json` written on first listing.
+On first start with an empty library, an existing `./data/network.geojson` (plus `./data/buildings/`) is imported as the map `imported`; with nothing to import, the bundled default map (`assets/default-map/`, a compact Nairobi CBD network built with the pipeline below; OpenStreetMap data, ODbL) is used so the server always boots. A directory dropped into the library by hand gets its `meta.json` written on first listing.
+
+### Building maps at runtime
+
+`POST /maps` builds a new map from OpenStreetMap data and adds it to the library: the Geofabrik extract is downloaded, cut to the bbox, filtered to driveable roads, exported, pruned, validated and (unless `buildings: false`) tiled into 3D buildings. The body is `{ "preset": "<name>" }` (see `GET /maps/presets`) or `{ "label", "bbox": [w, s, e, n], "geofabrik": "<extract path>" }`, plus `buildings` (default true) and `activate` (default false). It answers 202 with the job.
+
+- The work runs in a child process (the `apps/network` pipeline, bundled into `dist/workers/map-build-child.mjs`), so the simulator stays responsive. It needs `osmium` on the PATH; the Docker image ships it.
+- One build runs at a time; up to `MAP_BUILD_MAX_QUEUED` more wait, beyond that 409. `DELETE /maps/jobs/:id` cancels (the process group, osmium included, is killed and partial output removed).
+- Progress goes out on the `mapjob` WebSocket channel: `{ id, status: queued|running|done|failed|cancelled, step, progress (0..1), bytesDownloaded?, totalBytes?, error?, mapId? }`. `GET /maps/jobs[/:id]` returns the same objects.
+- `GET /maps/geofabrik?bbox=w,s,e,n` lists the Geofabrik extracts whose boundary contains a bbox, smallest first. Geofabrik's official index is cached in the cache dir and is the allowlist: `POST /maps` rejects any extract path it does not list, and never takes a URL.
+- `GET /maps/geocode?q=` searches places through Nominatim (`NOMINATIM_URL`) with a project User-Agent, at most one request per second, results cached.
+- Guards: `ALLOW_MAP_BUILDS=false` turns builds off (403); bboxes must be ordered and at most `MAP_BUILD_MAX_AREA_KM2`; builds are refused (507) once the maps use `MAP_BUILD_DISK_QUOTA_MB`. `GET /maps` reports `buildsAllowed` and `buildLimits`.
+- Downloads are cached in `MAP_BUILD_CACHE_DIR` (default `<MAPS_DIR>/.cache`, so on the same volume) and revalidated by ETag, so a second build in the same region skips the download. The cache does not count against the quota; clear it by hand when it grows.
 
 ## Configuration Options
 
@@ -63,6 +75,13 @@ All config is parsed and validated through a single zod schema in `src/utils/con
 | ----------------------------- | ---------------------------------------------------------------------------------------- | ---------------------- |
 | `PORT`                        | HTTP server port                                                                         | 5010                   |
 | `MAPS_DIR`                    | Map library root (maps + persisted active map); which map runs is chosen at runtime      | ./data/maps            |
+| `ALLOW_MAP_BUILDS`            | Allow `POST /maps` builds (Geofabrik + osmium); false answers 403                        | true                   |
+| `MAP_BUILD_MAX_AREA_KM2`      | Largest build bbox, km²                                                                  | 2500                   |
+| `MAP_BUILD_DISK_QUOTA_MB`     | Disk budget for library maps; builds refused (507) once reached (cache not counted)      | 4096                   |
+| `MAP_BUILD_MAX_QUEUED`        | Builds that may wait behind the running one (409 beyond)                                 | 3                      |
+| `MAP_BUILD_CACHE_DIR`         | Geofabrik download + index cache                                                         | `<MAPS_DIR>/.cache`    |
+| `GEOFABRIK_INDEX_TTL_HOURS`   | How long the cached Geofabrik index (build allowlist) is trusted                         | 24                     |
+| `NOMINATIM_URL`               | Nominatim instance for `GET /maps/geocode`                                               | nominatim.openstreetmap.org |
 | `UPDATE_INTERVAL`             | Vehicle position update frequency (ms)                                                   | 500                    |
 | `MIN_SPEED`                   | Minimum vehicle speed (km/h)                                                             | 20                     |
 | `MAX_SPEED`                   | Maximum vehicle speed (km/h); must be greater than `MIN_SPEED`                           | 60                     |

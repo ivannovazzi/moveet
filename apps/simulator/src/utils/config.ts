@@ -96,6 +96,40 @@ const envObjectSchema = z.object({
    */
   MAPS_DIR: z.string().default("./data/maps"),
 
+  /**
+   * Allow building new maps at runtime (`POST /maps`: Geofabrik download +
+   * osmium). A permission flag, not map config: with it off the build and
+   * cancel routes answer 403 and `GET /maps` reports `buildsAllowed: false`.
+   */
+  ALLOW_MAP_BUILDS: z
+    .enum(["true", "false", "1", "0", ""])
+    .default("true")
+    .transform((v) => v !== "false" && v !== "0"),
+
+  /** Largest bbox a map build accepts, in km². */
+  MAP_BUILD_MAX_AREA_KM2: z.coerce.number().positive().default(2500),
+
+  /**
+   * Disk budget for the library's maps, in MB. A build is refused while the
+   * maps already use this much (the Geofabrik download cache is not counted).
+   */
+  MAP_BUILD_DISK_QUOTA_MB: z.coerce.number().positive().default(4096),
+
+  /** Builds that may wait behind the running one; further requests get 409. */
+  MAP_BUILD_MAX_QUEUED: z.coerce.number().int().min(0).default(3),
+
+  /**
+   * Cache for Geofabrik downloads and the Geofabrik index, so repeat builds in
+   * the same region skip the download. Empty means `<MAPS_DIR>/.cache`.
+   */
+  MAP_BUILD_CACHE_DIR: z.string().default(""),
+
+  /** How long the cached Geofabrik index (the build allowlist) is trusted, in hours. */
+  GEOFABRIK_INDEX_TTL_HOURS: z.coerce.number().positive().default(24),
+
+  /** Nominatim instance for `GET /maps/geocode` (place search). */
+  NOMINATIM_URL: z.string().url().default("https://nominatim.openstreetmap.org"),
+
   /** URL of the adapter service (empty = disabled) */
   ADAPTER_URL: z.string().default(""),
 
@@ -399,6 +433,13 @@ function buildConfig(env: EnvConfig) {
     vehicleCount: env.VEHICLE_COUNT,
     vehicleTypes: env.VEHICLE_TYPES,
     mapsDir: env.MAPS_DIR,
+    allowMapBuilds: env.ALLOW_MAP_BUILDS,
+    mapBuildMaxAreaKm2: env.MAP_BUILD_MAX_AREA_KM2,
+    mapBuildDiskQuotaMb: env.MAP_BUILD_DISK_QUOTA_MB,
+    mapBuildMaxQueued: env.MAP_BUILD_MAX_QUEUED,
+    mapBuildCacheDir: env.MAP_BUILD_CACHE_DIR || path.join(env.MAPS_DIR, ".cache"),
+    geofabrikIndexTtlHours: env.GEOFABRIK_INDEX_TTL_HOURS,
+    nominatimUrl: env.NOMINATIM_URL,
     adapterURL: env.ADAPTER_URL,
     persistenceEnabled: env.PERSISTENCE_ENABLED,
     persistenceInterval: env.PERSISTENCE_INTERVAL,

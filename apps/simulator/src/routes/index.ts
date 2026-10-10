@@ -15,4 +15,5 @@ export { createSpeedProfileRoutes } from "./speedProfiles";
 export { createWeatherRoutes } from "./weather";
 export { createBuildingRoutes } from "./buildings";
 export { createMapRoutes } from "./maps";
+export { createMapBuildRoutes } from "./mapBuilds";
 export type { RouteContext } from "./types";

@@ -48,6 +48,21 @@ export interface ImportMapInput {
   /** Optional building tile directory to copy in as `buildings/`. */
   buildingsDir?: string;
   source: MapSource;
+  attribution?: string;
+}
+
+/** A map a build job wrote into a staging directory, to be added to the library. */
+export interface AddBuiltMapInput {
+  /** Requested id; made unique (`-2`, `-3`, ...) when already taken. */
+  id: string;
+  label: string;
+  /** Holds `network.geojson` and optionally `buildings/`; moved into the library. */
+  stagingDir: string;
+  source: MapSource;
+  bbox: MapMeta["bbox"];
+  featureCount: number;
+  buildingCount?: number;
+  attribution?: string;
 }
 
 /** Where startup finds maps when the library is empty. */
@@ -56,7 +71,10 @@ export interface MigrationSources {
   legacyNetworkPath?: string;
   /** Pre-library building tiles (`data/buildings`), imported with it. */
   legacyBuildingsDir?: string;
-  /** Small default map shipped with the simulator, the last resort. */
+  /**
+   * Small default map shipped with the simulator, the last resort. A
+   * `meta.json` beside it may give its `label` and `attribution`.
+   */
   bundledNetworkPath?: string;
 }
 
@@ -95,7 +113,7 @@ export function geoJsonStats(data: unknown): GeoJsonStats {
   return { featureCount: features.length, bbox };
 }
 
-function directoryBytes(dir: string): number {
+export function directoryBytes(dir: string): number {
   let total = 0;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
@@ -103,6 +121,19 @@ function directoryBytes(dir: string): number {
     else if (entry.isFile()) total += fs.statSync(full).size;
   }
   return total;
+}
+
+/** `label`/`attribution` from the bundled map's sidecar `meta.json`, when present and readable. */
+function readBundledMeta(file: string): { label?: string; attribution?: string } {
+  try {
+    const raw = JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, unknown>;
+    return {
+      ...(typeof raw.label === "string" ? { label: raw.label } : {}),
+      ...(typeof raw.attribution === "string" ? { attribution: raw.attribution } : {}),
+    };
+  } catch {
+    return {};
+  }
 }
 
 /** Write via a temp file + rename so a crash never leaves a half-written file. */
@@ -257,6 +288,7 @@ export class MapLibrary {
         featureCount: stats.featureCount,
         nodeCount: null,
         hasBuildings,
+        ...(input.attribution ? { attribution: input.attribution } : {}),
         createdAt: new Date().toISOString(),
       };
       writeJsonAtomic(path.join(staging, META_FILE), meta);
@@ -266,6 +298,50 @@ export class MapLibrary {
       fs.rmSync(staging, { recursive: true, force: true });
       throw err;
     }
+  }
+
+  /**
+   * Moves a staged build into the library under a unique id and writes its
+   * meta. The staging directory must sit on the same filesystem (inside the
+   * library root) so the move is an atomic rename.
+   */
+  addBuiltMap(input: AddBuiltMapInput): MapMeta {
+    const network = path.join(input.stagingDir, NETWORK_FILE);
+    if (!fs.existsSync(network)) throw new Error(`Build produced no ${NETWORK_FILE}`);
+    const buildings = path.join(input.stagingDir, BUILDINGS_SUBDIR);
+    const hasBuildings = fs.existsSync(buildings);
+    const id = this.uniqueId(slugifyMapId(input.id));
+    const meta: MapMeta = {
+      id,
+      label: input.label,
+      bbox: input.bbox,
+      source: input.source,
+      sizes: {
+        networkBytes: fs.statSync(network).size,
+        buildingsBytes: hasBuildings ? directoryBytes(buildings) : 0,
+      },
+      featureCount: input.featureCount,
+      nodeCount: null,
+      hasBuildings,
+      ...(input.buildingCount !== undefined ? { buildingCount: input.buildingCount } : {}),
+      ...(input.attribution ? { attribution: input.attribution } : {}),
+      createdAt: new Date().toISOString(),
+    };
+    writeJsonAtomic(path.join(input.stagingDir, META_FILE), meta);
+    fs.renameSync(input.stagingDir, this.mapDir(id));
+    return meta;
+  }
+
+  /** Bytes used by the library's maps: every map directory, nothing hidden (no cache, no staging). */
+  usedBytes(): number {
+    if (!fs.existsSync(this.root)) return 0;
+    let total = 0;
+    for (const entry of fs.readdirSync(this.root, { withFileTypes: true })) {
+      if (entry.isDirectory() && isValidMapId(entry.name)) {
+        total += directoryBytes(path.join(this.root, entry.name));
+      }
+    }
+    return total;
   }
 
   /** Merges `patch` into a map's meta. Returns the updated meta, or null if unknown. */
@@ -310,11 +386,13 @@ export class MapLibrary {
         });
         logger.info(`Imported ${legacyNetworkPath} into the map library as "${meta.id}"`);
       } else if (bundledNetworkPath && fs.existsSync(bundledNetworkPath)) {
+        const sidecar = readBundledMeta(path.join(path.dirname(bundledNetworkPath), META_FILE));
         const meta = this.importMap({
           id: "demo",
-          label: "Demo grid (bundled)",
+          label: sidecar.label ?? "Demo map (bundled)",
           networkPath: bundledNetworkPath,
           source: { type: "bundled" },
+          ...(sidecar.attribution ? { attribution: sidecar.attribution } : {}),
         });
         logger.warn(
           `Map library is empty; using the bundled demo map "${meta.id}". ` +

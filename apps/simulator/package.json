@@ -39,6 +39,7 @@
     "pathfinding"
   ],
   "dependencies": {
+    "@moveet/network": "*",
     "@moveet/server-kit": "*",
     "@moveet/shared-types": "*",
     "@scalar/express-api-reference": "^0.10.17",

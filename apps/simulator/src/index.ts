@@ -37,6 +37,7 @@ import {
   createWeatherRoutes,
   createBuildingRoutes,
   createMapRoutes,
+  createMapBuildRoutes,
 } from "./routes";
 import { jsonBodyParser } from "./routes/speedProfiles";
 import { SpeedProfileManager } from "./modules/speedprofiles/SpeedProfileManager";
@@ -48,6 +49,12 @@ import { setupWebSocket, wireEvents, registerGracefulShutdown } from "./setup";
 import { apiReference } from "@scalar/express-api-reference";
 import { MapLibrary } from "./modules/maps/MapLibrary";
 import { MapSwitcher } from "./modules/maps/MapSwitcher";
+import { MapBuildManager } from "./modules/maps/MapBuildManager";
+import { createForkRunner } from "./modules/maps/MapBuildRunner";
+import { GeofabrikIndex } from "./modules/maps/GeofabrikIndex";
+import { Geocoder } from "./modules/maps/Geocoder";
+import { presetRegions } from "@moveet/network/regions";
+import { OSM_SERVICES_USER_AGENT } from "./constants";
 
 verifyConfig();
 logConfig();
@@ -198,6 +205,31 @@ const mapSwitcher = new MapSwitcher(
 );
 mapSwitcher.recordGraphStats(initialMapId, network);
 
+// ─── Map builds (Geofabrik + osmium, in a child process) ─────────────
+
+const geofabrikIndex = new GeofabrikIndex({
+  cacheDir: config.mapBuildCacheDir,
+  ttlMs: config.geofabrikIndexTtlHours * 3600_000,
+  userAgent: OSM_SERVICES_USER_AGENT,
+});
+const geocoder = new Geocoder({
+  baseUrl: config.nominatimUrl,
+  userAgent: OSM_SERVICES_USER_AGENT,
+});
+const mapPresets = presetRegions();
+const mapBuildManager = new MapBuildManager({
+  library: mapLibrary,
+  geofabrik: geofabrikIndex,
+  presets: mapPresets,
+  runner: createForkRunner(),
+  cacheDir: config.mapBuildCacheDir,
+  allowed: config.allowMapBuilds,
+  maxAreaKm2: config.mapBuildMaxAreaKm2,
+  diskQuotaBytes: config.mapBuildDiskQuotaMb * 1024 * 1024,
+  maxQueued: config.mapBuildMaxQueued,
+  activate: (id) => mapSwitcher.activate(id),
+});
+
 // ─── Route context shared by all route modules ──────────────────────
 
 const ctx: RouteContext = {
@@ -253,7 +285,15 @@ if (speedProfiles) {
 }
 app.use(createWeatherRoutes(ctx));
 app.use(createBuildingRoutes({ dir: () => mapSwitcher.activeBuildingsDir() }));
-app.use(createMapRoutes({ library: mapLibrary, switcher: mapSwitcher }));
+app.use(
+  createMapBuildRoutes({
+    builds: mapBuildManager,
+    geofabrik: geofabrikIndex,
+    geocoder,
+    presets: mapPresets,
+  })
+);
+app.use(createMapRoutes({ library: mapLibrary, switcher: mapSwitcher, builds: mapBuildManager }));
 
 // ─── API documentation ──────────────────────────────────────────────
 
@@ -298,6 +338,7 @@ async function main() {
     },
   });
   mapSwitcher.on("map", (payload) => broadcaster.broadcast("map", payload));
+  mapBuildManager.on("mapjob", (job) => broadcaster.broadcast("mapjob", job));
   const {
     trafficBroadcastInterval,
     analyticsBroadcastInterval,
@@ -329,6 +370,7 @@ async function main() {
     recordingManager,
     persistenceManager,
     weatherManager,
+    mapBuildManager,
   });
 }
 
