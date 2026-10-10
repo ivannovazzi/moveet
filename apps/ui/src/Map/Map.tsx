@@ -30,7 +30,6 @@ const DeckGLMap = lazy(() =>
     default: m.DeckGLMap,
   }))
 );
-import GroundLayer from "./Ground/GroundLayer";
 import VehiclesLayer from "./Vehicle/VehiclesLayer";
 import Direction from "./Direction";
 import RoadRenderer from "./Road";
@@ -222,7 +221,6 @@ export default function Map({
           {/* The map's ground — density bloom + honeycomb lattice, in geographic
             coordinates so it pans and zooms with everything drawn on it. Sits
             in the layer manager's underlay band, beneath the roads. */}
-          <GroundLayer network={network} />
           {modifiers.showBuildings && (
             <Suspense fallback={null}>
               <BuildingsLayer />
