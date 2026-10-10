@@ -1,0 +1,176 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "road-h1",
+        "name": "Horizontal Road 1",
+        "highway": "primary",
+        "maxspeed": "50",
+        "surface": "asphalt"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-73.5700, 45.5000],
+          [-73.5680, 45.5000],
+          [-73.5660, 45.5000],
+          [-73.5640, 45.5000]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "road-h2",
+        "name": "Horizontal Road 2",
+        "highway": "secondary",
+        "maxspeed": "40",
+        "surface": "asphalt"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-73.5700, 45.5020],
+          [-73.5680, 45.5020],
+          [-73.5660, 45.5020],
+          [-73.5640, 45.5020]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "road-h3",
+        "name": "Horizontal Road 3",
+        "highway": "tertiary",
+        "maxspeed": "30",
+        "surface": "asphalt"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-73.5700, 45.5040],
+          [-73.5680, 45.5040],
+          [-73.5660, 45.5040],
+          [-73.5640, 45.5040]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "road-v1",
+        "name": "Vertical Road 1",
+        "highway": "primary",
+        "maxspeed": "50",
+        "surface": "asphalt"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-73.5700, 45.5000],
+          [-73.5700, 45.5020],
+          [-73.5700, 45.5040]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "road-v2",
+        "name": "Vertical Road 2",
+        "highway": "secondary",
+        "maxspeed": "40",
+        "surface": "asphalt"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-73.5680, 45.5000],
+          [-73.5680, 45.5020],
+          [-73.5680, 45.5040]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "road-v3",
+        "name": "Vertical Road 3",
+        "highway": "tertiary",
+        "maxspeed": "30",
+        "surface": "asphalt"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-73.5660, 45.5000],
+          [-73.5660, 45.5020],
+          [-73.5660, 45.5040]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "road-v4",
+        "name": "Vertical Road 4",
+        "highway": "residential",
+        "maxspeed": "30",
+        "surface": "asphalt"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-73.5640, 45.5000],
+          [-73.5640, 45.5020],
+          [-73.5640, 45.5040]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "road-d1",
+        "name": "Diagonal Road",
+        "highway": "residential",
+        "maxspeed": "30",
+        "surface": "asphalt"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-73.5700, 45.5000],
+          [-73.5680, 45.5020],
+          [-73.5660, 45.5040]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "poi-1",
+        "name": "Coffee Shop",
+        "shop": "coffee"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-73.5680, 45.5020]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "poi-2",
+        "name": "Bus Stop",
+        "highway": "bus_stop"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-73.5660, 45.5000]
+      }
+    }
+  ]
+}

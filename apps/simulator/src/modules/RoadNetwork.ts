@@ -488,6 +488,60 @@ export class RoadNetwork extends EventEmitter {
     }
   }
 
+  // ─── Map hot swap (map library) ─────────────────────────────────────
+
+  /** Number of graph nodes. */
+  public get nodeCount(): number {
+    return this.nodes.size;
+  }
+
+  /** The GeoJSON file this graph was built from. */
+  public get sourcePath(): string {
+    return this.geojsonPath;
+  }
+
+  /**
+   * Exchanges everything built from the GeoJSON with `other`: graph, spatial
+   * index, route engine (and so its route cache and incident edges), derived
+   * collections, heat zones and the worker pool. This instance keeps its
+   * identity, event listeners, route-request hook and weather factor, so every
+   * module holding a reference to it now runs on the other graph without
+   * being rewired. Calling it again with the same `other` swaps back, which is
+   * how a failed map switch rolls back.
+   *
+   * Afterwards `other` owns the previous graph and pool; the caller shuts its
+   * workers down once the swap is committed. Emits `heatzones` with the
+   * incoming graph's zones (none for a freshly built one).
+   */
+  public swapGraphWith(other: RoadNetwork): void {
+    const fields = [
+      "nodes",
+      "edges",
+      "roads",
+      "spatial",
+      "pathfinding",
+      "pois",
+      "speedLimits",
+      "lineStringFeatures",
+      "heatZoneManager",
+      "pathfindingPool",
+      "geojsonPath",
+      "speedOverrides",
+    ] as const;
+    const self = this as unknown as Record<string, unknown>;
+    const that = other as unknown as Record<string, unknown>;
+    for (const field of fields) {
+      const value = self[field];
+      self[field] = that[field];
+      that[field] = value;
+    }
+    // Weather is a property of the world, not the map: carry it onto the
+    // incoming engine (and its pool, when one is already running).
+    this.pathfinding.setWeatherFactor(this.weatherFactor);
+    this.pathfindingPool?.setWeatherFactor(this.weatherFactor);
+    this.emit("heatzones", this.exportHeatZones());
+  }
+
   // ─── Heat zones (HeatZoneManager) ───────────────────────────────────
 
   public generateHeatedZones(

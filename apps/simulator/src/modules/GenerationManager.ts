@@ -2,7 +2,6 @@ import { EventEmitter } from "events";
 import crypto from "crypto";
 import path from "path";
 import { HeadlessRunner } from "../headless/HeadlessRunner";
-import { config } from "../utils/config";
 import logger from "../utils/logger";
 import type { RecordingMetadata } from "../types";
 
@@ -23,7 +22,7 @@ export interface GenerateJobParams {
   stepMs: number;
   /** Sim RNG seed for reproducibility. */
   seed?: number;
-  /** Road network GeoJSON path; defaults to the configured network. */
+  /** Road network GeoJSON path; defaults to the active map's network. */
   geojsonPath?: string;
 }
 
@@ -56,6 +55,20 @@ export class GenerationManager extends EventEmitter {
   private step = 0;
   private totalSteps = 0;
 
+  /**
+   * @param defaultNetworkPath - Resolves the network a job runs on when the
+   *   request names none: the active map, asked at start time so a job follows
+   *   a map switch.
+   */
+  constructor(private readonly defaultNetworkPath?: () => string) {
+    super();
+  }
+
+  private resolveDefaultNetworkPath(): string {
+    if (!this.defaultNetworkPath) throw new Error("No road network to generate on");
+    return this.defaultNetworkPath();
+  }
+
   /** True when a job is currently running. */
   isRunning(): boolean {
     return this.state === "running";
@@ -83,6 +96,7 @@ export class GenerationManager extends EventEmitter {
    */
   start(params: GenerateJobParams): string | null {
     if (this.isRunning()) return null;
+    const geojsonPath = params.geojsonPath ?? this.resolveDefaultNetworkPath();
 
     const jobId = crypto.randomUUID();
     this.jobId = jobId;
@@ -101,7 +115,7 @@ export class GenerationManager extends EventEmitter {
     );
 
     const runner = new HeadlessRunner({
-      geojsonPath: params.geojsonPath ?? config.geojsonPath,
+      geojsonPath,
       vehicles: params.vehicleCount,
       simStart: params.startTime,
       stepMs,

@@ -23,8 +23,12 @@ const TILE_MAX_AGE_MS = 5 * 60 * 1000;
 const TILE_PARAM = /^\d{1,7}$/;
 
 export interface BuildingRoutesOptions {
-  /** Directory holding `index.json` and the tile tree. */
-  dir: string;
+  /**
+   * Directory holding `index.json` and the tile tree, or a getter for it that
+   * is asked on every request (the active map's tiles, which change on a map
+   * switch). A getter returning null means the active map has no buildings.
+   */
+  dir: string | (() => string | null);
 }
 
 async function isFile(file: string): Promise<boolean> {
@@ -37,17 +41,22 @@ async function isFile(file: string): Promise<boolean> {
 
 export function createBuildingRoutes({ dir }: BuildingRoutesOptions): Router {
   const router = Router();
-  const root = path.resolve(dir);
+  const resolveRoot = (): string | null => {
+    const current = typeof dir === "function" ? dir() : dir;
+    return current ? path.resolve(current) : null;
+  };
 
   router.get(
     "/buildings",
     asyncHandler(async (_req, res) => {
-      const file = path.join(root, INDEX_FILE);
-      if (!(await isFile(file))) {
+      const root = resolveRoot();
+      if (!root || !(await isFile(path.join(root, INDEX_FILE)))) {
         res.status(404).json({ error: NOT_GENERATED });
         return;
       }
-      res.type("application/json").send(await fs.promises.readFile(file, "utf8"));
+      res
+        .type("application/json")
+        .send(await fs.promises.readFile(path.join(root, INDEX_FILE), "utf8"));
     })
   );
 
@@ -62,7 +71,8 @@ export function createBuildingRoutes({ dir }: BuildingRoutesOptions): Router {
         return;
       }
       const relative = `${z}/${x}/${y}.json`;
-      if (!(await isFile(path.join(root, relative)))) {
+      const root = resolveRoot();
+      if (!root || !(await isFile(path.join(root, relative)))) {
         res.status(404).json({ error: "Tile not found" });
         return;
       }

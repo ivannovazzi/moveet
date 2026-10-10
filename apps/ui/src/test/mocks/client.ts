@@ -44,6 +44,8 @@ export function createMockClient() {
     onGeofenceEvent: vi.fn(),
     offGeofenceEvent: vi.fn(),
     onConnectionStateChange: vi.fn(),
+    onMap: vi.fn(),
+    offMap: vi.fn(),
     start: vi.fn().mockResolvedValue({ data: undefined }),
     stop: vi.fn().mockResolvedValue({ data: undefined }),
     reset: vi.fn().mockResolvedValue({ data: undefined }),

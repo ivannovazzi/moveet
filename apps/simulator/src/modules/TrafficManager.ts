@@ -40,6 +40,11 @@ export class TrafficManager {
     return Math.max(0.2, 1 / (1 + occupancyRatio * occupancyRatio));
   }
 
+  /** Forgets every edge's occupancy (the roster it counted is gone). The profile survives. */
+  clear(): void {
+    this.edgeOccupancy.clear();
+  }
+
   getProfile(): TrafficProfile {
     return { ...this.profile, timeRanges: [...this.profile.timeRanges] };
   }

@@ -43,11 +43,17 @@ Copy the example environment file:
 cp .env.example .env
 ```
 
-Edit `.env` with your configuration. **Required variables:**
+Edit `.env` with your configuration. Nothing is required: road networks live in the map library under `MAPS_DIR` (default `./data/maps`), one directory per map:
 
-```bash
-GEOJSON_PATH=./data/network.geojson
 ```
+data/maps/
+  state.json              # { "activeId": "<id>" }, survives restarts
+  <id>/network.geojson    # road network from apps/network
+  <id>/buildings/         # optional 3D building tiles
+  <id>/meta.json          # id, label, bbox, source, sizes, counts, createdAt
+```
+
+On first start with an empty library, an existing `./data/network.geojson` (plus `./data/buildings/`) is imported as the map `imported`; with nothing to import, the bundled demo grid (`assets/default-map/`) is used so the server always boots. A directory dropped into the library by hand gets its `meta.json` written on first listing.
 
 ## Configuration Options
 
@@ -56,8 +62,7 @@ All config is parsed and validated through a single zod schema in `src/utils/con
 | Variable                      | Description                                                                              | Default                |
 | ----------------------------- | ---------------------------------------------------------------------------------------- | ---------------------- |
 | `PORT`                        | HTTP server port                                                                         | 5010                   |
-| `GEOJSON_PATH`                | Path to OpenStreetMap GeoJSON file                                                       | ./data/network.geojson |
-| `BUILDINGS_DIR`               | Optional 3D building tiles from `network buildings`; absent means `GET /buildings` is 404 | ./data/buildings       |
+| `MAPS_DIR`                    | Map library root (maps + persisted active map); which map runs is chosen at runtime      | ./data/maps            |
 | `UPDATE_INTERVAL`             | Vehicle position update frequency (ms)                                                   | 500                    |
 | `MIN_SPEED`                   | Minimum vehicle speed (km/h)                                                             | 20                     |
 | `MAX_SPEED`                   | Maximum vehicle speed (km/h); must be greater than `MIN_SPEED`                           | 60                     |
@@ -204,6 +209,26 @@ Get all roads in the network.
 #### `GET /pois`
 
 Get all points of interest.
+
+### Map Library
+
+`/network`, `/roads`, `/pois` and `/buildings*` always serve the active map.
+
+#### `GET /maps`
+
+`{ maps: MapMeta[], activeId, switching }`.
+
+#### `GET /maps/active`
+
+The active map's meta.
+
+#### `POST /maps/:id/activate`
+
+Hot-swaps the road network. The simulation pauses while the new graph is built, then everything tied to the old map is reset: vehicles respawn on the new network, and routes, the route cache, traffic, incidents, jobs, geofences, heat zones and a running scenario are cleared (learned speed profiles are reloaded for the new map). A running simulation resumes. Answers 200 with `{ map, previousId, changed, durationMs, warning? }`, 404 for an unknown map, 409 while another switch is in progress, and 422 when the map cannot be loaded (the previous map stays active). With `ADAPTER_URL` set the switch still happens but `warning` explains that the adapter's fleet now sits on another city. Progress is broadcast as WebSocket `map` frames: `{ status: "switching" | "active" | "error", map, error? }`.
+
+#### `DELETE /maps/:id`
+
+Removes a map from the library; 409 when it is active.
 
 ### Heat Zones
 

@@ -109,6 +109,17 @@ export class WeatherManager extends EventEmitter {
     this.timer.unref?.();
   }
 
+  /**
+   * Moves the polled location (the active map changed). Takes effect on the
+   * next poll; a running poller is kicked so the reading follows the map now.
+   */
+  setLocation(lat: number, lon: number): void {
+    if (this.settings.lat === lat && this.settings.lon === lon) return;
+    this.settings.lat = lat;
+    this.settings.lon = lon;
+    if (this.timer) void this.poll();
+  }
+
   /** Stops the poll interval. Safe to call when not started. */
   stop(): void {
     if (this.timer) {

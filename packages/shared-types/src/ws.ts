@@ -23,6 +23,7 @@ import type {
   DeviceFaultConfig,
   WeatherDTO,
 } from "./index";
+import type { MapMeta } from "./rest";
 
 // ─── UI/producer-shared payload shapes ──────────────────────────────
 // These moved out of the UI so both producer (simulator) and consumer
@@ -243,6 +244,22 @@ export interface JobDeletedPayload {
   id: string;
 }
 
+/**
+ * Map library hot-swap progress, broadcast on the `map` channel.
+ *
+ * - `switching`: a swap to `map` started; the simulation is paused.
+ * - `active`: `map` is now the active network (also sent to each client on
+ *   connect). Clients refetch `/network`, `/roads`, `/pois` and `/buildings`
+ *   when the id differs from the one they loaded.
+ * - `error`: the swap to `error`'s target failed; `map` is the map that stayed
+ *   active.
+ */
+export interface MapStatusPayload {
+  status: "switching" | "active" | "error";
+  map: MapMeta;
+  error?: string;
+}
+
 // ─── Message map: the canonical contract ────────────────────────────
 // Maps each WS message `type` to the `data` payload it carries. The
 // no-data control frames (`connect`/`disconnect`) are intentionally
@@ -294,6 +311,8 @@ export interface WsMessageMap {
    * composition never contradicts the live ETA sitting above it.
    */
   eta: VehicleEtaUpdate[];
+  /** Map library hot-swap progress (and the active map, on connect). */
+  map: MapStatusPayload;
 }
 
 /** Every data-carrying WS message type. */
@@ -354,6 +373,7 @@ const DATA_MESSAGE_TYPES: ReadonlySet<string> = new Set<WsDataMessageType>([
   "faults:config",
   "weather",
   "eta",
+  "map",
 ]);
 
 /**

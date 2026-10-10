@@ -69,6 +69,12 @@ export class GeoFenceManager extends EventEmitter {
     return existed;
   }
 
+  /** Removes every zone and all membership tracking (e.g. on a map switch). */
+  clear(): void {
+    this.zones.clear();
+    this.membership.clear();
+  }
+
   getZone(id: string): GeoFence | undefined {
     return this.zones.get(id);
   }

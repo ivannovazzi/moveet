@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { SolidPolygonLayer } from "@deck.gl/layers";
 import { useMapContext } from "@/components/Map/hooks";
 import { useRegisterLayers } from "@/components/Map/hooks/useDeckLayers";
+import { useMapRevision } from "@/data/mapRevision";
 import { resolveMapColor } from "@/lib/mapColor";
 import {
   type Building,
@@ -46,16 +47,20 @@ export default function BuildingsLayer() {
   const { viewport } = useMapContext();
   const [index, setIndex] = useState<BuildingsIndex | null>(null);
   const [tiles, setTiles] = useState<ReadonlyMap<string, Building[]>>(() => new Map());
+  const mapRevision = useMapRevision();
 
+  // Reloads the index (and drops the drawn tiles) when the simulator switches maps.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `mapRevision` is the reload trigger, not an input.
   useEffect(() => {
     let live = true;
+    setTiles(new Map());
     loadBuildingsIndex().then((loaded) => {
       if (live) setIndex(loaded);
     });
     return () => {
       live = false;
     };
-  }, []);
+  }, [mapRevision]);
 
   const available = useMemo(() => new Set(index?.tiles ?? []), [index]);
 

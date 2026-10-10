@@ -14,7 +14,7 @@ Use it to develop against a fleet API before real vehicles exist, to load-test a
 
 ## Quick start
 
-You need Node.js ≥ 26 and a road network at `apps/simulator/data/network.geojson`.
+You need Node.js ≥ 26. The simulator keeps its road networks in a map library (`apps/simulator/data/maps/`) and starts on a small bundled demo map when it has nothing else.
 
 ```bash
 npm install
@@ -104,7 +104,7 @@ Each app reads its own `.env`. The settings you are most likely to change:
 
 | Variable | Default | What it does |
 | --- | --- | --- |
-| `GEOJSON_PATH` | `./data/network.geojson` | Road network to load |
+| `MAPS_DIR` | `./data/maps` | Map library root; the active map is picked at runtime (`GET /maps`, `POST /maps/:id/activate`) |
 | `VEHICLE_COUNT` | `70` | Vehicles to spawn |
 | `UPDATE_INTERVAL` | `500` | Position broadcast interval (ms) |
 | `ADAPTER_URL` | _(empty)_ | Set it to enable adapter sync |

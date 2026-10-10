@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import { scenarioSchema } from "../modules/scenario/types";
 import type { Scenario } from "../modules/scenario/types";
 import { config } from "../utils/config";
+import { MapLibrary } from "../modules/maps/MapLibrary";
 import { ScenarioRunner } from "./ScenarioRunner";
 import type { ScenarioRunReport } from "./ScenarioRunner";
 
@@ -26,7 +27,7 @@ Options:
   --step-ms <n>       Simulated ms per step (default 1000)
   --seed <n>          RNG seed (default 1)
   --max-seconds <n>   Cap simulated seconds, overriding the scenario duration
-  --network <path>    GeoJSON road network (default: the configured one)
+  --network <path>    GeoJSON road network (default: the active library map)
   --report <path>     Write the full JSON report to a file
   --json              Print the JSON report to stdout instead of a summary
   -h, --help          Show this help
@@ -188,7 +189,11 @@ export async function main(
     return EXIT_USAGE;
   }
 
-  const geojsonPath = options.network ?? config.geojsonPath;
+  const geojsonPath = options.network ?? new MapLibrary(config.mapsDir).activeNetworkPath();
+  if (!geojsonPath) {
+    out(`No --network given and no active map in ${config.mapsDir}`);
+    return EXIT_USAGE;
+  }
   if (!fs.existsSync(geojsonPath)) {
     out(`Road network not found: ${geojsonPath}`);
     return EXIT_USAGE;

@@ -213,6 +213,10 @@ export class VehicleManager extends EventEmitter {
     this.clock.reset();
     this.registry.reset();
     this.routeManager.reset();
+    // Occupancy counts belong to the roster being discarded; keeping them
+    // would leave phantom congestion (on edges that may not even exist any
+    // more after a map switch).
+    this.traffic.clear();
     this.fleets.reset();
     this.analytics.resetStats();
 

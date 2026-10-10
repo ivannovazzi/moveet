@@ -1,11 +1,14 @@
 import { usePOIContext } from "@/data/useData";
+import { useMapRevision } from "@/data/mapRevision";
 import client from "@/utils/client";
 import { fetchUntil } from "@/utils/fetchWithRetry";
 import { useEffect } from "react";
 
 export function usePois() {
   const { pois, setPOIs } = usePOIContext();
+  const mapRevision = useMapRevision();
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `mapRevision` is the refetch trigger, not an input.
   useEffect(() => {
     const ac = new AbortController();
     fetchUntil(() => client.getPois().then((r) => r.data ?? null), {
@@ -15,7 +18,7 @@ export function usePois() {
       if (data) setPOIs(data);
     });
     return () => ac.abort();
-  }, [setPOIs]);
+  }, [setPOIs, mapRevision]);
 
   return { pois };
 }

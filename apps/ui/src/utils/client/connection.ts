@@ -8,7 +8,7 @@ import type {
   VehicleEtaUpdate,
   Heatzone,
 } from "@/types";
-import type { ResetPayload } from "../wsTypes";
+import type { MapStatusPayload, ResetPayload } from "../wsTypes";
 import { isValidVehicleDTO } from "@moveet/shared-types";
 
 /**
@@ -36,6 +36,8 @@ export class ConnectionSegment {
     this.offOptions = this.offOptions.bind(this);
     this.onHeatzones = this.onHeatzones.bind(this);
     this.offHeatzones = this.offHeatzones.bind(this);
+    this.onMap = this.onMap.bind(this);
+    this.offMap = this.offMap.bind(this);
     this.onDirection = this.onDirection.bind(this);
     this.offDirection = this.offDirection.bind(this);
     this.onEta = this.onEta.bind(this);
@@ -122,6 +124,15 @@ export class ConnectionSegment {
 
   offHeatzones(handler?: (heatzones: Heatzone[]) => void): void {
     this.deps.ws.off("heatzones", handler);
+  }
+
+  /** Map library status: a switch started, finished (`active`) or failed. */
+  onMap(handler: (payload: MapStatusPayload) => void): void {
+    this.deps.ws.on("map", handler);
+  }
+
+  offMap(handler?: (payload: MapStatusPayload) => void): void {
+    this.deps.ws.off("map", handler);
   }
 
   onDirection(handler: (direction: Direction) => void): void {

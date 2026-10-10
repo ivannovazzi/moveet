@@ -15,6 +15,7 @@ export type {
   GenerateProgressPayload,
   GenerateCompletePayload,
   GenerateErrorPayload,
+  MapStatusPayload,
 } from "@moveet/shared-types";
 
 export { isValidMessage, isValidVehicleDTO } from "@moveet/shared-types";

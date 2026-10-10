@@ -82,7 +82,7 @@ export interface SpeedProfileStats {
 }
 
 export class SpeedProfileManager {
-  readonly store: SpeedProfileStore;
+  store: SpeedProfileStore;
   /** The `sim` source, or null when it is not enabled. */
   readonly recorder: TraversalRecorder | null;
   /** The `adapter` source, or null when it is not enabled. */
@@ -183,6 +183,26 @@ export class SpeedProfileManager {
     if (bucket === this.publishedBucket && !due) return false;
     this.publishBucket(bucket, now);
     return true;
+  }
+
+  /**
+   * Starts over on the network's current graph after a map switch: the store
+   * is indexed by edge, so the old one is meaningless on another map. Save the
+   * outgoing map's rows first; the caller then {@link loadFrom}s the store to
+   * pick up rows previously learned on the incoming map.
+   */
+  rebindNetwork(): void {
+    this.store = new SpeedProfileStore(
+      this.network.edgeCount,
+      this.settings.layout,
+      this.settings.alpha
+    );
+    this.publishedBucket = -1;
+    this.lastPublishAt = 0;
+    this.activeOverrides = 0;
+    this.pending = false;
+    this.rewriteAll = false;
+    this.publish();
   }
 
   /** Publishes the current bucket's table unconditionally. */

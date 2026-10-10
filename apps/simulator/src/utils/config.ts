@@ -88,15 +88,13 @@ const envObjectSchema = z.object({
       }
     }),
 
-  /** Path to the GeoJSON road network file */
-  GEOJSON_PATH: z.string().default("./data/network.geojson"),
-
   /**
-   * Directory of optional building-footprint tiles (`index.json` + z/x/y.json),
-   * written by `network buildings`. Absent is fine: GET /buildings answers 404
-   * and the UI's 3D buildings toggle reports that no data is available.
+   * Root of the map library: one `<id>/` directory per road network
+   * (`network.geojson`, optional `buildings/`, `meta.json`) plus the persisted
+   * active-map state. Infrastructure only: which map runs is chosen at runtime
+   * through `POST /maps/:id/activate`, not here.
    */
-  BUILDINGS_DIR: z.string().default("./data/buildings"),
+  MAPS_DIR: z.string().default("./data/maps"),
 
   /** URL of the adapter service (empty = disabled) */
   ADAPTER_URL: z.string().default(""),
@@ -400,8 +398,7 @@ function buildConfig(env: EnvConfig) {
     adapterSyncInterval: env.ADAPTER_SYNC_INTERVAL,
     vehicleCount: env.VEHICLE_COUNT,
     vehicleTypes: env.VEHICLE_TYPES,
-    geojsonPath: env.GEOJSON_PATH,
-    buildingsDir: env.BUILDINGS_DIR,
+    mapsDir: env.MAPS_DIR,
     adapterURL: env.ADAPTER_URL,
     persistenceEnabled: env.PERSISTENCE_ENABLED,
     persistenceInterval: env.PERSISTENCE_INTERVAL,
@@ -464,14 +461,15 @@ export function parseLogLevel(env: Record<string, string | undefined> = process.
 }
 
 export function verifyConfig(): void {
-  // Validate geojsonPath points to an existing file
-  if (!config.geojsonPath) {
-    throw new Error("Missing required environment variable: GEOJSON_PATH");
+  if (!config.mapsDir) {
+    throw new Error("Missing required environment variable: MAPS_DIR");
   }
 
-  const resolvedPath = path.resolve(config.geojsonPath);
-  if (!fs.existsSync(resolvedPath)) {
-    throw new Error(`GeoJSON file not found at path: ${resolvedPath}`);
+  // The library directory is created on startup when missing, so only reject a
+  // path that exists as something else.
+  const resolvedPath = path.resolve(config.mapsDir);
+  if (fs.existsSync(resolvedPath) && !fs.statSync(resolvedPath).isDirectory()) {
+    throw new Error(`MAPS_DIR is not a directory: ${resolvedPath}`);
   }
 }
 

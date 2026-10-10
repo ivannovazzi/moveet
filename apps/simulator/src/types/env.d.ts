@@ -9,7 +9,7 @@ declare namespace NodeJS {
     DECELERATION: string;
     TURN_THRESHOLD: string;
     UPDATE_INTERVAL: string;
-    GEOJSON_PATH: string;
+    MAPS_DIR: string;
     ADAPTER_URL: string;
     SYNC_ADAPTER_TIMEOUT: string;
     ANALYTICS_INTERVAL: string;
