@@ -11,6 +11,7 @@ import { buildDockBadges } from "./Dock/dockBadges";
 import type { DockTabId } from "./Dock/dockSections";
 import Region from "./shell/Region";
 import LegendStack from "./Map/LegendStack";
+import Attribution from "./Map/Attribution";
 import Zoom from "./Zoom/";
 import CreateZoneDialog from "./Map/Geofence/CreateZoneDialog";
 import { useHeatzoneEditorContext } from "./data/HeatzoneEditorContext";
@@ -822,6 +823,14 @@ export default function App() {
                       />
                       <Zoom />
                     </div>
+                  </Region>
+                }
+                /* Data credit (ODbL) in the open map's bottom-right corner, in
+                   the otherwise unused right track, so it clears the dock and
+                   the legend column by construction. */
+                right={
+                  <Region justify="end" align="end" interactive={false}>
+                    <Attribution />
                   </Region>
                 }
                 center={
