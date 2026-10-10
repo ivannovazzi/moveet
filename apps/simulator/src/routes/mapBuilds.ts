@@ -2,6 +2,7 @@ import { Router, type Response } from "express";
 import type {
   GeocodeResponse,
   GeofabrikLookupResponse,
+  GeofabrikOutlinesResponse,
   MapBuildAccepted,
   MapJobListResponse,
   MapPreset,
@@ -20,7 +21,11 @@ import {
   type MapBuildManager,
   type PresetRegion,
 } from "../modules/maps/MapBuildManager";
-import { type GeofabrikIndex, GeofabrikUnavailableError } from "../modules/maps/GeofabrikIndex";
+import {
+  GEOFABRIK_OUTLINES_ATTRIBUTION,
+  type GeofabrikIndex,
+  GeofabrikUnavailableError,
+} from "../modules/maps/GeofabrikIndex";
 import {
   type Geocoder,
   GeocodeRateLimitError,
@@ -31,7 +36,7 @@ import { type Bbox, bboxAreaKm2 } from "../modules/maps/bbox";
 
 export interface MapBuildRoutesOptions {
   builds: MapBuildManager;
-  geofabrik: Pick<GeofabrikIndex, "findContaining">;
+  geofabrik: Pick<GeofabrikIndex, "lookup" | "outlines">;
   geocoder: Pick<Geocoder, "search">;
   presets: Record<string, PresetRegion>;
 }
@@ -126,8 +131,25 @@ export function createMapBuildRoutes({
     asyncHandler(async (req, res) => {
       const { bbox } = bboxQuerySchema.parse(req.query) as { bbox: Bbox };
       try {
-        const body: GeofabrikLookupResponse = { regions: await geofabrik.findContaining(bbox) };
+        const body: GeofabrikLookupResponse = await geofabrik.lookup(bbox);
         res.json(body);
+      } catch (err) {
+        sendBuildError(err, res);
+      }
+    })
+  );
+
+  // Simplified extract boundaries for the area picker's world map. They only
+  // change with the index, so browsers may keep them for an hour.
+  router.get(
+    "/maps/geofabrik/regions",
+    asyncHandler(async (_req, res) => {
+      try {
+        const body: GeofabrikOutlinesResponse = {
+          regions: await geofabrik.outlines(),
+          attribution: GEOFABRIK_OUTLINES_ATTRIBUTION,
+        };
+        res.set("Cache-Control", "public, max-age=3600").json(body);
       } catch (err) {
         sendBuildError(err, res);
       }

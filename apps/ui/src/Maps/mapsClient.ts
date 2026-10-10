@@ -1,5 +1,8 @@
 import type {
   GeocodeResponse,
+  GeofabrikLookupResponse,
+  GeofabrikOutline,
+  GeofabrikOutlinesResponse,
   GeofabrikRegion,
   MapActivateResponse,
   MapBuildAccepted,
@@ -25,6 +28,9 @@ import { config } from "@/utils/config";
 export type {
   GeocodeResponse,
   GeocodeResult,
+  GeofabrikLookupResponse,
+  GeofabrikOutline,
+  GeofabrikOutlinesResponse,
   GeofabrikRegion,
   MapBuildLimits,
   MapBuildRequest,
@@ -122,6 +128,46 @@ export function parseGeofabrik(body: unknown): GeofabrikRegion[] | null {
   const list = envelope(body, "regions");
   if (!list) return null;
   return list.filter((r): r is GeofabrikRegion => isObj(r) && typeof r.path === "string");
+}
+
+/** `GET /maps/geofabrik`: the containing extracts, and the borders the box crosses. */
+export function parseGeofabrikLookup(body: unknown): GeofabrikLookupResponse | null {
+  const regions = parseGeofabrik(body);
+  if (!regions || !isObj(body)) return null;
+  const crosses = Array.isArray(body.crosses)
+    ? body.crosses.filter(
+        (c): c is { path: string; name: string } =>
+          isObj(c) && typeof c.path === "string" && typeof c.name === "string"
+      )
+    : [];
+  return crosses.length > 1 ? { regions, crosses } : { regions };
+}
+
+function isRing(v: unknown): v is [number, number][] {
+  return (
+    Array.isArray(v) &&
+    v.length >= 4 &&
+    v.every((p) => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]))
+  );
+}
+
+/** `GET /maps/geofabrik/regions`, keeping only outlines with drawable rings. */
+export function parseGeofabrikOutlines(body: unknown): GeofabrikOutlinesResponse | null {
+  const list = envelope(body, "regions");
+  if (!list || !isObj(body)) return null;
+  const regions = list.filter(
+    (r): r is GeofabrikOutline =>
+      isObj(r) &&
+      typeof r.path === "string" &&
+      typeof r.name === "string" &&
+      typeof r.depth === "number" &&
+      Array.isArray(r.polygons) &&
+      r.polygons.every((poly) => Array.isArray(poly) && poly.every(isRing))
+  );
+  return {
+    regions,
+    attribution: typeof body.attribution === "string" ? body.attribution : "",
+  };
 }
 
 export function parseGeocode(body: unknown): GeocodeResponse | null {
@@ -224,8 +270,20 @@ export function listPresets(signal?: AbortSignal): Promise<MapsResponse<MapPrese
 export function findGeofabrik(
   bbox: Bbox,
   signal?: AbortSignal
-): Promise<MapsResponse<GeofabrikRegion[]>> {
-  return request("GET", `/maps/geofabrik?bbox=${bbox.join(",")}`, parseGeofabrik, { signal });
+): Promise<MapsResponse<GeofabrikLookupResponse>> {
+  return request("GET", `/maps/geofabrik?bbox=${bbox.join(",")}`, parseGeofabrikLookup, {
+    signal,
+  });
+}
+
+export function listGeofabrikOutlines(
+  signal?: AbortSignal
+): Promise<MapsResponse<GeofabrikOutlinesResponse>> {
+  // The first call may wait for the server to fetch Geofabrik's index.
+  return request("GET", "/maps/geofabrik/regions", parseGeofabrikOutlines, {
+    signal,
+    timeout: 60_000,
+  });
 }
 
 export function geocode(q: string, signal?: AbortSignal): Promise<MapsResponse<GeocodeResponse>> {

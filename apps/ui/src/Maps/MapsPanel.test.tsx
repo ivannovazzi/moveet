@@ -277,7 +277,8 @@ describe("feature detection", () => {
     render(<Harness />);
     await user.click(await screen.findByRole("button", { name: "New map" }));
     expect(screen.getByRole("form", { name: "New map" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Back to library" }));
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("form", { name: "New map" })).toBeNull();
     expect(screen.getByRole("list", { name: "Map library" })).toBeInTheDocument();
   });
 });

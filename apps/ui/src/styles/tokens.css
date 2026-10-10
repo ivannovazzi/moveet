@@ -96,6 +96,15 @@
      fabric reads as context and never competes with roads, routes or units. */
   --color-map-building: oklch(0.4 0.012 258);
 
+  /* New map area picker (Maps/picker): the world map's sea, land and borders,
+     and the searched place's outline. A quiet ground a step off the map
+     ground, so the box (draw blue) and the extract highlight (accent) carry
+     the colour. Read by deck.gl via mapColor.ts. */
+  --color-picker-sea: oklch(0.175 0.012 250);
+  --color-picker-land: oklch(0.255 0.012 258);
+  --color-picker-border: oklch(0.42 0.012 258);
+  --color-picker-outline: oklch(0.78 0.08 205);
+
   /* Heat ramp (HeatLayer), cool/sparse → hot/dense. A warm sequential ramp of
      its own so density reads as intensity rather than as the categorical
      overlay hues above. */
@@ -104,4 +113,13 @@
   --color-heat-3: oklch(0.72 0.18 45);
   --color-heat-4: oklch(0.62 0.21 30);
   --color-heat-5: oklch(0.5 0.19 25);
+}
+
+/* The app ships dark-only (`dark` is hard-set on <html>). Should that class
+   ever be dropped for a light theme, the area picker's world map follows. */
+:root:not(.dark) {
+  --color-picker-sea: oklch(0.93 0.02 230);
+  --color-picker-land: oklch(0.985 0.004 90);
+  --color-picker-border: oklch(0.72 0.01 258);
+  --color-picker-outline: oklch(0.5 0.1 220);
 }

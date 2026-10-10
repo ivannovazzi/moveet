@@ -347,10 +347,15 @@ const buildFlags = {
   activate: z.boolean().default(false),
 };
 
-/** `POST /maps`: a `regions.json` preset, or a bbox inside a Geofabrik extract. */
+/** `POST /maps`: a `regions.json` preset, or a bbox (and optionally the extract to cut it from). */
 export const mapBuildBodySchema = z.union([
   z.strictObject({ preset: z.string().min(1).max(64), label: mapLabel.optional(), ...buildFlags }),
-  z.strictObject({ label: mapLabel, bbox: bboxTuple, geofabrik: geofabrikPath, ...buildFlags }),
+  z.strictObject({
+    label: mapLabel,
+    bbox: bboxTuple,
+    geofabrik: geofabrikPath.optional(),
+    ...buildFlags,
+  }),
 ]);
 
 /** `:id` of a map build job. */

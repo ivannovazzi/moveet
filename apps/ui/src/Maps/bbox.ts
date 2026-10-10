@@ -32,35 +32,32 @@ export function bboxProblem(bbox: Bbox): string | null {
   return null;
 }
 
-/** Two corners in any order, as a normalized box clamped to Web Mercator's range. */
-export function bboxFromCorners(a: [number, number], b: [number, number]): Bbox {
-  const clampLat = (v: number) => Math.max(-85, Math.min(85, v));
-  const clampLon = (v: number) => Math.max(-180, Math.min(180, v));
-  return [
-    clampLon(Math.min(a[0], b[0])),
-    clampLat(Math.min(a[1], b[1])),
-    clampLon(Math.max(a[0], b[0])),
-    clampLat(Math.max(a[1], b[1])),
-  ];
-}
-
-/** Corner pairs for `setBounds`: `[[west, south], [east, north]]`. */
-export function bboxCorners([w, s, e, n]: Bbox): [[number, number], [number, number]] {
-  return [
-    [w, s],
-    [e, n],
-  ];
-}
-
-/** Closed ring for a PolygonLayer. */
-export function bboxRing([w, s, e, n]: Bbox): [number, number][] {
-  return [
-    [w, s],
-    [e, s],
-    [e, n],
-    [w, n],
-    [w, s],
-  ];
+/**
+ * The box scaled about its centre until its area is at most `maxKm2` (aiming a
+ * hair under, so rounding cannot tip it back over). Its proportions in degrees
+ * are kept. A box already within the cap comes back unchanged.
+ */
+export function shrinkToArea(bbox: Bbox, maxKm2: number, target = 0.99): Bbox {
+  if (bboxAreaKm2(bbox) <= maxKm2) return bbox;
+  const [w, s, e, n] = bbox;
+  const cx = (w + e) / 2;
+  const cy = (s + n) / 2;
+  const hw = (e - w) / 2;
+  const hh = (n - s) / 2;
+  const scaled = (k: number): Bbox => [cx - hw * k, cy - hh * k, cx + hw * k, cy + hh * k];
+  // Area grows monotonically with the scale, so bisect it.
+  let lo = 0;
+  let hi = 1;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (bboxAreaKm2(scaled(mid)) <= maxKm2 * target) lo = mid;
+    else hi = mid;
+  }
+  // Round inwards, so the rounded box stays under the cap.
+  const [sw, ss, se, sn] = scaled(lo);
+  const down = (v: number) => Math.ceil(v * 1e5) / 1e5;
+  const up = (v: number) => Math.floor(v * 1e5) / 1e5;
+  return [down(sw), down(ss), up(se), up(sn)];
 }
 
 /**

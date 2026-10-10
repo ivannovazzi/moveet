@@ -7,6 +7,7 @@ import { download, getCachePath } from "./commands/download.js";
 import { extract } from "./commands/extract.js";
 import { filter, DEFAULT_ROAD_CLASSES } from "./commands/filter.js";
 import { exportNetwork } from "./commands/export.js";
+import { clipNetworkFile } from "./commands/clip.js";
 import { prune } from "./commands/prune.js";
 import { validate, type ValidationReport } from "./commands/validate.js";
 import {
@@ -22,7 +23,10 @@ import { BuildingTileBuilder } from "./commands/buildingTiles.js";
  * themselves (the simulator's map build jobs) rather than through the CLI:
  *
  *   download (cached by ETag) -> extract bbox -> filter roads -> export
- *   GeoJSON -> prune -> validate -> optional building tiles
+ *   GeoJSON, clipped to the bbox -> prune -> validate -> optional building tiles
+ *
+ * The result covers exactly the requested bbox: osmium's extract keeps whole
+ * ways that cross the edge, and the export step cuts them back to it.
  *
  * Every step is synchronous (osmium runs through execFileSync), so callers that
  * must stay responsive run this in a child process.
@@ -208,6 +212,7 @@ export async function buildMap(opts: BuildMapOptions): Promise<BuildMapResult> {
     exportNetwork({ input: pbfRoads, output, region: opts.regionName, bbox: opts.bbox, classes });
     // The CLI's sidecar metadata; the library keeps its own meta.json.
     fs.rmSync(`${output}.meta.json`, { force: true });
+    clipNetworkFile(output, opts.bbox);
   });
   await run("prune", () => prune(output));
 
@@ -235,7 +240,7 @@ export async function buildMap(opts: BuildMapOptions): Promise<BuildMapResult> {
       osmium(buildBuildingsExportArgs({ input: pbfBuildings, output: seqBuildings }), opts.workDir);
       tracker.report("buildings", 0.6);
       await tick();
-      const builder = await tileBuildings(seqBuildings, new BuildingTileBuilder());
+      const builder = await tileBuildings(seqBuildings, new BuildingTileBuilder(), opts.bbox);
       const dir = path.join(opts.outDir, BUILDINGS_SUBDIR);
       return writeBuildingTiles(dir, builder, opts.regionName).buildings;
     });

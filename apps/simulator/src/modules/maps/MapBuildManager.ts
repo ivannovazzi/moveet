@@ -32,7 +32,7 @@ export const OSM_ATTRIBUTION =
 /** A build request after body validation (see `mapBuildBodySchema`). */
 export type MapBuildBody =
   | { preset: string; label?: string; buildings: boolean; activate: boolean }
-  | { label: string; bbox: Bbox; geofabrik: string; buildings: boolean; activate: boolean };
+  | { label: string; bbox: Bbox; geofabrik?: string; buildings: boolean; activate: boolean };
 
 export interface PresetRegion {
   bbox: Bbox;
@@ -53,7 +53,7 @@ export class MapBuildError extends Error {
 
 export interface MapBuildManagerOptions {
   library: MapLibrary;
-  geofabrik: Pick<GeofabrikIndex, "get" | "covers">;
+  geofabrik: Pick<GeofabrikIndex, "get" | "covers" | "smallestContaining">;
   presets: Record<string, PresetRegion>;
   runner: MapBuildRunner;
   /** Geofabrik download cache; scratch space for each job goes under `<cacheDir>/jobs`. */
@@ -115,9 +115,12 @@ export class MapBuildManager extends EventEmitter<{ mapjob: [MapJob] }> {
   /**
    * Validates a request and queues it.
    *
+   * A custom area is built from exactly its bbox. Without a `geofabrik` path
+   * the smallest extract containing the whole bbox is picked.
+   *
    * @throws MapBuildError: 403 builds disabled, 400 bad bbox/preset/extract,
-   *   422 bbox outside the extract, 409 queue full, 507 disk quota reached,
-   *   503 Geofabrik index unavailable.
+   *   422 bbox outside the named extract or outside every extract, 409 queue
+   *   full, 507 disk quota reached, 503 Geofabrik index unavailable.
    */
   async submit(body: MapBuildBody): Promise<MapJob> {
     this.assertAllowed();
@@ -229,14 +232,30 @@ export class MapBuildManager extends EventEmitter<{ mapjob: [MapJob] }> {
     const problem = bboxProblem(body.bbox, this.opts.maxAreaKm2);
     if (problem) throw new MapBuildError(400, problem);
     try {
+      const { geofabrik } = this.opts;
+      if (body.geofabrik === undefined) {
+        const smallest = await geofabrik.smallestContaining(body.bbox);
+        if (!smallest) {
+          throw new MapBuildError(
+            422,
+            "No Geofabrik extract contains the whole bbox; move or shrink it " +
+              "(see GET /maps/geofabrik?bbox=...)"
+          );
+        }
+        return { label: body.label, bbox: body.bbox, geofabrik: smallest.path };
+      }
       // The index is the allowlist: only extracts it lists are ever downloaded.
-      if (!(await this.opts.geofabrik.get(body.geofabrik))) {
+      if (!(await geofabrik.get(body.geofabrik))) {
         throw new MapBuildError(400, `Not a Geofabrik extract: ${body.geofabrik}`);
       }
-      if (!(await this.opts.geofabrik.covers(body.geofabrik, body.bbox))) {
+      if (!(await geofabrik.covers(body.geofabrik, body.bbox))) {
+        const smallest = await geofabrik.smallestContaining(body.bbox);
         throw new MapBuildError(
           422,
-          `The bbox is not inside the ${body.geofabrik} extract; see GET /maps/geofabrik?bbox=...`
+          `The bbox is not inside the ${body.geofabrik} extract; ` +
+            (smallest
+              ? `the smallest extract that contains it is ${smallest.path}`
+              : "no Geofabrik extract contains all of it")
         );
       }
     } catch (err) {

@@ -56,6 +56,26 @@ describe("toGeocodeResult", () => {
     });
   });
 
+  it("keeps a simplified boundary for places that have one, and none for points", () => {
+    // A dense ring around the bbox, as Nominatim's polygon_geojson returns it.
+    const ring: [number, number][] = [];
+    for (let i = 0; i <= 400; i++) {
+      const a = (i / 400) * Math.PI * 2;
+      ring.push([9.67 + 0.05 * Math.cos(a), 45.7 + 0.03 * Math.sin(a)]);
+    }
+    const withOutline = toGeocodeResult({
+      ...BERGAMO,
+      geojson: { type: "Polygon", coordinates: [ring] },
+    });
+    const outline = withOutline?.outline as [number, number][][][];
+    expect(outline).toHaveLength(1);
+    expect(outline[0][0].length).toBeGreaterThan(8);
+    expect(outline[0][0].length).toBeLessThan(ring.length);
+    expect(
+      toGeocodeResult({ ...BERGAMO, geojson: { type: "Point", coordinates: [9.67, 45.7] } })
+    ).not.toHaveProperty("outline");
+  });
+
   it("drops places without a usable bbox or position", () => {
     expect(toGeocodeResult({ ...BERGAMO, boundingbox: undefined })).toBeNull();
     expect(toGeocodeResult({ ...BERGAMO, lat: "x" })).toBeNull();
@@ -72,6 +92,7 @@ describe("Geocoder", () => {
     expect(parsed.origin + parsed.pathname).toBe("https://nominatim.example.org/search");
     expect(parsed.searchParams.get("q")).toBe("Bergamo");
     expect(parsed.searchParams.get("format")).toBe("jsonv2");
+    expect(parsed.searchParams.get("polygon_geojson")).toBe("1");
     expect(init?.headers?.["User-Agent"]).toBe("moveet-test/1");
   });
 
