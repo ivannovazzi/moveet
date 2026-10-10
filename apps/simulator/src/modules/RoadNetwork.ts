@@ -7,7 +7,8 @@ import type { TrafficProfile } from "../utils/trafficProfiles";
 import type { CacheStats } from "../utils/LRUCache";
 import { HeatZoneManager } from "./HeatZoneManager";
 import { PathfindingPool } from "./PathfindingPool";
-import { GraphBuilder, type SpeedLimitSign } from "./roadnetwork/GraphBuilder";
+import { GraphBuilder, type BuiltNetwork, type SpeedLimitSign } from "./roadnetwork/GraphBuilder";
+import { buildGraphOffThread, type BuildOffThreadOptions } from "./roadnetwork/buildOffThread";
 import { SpatialIndex } from "./roadnetwork/SpatialIndex";
 import { PathfindingEngine } from "./roadnetwork/PathfindingEngine";
 import type { Road } from "./roadnetwork/types";
@@ -43,6 +44,21 @@ export interface RoadNetworkOptions {
    * (`SPEED_PROFILES_ENABLED`); threaded to the pool workers too.
    */
   speedProfileRatio?: number | null;
+}
+
+/** {@link RoadNetworkOptions} graph settings with the config defaults applied. */
+function resolveGraphSettings(options?: RoadNetworkOptions) {
+  return {
+    landmarkCount: options?.landmarkCount ?? config.pathfindingLandmarks,
+    freeFlowFactors: options?.freeFlowFactors ?? config.freeFlowFactors,
+    driveSide: options?.driveSide ?? config.driveSide,
+    speedProfileRatio:
+      options?.speedProfileRatio !== undefined
+        ? options.speedProfileRatio
+        : config.speedProfilesEnabled
+          ? config.speedProfileMaxSpeedRatio
+          : null,
+  };
 }
 
 /**
@@ -112,29 +128,34 @@ export class RoadNetwork extends EventEmitter {
   /** Called before every route request so a profile can follow the sim clock. */
   private routeRequestHook: (() => void) | null = null;
 
-  constructor(geojsonPath: string, options?: RoadNetworkOptions) {
+  /**
+   * Builds the graph from `geojsonPath` synchronously. `prebuilt` (used by
+   * {@link RoadNetwork.loadOffThread}) supplies a graph and spatial index that
+   * were already built from that file with these options.
+   */
+  constructor(
+    geojsonPath: string,
+    options?: RoadNetworkOptions,
+    prebuilt?: { built: BuiltNetwork; spatial: SpatialIndex }
+  ) {
     super();
     this.geojsonPath = geojsonPath;
-    this.landmarkCount = options?.landmarkCount ?? config.pathfindingLandmarks;
-    this.freeFlowFactors = options?.freeFlowFactors ?? config.freeFlowFactors;
-    this.driveSide = options?.driveSide ?? config.driveSide;
-    this.speedProfileRatio =
-      options?.speedProfileRatio !== undefined
-        ? options.speedProfileRatio
-        : config.speedProfilesEnabled
-          ? config.speedProfileMaxSpeedRatio
-          : null;
+    const settings = resolveGraphSettings(options);
+    this.landmarkCount = settings.landmarkCount;
+    this.freeFlowFactors = settings.freeFlowFactors;
+    this.driveSide = settings.driveSide;
+    this.speedProfileRatio = settings.speedProfileRatio;
 
     // Parse the raw GeoJSON into a local — NOT a field — so the only reference
     // is dropped when the constructor returns and the blob can be GC'd.
-    const data = JSON.parse(fs.readFileSync(geojsonPath, "utf8")) as FeatureCollection;
-
-    const built = new GraphBuilder({
-      landmarkCount: this.landmarkCount,
-      freeFlowFactors: this.freeFlowFactors,
-      speedProfileRatio: this.speedProfileRatio,
-    }).build(data);
-    // `data` is now unreferenced from here on; it is released for GC.
+    const built =
+      prebuilt?.built ??
+      new GraphBuilder({
+        landmarkCount: this.landmarkCount,
+        freeFlowFactors: this.freeFlowFactors,
+        speedProfileRatio: this.speedProfileRatio,
+      }).build(JSON.parse(fs.readFileSync(geojsonPath, "utf8")) as FeatureCollection);
+    // The raw collection is unreferenced from here on; it is released for GC.
 
     this.nodes = built.nodes;
     this.edges = built.edges;
@@ -143,7 +164,7 @@ export class RoadNetwork extends EventEmitter {
     this.speedLimits = built.speedLimits;
     this.lineStringFeatures = built.lineStringFeatures;
 
-    this.spatial = new SpatialIndex(this.nodes, this.edges, this.pois);
+    this.spatial = prebuilt?.spatial ?? new SpatialIndex(this.nodes, this.edges, this.pois);
     this.pathfinding = new PathfindingEngine(
       {
         nodes: this.nodes,
@@ -158,6 +179,30 @@ export class RoadNetwork extends EventEmitter {
       },
       options
     );
+  }
+
+  /**
+   * Builds a network like the constructor does, without holding the event
+   * loop: reading, parsing and building the graph (the seconds-long part) run
+   * in a worker thread, and the objects are rebuilt and indexed here in short
+   * time slices. The result is identical to `new RoadNetwork(geojsonPath,
+   * options)`. Rejects when the file is missing or malformed, the graph build
+   * throws, or the worker dies.
+   */
+  public static async loadOffThread(
+    geojsonPath: string,
+    options?: RoadNetworkOptions,
+    buildOptions?: BuildOffThreadOptions
+  ): Promise<RoadNetwork> {
+    const { landmarkCount, freeFlowFactors, speedProfileRatio } = resolveGraphSettings(options);
+    const built = await buildGraphOffThread(
+      { geojsonPath, landmarkCount, freeFlowFactors, speedProfileRatio },
+      buildOptions
+    );
+    const spatial = await SpatialIndex.buildSliced(built.nodes, built.edges, built.pois);
+    const network = new RoadNetwork(geojsonPath, options, { built, spatial });
+    await network.pathfinding.indexSliced();
+    return network;
   }
 
   // ─── Bounding box / random sampling (SpatialIndex) ──────────────────

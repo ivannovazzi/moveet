@@ -1,6 +1,7 @@
 /**
- * Bundles the pathfinding worker into a self-contained CommonJS file at
- * dist/workers/pathfinding-worker.cjs.
+ * Bundles the worker threads into self-contained CommonJS files in dist/workers:
+ * pathfinding-worker.cjs (the A* pool) and graph-build-worker.cjs (builds the
+ * graph for a map switch off the main thread).
  *
  * Why a separate bundle step: the worker imports the shared A* cost/heap modules
  * and the OSM-tag parsers (../modules/pathfinding/{cost,heap}, ../modules/
@@ -22,14 +23,15 @@ import path from "path";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, "..");
 
-await build({
-  entryPoints: [path.join(root, "src", "workers", "pathfinding-worker.ts")],
-  bundle: true,
-  platform: "node",
-  format: "cjs",
-  target: "node26",
-  packages: "external",
-  outfile: path.join(root, "dist", "workers", "pathfinding-worker.cjs"),
-});
-
-console.log("Bundled dist/workers/pathfinding-worker.cjs");
+for (const name of ["pathfinding-worker", "graph-build-worker"]) {
+  await build({
+    entryPoints: [path.join(root, "src", "workers", `${name}.ts`)],
+    bundle: true,
+    platform: "node",
+    format: "cjs",
+    target: "node26",
+    packages: "external",
+    outfile: path.join(root, "dist", "workers", `${name}.cjs`),
+  });
+  console.log(`Bundled dist/workers/${name}.cjs`);
+}

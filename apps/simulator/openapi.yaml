@@ -2711,8 +2711,10 @@ paths:
       summary: Hot-swap to another map
       description: >
         Loads the map and makes it active, persisting the choice across
-        restarts. The simulation is paused while the new graph is built; on
-        success everything tied to the old map is reset (vehicles respawn on
+        restarts. The new graph is built in a worker thread while the current
+        map keeps running and the server keeps answering; other activations
+        get 409 until the switch has finished. On success everything tied to
+        the old map is reset (vehicles respawn on
         the new network; routes, route cache, traffic, incidents, jobs,
         geofences, heat zones and a running scenario are cleared; learned speed
         profiles are reloaded for the new map) and a running simulation

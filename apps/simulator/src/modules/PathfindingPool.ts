@@ -11,9 +11,6 @@
  */
 
 import { Worker } from "worker_threads";
-import { fileURLToPath } from "url";
-import fs from "fs";
-import path from "path";
 import os from "os";
 import { DEFAULT_LANDMARK_COUNT } from "./pathfinding/landmarks";
 import type { PathfindingWorkerData } from "../workers/pathfinding-worker";
@@ -21,8 +18,7 @@ import type { HighwayType } from "../types";
 import type { DriveSide } from "./pathfinding/turns";
 import type { SpeedOverrideTable } from "./speedprofiles/SpeedProfileStore";
 import logger from "../utils/logger";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { workerBundlePath } from "./workerBundle";
 
 /** Default per-request timeout in milliseconds (30 seconds). */
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
@@ -91,27 +87,8 @@ export class PathfindingPool {
 
     const size = poolSize ?? Math.min(os.cpus().length, 4);
 
-    // The worker is ALWAYS launched as a pre-bundled, self-contained file — it
-    // imports the shared A* cost/heap + OSM-parser modules with extensionless
-    // ESM specifiers that plain Node (and tsx, whose loader does not propagate
-    // into worker_threads) cannot resolve from the raw `.ts`. `build:worker`
-    // (esbuild) emits `dist/workers/pathfinding-worker.cjs`; both dev (tsx) and
-    // vitest launch that same `.cjs`, and so does the production image.
-    //
-    // Resolve it across run modes:
-    //  - dev/tsx/vitest: src/modules → ../../dist/workers/*.cjs
-    //  - tsc/esbuild:    dist/modules (or bundled dist) → dist/workers/*.cjs
-    //  - legacy esbuild ESM output kept as a fallback: dist/workers/*.js
-    const workerCandidates = [
-      path.join(__dirname, "..", "..", "dist", "workers", "pathfinding-worker.cjs"),
-      path.join(__dirname, "..", "workers", "pathfinding-worker.cjs"),
-      path.join(__dirname, "workers", "pathfinding-worker.cjs"),
-      path.join(__dirname, "..", "workers", "pathfinding-worker.js"),
-      path.join(__dirname, "workers", "pathfinding-worker.js"),
-    ];
-    const workerPath =
-      workerCandidates.find((p) => fs.existsSync(p)) ??
-      workerCandidates[workerCandidates.length - 1];
+    // A pre-bundled, self-contained file (see workerBundlePath).
+    const workerPath = workerBundlePath("pathfinding-worker");
 
     const freeFlowFactors = typeof options === "number" ? undefined : options?.freeFlowFactors;
     const driveSide = typeof options === "number" ? undefined : options?.driveSide;
