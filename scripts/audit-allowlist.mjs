@@ -46,10 +46,16 @@ const ALLOWED = [
     review: "Revisit when @luma.gl/gltf accepts @loaders.gl 4.5.x.",
   },
   {
-    id: "GHSA-5p2g-fcmc-qvqq",
-    via: "image-size",
+    id: "GHSA-hp3w-g68c-fv3c",
+    via: "sprintf-js",
     through: "@deck.gl/mesh-layers",
-    reason: "JXL/HEIF parser infinite loops. Same package and same path as above.",
+    reason:
+      "Unbounded precision specifier DoS. Same chain as above: sprintf-js is " +
+      "pulled in only by argparse inside the texture-compressor CLI, which " +
+      "@loaders.gl/textures lists as a dependency but never imports. Vehicle " +
+      "meshes are procedural (SimpleMeshLayer), no glTF is loaded. No patched " +
+      "sprintf-js release exists (1.1.3 is the latest). Tracked in beads " +
+      "fleetsim-all-5784 / fleetsim-all-7cxl.",
     review: "Revisit when @luma.gl/gltf accepts @loaders.gl 4.5.x.",
   },
 ];
