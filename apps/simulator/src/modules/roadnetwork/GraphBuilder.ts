@@ -24,6 +24,7 @@ import {
   type NodeControl,
 } from "../pathfinding/cost";
 import { parseTurnRestriction, resolveTurnBans, type TurnRestriction } from "../pathfinding/turns";
+import { SnapGrid } from "../pathfinding/snapGrid";
 import {
   type AltIndexed,
   type LandmarkIndex,
@@ -118,6 +119,8 @@ export class GraphBuilder {
   private turnBans: Map<string, Set<string>> = new Map();
   /** Merged node control (signal/stop/give-way/crossing/level-crossing/calming) by node id. */
   private nodeControls: Map<string, NodeControl> = new Map();
+  /** Built on the first control point that misses an exact vertex match. */
+  private controlSnapGrid: SnapGrid<Node> | null = null;
 
   constructor(options?: GraphBuilderOptions) {
     this.landmarkCount = options?.landmarkCount ?? DEFAULT_LANDMARK_COUNT;
@@ -415,21 +418,26 @@ export class GraphBuilder {
    * tagged on a node shared with a way (the common case for signals/stops/
    * crossings/etc.) round-trip through osmium at IDENTICAL precision to that
    * way vertex, so an exact snapped-key lookup resolves almost every one in
-   * O(1); only a genuinely unmatched coordinate falls back to the O(nodes)
-   * scan `findNearestNodeDuringBuild` uses. With ~28k control points on the
-   * Nairobi extract, that fallback path alone would be too slow to take for
-   * every point.
+   * O(1). A genuinely unmatched coordinate goes to a grid sized to
+   * `MAX_CONTROL_SNAP_KM`, which returns exactly what a linear scan for the
+   * nearest node followed by the snap-distance check would, without touching
+   * every node: that scan, run once per unmatched point, was what stalled
+   * startup on large extracts (fleetsim-all-mlgo).
    */
   private findControlNode(lat: number, lon: number): Node | null {
     const exact = this.nodes.get(this.makeNodeKey(lat, lon));
     if (exact) return exact;
-    const nearest = this.findNearestNodeDuringBuild([lat, lon]);
-    if (!nearest) return null;
-    // Unbounded snapping would pin a control on a filtered-out road to
-    // whatever graph node happens to be closest, however far away.
-    return utils.calculateDistance([lat, lon], nearest.coordinates) <= MAX_CONTROL_SNAP_KM
-      ? nearest
-      : null;
+    // The graph is complete by the time controls are attached, so the grid
+    // is built once over the final node set.
+    this.controlSnapGrid ??= new SnapGrid(
+      this.nodes.values(),
+      (node) => node.coordinates,
+      MAX_CONTROL_SNAP_KM
+    );
+    const position: [number, number] = [lat, lon];
+    return this.controlSnapGrid.nearestWithin(lat, lon, (node) =>
+      utils.calculateDistance(position, node.coordinates)
+    );
   }
 
   /**
@@ -509,24 +517,6 @@ export class GraphBuilder {
       (id) => incoming.get(id) ?? [],
       (id) => (this.nodes.get(id)?.connections ?? []).map(toTurnEdge)
     );
-  }
-
-  /**
-   * Linear nearest-node scan used ONLY during build (to attach traffic-signal
-   * flags). The runtime nearest-node query lives in SpatialIndex; build runs
-   * before the spatial grid exists, so a direct scan is used here.
-   */
-  private findNearestNodeDuringBuild(position: [number, number]): Node | null {
-    let nearest: Node | null = null;
-    let minDistance = Infinity;
-    for (const node of this.nodes.values()) {
-      const distance = utils.calculateDistance(position, node.coordinates);
-      if (distance < minDistance) {
-        minDistance = distance;
-        nearest = node;
-      }
-    }
-    return nearest;
   }
 
   private getPoiType(feature: Feature): string | null {

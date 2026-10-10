@@ -55,6 +55,7 @@ import {
   type NodeControl,
 } from "../modules/pathfinding/cost";
 import { EdgeSearchScratch } from "../modules/pathfinding/search";
+import { SnapGrid } from "../modules/pathfinding/snapGrid";
 import {
   DEFAULT_DRIVE_SIDE,
   bearingDegrees,
@@ -383,6 +384,7 @@ function buildGraph(
   // give-way, crossings, level crossings, point traffic-calming) — mirrors
   // GraphBuilder.ts's third pass so both sides derive identical delays.
   const nodeControls = new Map<string, NodeControl>();
+  const controlGrid: { current: SnapGrid<WorkerNode> | null } = { current: null };
   for (const feature of data.features) {
     if (feature.geometry.type !== "Point") continue;
     const props = feature.properties ?? {};
@@ -390,7 +392,7 @@ function buildGraph(
     if (controls.length === 0) continue;
 
     const [lon, lat] = (feature.geometry as { type: "Point"; coordinates: number[] }).coordinates;
-    const nearest = findControlNode(nodes, lat, lon);
+    const nearest = findControlNode(nodes, controlGrid, lat, lon);
     if (!nearest) continue;
 
     for (const control of controls) {
@@ -482,25 +484,27 @@ function buildWorkerTurnBans(
  * Resolves a Point feature's coordinate to a graph node — mirrors
  * `GraphBuilder.findControlNode`: an exact snapped-key lookup handles the vast
  * majority of control points in O(1) (they share a coordinate with a way
- * vertex), falling back to a linear scan only when that misses.
+ * vertex); a miss goes to a {@link SnapGrid} bounded by `MAX_CONTROL_SNAP_KM`,
+ * which returns what a linear nearest-node scan would without visiting every
+ * node (fleetsim-all-mlgo). The grid is built lazily on the first miss.
  */
 function findControlNode(
   nodes: Map<string, WorkerNode>,
+  grid: { current: SnapGrid<WorkerNode> | null },
   lat: number,
   lon: number
 ): WorkerNode | null {
   const exact = nodes.get(makeNodeKey(lat, lon));
   if (exact) return exact;
-  let nearest: WorkerNode | null = null;
-  let minDist = Infinity;
-  for (const node of nodes.values()) {
-    const d = calculateDistance([lat, lon], [node.lat, node.lon]);
-    if (d < minDist) {
-      minDist = d;
-      nearest = node;
-    }
-  }
-  return minDist <= MAX_CONTROL_SNAP_KM ? nearest : null;
+  grid.current ??= new SnapGrid(
+    nodes.values(),
+    (node) => [node.lat, node.lon] as const,
+    MAX_CONTROL_SNAP_KM
+  );
+  const position: [number, number] = [lat, lon];
+  return grid.current.nearestWithin(lat, lon, (node) =>
+    calculateDistance(position, [node.lat, node.lon])
+  );
 }
 
 /**
