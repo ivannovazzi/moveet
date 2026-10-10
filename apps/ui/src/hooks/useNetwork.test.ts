@@ -1,15 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import React, { useState } from "react";
 import { useNetwork } from "./useNetwork";
 import { NetworkContext } from "@/data/context";
 import { createRoadNetwork } from "@/test/mocks/types";
 import client from "@/utils/client";
 import type { RoadNetwork } from "@/types";
+import type { MapStatusPayload } from "@/utils/wsTypes";
+import { resetMapRevision } from "@/data/mapRevision";
 
 vi.mock("@/utils/client", () => ({
   default: {
     getNetwork: vi.fn(),
+    onMap: vi.fn(),
+    offMap: vi.fn(),
   },
 }));
 
@@ -39,6 +43,7 @@ function createWrapper() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetMapRevision();
   vi.mocked(client.getNetwork).mockResolvedValue({ data: undefined });
 });
 
@@ -106,5 +111,27 @@ describe("useNetwork", () => {
     });
 
     expect(result.current.network.features[0].properties.id).toBe("road-1");
+  });
+
+  it("refetches the network when the simulator switches to another map", async () => {
+    vi.mocked(client.getNetwork).mockResolvedValue({ data: createRoadNetwork() });
+    renderHook(() => useNetwork(), { wrapper: createWrapper() });
+    await vi.waitFor(() => expect(client.getNetwork).toHaveBeenCalledTimes(1));
+
+    const onMap = vi.mocked(client.onMap).mock.calls[0][0] as (p: MapStatusPayload) => void;
+    const frame = (id: string, status: MapStatusPayload["status"] = "active") =>
+      ({ status, map: { id } }) as MapStatusPayload;
+
+    // The connect-time frame only records the map the first fetch returned.
+    act(() => onMap(frame("nairobi")));
+    act(() => onMap(frame("bergamo", "switching")));
+    expect(client.getNetwork).toHaveBeenCalledTimes(1);
+
+    act(() => onMap(frame("bergamo")));
+    await vi.waitFor(() => expect(client.getNetwork).toHaveBeenCalledTimes(2));
+
+    // Re-announcing the same map (e.g. on reconnect) does not refetch.
+    act(() => onMap(frame("bergamo")));
+    expect(client.getNetwork).toHaveBeenCalledTimes(2);
   });
 });

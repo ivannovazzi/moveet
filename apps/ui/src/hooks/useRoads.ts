@@ -1,4 +1,5 @@
 import { useRoadsContext } from "@/data/useData";
+import { useMapRevision } from "@/data/mapRevision";
 import client from "@/utils/client";
 import { fetchUntil } from "@/utils/fetchWithRetry";
 import { useEffect, useState } from "react";
@@ -6,7 +7,9 @@ import { useEffect, useState } from "react";
 export function useRoads() {
   const { roads, setRoads } = useRoadsContext();
   const [loading, setLoading] = useState(true);
+  const mapRevision = useMapRevision();
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `mapRevision` is the refetch trigger, not an input.
   useEffect(() => {
     const ac = new AbortController();
     setLoading(true);
@@ -20,7 +23,7 @@ export function useRoads() {
       }
     });
     return () => ac.abort();
-  }, [setRoads]);
+  }, [setRoads, mapRevision]);
 
   return { roads, loading };
 }
