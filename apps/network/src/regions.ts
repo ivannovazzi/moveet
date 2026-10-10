@@ -1,9 +1,8 @@
 import crypto from "crypto";
-import { createRequire } from "module";
 import { z } from "zod";
-
-const require = createRequire(import.meta.url);
-const raw = require("../regions.json") as Record<string, unknown>;
+// A static JSON import (not a runtime require relative to this file) so the
+// manifest is inlined when the simulator bundles this module with esbuild.
+import raw from "../regions.json" with { type: "json" };
 
 const Coord = z.number().refine(Number.isFinite, "must be a finite number");
 export const BboxSchema = z.tuple([Coord, Coord, Coord, Coord]);
@@ -57,6 +56,11 @@ export function resolveRegion(opts: ResolveOptions): ResolvedRegion {
 
 export function listRegions(): string[] {
   return Object.keys(manifest).sort();
+}
+
+/** Every named region (`regions.json`), keyed by name. */
+export function presetRegions(): Record<string, ResolvedRegion> {
+  return { ...manifest };
 }
 
 /**

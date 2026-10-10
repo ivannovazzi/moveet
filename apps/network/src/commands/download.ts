@@ -44,14 +44,18 @@ export function shouldSkipDownload(pbfPath: string, newEtag: string | undefined)
   return savedEtag === newEtag;
 }
 
+/** Bytes received so far, and the total when the server sent a Content-Length (else 0). */
+export type DownloadProgress = (received: number, total: number) => void;
+
 export interface DownloadOptions {
   geofabrik: string;
   cacheDir: string;
   force?: boolean;
+  onProgress?: DownloadProgress;
 }
 
 export async function download(opts: DownloadOptions): Promise<string> {
-  const { geofabrik, cacheDir, force = false } = opts;
+  const { geofabrik, cacheDir, force = false, onProgress } = opts;
   fs.mkdirSync(cacheDir, { recursive: true });
 
   const url = buildDownloadUrl(geofabrik);
@@ -66,7 +70,7 @@ export async function download(opts: DownloadOptions): Promise<string> {
   }
 
   process.stdout.write(`Downloading ${url}\n`);
-  await streamDownload(url, dest);
+  await streamDownload(url, dest, 0, onProgress);
 
   await verifyChecksum(geofabrik, dest);
 
@@ -188,7 +192,12 @@ function getEtag(url: string, redirects = 0): Promise<string | null> {
   });
 }
 
-function streamDownload(url: string, dest: string, redirects = 0): Promise<void> {
+function streamDownload(
+  url: string,
+  dest: string,
+  redirects = 0,
+  onProgress?: DownloadProgress
+): Promise<void> {
   if (redirects > 5) return Promise.reject(new Error(`Too many redirects downloading ${url}`));
 
   const partPath = `${dest}.part`;
@@ -222,7 +231,7 @@ function streamDownload(url: string, dest: string, redirects = 0): Promise<void>
             reject(new Error(`Redirect with no Location header from ${url}`));
             return;
           }
-          resolve(streamDownload(location, dest, redirects + 1));
+          resolve(streamDownload(location, dest, redirects + 1, onProgress));
           return;
         }
         if (res.statusCode && res.statusCode >= 400) {
@@ -233,6 +242,7 @@ function streamDownload(url: string, dest: string, redirects = 0): Promise<void>
         let received = 0;
         res.on("data", (chunk: Buffer) => {
           received += chunk.length;
+          onProgress?.(received, total);
           if (total > 0) {
             const pct = Math.round((received / total) * 100);
             process.stdout.write(`\r  ${pct}% (${(received / 1e6).toFixed(1)} MB)`);
