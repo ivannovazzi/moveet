@@ -402,4 +402,17 @@ describe("WebSocketClient handler registration", () => {
     expect(a).not.toHaveBeenCalled();
     expect(b).not.toHaveBeenCalled();
   });
+
+  it("delivers map build progress (`mapjob`) frames to their handlers", () => {
+    const client = createClient();
+    client.connect();
+    const ws = mockInstances[0];
+    const handler = vi.fn();
+    client.on("mapjob", handler);
+
+    const job = { id: "job-1", status: "running", step: "download", progress: 0.5 };
+    ws.onmessage?.({ data: JSON.stringify({ type: "mapjob", data: job }) });
+
+    expect(handler).toHaveBeenCalledWith(job);
+  });
 });

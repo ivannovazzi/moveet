@@ -43,6 +43,11 @@ describe("wsTypes", () => {
       expect(isValidMessage(message)).toBe(false);
     });
 
+    it("should accept map library frames (`map` and `mapjob`)", () => {
+      expect(isValidMessage({ type: "map", data: {} })).toBe(true);
+      expect(isValidMessage({ type: "mapjob", data: { id: "job-1" } })).toBe(true);
+    });
+
     it("should return false for unknown message type", () => {
       const message = { type: "unknown", data: {} };
       expect(isValidMessage(message)).toBe(false);

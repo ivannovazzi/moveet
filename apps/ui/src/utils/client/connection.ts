@@ -9,7 +9,7 @@ import type {
   Heatzone,
 } from "@/types";
 import type { MapStatusPayload, ResetPayload } from "../wsTypes";
-import { isValidVehicleDTO } from "@moveet/shared-types";
+import { isValidVehicleDTO, type MapJob } from "@moveet/shared-types";
 
 /**
  * WebSocket lifecycle + core real-time channels (vehicle/status/options/
@@ -38,6 +38,8 @@ export class ConnectionSegment {
     this.offHeatzones = this.offHeatzones.bind(this);
     this.onMap = this.onMap.bind(this);
     this.offMap = this.offMap.bind(this);
+    this.onMapJob = this.onMapJob.bind(this);
+    this.offMapJob = this.offMapJob.bind(this);
     this.onDirection = this.onDirection.bind(this);
     this.offDirection = this.offDirection.bind(this);
     this.onEta = this.onEta.bind(this);
@@ -133,6 +135,15 @@ export class ConnectionSegment {
 
   offMap(handler?: (payload: MapStatusPayload) => void): void {
     this.deps.ws.off("map", handler);
+  }
+
+  /** Map build job progress: every state change and progress tick of a build. */
+  onMapJob(handler: (job: MapJob) => void): void {
+    this.deps.ws.on("mapjob", handler);
+  }
+
+  offMapJob(handler?: (job: MapJob) => void): void {
+    this.deps.ws.off("mapjob", handler);
   }
 
   onDirection(handler: (direction: Direction) => void): void {

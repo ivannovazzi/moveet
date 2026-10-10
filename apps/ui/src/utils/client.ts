@@ -38,6 +38,8 @@ class SimulationService {
   offHeatzones: ConnectionSegment["offHeatzones"];
   onMap: ConnectionSegment["onMap"];
   offMap: ConnectionSegment["offMap"];
+  onMapJob: ConnectionSegment["onMapJob"];
+  offMapJob: ConnectionSegment["offMapJob"];
   onDirection: ConnectionSegment["onDirection"];
   onEta: ConnectionSegment["onEta"];
   offEta: ConnectionSegment["offEta"];
@@ -217,6 +219,8 @@ class SimulationService {
     this.offHeatzones = connection.offHeatzones;
     this.onMap = connection.onMap;
     this.offMap = connection.offMap;
+    this.onMapJob = connection.onMapJob;
+    this.offMapJob = connection.offMapJob;
     this.onDirection = connection.onDirection;
     this.onEta = connection.onEta;
     this.offEta = connection.offEta;

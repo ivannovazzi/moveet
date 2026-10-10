@@ -121,6 +121,14 @@ describe("ConnectionSegment", () => {
     expect(h.ws.off).toHaveBeenCalledWith("vehicle");
     expect(h.ws.off).toHaveBeenCalledWith("vehicles");
   });
+
+  it("listens for map build progress on the mapjob channel", () => {
+    const fn = vi.fn();
+    seg.onMapJob(fn);
+    seg.offMapJob(fn);
+    expect(h.ws.on).toHaveBeenCalledWith("mapjob", fn);
+    expect(h.ws.off).toHaveBeenCalledWith("mapjob", fn);
+  });
 });
 
 describe("SimulationSegment", () => {

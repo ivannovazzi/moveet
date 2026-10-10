@@ -40,6 +40,7 @@ import { isPOI, isRoad } from "@/utils/typeGuards";
 import POIMarker from "./POI/POI";
 import GeofenceLayer from "./Geofence/GeofenceLayer";
 import GeofenceDrawTool from "./Geofence/GeofenceDrawTool";
+import MapAreaLayer from "./MapArea/MapAreaLayer";
 import { ViewportBboxReporter } from "./ViewportBboxReporter";
 
 // Stable fallback for optional callbacks — inline `() => {}` literals would
@@ -341,6 +342,8 @@ export default function Map({
             confirmRequestId={drawConfirmId}
             undoRequestId={drawUndoId}
           />
+          {/* The Maps panel's new-map area: preview box and drag-to-draw. */}
+          <MapAreaLayer />
           {onBboxChange && <ViewportBboxReporter onBboxChange={onBboxChange} />}
         </DeckGLMap>
       </Suspense>
