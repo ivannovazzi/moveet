@@ -537,7 +537,9 @@ export class GraphBuilder {
         if (type === null) continue;
         const [lon, lat] = feature.geometry.coordinates as [number, number];
         poi.push({
-          id: feature.properties?.id || crypto.randomUUID(),
+          // The OSM node id (`@id`, from the export) keeps POI ids stable
+          // across loads; only features without one get a random id.
+          id: String(feature.properties?.id || feature.properties?.["@id"] || crypto.randomUUID()),
           type,
           name: feature.properties?.name || null,
           coordinates: [lat, lon],
