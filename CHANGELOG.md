@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.2.0](https://github.com/ivannovazzi/moveet/compare/v0.1.2...v0.2.0) (2026-10-11)
+
+
+### ⚠ BREAKING CHANGES
+
+* **simulator:** GEOJSON_PATH and BUILDINGS_DIR are removed. Use MAPS_DIR and the /maps API; an existing data/network.geojson is imported on first start.
+
+### Features
+
+* optional 3D extruded buildings from OSM footprints ([#329](https://github.com/ivannovazzi/moveet/issues/329)) ([5c4ee47](https://github.com/ivannovazzi/moveet/commit/5c4ee4764956b378503ce839fe521d765fbd5e1b))
+* **simulator:** build maps at runtime from Geofabrik with osmium ([#333](https://github.com/ivannovazzi/moveet/issues/333)) ([1443a2a](https://github.com/ivannovazzi/moveet/commit/1443a2a8d72fec789d87a75d3eac00cb138a4d86))
+* **simulator:** more accurate ETAs from OSM road data, turns, learned speeds and weather ([#311](https://github.com/ivannovazzi/moveet/issues/311)) ([bbddf6d](https://github.com/ivannovazzi/moveet/commit/bbddf6d9ea780a0d17daf9ab316ee1209938e229))
+* **simulator:** runtime map library with hot swap ([#331](https://github.com/ivannovazzi/moveet/issues/331)) ([1a94484](https://github.com/ivannovazzi/moveet/commit/1a94484c5512bba3557ea8423bac75326761b6e6))
+* **ui:** draw, type and fine-tune the new map area on the picker ([#337](https://github.com/ivannovazzi/moveet/issues/337)) ([43ff8a9](https://github.com/ivannovazzi/moveet/commit/43ff8a9e77b3ac17cb0692b5c30fe74f1e2c0656))
+* **ui:** flat map ground without the hexagon lattice and bloom ([#339](https://github.com/ivannovazzi/moveet/issues/339)) ([5aa743c](https://github.com/ivannovazzi/moveet/commit/5aa743cd13cb99d80e3e4c1a6c1ed1ba3e2b0de5))
+* **ui:** geo-anchor the map ground so it pans and zooms with the map ([#314](https://github.com/ivannovazzi/moveet/issues/314)) ([2c8d572](https://github.com/ivannovazzi/moveet/commit/2c8d5722e72ee891970f0c3ac9d945c5e006e83c))
+* **ui:** maps panel for the map library and new map builds ([#335](https://github.com/ivannovazzi/moveet/issues/335)) ([4b9098e](https://github.com/ivannovazzi/moveet/commit/4b9098e476dd897e7bd622bfd7f719ffce666523))
+* **ui:** render vehicles as 3D meshes on the deck.gl map ([#312](https://github.com/ivannovazzi/moveet/issues/312)) ([3d4202e](https://github.com/ivannovazzi/moveet/commit/3d4202e79980c3de063a4e70c839c1a81691a805))
+* **ui:** show 3D vehicles only when the camera is pitched and close ([#327](https://github.com/ivannovazzi/moveet/issues/327)) ([a60ecf4](https://github.com/ivannovazzi/moveet/commit/a60ecf4d43dc19859999ca00d060a20e5130888e))
+* **ui:** slanted two-tone M logo as the favicon and README mark ([#340](https://github.com/ivannovazzi/moveet/issues/340)) ([af0d570](https://github.com/ivannovazzi/moveet/commit/af0d570c6e49744f8676913690c4ec5fbc8b27e4))
+
+
+### Bug Fixes
+
+* **deps:** patch advisories failing the security audit ([#328](https://github.com/ivannovazzi/moveet/issues/328)) ([910cc0a](https://github.com/ivannovazzi/moveet/commit/910cc0aee75179b92c9b8defc85dbfd445b81e9a))
+* **network:** link the country pbf by absolute path so local map builds work ([#338](https://github.com/ivannovazzi/moveet/issues/338)) ([d026850](https://github.com/ivannovazzi/moveet/commit/d02685097e02876bb83f29ae20c34a93e510417a))
+* **ui:** credit OpenStreetMap contributors on the map ([#326](https://github.com/ivannovazzi/moveet/issues/326)) ([16f23cb](https://github.com/ivannovazzi/moveet/commit/16f23cbdcab53f3859a183ac0c58346e09ae191c))
+* **ui:** pick the exact map area on a world picker ([#336](https://github.com/ivannovazzi/moveet/issues/336)) ([a2cf058](https://github.com/ivannovazzi/moveet/commit/a2cf058d05267f97087602394dd1922cd4afd008))
+* **ui:** smooth the camera when selecting a vehicle ([#325](https://github.com/ivannovazzi/moveet/issues/325)) ([95de18a](https://github.com/ivannovazzi/moveet/commit/95de18a32232cb48e631f0e1a096f81e06311035))
+
+
+### Performance Improvements
+
+* **simulator:** build the map switch graph off the main thread ([#332](https://github.com/ivannovazzi/moveet/issues/332)) ([c32cab1](https://github.com/ivannovazzi/moveet/commit/c32cab148e2f974645817d088239b211aad75d40))
+* **simulator:** snap control nodes with a grid instead of a full node scan ([#330](https://github.com/ivannovazzi/moveet/issues/330)) ([8a61cd1](https://github.com/ivannovazzi/moveet/commit/8a61cd198bb425496a40d0fd1e6688111d3ea1e4))
+
 ## [0.1.2](https://github.com/ivannovazzi/moveet/compare/v0.1.1...v0.1.2) (2026-09-15)
 
 0.1.1 was tagged but its container images never published, so this release carries every change from 0.1.1 as well as the fix that gets the images out.
