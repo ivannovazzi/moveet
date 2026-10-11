@@ -1,3 +1,5 @@
+<img src="apps/ui/public/moveet.svg" alt="" width="72" height="72">
+
 # Moveet
 
 [![CI](https://github.com/ivannovazzi/moveet/actions/workflows/ci.yml/badge.svg)](https://github.com/ivannovazzi/moveet/actions/workflows/ci.yml)

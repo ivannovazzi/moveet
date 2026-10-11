@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-8 -8 96 96" role="img" aria-label="Moveet">
+  <!-- Slanted M on an 80x80 square: strokes 2 and 4 upright, 1 and 3 parallel at 27.02°,
+       all four 12.88 thick. Middle point on the baseline, crotch at 0.33 of the height. -->
+  <defs>
+    <filter id="moveet-fold" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="1.92"/>
+    </filter>
+  </defs>
+  <polygon points="0,80 40.788,0 53.664,0 53.664,54.746 40.788,80 40.788,28.346 14.453,80" fill="#0b5ec4"/>
+  <polygon points="53.664,26.4 67.124,0 80,0 80,80 67.124,80 67.124,28.346 53.664,54.746" fill="#001f4d" fill-opacity="0.5" filter="url(#moveet-fold)" transform="translate(-1.92 1.44)"/>
+  <polygon points="53.664,26.4 67.124,0 80,0 80,80 67.124,80 67.124,28.346 53.664,54.746" fill="#3ba3ff"/>
+</svg>
