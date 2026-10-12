@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/ivannovazzi/moveet/compare/v0.2.0...v0.2.1) (2026-10-12)
+
+
+### Bug Fixes
+
+* **ci:** build release images natively per arch instead of under QEMU ([#342](https://github.com/ivannovazzi/moveet/issues/342)) ([2c5b8d7](https://github.com/ivannovazzi/moveet/commit/2c5b8d7f46b4953f2c2721ed7cc08770843a099f))
+
 ## [0.2.0](https://github.com/ivannovazzi/moveet/compare/v0.1.2...v0.2.0) (2026-10-11)
 
 
