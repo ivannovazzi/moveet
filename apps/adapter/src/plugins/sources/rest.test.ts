@@ -308,6 +308,171 @@ describe("RestSource getVehicles groupBy", () => {
   });
 });
 
+describe("RestSource getVehicles filter", () => {
+  let source: RestSource;
+
+  const roster = () =>
+    new Response(
+      JSON.stringify({
+        assignments: [
+          { deviceId: "d1", deviceType: "gps", vehicleId: "v1", source: "fixed", slot: 1 },
+          { deviceId: "d2", deviceType: "mobile", vehicleId: "v1", source: "handheld", slot: 2 },
+          { deviceId: "d3", deviceType: "mobile", vehicleId: "v2", source: "handheld", slot: 1 },
+          { deviceId: "d4", deviceType: "tracker", vehicleId: "v3", source: "fixed", slot: 1 },
+          { deviceId: "d5", deviceType: "gps", vehicleId: "v4", source: "fixed", slot: 3 },
+        ],
+      }),
+      { status: 200 }
+    );
+
+  const base = {
+    url: "http://example.com/roster",
+    vehiclePath: "assignments",
+    fieldMap: { id: "deviceId" },
+  };
+
+  beforeEach(() => {
+    source = new RestSource();
+    mockHttpFetch.mockReset();
+  });
+
+  it("keeps only items whose path equals a single value", async () => {
+    mockHttpFetch.mockResolvedValue(roster());
+    await source.connect({ ...base, filter: { source: "fixed" } });
+
+    const vehicles = await source.getVehicles();
+
+    expect(vehicles.map((v) => v.id)).toEqual(["d1", "d4", "d5"]);
+  });
+
+  it("treats an array value as any-of", async () => {
+    mockHttpFetch.mockResolvedValue(roster());
+    await source.connect({ ...base, filter: { deviceType: ["gps", "tracker"] } });
+
+    const vehicles = await source.getVehicles();
+
+    expect(vehicles.map((v) => v.id)).toEqual(["d1", "d4", "d5"]);
+  });
+
+  it("requires every path to match (AND)", async () => {
+    mockHttpFetch.mockResolvedValue(roster());
+    await source.connect({ ...base, filter: { source: "fixed", deviceType: "gps" } });
+
+    const vehicles = await source.getVehicles();
+
+    expect(vehicles.map((v) => v.id)).toEqual(["d1", "d5"]);
+  });
+
+  it("coerces scalars with String() so numbers match their string form", async () => {
+    mockHttpFetch.mockResolvedValue(roster());
+    await source.connect({ ...base, filter: { slot: "1" } });
+    expect((await source.getVehicles()).map((v) => v.id)).toEqual(["d1", "d3", "d4"]);
+
+    mockHttpFetch.mockResolvedValue(roster());
+    await source.connect({ ...base, filter: { slot: [3, "2"] } });
+    expect((await source.getVehicles()).map((v) => v.id)).toEqual(["d2", "d5"]);
+  });
+
+  it("resolves nested dot-paths", async () => {
+    mockHttpFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          vehicles: [
+            { id: "a", meta: { kind: "truck" } },
+            { id: "b", meta: { kind: "van" } },
+            { id: "c" },
+          ],
+        }),
+        { status: 200 }
+      )
+    );
+    await source.connect({ url: "http://example.com/api", filter: { "meta.kind": "truck" } });
+
+    expect((await source.getVehicles()).map((v) => v.id)).toEqual(["a"]);
+  });
+
+  it("never matches an unsafe (prototype-pollution) path", async () => {
+    mockHttpFetch.mockResolvedValue(roster());
+    // "[object Object]" is what String() of an inherited prototype would give.
+    await source.connect({ ...base, filter: { "__proto__.toString": "[object Object]" } });
+    expect(await source.getVehicles()).toEqual([]);
+
+    mockHttpFetch.mockResolvedValue(roster());
+    await source.connect({ ...base, filter: { "constructor.name": "Object" } });
+    expect(await source.getVehicles()).toEqual([]);
+  });
+
+  it("does not match a missing path, even against the string 'undefined'", async () => {
+    mockHttpFetch.mockResolvedValue(roster());
+    await source.connect({ ...base, filter: { missing: "undefined" } });
+
+    expect(await source.getVehicles()).toEqual([]);
+  });
+
+  it("filters before groupBy and before limit", async () => {
+    mockHttpFetch.mockResolvedValue(roster());
+    await source.connect({
+      ...base,
+      groupBy: "vehicleId",
+      metadataMap: { deviceType: "deviceType" },
+      filter: { source: "fixed" },
+      limit: 2,
+    });
+
+    const vehicles = await source.getVehicles();
+
+    // v2 only has a handheld, so it is gone; limit 2 counts filtered groups
+    // (v1, v3), not the unfiltered first two (v1, v2).
+    expect(vehicles.map((v) => v.id)).toEqual(["v1", "v3"]);
+    // The phone dropped out of v1's device list too.
+    expect(vehicles[0].metadata).toEqual({ devices: [{ id: "d1", deviceType: "gps" }] });
+  });
+
+  it("applies limit after the filter in ungrouped mode", async () => {
+    mockHttpFetch.mockResolvedValue(roster());
+    await source.connect({ ...base, filter: { source: "handheld" }, limit: 1 });
+
+    expect((await source.getVehicles()).map((v) => v.id)).toEqual(["d2"]);
+  });
+
+  it("accepts the filter as a JSON string", async () => {
+    mockHttpFetch.mockResolvedValue(roster());
+    await source.connect({ ...base, filter: '{"source":"fixed"}' });
+
+    expect((await source.getVehicles()).map((v) => v.id)).toEqual(["d1", "d4", "d5"]);
+  });
+
+  it.each([
+    ["a number", 7],
+    ["an array", ["fixed"]],
+    ["unparseable JSON", "{source"],
+    ["a nested object value", { source: { eq: "fixed" } }],
+    ["an array holding an object", { source: ["a", { b: 1 }] }],
+    ["a null value", { source: null }],
+  ])("throws in connect when filter is %s", async (_label, filter) => {
+    await expect(source.connect({ ...base, filter })).rejects.toThrow(/filter/);
+  });
+
+  it("is unchanged when filter is unset or empty", async () => {
+    mockHttpFetch.mockResolvedValue(roster());
+    await source.connect({ ...base });
+    expect(await source.getVehicles()).toHaveLength(5);
+
+    mockHttpFetch.mockResolvedValue(roster());
+    await source.connect({ ...base, filter: {} });
+    expect(await source.getVehicles()).toHaveLength(5);
+  });
+
+  it("is reset by disconnect", async () => {
+    await source.connect({ ...base, filter: { source: "fixed" } });
+    await source.disconnect();
+    mockHttpFetch.mockResolvedValue(roster());
+    await source.connect({ ...base });
+
+    expect(await source.getVehicles()).toHaveLength(5);
+  });
+});
+
 describe("RestSource getVehicles limit", () => {
   let source: RestSource;
 
