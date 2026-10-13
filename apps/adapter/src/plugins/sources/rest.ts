@@ -13,6 +13,54 @@ interface FieldMap {
   lng: string;
 }
 
+/** A filter scalar: compared to the item's value after String() coercion. */
+type FilterScalar = string | number | boolean;
+
+/**
+ * Normalised item filter: each dot-path maps to the set of accepted values
+ * (already String()-coerced). An item is kept when EVERY path matches.
+ */
+type ItemFilter = Array<[path: string, accepted: Set<string>]>;
+
+const isFilterScalar = (value: unknown): value is FilterScalar =>
+  typeof value === "string" ||
+  (typeof value === "number" && Number.isFinite(value)) ||
+  typeof value === "boolean";
+
+/**
+ * Validate and normalise the `filter` config: an object mapping a dot-path to
+ * an expected scalar or a non-empty array of accepted scalars. A JSON string is
+ * accepted too, since the shared config validator accepts one for json fields.
+ * Throws a descriptive error for any other shape.
+ */
+function parseFilter(raw: unknown): ItemFilter {
+  if (raw === undefined || raw === null || raw === "") return [];
+  let value = raw;
+  if (typeof value === "string") {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      throw new Error(
+        "REST source filter must be a JSON object (the string is not parseable JSON)"
+      );
+    }
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(
+      'REST source filter must be an object mapping a field path to a value or an array of values, e.g. {"deviceType":"tracker"}'
+    );
+  }
+  return Object.entries(value as Record<string, unknown>).map(([path, expected]) => {
+    const values = Array.isArray(expected) ? expected : [expected];
+    if (values.length === 0 || !values.every(isFilterScalar)) {
+      throw new Error(
+        `REST source filter "${path}" must be a string, number or boolean, or a non-empty array of them`
+      );
+    }
+    return [path, new Set(values.map((v) => String(v)))];
+  });
+}
+
 const DEFAULT_FIELD_MAP: FieldMap = {
   id: "id",
   name: "name",
@@ -53,6 +101,14 @@ export class RestSource implements DataSource {
         "Optional field path. When set, items are grouped by this value and each GROUP becomes one entity (id = the groupBy value); every item in the group is recorded under metadata.devices. Unset = one entity per item.",
     },
     {
+      name: "filter",
+      label: "Filter",
+      type: "json",
+      placeholder: '{"deviceType":"tracker"}',
+      description:
+        'Optional. Keep only items where EVERY field path matches: {"path":value} or {"path":[value, ...]} (array = any of). Values are compared as strings, so 1 matches "1". Applied before groupBy and limit, so limit counts filtered entities. Unset = keep every item.',
+    },
+    {
       name: "limit",
       label: "Limit",
       type: "number",
@@ -74,10 +130,14 @@ export class RestSource implements DataSource {
   // 0 = no limit. Otherwise, sample only the first N entities from the roster.
   // When groupBy is set, the limit applies to the number of groups.
   private limit: number = 0;
+  // Applied to the raw items before groupBy and limit. Empty = keep everything.
+  private filter: ItemFilter = [];
 
   async connect(config: PluginConfig): Promise<void> {
     const url = config.url as string;
     if (!url) throw new Error("REST source requires url");
+    // Validate before mutating any state so a bad filter leaves the source as it was.
+    const filter = parseFilter(config.filter);
     this.url = url;
     this.headers = (config.headers as Record<string, string>) || {};
     this.method = ((config.method as string) || "GET").toUpperCase() as "GET" | "POST";
@@ -93,6 +153,7 @@ export class RestSource implements DataSource {
     // Coerce to a non-negative integer; anything invalid/unset means no limit.
     const rawLimit = Number(config.limit);
     this.limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.floor(rawLimit) : 0;
+    this.filter = filter;
   }
 
   async disconnect(): Promise<void> {
@@ -105,6 +166,7 @@ export class RestSource implements DataSource {
     this.metadataMap = {};
     this.groupBy = null;
     this.limit = 0;
+    this.filter = [];
   }
 
   async getVehicles(): Promise<ExportVehicle[]> {
@@ -124,11 +186,15 @@ export class RestSource implements DataSource {
     const response = await httpFetch(this.url, fetchOptions);
 
     const json = await response.json();
-    const items = getNestedValue(json, this.vehiclePath);
+    const rawItems = getNestedValue(json, this.vehiclePath);
 
-    if (!Array.isArray(items)) {
-      throw new Error(`Expected array at path "${this.vehiclePath}", got ${typeof items}`);
+    if (!Array.isArray(rawItems)) {
+      throw new Error(`Expected array at path "${this.vehiclePath}", got ${typeof rawItems}`);
     }
+
+    // Filter first, so groupBy only sees kept items and limit counts them.
+    const items =
+      this.filter.length > 0 ? rawItems.filter((item) => this.matchesFilter(item)) : rawItems;
 
     if (this.groupBy) {
       return this.groupItems(items, this.groupBy);
@@ -201,6 +267,18 @@ export class RestSource implements DataSource {
 
       vehicle.metadata = { devices };
       return vehicle;
+    });
+  }
+
+  /**
+   * True when every filter path resolves (via the prototype-pollution-guarded
+   * {@link getNestedValue}, so an unsafe path never matches) to a scalar whose
+   * String() form is one of the accepted values.
+   */
+  private matchesFilter(item: unknown): boolean {
+    return this.filter.every(([path, accepted]) => {
+      const value = getNestedValue(item, path);
+      return isFilterScalar(value) && accepted.has(String(value));
     });
   }
 

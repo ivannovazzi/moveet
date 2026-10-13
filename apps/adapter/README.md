@@ -259,6 +259,14 @@ The fix is two generic, composable features:
   the group is recorded under `metadata.devices` as
   `{ id: <deviceId>, ...<metadataMap> }` (e.g. `{ id, deviceType }`). The entity
   `id` is the `groupBy` value; `limit` then caps the number of **groups**.
+- **`filter` on the `rest` source** (optional) keeps only roster items whose
+  fields match, **before** grouping and `limit`. It maps a dot-path to an
+  expected value or an array of accepted values (any-of); an item is kept only
+  when **every** path matches. Values compare as strings, so `1` matches `"1"`.
+  `{"deviceType":"tracker"}` drops handheld devices, so a vehicle whose only
+  device is a handheld is never driven and `limit: 30` means 30 vehicles with a
+  tracker. `{"deviceType":["gps","tracker"]}` keeps either type. Unsafe paths
+  (`__proto__`, `constructor`, `prototype`) never match.
 - **`fanOut` on the `redpanda` sink** takes a dot-path to an array in the
   message context (`metadata.devices`) and emits **one message per element**.
   Every message shares the vehicle's `lat`/`lon`/`speed`/`heading`/`ts`/
@@ -277,8 +285,8 @@ SINK_REDPANDA_CONFIG={"brokers":"suite_redpanda:9092","topic":"telemetry.device.
 Each vehicle is one moving entity; its devices ride along and are emitted at the
 **same** position, keyed by each **real** `deviceId`. The trajectory engine
 resolves every one of those device ids to that single vehicle — with no jumping.
-Both features are fully back-compatible: omit `groupBy` for one entity per item,
-omit `fanOut` for one message per update.
+All three are fully back-compatible: omit `filter` to keep every item, omit
+`groupBy` for one entity per item, omit `fanOut` for one message per update.
 
 ### Chunked publishing
 

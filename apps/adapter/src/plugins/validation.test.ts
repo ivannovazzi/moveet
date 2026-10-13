@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { PluginRegistry } from "./registry";
 import { validatePluginSet } from "./validation";
 import type { ConfigField, DataSink, DataSource } from "./types";
+import { RestSource } from "./sources/rest";
 
 /**
  * Fake plugins with realistic `configSchema`s. Using fakes (rather than the
@@ -221,5 +222,36 @@ describe("validatePluginSet", () => {
       registry
     );
     expect(report.source?.origin).toBe("env+file");
+  });
+});
+
+describe("validatePluginSet with the real rest source schema", () => {
+  const registry = new PluginRegistry();
+  registry.registerSource("rest", () => new RestSource());
+
+  it("accepts a filter object as a known json field (no unknown-key warning)", () => {
+    const report = validatePluginSet(
+      {
+        source: {
+          type: "rest",
+          config: { url: "http://roster", groupBy: "vehicleId", filter: { source: "fixed" } },
+        },
+      },
+      registry
+    );
+
+    expect(report.valid).toBe(true);
+    expect(report.warnings).toEqual([]);
+    expect(report.source?.config.filter).toEqual({ source: "fixed" });
+  });
+
+  it("rejects a filter that is not a JSON object", () => {
+    const report = validatePluginSet(
+      { source: { type: "rest", config: { url: "http://roster", filter: 7 } } },
+      registry
+    );
+
+    expect(report.valid).toBe(false);
+    expect(report.errors).toContain("source(rest).filter: must be a JSON object (got number 7)");
   });
 });
