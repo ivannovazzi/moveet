@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/ivannovazzi/moveet/compare/v0.2.1...v0.2.2) (2026-10-13)
+
+
+### Features
+
+* **adapter:** filter roster items on the rest source ([#344](https://github.com/ivannovazzi/moveet/issues/344)) ([9d4bc74](https://github.com/ivannovazzi/moveet/commit/9d4bc7456d0087d9b8ba24c7a71ef7b15eeddef4))
+
 ## [0.2.1](https://github.com/ivannovazzi/moveet/compare/v0.2.0...v0.2.1) (2026-10-12)
 
 
